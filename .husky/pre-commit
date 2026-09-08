@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+# lint-staged: add file rules in package.json when there is something to run.

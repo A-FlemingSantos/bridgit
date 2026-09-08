@@ -1,0 +1,26 @@
+{
+  "name": "bridgit",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "preview": "npm --workspace apps/web run preview",
+    "test": "npm --workspace apps/web run test",
+    "test:run": "npm --workspace apps/web run test:run"
+  }
+}
