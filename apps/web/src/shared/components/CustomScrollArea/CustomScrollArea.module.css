@@ -1,0 +1,69 @@
+.root {
+  --custom-scroll-thumb-size: 2px;
+  --custom-scroll-thumb-color: #1f1f1f;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .root {
+    --custom-scroll-thumb-color: #f7f7f7;
+  }
+}
+
+.viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.trackHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thumb {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--custom-scroll-thumb-size);
+  min-height: 18px;
+  background: var(--custom-scroll-thumb-color);
+  border-radius: 0;
+  opacity: 1;
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+  transition: width 140ms ease;
+  will-change: transform;
+}
+
+.track:hover .thumb,
+.thumb:hover,
+.thumbDragging {
+  width: 6px;
+}
