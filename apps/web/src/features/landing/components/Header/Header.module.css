@@ -1,0 +1,20 @@
+.bar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  min-height: 72px;
+  padding: 0 clamp(24px, 5vw, 48px);
+  background: var(--hero);
+  pointer-events: none;
+}
+
+.mark {
+  pointer-events: auto;
+  font-size: 15px;
+  font-weight: 560;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+  color: var(--ink);
+}

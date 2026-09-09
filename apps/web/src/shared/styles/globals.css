@@ -1,0 +1,57 @@
+:root {
+  color-scheme: light dark;
+  --paper: #ffffff;
+  --hero: #f7f7f7;
+  --wash: #f7f7f7;
+  --line: #e0e0e0;
+  --mute: #4a4a4a;
+  --ink: #0a0a0a;
+  --type: 'Geist Variable', 'Geist', system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #050505;
+    --hero: #1f1f1f;
+    --wash: #1f1f1f;
+    --line: #2f2f2f;
+    --mute: #ebebeb;
+    --ink: #ffffff;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: var(--paper);
+}
+
+body {
+  margin: 0;
+  font-family: var(--type);
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+}
+
+img {
+  max-width: 100%;
+}

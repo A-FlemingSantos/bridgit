@@ -1,0 +1,78 @@
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100svh;
+  padding: 96px 24px 80px;
+  background: var(--hero);
+}
+
+.copy {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: min(920px, 100%);
+  gap: 20px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(40px, 7vw, 80px);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.lead {
+  margin: 0;
+  max-width: 36ch;
+  font-size: clamp(16px, 2vw, 18px);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--mute);
+  text-wrap: pretty;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.pill:hover {
+  transform: translateY(-1px);
+}
+
+.solid {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.ghost:hover {
+  background: var(--paper);
+}
