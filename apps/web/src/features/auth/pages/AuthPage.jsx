@@ -122,11 +122,16 @@ export default function AuthPage() {
           <motion.button
             type="submit"
             className={styles.submit}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
+            aria-label={register ? 'Criar conta' : 'Entrar'}
+            whileHover={{ x: 3 }}
+            whileTap={{ x: 1 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}
           >
-            {register ? 'Criar' : 'Entrar'}
+            <svg className={styles.arrow} viewBox="0 0 48 48" aria-hidden="true">
+              <line x1="8" y1="24" x2="40" y2="24" />
+              <line x1="26" y1="10" x2="40" y2="24" />
+              <line x1="26" y1="38" x2="40" y2="24" />
+            </svg>
           </motion.button>
         </form>
       </section>

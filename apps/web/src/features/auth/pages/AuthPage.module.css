@@ -104,6 +104,7 @@
 }
 
 .form {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -111,7 +112,6 @@
   min-height: 0;
   width: min(100%, 520px);
   margin-inline: auto;
-  padding-bottom: 72px;
 }
 
 .copy {
@@ -253,18 +253,29 @@
 
 .submit {
   position: absolute;
-  right: clamp(28px, 5vw, 48px);
-  bottom: clamp(28px, 5vw, 48px);
-  width: 76px;
-  height: 76px;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 12px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
+  background: none;
+  color: var(--ink);
   cursor: pointer;
+}
+
+.arrow {
+  width: 36px;
+  height: 36px;
+  overflow: visible;
+}
+
+.arrow line {
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: square;
 }
 
 .submit:focus-visible {

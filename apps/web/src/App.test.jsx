@@ -42,6 +42,6 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Cadastro' })).toBeInTheDocument()
     expect(screen.getByLabelText('Confirmar senha')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-    expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar conta' })).toBeInTheDocument()
   })
 })
