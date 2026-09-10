@@ -3,14 +3,14 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
 import { ROUTES } from '../../../shared/config/routes.js'
-import atSign from '../assets/at-sign.svg'
+import passwordKey from '../assets/password-key.svg'
 import styles from './AuthPage.module.css'
 
 export default function AuthPage() {
   const location = useLocation()
   const register = location.pathname === ROUTES.register
   const year = new Date().getFullYear()
-  const emailId = useId()
+  const usernameId = useId()
   const passwordId = useId()
   const confirmId = useId()
   const rememberId = useId()
@@ -29,7 +29,7 @@ export default function AuthPage() {
           initial={{ opacity: 0, scale: 0.86 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          style={{ '--auth-mark': `url("${atSign}")` }}
+          style={{ '--auth-mark': `url("${passwordKey}")` }}
         />
         <Link to={ROUTES.home} className={styles.brand}>
           Bridgit
@@ -54,12 +54,12 @@ export default function AuthPage() {
             transition={{ delay: 0.12, duration: 0.4 }}
           >
             <div className={styles.field}>
-              <label htmlFor={emailId}>E-mail</label>
+              <label htmlFor={usernameId}>Usuário</label>
               <input
-                id={emailId}
-                name="email"
-                type="email"
-                autoComplete="email"
+                id={usernameId}
+                name="username"
+                type="text"
+                autoComplete="username"
                 required
               />
             </div>
