@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
 import { ROUTES } from '../../../shared/config/routes.js'
-import passwordKey from '../assets/password-key.svg'
+import atSign from '../assets/at-sign.svg'
 import styles from './AuthPage.module.css'
 
 export default function AuthPage() {
@@ -29,7 +29,7 @@ export default function AuthPage() {
           initial={{ opacity: 0, scale: 0.86 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          style={{ '--auth-mark': `url("${passwordKey}")` }}
+          style={{ '--auth-mark': `url("${atSign}")` }}
         />
         <Link to={ROUTES.home} className={styles.brand}>
           Bridgit
