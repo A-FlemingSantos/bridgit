@@ -15,7 +15,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: /Toda a nuvem,\s*num só lugar/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entrar' })).toHaveAttribute('href', '/login')
-    expect(screen.getAllByRole('link', { name: 'Criar conta' })[0]).toHaveAttribute('href', '/cadastro')
+    expect(screen.getAllByRole('link', { name: 'Criar conta' })[0]).toHaveAttribute('href', '/register')
   })
 
   it('mostra o login em duas colunas', () => {
@@ -28,18 +28,18 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     expect(screen.getByLabelText('Usuário')).toBeInTheDocument()
     expect(screen.getByLabelText('Senha')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Criar conta' })).toHaveAttribute('href', '/cadastro')
+    expect(screen.getByRole('link', { name: 'Criar conta' })).toHaveAttribute('href', '/register')
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
   })
 
   it('mostra a visualização de arquivos autenticada', () => {
     render(
-      <MemoryRouter {...router} initialEntries={['/arquivos']}>
+      <MemoryRouter {...router} initialEntries={['/files']}>
         <App />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'Bridgit' })).toHaveAttribute('href', '/arquivos')
+    expect(screen.getByRole('link', { name: 'Bridgit' })).toHaveAttribute('href', '/files')
     expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Pastas' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Arquivos' })).toBeInTheDocument()
@@ -49,7 +49,7 @@ describe('App', () => {
 
   it('mostra o cadastro na mesma tela', () => {
     render(
-      <MemoryRouter {...router} initialEntries={['/cadastro']}>
+      <MemoryRouter {...router} initialEntries={['/register']}>
         <App />
       </MemoryRouter>,
     )
