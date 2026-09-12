@@ -32,6 +32,21 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
   })
 
+  it('mostra a visualização de arquivos autenticada', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/arquivos']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Bridgit' })).toHaveAttribute('href', '/arquivos')
+    expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pastas' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Arquivos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Inovações técnicas/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Relatório 2023/ })).toBeInTheDocument()
+  })
+
   it('mostra o cadastro na mesma tela', () => {
     render(
       <MemoryRouter {...router} initialEntries={['/cadastro']}>

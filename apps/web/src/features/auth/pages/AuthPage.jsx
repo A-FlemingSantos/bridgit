@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
 import { ROUTES } from '../../../shared/config/routes.js'
@@ -15,9 +15,11 @@ export default function AuthPage() {
   const confirmId = useId()
   const rememberId = useId()
   const [showPassword, setShowPassword] = useState(false)
+  const navigate = useNavigate()
 
   function handleSubmit(event) {
     event.preventDefault()
+    navigate(ROUTES.files)
   }
 
   return (
