@@ -97,3 +97,13 @@
   color: var(--mute);
   letter-spacing: -0.01em;
 }
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spaceName {
+    font-size: 14px;
+  }
+}
