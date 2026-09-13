@@ -7,10 +7,9 @@ import styles from './AppHeader.module.css'
 /**
  * @typedef {Object} AppHeaderProps
  * @property {string} [userName]
- * @property {string} [userRole]
  */
 
-export default function AppHeader({ userName = 'Arthur Fleming', userRole = 'Admin' }) {
+export default function AppHeader({ userName = 'arthur' }) {
   const searchId = useId()
   const initials = userName
     .split(' ')
@@ -31,15 +30,12 @@ export default function AppHeader({ userName = 'Arthur Fleming', userRole = 'Adm
         <input id={searchId} type="search" placeholder="Buscar" autoComplete="off" aria-label="Buscar" />
       </label>
 
-      <div className={styles.user}>
+      <Link to={ROUTES.settings} className={styles.user} aria-label="Configurações">
         <span className={styles.avatar} aria-hidden="true">
           {initials}
         </span>
-        <span className={styles.meta}>
-          <span className={styles.name}>{userName}</span>
-          <span className={styles.role}>{userRole}</span>
-        </span>
-      </div>
+        <span className={styles.meta}>{userName}</span>
+      </Link>
     </header>
   )
 }

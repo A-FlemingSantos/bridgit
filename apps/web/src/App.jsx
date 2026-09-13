@@ -2,6 +2,12 @@ import { Route, Routes } from 'react-router-dom'
 import AuthPage from './features/auth/pages/AuthPage.jsx'
 import SpaceBrowsePage from './features/spaces/pages/SpaceBrowsePage.jsx'
 import SpaceFilePage from './features/spaces/pages/SpaceFilePage.jsx'
+import SettingsPage from './features/settings/pages/SettingsPage.jsx'
+import AccountTab from './features/settings/pages/AccountTab.jsx'
+import ProvidersTab from './features/settings/pages/ProvidersTab.jsx'
+import SecurityTab from './features/settings/pages/SecurityTab.jsx'
+import SyncTab from './features/settings/pages/SyncTab.jsx'
+import AboutTab from './features/settings/pages/AboutTab.jsx'
 import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
@@ -13,6 +19,13 @@ export default function App() {
       <Route path={ROUTES.home} element={<LandingPage />} />
       <Route path={ROUTES.login} element={<AuthPage />} />
       <Route path={ROUTES.register} element={<AuthPage />} />
+      <Route path={ROUTES.settings} element={<SettingsPage />}>
+        <Route index element={<AccountTab />} />
+        <Route path="providers" element={<ProvidersTab />} />
+        <Route path="sync" element={<SyncTab />} />
+        <Route path="security" element={<SecurityTab />} />
+        <Route path="about" element={<AboutTab />} />
+      </Route>
       <Route path={ROUTES.spaces} element={<SpacesPage />} />
       <Route path={ROUTES.spaceFolder} element={<SpaceBrowsePage />} />
       <Route path={ROUTES.spaceFile} element={<SpaceFilePage />} />

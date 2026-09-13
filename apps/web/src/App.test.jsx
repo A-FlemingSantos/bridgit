@@ -66,6 +66,71 @@ describe('App', () => {
     )
   })
 
+  it('mostra a aba de conta nas configurações', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Conta' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('link', { name: 'Provedores' })).toHaveAttribute('href', '/settings/providers')
+    expect(screen.getByRole('link', { name: 'Sincronização' })).toHaveAttribute('href', '/settings/sync')
+    expect(screen.getByRole('link', { name: 'Segurança' })).toHaveAttribute('href', '/settings/security')
+    expect(screen.getByRole('link', { name: 'Sobre' })).toHaveAttribute('href', '/settings/about')
+    expect(screen.getByLabelText('Usuário')).toHaveValue('arthur')
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Senha atual')).not.toBeInTheDocument()
+    expect(screen.queryByText('OneDrive')).not.toBeInTheDocument()
+  })
+
+  it('mostra os provedores na aba correspondente', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/providers']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(screen.getByText('arthur@outlook.com')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Desconectar' })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Conectar' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Usuário')).not.toBeInTheDocument()
+  })
+
+  it('mostra os interruptores de sincronização', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/sync']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Sincronização' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Espelhar itens marcados' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+    expect(screen.getByRole('switch', { name: 'Avisar se a sincronização falhar' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+  })
+
+  it('mostra senha e sessão na aba de segurança', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/security']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByLabelText('Senha atual')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Salvar senha' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Encerrar outras sessões' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Excluir conta' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Manter este dispositivo' })).toBeInTheDocument()
+  })
+
   it('mostra o cadastro na mesma tela', () => {
     render(
       <MemoryRouter {...router} initialEntries={['/register']}>
