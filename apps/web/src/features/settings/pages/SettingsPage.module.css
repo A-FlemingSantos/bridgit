@@ -1,20 +1,92 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--paper) 16%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: default;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .backdrop {
+    background: color-mix(in srgb, #000 22%, transparent);
+  }
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  height: min(640px, calc(100dvh - 48px));
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
+    0 28px 80px color-mix(in srgb, #000 22%, transparent);
+  outline: none;
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 14px 18px 0 22px;
+}
+
+.chrome h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mute);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .main {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 22px clamp(20px, 4vw, 40px) 56px;
-}
-
-.back {
-  width: fit-content;
-  font-size: 12px;
-  color: var(--mute);
-  letter-spacing: -0.01em;
-  text-decoration: none;
-}
-
-.back:hover {
-  color: var(--ink);
+  padding: 12px 22px 40px;
 }
 
 .split {

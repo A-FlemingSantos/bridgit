@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import App from './App.jsx'
@@ -73,16 +74,18 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
+    const dialog = screen.getByRole('dialog', { name: 'Configurações' })
     expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Conta' })).toHaveAttribute('href', '/settings')
-    expect(screen.getByRole('link', { name: 'Provedores' })).toHaveAttribute('href', '/settings/providers')
-    expect(screen.getByRole('link', { name: 'Sincronização' })).toHaveAttribute('href', '/settings/sync')
-    expect(screen.getByRole('link', { name: 'Segurança' })).toHaveAttribute('href', '/settings/security')
-    expect(screen.getByRole('link', { name: 'Sobre' })).toHaveAttribute('href', '/settings/about')
-    expect(screen.getByLabelText('Usuário')).toHaveValue('arthur')
-    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Senha atual')).not.toBeInTheDocument()
-    expect(screen.queryByText('OneDrive')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'Conta' })).toHaveAttribute('href', '/settings')
+    expect(within(dialog).getByRole('link', { name: 'Provedores' })).toHaveAttribute('href', '/settings/providers')
+    expect(within(dialog).getByRole('link', { name: 'Sincronização' })).toHaveAttribute('href', '/settings/sync')
+    expect(within(dialog).getByRole('link', { name: 'Segurança' })).toHaveAttribute('href', '/settings/security')
+    expect(within(dialog).getByRole('link', { name: 'Sobre' })).toHaveAttribute('href', '/settings/about')
+    expect(within(dialog).getByLabelText('Usuário')).toHaveValue('arthur')
+    expect(within(dialog).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+    expect(within(dialog).queryByLabelText('Senha atual')).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('OneDrive')).not.toBeInTheDocument()
   })
 
   it('mostra os provedores na aba correspondente', () => {
@@ -92,11 +95,12 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(screen.getByText('arthur@outlook.com')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Desconectar' })).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Conectar' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Usuário')).not.toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Configurações' })
+    expect(within(dialog).getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(within(dialog).getByText('arthur@outlook.com')).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('button', { name: 'Desconectar' })).toHaveLength(2)
+    expect(within(dialog).getByRole('button', { name: 'Conectar' })).toBeInTheDocument()
+    expect(within(dialog).queryByLabelText('Usuário')).not.toBeInTheDocument()
   })
 
   it('mostra os interruptores de sincronização', () => {
@@ -129,6 +133,27 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Encerrar outras sessões' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Excluir conta' })).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Manter este dispositivo' })).toBeInTheDocument()
+  })
+
+  it('abre configurações sobre a página anterior e fecha no painel', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/spaces']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('link', { name: 'Configurações' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Configurações' })
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
+
+    await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
+    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
   })
 
   it('mostra o cadastro na mesma tela', () => {
