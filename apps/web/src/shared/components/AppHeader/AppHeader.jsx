@@ -22,7 +22,7 @@ export default function AppHeader({ userName = 'Arthur Fleming', userRole = 'Adm
 
   return (
     <header className={styles.bar}>
-      <Link to={ROUTES.files} className={styles.mark}>
+      <Link to={ROUTES.spaces} className={styles.mark}>
         Bridgit
       </Link>
 

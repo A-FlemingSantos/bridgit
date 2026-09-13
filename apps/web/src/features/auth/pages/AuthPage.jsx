@@ -19,7 +19,7 @@ export default function AuthPage() {
 
   function handleSubmit(event) {
     event.preventDefault()
-    navigate(ROUTES.files)
+    navigate(ROUTES.spaces)
   }
 
   return (

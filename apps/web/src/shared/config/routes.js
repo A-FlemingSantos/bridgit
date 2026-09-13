@@ -2,7 +2,27 @@ export const ROUTES = {
   home: '/',
   login: '/login',
   register: '/register',
-  files: '/files',
+  spaces: '/spaces',
+  space: '/spaces/:space',
+  spaceFolder: '/spaces/:space/folder/:folderRef',
+  spaceFile: '/spaces/:space/file/:fileRef',
+  provider: '/providers/:provider',
   privacy: '/privacy',
   terms: '/terms',
+}
+
+export function spaceUrl(space) {
+  return `/spaces/${space}`
+}
+
+export function spaceFolderUrl(space, folderRef) {
+  return `/spaces/${space}/folder/${folderRef}`
+}
+
+export function spaceFileUrl(space, fileRef) {
+  return `/spaces/${space}/file/${fileRef}`
+}
+
+export function providerUrl(provider) {
+  return `/providers/${provider}`
 }
