@@ -54,6 +54,8 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Trabalho' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
       'href',
       '/spaces/trabalho/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
