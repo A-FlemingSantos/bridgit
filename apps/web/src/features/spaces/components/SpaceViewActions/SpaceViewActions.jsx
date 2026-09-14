@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, FilePen, FolderPlus, PenLine, Plus, Stamp, Upload } from 'lucide-react'
 import { AppShellSubheaderShownContext } from '../../../../shared/components/AppShell/AppShell.jsx'
 import styles from './SpaceViewActions.module.css'
@@ -11,27 +11,76 @@ const extras = [
   { id: 'sign', label: 'Assinar', icon: PenLine },
 ]
 
+const STAGGER_START_MS = 48
+const STAGGER_STEP_MS = 36
+const ITEM_MOTION_MS = 220
+const STAGGER_CLOSE_MS =
+  STAGGER_START_MS + STAGGER_STEP_MS * (extras.length - 1) + ITEM_MOTION_MS
+
+function extrasPanelClassName(open, closing) {
+  if (open) return `${styles.extras} ${styles.extrasOpen}`
+  if (closing) return `${styles.extras} ${styles.extrasClosing}`
+  return styles.extras
+}
+
 export default function SpaceViewActions() {
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   const extrasId = useId()
   const dockRef = useRef(null)
+  const closeTimeoutRef = useRef(null)
   const subheaderShown = useContext(AppShellSubheaderShownContext)
 
+  const clearCloseTimeout = useCallback(() => {
+    if (closeTimeoutRef.current === null) return
+    window.clearTimeout(closeTimeoutRef.current)
+    closeTimeoutRef.current = null
+  }, [])
+
+  const finishClose = useCallback(() => {
+    clearCloseTimeout()
+    setClosing(false)
+  }, [clearCloseTimeout])
+
+  const closeMenu = useCallback(() => {
+    clearCloseTimeout()
+    setOpen(false)
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) {
+      setClosing(false)
+      return
+    }
+
+    setClosing(true)
+    closeTimeoutRef.current = window.setTimeout(finishClose, STAGGER_CLOSE_MS)
+  }, [clearCloseTimeout, finishClose])
+
+  const openMenu = useCallback(() => {
+    clearCloseTimeout()
+    setClosing(false)
+    setOpen(true)
+  }, [clearCloseTimeout])
+
+  const menuVisible = open || closing
+
   useEffect(() => {
-    if (!subheaderShown) setOpen(false)
-  }, [subheaderShown])
+    if (!subheaderShown) closeMenu()
+  }, [subheaderShown, closeMenu])
 
   useEffect(() => {
     if (!open) return undefined
 
     function handlePointerDown(event) {
       if (dockRef.current?.contains(event.target)) return
-      setOpen(false)
+      closeMenu()
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
     return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [open])
+  }, [open, closeMenu])
+
+  useEffect(() => () => clearCloseTimeout(), [clearCloseTimeout])
 
   return (
     <div className={styles.dock} ref={dockRef}>
@@ -46,7 +95,7 @@ export default function SpaceViewActions() {
           aria-label={open ? 'Recolher ações' : 'Mais ações'}
           aria-expanded={open}
           aria-controls={extrasId}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => (open ? closeMenu() : openMenu())}
         >
           <ChevronDown
             size={16}
@@ -58,9 +107,9 @@ export default function SpaceViewActions() {
       </div>
 
       <div
-        className={open ? styles.extrasOpen : styles.extras}
+        className={extrasPanelClassName(open, closing)}
         id={extrasId}
-        aria-hidden={!open}
+        aria-hidden={!menuVisible}
       >
         <div className={styles.extrasInner}>
           {extras.map((action) => {
