@@ -1,6 +1,5 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FilePen, FolderPlus, PenLine, Plus, Stamp, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import {
   ROUTES,
@@ -9,6 +8,7 @@ import {
   spaceUrl,
 } from '../../../shared/config/routes.js'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
+import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import folderMark from '../assets/folder.svg'
 import {
@@ -22,15 +22,6 @@ import {
   getSpaceContents,
 } from '../data/mock.js'
 import styles from './SpaceBrowsePage.module.css'
-
-const actions = [
-  { id: 'create', label: 'Criar', icon: Plus, primary: true },
-  { id: 'upload', label: 'Enviar', icon: Upload },
-  { id: 'folder', label: 'Nova pasta', icon: FolderPlus },
-  { id: 'edit', label: 'Editar PDF', icon: FilePen },
-  { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp },
-  { id: 'sign', label: 'Assinar', icon: PenLine },
-]
 
 const rise = {
   hidden: { opacity: 0, y: 10 },
@@ -76,31 +67,16 @@ export default function SpaceBrowsePage() {
   return (
     <AppShell
       refreshKey={`${spaceSlug ?? providerId ?? ''}-${folderRef ?? 'root'}`}
-      subheader={<SpaceViewHeader backTo={backTo} backLabel={backLabel} title={title} />}
+      subheader={
+        <SpaceViewHeader
+          backTo={backTo}
+          backLabel={backLabel}
+          title={title}
+          trailing={<SpaceViewActions />}
+        />
+      }
     >
       <main className={styles.main}>
-        <motion.div
-          className={styles.actions}
-          variants={rise}
-          initial="hidden"
-          animate="show"
-          custom={0.04}
-        >
-          {actions.map((action) => {
-            const Icon = action.icon
-            return (
-              <button
-                key={action.id}
-                type="button"
-                className={action.primary ? styles.actionPrimary : styles.action}
-              >
-                <Icon size={15} strokeWidth={1.6} aria-hidden="true" />
-                {action.label}
-              </button>
-            )
-          })}
-        </motion.div>
-
         {contents.folders.length > 0 ? (
           <section className={styles.section}>
             <h2>Pastas</h2>

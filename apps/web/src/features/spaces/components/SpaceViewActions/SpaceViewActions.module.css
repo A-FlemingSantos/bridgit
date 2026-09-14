@@ -1,0 +1,125 @@
+.dock {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: 168px;
+  min-width: 168px;
+}
+
+.head {
+  display: flex;
+  height: calc(clamp(28px, 4vw, 40px) * 1.15);
+}
+
+.primary,
+.toggle,
+.item {
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+
+.primary,
+.item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.primary {
+  flex: 1 1 auto;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  flex: 0 0 36px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: inset 1px 0 0 var(--paper);
+}
+
+.primary:hover,
+.toggle:hover {
+  opacity: 0.92;
+}
+
+.item {
+  width: 100%;
+  height: calc(clamp(28px, 4vw, 40px) * 1.15);
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+}
+
+.primary:focus-visible,
+.toggle:focus-visible,
+.item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.chevron {
+  display: block;
+  transform: rotate(0deg);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chevronOpen {
+  display: block;
+  transform: rotate(180deg);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.extras,
+.extrasOpen {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 0fr;
+  pointer-events: none;
+  transition: grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.extrasOpen {
+  grid-template-rows: 1fr;
+  pointer-events: auto;
+}
+
+.extrasInner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.extrasOpen .extrasInner {
+  padding-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronOpen,
+  .extras,
+  .extrasOpen {
+    transition: none;
+  }
+}

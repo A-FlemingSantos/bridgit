@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import AppHeader from '../../../shared/components/AppHeader/AppHeader.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
 import styles from './AppShell.module.css'
@@ -6,6 +6,8 @@ import styles from './AppShell.module.css'
 const TOP_REVEAL_PX = 12
 const DIRECTION_DELTA_PX = 4
 const HOVER_ZONE_EXTRA_PX = 12
+
+export const AppShellSubheaderShownContext = createContext(true)
 
 export default function AppShell({ children, refreshKey, subheader = null }) {
   const viewportRef = useRef(null)
@@ -91,7 +93,8 @@ export default function AppShell({ children, refreshKey, subheader = null }) {
     function handlePointerMove(event) {
       const zone = Math.max(spacerHeightRef.current, 48) + HOVER_ZONE_EXTRA_PX
       const y = event.clientY - body.getBoundingClientRect().top
-      setHoverRevealIfChanged(y >= 0 && y <= zone)
+      const overSubheader = Boolean(subheaderRef.current?.contains(event.target))
+      setHoverRevealIfChanged(overSubheader || (y >= 0 && y <= zone))
     }
 
     function handlePointerLeave() {
@@ -109,7 +112,8 @@ export default function AppShell({ children, refreshKey, subheader = null }) {
   }, [hasSubheader, refreshKey])
 
   return (
-    <div className={styles.page}>
+    <AppShellSubheaderShownContext.Provider value={shown}>
+      <div className={styles.page}>
       <AppHeader />
       <div className={styles.body} ref={bodyRef}>
         {subheader ? (
@@ -133,5 +137,6 @@ export default function AppShell({ children, refreshKey, subheader = null }) {
         </CustomScrollArea>
       </div>
     </div>
+    </AppShellSubheaderShownContext.Provider>
   )
 }
