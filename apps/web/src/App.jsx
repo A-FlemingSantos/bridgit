@@ -29,6 +29,8 @@ export default function App() {
         <Route path={ROUTES.spaceFolder} element={<SpaceBrowsePage />} />
         <Route path={ROUTES.spaceFile} element={<SpaceFilePage />} />
         <Route path={ROUTES.space} element={<SpaceBrowsePage />} />
+        <Route path={ROUTES.providerFolder} element={<SpaceBrowsePage />} />
+        <Route path={ROUTES.providerFile} element={<SpaceFilePage />} />
         <Route path={ROUTES.provider} element={<SpaceBrowsePage />} />
         <Route path={ROUTES.privacy} element={<PlaceholderScreen title="Privacidade" />} />
         <Route path={ROUTES.terms} element={<PlaceholderScreen title="Termos" />} />

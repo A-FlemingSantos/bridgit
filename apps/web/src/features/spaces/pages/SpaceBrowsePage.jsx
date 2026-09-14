@@ -3,6 +3,9 @@ import { motion } from 'framer-motion'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import {
   ROUTES,
+  providerFileUrl,
+  providerFolderUrl,
+  providerUrl,
   spaceFileUrl,
   spaceFolderUrl,
   spaceUrl,
@@ -12,8 +15,6 @@ import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.js
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import folderMark from '../assets/folder.svg'
 import {
-  findSpaceForFile,
-  findSpaceForFolder,
   getFolder,
   getFolderContents,
   getProvider,
@@ -47,7 +48,7 @@ export default function SpaceBrowsePage() {
   }
 
   if (folderRef && !folder) {
-    return <Navigate to={spaceSlug ? spaceUrl(spaceSlug) : ROUTES.spaces} replace />
+    return <Navigate to={providerId ? providerUrl(providerId) : spaceSlug ? spaceUrl(spaceSlug) : ROUTES.spaces} replace />
   }
 
   const contents = (folderRef
@@ -55,6 +56,16 @@ export default function SpaceBrowsePage() {
     : provider
       ? getProviderContents(provider.id)
       : getSpaceContents(space.slug)) ?? { folders: [], files: [] }
+
+  function folderHref(item) {
+    if (providerId) return providerFolderUrl(providerId, item.folderRef)
+    return spaceFolderUrl(spaceSlug, item.folderRef)
+  }
+
+  function fileHref(item) {
+    if (providerId) return providerFileUrl(providerId, item.fileRef)
+    return spaceFileUrl(spaceSlug, item.fileRef)
+  }
 
   return (
     <AppShell
@@ -77,7 +88,7 @@ export default function SpaceBrowsePage() {
                   custom={0.06 + index * 0.04}
                 >
                   <Link
-                    to={spaceFolderUrl(spaceSlug ?? findSpaceForFolder(item.folderRef), item.folderRef)}
+                    to={folderHref(item)}
                     className={styles.item}
                   >
                     <span className={styles.face} aria-hidden="true">
@@ -110,7 +121,7 @@ export default function SpaceBrowsePage() {
                   custom={0.14 + index * 0.03}
                 >
                   <Link
-                    to={spaceFileUrl(spaceSlug ?? findSpaceForFile(item.fileRef), item.fileRef)}
+                    to={fileHref(item)}
                     className={styles.item}
                   >
                     <span className={styles.face} aria-hidden="true">

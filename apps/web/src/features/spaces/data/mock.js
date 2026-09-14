@@ -49,41 +49,56 @@ const files = {
     title: 'Relatório 2023',
     kind: 'PDF',
     provider: 'OneDrive',
+    providerId: 'onedrive',
+    folderRef: '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
   },
   '7b2f0c18-4e9a-4d66-a813-0f5c1b9e3d24': {
     title: 'Revisão anual',
     kind: 'PDF',
     provider: 'Google Drive',
+    providerId: 'google-drive',
+    folderRef: 'b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9',
   },
   '3e6a91d4-0c28-4f77-b902-1a8d5e4c7b16': {
     title: 'Tendências',
     kind: 'PDF',
     provider: 'Dropbox',
+    providerId: 'dropbox',
+    folderRef: '0f3c8a91-7b26-4d55-ae10-8c4f9d2a76e1',
   },
   'c4d8b207-5a1e-49f3-8e6c-9b0d2f7a13e8': {
     title: 'Análise de desempenho',
     kind: 'PDF',
     provider: 'OneDrive',
+    providerId: 'onedrive',
+    folderRef: '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
   },
   '18f0a6c3-9d47-4b2e-a5c1-7e3d8b90f412': {
     title: 'Estudo abrangente',
     kind: 'PDF',
     provider: 'Google Drive',
+    providerId: 'google-drive',
   },
   'e9b3c714-2f80-4a16-9d5e-0c4a8f1b6d37': {
     title: 'Efetividade',
     kind: 'PDF',
     provider: 'Dropbox',
+    providerId: 'dropbox',
+    folderRef: '0f3c8a91-7b26-4d55-ae10-8c4f9d2a76e1',
   },
   '5d1e8a90-6c23-4f4b-b7e2-3a9c0d18f564': {
     title: 'Visão geral',
     kind: 'PDF',
     provider: 'OneDrive',
+    providerId: 'onedrive',
+    folderRef: 'd92e4b70-1a8c-4f09-b3d6-5e7c0a18f2d3',
   },
   '91a2f0e8-3b57-4c19-8d64-2e7f1a0c9b45': {
     title: 'Estratégias',
     kind: 'PDF',
     provider: 'Google Drive',
+    providerId: 'google-drive',
+    folderRef: 'b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9',
   },
 }
 
@@ -216,10 +231,10 @@ export function findSpaceForFile(fileRef) {
   )
 }
 
-export function findFolderForFile(fileRef) {
-  return (
-    Object.keys(folderContents).find((folderRef) =>
-      folderContents[folderRef].fileRefs.includes(fileRef),
-    ) ?? null
-  )
+export function spaceHasFolder(slug, folderRef) {
+  return Boolean(spaceContents[slug]?.folderRefs.includes(folderRef))
+}
+
+export function providerHasFolder(providerId, folderRef) {
+  return Boolean(providerContents[providerId]?.folderRefs.includes(folderRef))
 }

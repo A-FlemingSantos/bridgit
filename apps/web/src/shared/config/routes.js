@@ -12,6 +12,8 @@ export const ROUTES = {
   spaceFolder: '/spaces/:space/folder/:folderRef',
   spaceFile: '/spaces/:space/file/:fileRef',
   provider: '/providers/:provider',
+  providerFolder: '/providers/:provider/folder/:folderRef',
+  providerFile: '/providers/:provider/file/:fileRef',
   privacy: '/privacy',
   terms: '/terms',
 }
@@ -30,4 +32,12 @@ export function spaceFileUrl(space, fileRef) {
 
 export function providerUrl(provider) {
   return `/providers/${provider}`
+}
+
+export function providerFolderUrl(provider, folderRef) {
+  return `/providers/${provider}/folder/${folderRef}`
+}
+
+export function providerFileUrl(provider, fileRef) {
+  return `/providers/${provider}/file/${fileRef}`
 }
