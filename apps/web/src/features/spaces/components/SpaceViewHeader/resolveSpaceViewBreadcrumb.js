@@ -8,8 +8,8 @@ import {
 } from '../../data/mock.js'
 import { ROUTES, spaceFolderUrl, spaceUrl } from '../../../../shared/config/routes.js'
 
-function item(label, { to = null, current = false } = {}) {
-  return { label, to, current }
+function item(label, extras = {}) {
+  return { label, to: null, current: false, ...extras }
 }
 
 export function resolveSpaceViewBreadcrumb(pathname) {
@@ -62,7 +62,10 @@ export function resolveSpaceViewBreadcrumb(pathname) {
     return {
       items: [
         item('Spaces', { to: ROUTES.spaces }),
-        item(resolved?.name ?? 'Provedor', { current: true }),
+        item(resolved?.name ?? 'Provedor', {
+          current: true,
+          providerId: resolved?.id ?? provider.params.provider,
+        }),
       ],
     }
   }

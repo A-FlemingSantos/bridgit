@@ -3,6 +3,7 @@ import {
   isSettingsPath,
   resolveSettingsBackground,
 } from '../../../../shared/utils/settingsOverlay.js'
+import ProviderMark from '../ProviderMark.jsx'
 import { resolveSpaceViewBreadcrumb } from './resolveSpaceViewBreadcrumb.js'
 import styles from './SpaceViewHeader.module.css'
 
@@ -30,7 +31,12 @@ export default function SpaceViewHeader({ trailing = null }) {
         </nav>
       ) : null}
       <div className={styles.titleRow}>
-        <h1>{current?.label}</h1>
+        <h1>
+          {current?.label}
+          {current?.providerId ? (
+            <ProviderMark id={current.providerId} size={36} />
+          ) : null}
+        </h1>
         {trailing}
       </div>
     </header>
