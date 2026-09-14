@@ -56,24 +56,11 @@ export default function SpaceBrowsePage() {
       ? getProviderContents(provider.id)
       : getSpaceContents(space.slug)) ?? { folders: [], files: [] }
 
-  const title = folder?.name ?? space?.name ?? provider?.name
-  const backTo = folderRef
-    ? spaceSlug
-      ? spaceUrl(spaceSlug)
-      : ROUTES.spaces
-    : ROUTES.spaces
-  const backLabel = folderRef ? (space?.name ?? 'Space') : 'Spaces'
-
   return (
     <AppShell
       refreshKey={`${spaceSlug ?? providerId ?? ''}-${folderRef ?? 'root'}`}
       subheader={
-        <SpaceViewHeader
-          backTo={backTo}
-          backLabel={backLabel}
-          title={title}
-          trailing={<SpaceViewActions />}
-        />
+        <SpaceViewHeader trailing={<SpaceViewActions />} />
       }
     >
       <main className={styles.main}>

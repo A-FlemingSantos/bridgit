@@ -19,13 +19,7 @@ export default function SpaceFilePage() {
   return (
     <AppShell
       refreshKey={fileRef}
-      subheader={
-        <SpaceViewHeader
-          backTo={spaceUrl(space.slug)}
-          backLabel={space.name}
-          title={file.title}
-        />
-      }
+      subheader={<SpaceViewHeader />}
     >
       <main className={styles.main}>
         <motion.div

@@ -6,24 +6,50 @@
   padding: 22px clamp(20px, 4vw, 40px) 12px;
 }
 
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.crumbSegment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crumb {
+  overflow: hidden;
+  color: var(--mute);
+  text-decoration: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.crumb:hover {
+  color: var(--ink);
+}
+
+.crumb:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.separator {
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
 .titleRow {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   min-width: 0;
-}
-
-.back {
-  font-size: 12px;
-  color: var(--mute);
-  letter-spacing: -0.01em;
-  text-decoration: none;
-  width: fit-content;
-}
-
-.back:hover {
-  color: var(--ink);
 }
 
 .band h1 {

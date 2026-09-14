@@ -6,29 +6,12 @@ import {
   resolveSettingsBackground,
   settingsNavState,
 } from '../../utils/settingsOverlay.js'
-import { resolveAppHeaderBreadcrumb } from './resolveAppHeaderBreadcrumb.js'
 import styles from './AppHeader.module.css'
 
 function isSpacesNavActive(pathname) {
   return pathname === ROUTES.spaces
     || pathname.startsWith(`${ROUTES.spaces}/`)
     || pathname.startsWith('/providers/')
-}
-
-function BreadcrumbItem({ item }) {
-  if (item.current || !item.to) {
-    return (
-      <span className={styles.breadcrumbCurrent} aria-current="page">
-        {item.label}
-      </span>
-    )
-  }
-
-  return (
-    <Link className={styles.breadcrumbLink} to={item.to}>
-      {item.label}
-    </Link>
-  )
 }
 
 /**
@@ -43,7 +26,6 @@ export default function AppHeader({ userName = 'arthur' }) {
     ? resolveSettingsBackground(location).pathname
     : location.pathname
   const spacesActive = isSpacesNavActive(pagePathname)
-  const { items } = resolveAppHeaderBreadcrumb(pagePathname)
   const settingsState = settingsNavState(location)
   const initials = userName
     .split(' ')
@@ -67,19 +49,6 @@ export default function AppHeader({ userName = 'arthur' }) {
           >
             <House size={16} strokeWidth={1.75} aria-hidden="true" />
           </Link>
-        </nav>
-
-        <span className={styles.pipe} aria-hidden="true">|</span>
-
-        <nav className={styles.breadcrumb} aria-label="Localização atual">
-          {items.map((crumb, index) => (
-            <span key={`${crumb.label}-${crumb.to ?? 'current'}`} className={styles.breadcrumbSegment}>
-              {index > 0 ? (
-                <span className={styles.separator} aria-hidden="true">/</span>
-              ) : null}
-              <BreadcrumbItem item={crumb} />
-            </span>
-          ))}
         </nav>
       </div>
 

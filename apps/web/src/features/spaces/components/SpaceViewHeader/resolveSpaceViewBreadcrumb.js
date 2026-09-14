@@ -4,14 +4,14 @@ import {
   getFolder,
   getProvider,
   getSpace,
-} from '../../../features/spaces/data/mock.js'
-import { ROUTES, spaceUrl } from '../../config/routes.js'
+} from '../../data/mock.js'
+import { ROUTES, spaceUrl } from '../../../../shared/config/routes.js'
 
 function item(label, { to = null, current = false } = {}) {
   return { label, to, current }
 }
 
-export function resolveAppHeaderBreadcrumb(pathname) {
+export function resolveSpaceViewBreadcrumb(pathname) {
   const spaceFile = matchPath({ path: ROUTES.spaceFile, end: true }, pathname)
   if (spaceFile) {
     const space = getSpace(spaceFile.params.space)
