@@ -7,6 +7,9 @@
   --mute: #4a4a4a;
   --ink: #0a0a0a;
   --type: 'Geist Variable', 'Geist', system-ui, sans-serif;
+  --authenticated-app-header-height: 44px;
+  --authenticated-app-header-offset: calc(var(--authenticated-app-header-height) + env(safe-area-inset-top, 0px));
+  --z-app-shell-header: 30;
 }
 
 @media (prefers-color-scheme: dark) {

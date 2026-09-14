@@ -40,7 +40,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'Bridgit' })).toHaveAttribute('href', '/spaces')
+    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Trabalho/ })).toHaveAttribute('href', '/spaces/trabalho')
     expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
@@ -55,6 +55,7 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Trabalho' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Localização atual' })).toHaveTextContent('Spaces/Trabalho')
     expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
