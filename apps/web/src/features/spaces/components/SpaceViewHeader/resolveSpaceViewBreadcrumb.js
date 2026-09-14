@@ -1,11 +1,12 @@
 import { matchPath } from 'react-router-dom'
 import {
+  findFolderForFile,
   getFile,
   getFolder,
   getProvider,
   getSpace,
 } from '../../data/mock.js'
-import { ROUTES, spaceUrl } from '../../../../shared/config/routes.js'
+import { ROUTES, spaceFolderUrl, spaceUrl } from '../../../../shared/config/routes.js'
 
 function item(label, { to = null, current = false } = {}) {
   return { label, to, current }
@@ -16,10 +17,16 @@ export function resolveSpaceViewBreadcrumb(pathname) {
   if (spaceFile) {
     const space = getSpace(spaceFile.params.space)
     const file = getFile(spaceFile.params.fileRef)
+    const folderRef = findFolderForFile(spaceFile.params.fileRef)
+    const folder = folderRef ? getFolder(folderRef) : null
+    const spaceHref = space ? spaceUrl(space.slug) : ROUTES.spaces
     return {
       items: [
         item('Spaces', { to: ROUTES.spaces }),
-        item(space?.name ?? 'Space', { to: space ? spaceUrl(space.slug) : ROUTES.spaces }),
+        item(space?.name ?? 'Space', { to: spaceHref }),
+        ...(folder
+          ? [item(folder.name, { to: spaceFolderUrl(spaceFile.params.space, folder.folderRef) })]
+          : []),
         item(file?.title ?? 'Arquivo', { current: true }),
       ],
     }

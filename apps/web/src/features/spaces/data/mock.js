@@ -215,3 +215,11 @@ export function findSpaceForFile(fileRef) {
     spaces[0].slug
   )
 }
+
+export function findFolderForFile(fileRef) {
+  return (
+    Object.keys(folderContents).find((folderRef) =>
+      folderContents[folderRef].fileRefs.includes(fileRef),
+    ) ?? null
+  )
+}

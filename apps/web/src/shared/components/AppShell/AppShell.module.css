@@ -51,3 +51,8 @@
   min-height: 0;
   height: 100%;
 }
+
+.viewport {
+  display: flex;
+  flex-direction: column;
+}

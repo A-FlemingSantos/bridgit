@@ -29,6 +29,7 @@ export default function SpaceFilePage() {
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         >
           <FileSheet large />
+          <h1>{file.title}</h1>
           <p>
             {file.kind} · {file.provider}
           </p>
