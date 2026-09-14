@@ -9,6 +9,7 @@ import {
   spaceUrl,
 } from '../../../shared/config/routes.js'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
+import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import folderMark from '../assets/folder.svg'
 import {
   findSpaceForFile,
@@ -73,15 +74,11 @@ export default function SpaceBrowsePage() {
   const backLabel = folderRef ? (space?.name ?? 'Space') : 'Spaces'
 
   return (
-    <AppShell refreshKey={`${spaceSlug ?? providerId ?? ''}-${folderRef ?? 'root'}`}>
+    <AppShell
+      refreshKey={`${spaceSlug ?? providerId ?? ''}-${folderRef ?? 'root'}`}
+      subheader={<SpaceViewHeader backTo={backTo} backLabel={backLabel} title={title} />}
+    >
       <main className={styles.main}>
-        <header className={styles.lead}>
-          <Link to={backTo} className={styles.back}>
-            {backLabel}
-          </Link>
-          <h1>{title}</h1>
-        </header>
-
         <motion.div
           className={styles.actions}
           variants={rise}
