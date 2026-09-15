@@ -8,9 +8,8 @@ import {
 } from '../../utils/settingsOverlay.js'
 import styles from './AppHeader.module.css'
 
-function isSpacesNavActive(pathname) {
-  return pathname === ROUTES.spaces
-    || pathname.startsWith(`${ROUTES.spaces}/`)
+function isHomeNavActive(pathname) {
+  return pathname === ROUTES.home
     || pathname.startsWith('/providers/')
 }
 
@@ -25,7 +24,7 @@ export default function AppHeader({ userName = 'arthur' }) {
   const pagePathname = settingsActive
     ? resolveSettingsBackground(location).pathname
     : location.pathname
-  const spacesActive = isSpacesNavActive(pagePathname)
+  const homeActive = isHomeNavActive(pagePathname)
   const settingsState = settingsNavState(location)
   const initials = userName
     .split(' ')
@@ -40,12 +39,12 @@ export default function AppHeader({ userName = 'arthur' }) {
       <div className={styles.leading}>
         <nav className={styles.primaryNav} aria-label="Navegação principal">
           <Link
-            to={ROUTES.spaces}
-            className={[styles.iconButton, spacesActive ? styles.iconButtonActive : '']
+            to={ROUTES.home}
+            className={[styles.iconButton, homeActive ? styles.iconButtonActive : '']
               .filter(Boolean)
               .join(' ')}
-            aria-label="Spaces"
-            aria-current={spacesActive ? 'page' : undefined}
+            aria-label="Início"
+            aria-current={homeActive ? 'page' : undefined}
           >
             <House size={16} strokeWidth={1.75} aria-hidden="true" />
           </Link>

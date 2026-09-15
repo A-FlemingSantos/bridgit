@@ -18,29 +18,11 @@
   gap: 16px;
 }
 
-.sectionHead h1,
-.sectionHead h2 {
+.sectionHead h1 {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.03em;
-}
-
-.more {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 12px;
-  color: var(--mute);
-  cursor: pointer;
-}
-
-.more:hover {
-  color: var(--ink);
 }
 
 .grid {
@@ -58,8 +40,8 @@
   text-decoration: none;
 }
 
-.tileStatic {
-  pointer-events: none;
+.tile:hover .face {
+  background: color-mix(in srgb, var(--ink) 6%, var(--wash));
 }
 
 .face {
@@ -67,18 +49,6 @@
   place-items: center;
   aspect-ratio: 16 / 10;
   background: var(--wash);
-}
-
-.spaceName {
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: -0.04em;
-}
-
-.spaceName[contenteditable='true'] {
-  min-width: 1ch;
-  outline: none;
-  cursor: text;
 }
 
 .meta {
@@ -107,9 +77,5 @@
 @media (max-width: 720px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .spaceName {
-    font-size: 14px;
   }
 }

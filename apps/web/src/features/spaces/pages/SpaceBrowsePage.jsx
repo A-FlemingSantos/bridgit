@@ -6,9 +6,6 @@ import {
   providerFileUrl,
   providerFolderUrl,
   providerUrl,
-  spaceFileUrl,
-  spaceFolderUrl,
-  spaceUrl,
 } from '../../../shared/config/routes.js'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
@@ -19,8 +16,6 @@ import {
   getFolderContents,
   getProvider,
   getProviderContents,
-  getSpace,
-  getSpaceContents,
 } from '../data/mock.js'
 import styles from './SpaceBrowsePage.module.css'
 
@@ -34,42 +29,25 @@ const rise = {
 }
 
 export default function SpaceBrowsePage() {
-  const { space: spaceSlug, folderRef, provider: providerId } = useParams()
-  const space = spaceSlug ? getSpace(spaceSlug) : null
+  const { folderRef, provider: providerId } = useParams()
   const provider = providerId ? getProvider(providerId) : null
   const folder = folderRef ? getFolder(folderRef) : null
 
-  if (spaceSlug && !space) {
-    return <Navigate to={ROUTES.spaces} replace />
-  }
-
-  if (providerId && !provider) {
-    return <Navigate to={ROUTES.spaces} replace />
+  if (!provider) {
+    return <Navigate to={ROUTES.home} replace />
   }
 
   if (folderRef && !folder) {
-    return <Navigate to={providerId ? providerUrl(providerId) : spaceSlug ? spaceUrl(spaceSlug) : ROUTES.spaces} replace />
+    return <Navigate to={providerUrl(provider.id)} replace />
   }
 
   const contents = (folderRef
     ? getFolderContents(folderRef)
-    : provider
-      ? getProviderContents(provider.id)
-      : getSpaceContents(space.slug)) ?? { folders: [], files: [] }
-
-  function folderHref(item) {
-    if (providerId) return providerFolderUrl(providerId, item.folderRef)
-    return spaceFolderUrl(spaceSlug, item.folderRef)
-  }
-
-  function fileHref(item) {
-    if (providerId) return providerFileUrl(providerId, item.fileRef)
-    return spaceFileUrl(spaceSlug, item.fileRef)
-  }
+    : getProviderContents(provider.id)) ?? { folders: [], files: [] }
 
   return (
     <AppShell
-      refreshKey={`${spaceSlug ?? providerId ?? ''}-${folderRef ?? 'root'}`}
+      refreshKey={`${providerId}-${folderRef ?? 'root'}`}
       subheader={
         <SpaceViewHeader trailing={<SpaceViewActions />} />
       }
@@ -88,7 +66,7 @@ export default function SpaceBrowsePage() {
                   custom={0.06 + index * 0.04}
                 >
                   <Link
-                    to={folderHref(item)}
+                    to={providerFolderUrl(providerId, item.folderRef)}
                     className={styles.item}
                   >
                     <span className={styles.face} aria-hidden="true">
@@ -121,7 +99,7 @@ export default function SpaceBrowsePage() {
                   custom={0.14 + index * 0.03}
                 >
                   <Link
-                    to={fileHref(item)}
+                    to={providerFileUrl(providerId, item.fileRef)}
                     className={styles.item}
                   >
                     <span className={styles.face} aria-hidden="true">

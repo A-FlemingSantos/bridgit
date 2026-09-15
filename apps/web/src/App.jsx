@@ -1,5 +1,6 @@
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import AuthPage from './features/auth/pages/AuthPage.jsx'
+import HomePage from './features/home/pages/HomePage.jsx'
 import SpaceBrowsePage from './features/spaces/pages/SpaceBrowsePage.jsx'
 import SpaceFilePage from './features/spaces/pages/SpaceFilePage.jsx'
 import SettingsPage from './features/settings/pages/SettingsPage.jsx'
@@ -22,13 +23,13 @@ export default function App() {
   return (
     <>
       <Routes location={backgroundLocation}>
-        <Route path={ROUTES.home} element={<LandingPage />} />
+        <Route path={ROUTES.landing} element={<LandingPage />} />
         <Route path={ROUTES.login} element={<AuthPage />} />
         <Route path={ROUTES.register} element={<AuthPage />} />
+        <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.spaces} element={<SpacesPage />} />
-        <Route path={ROUTES.spaceFolder} element={<SpaceBrowsePage />} />
-        <Route path={ROUTES.spaceFile} element={<SpaceFilePage />} />
-        <Route path={ROUTES.space} element={<SpaceBrowsePage />} />
+        <Route path={`${ROUTES.spaces}/*`} element={<Navigate to={ROUTES.home} replace />} />
+        <Route path={ROUTES.providers} element={<Navigate to={ROUTES.home} replace />} />
         <Route path={ROUTES.providerFolder} element={<SpaceBrowsePage />} />
         <Route path={ROUTES.providerFile} element={<SpaceFilePage />} />
         <Route path={ROUTES.provider} element={<SpaceBrowsePage />} />

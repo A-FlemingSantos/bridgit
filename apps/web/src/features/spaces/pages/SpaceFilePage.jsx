@@ -1,22 +1,21 @@
 import { Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
-import { ROUTES, providerUrl, spaceUrl } from '../../../shared/config/routes.js'
+import { ROUTES, providerUrl } from '../../../shared/config/routes.js'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
-import { getFile, getProvider, getSpace } from '../data/mock.js'
+import { getFile, getProvider } from '../data/mock.js'
 import styles from './SpaceFilePage.module.css'
 
 export default function SpaceFilePage() {
-  const { space: spaceSlug, fileRef, provider: providerId } = useParams()
-  const space = spaceSlug ? getSpace(spaceSlug) : null
+  const { fileRef, provider: providerId } = useParams()
   const provider = providerId ? getProvider(providerId) : null
   const file = getFile(fileRef)
 
-  if (!file || (spaceSlug && !space) || (providerId && !provider)) {
+  if (!file || !provider) {
     return (
       <Navigate
-        to={provider ? providerUrl(provider.id) : space ? spaceUrl(space.slug) : ROUTES.spaces}
+        to={provider ? providerUrl(provider.id) : ROUTES.home}
         replace
       />
     )

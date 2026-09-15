@@ -1,7 +1,7 @@
 import { ROUTES } from '../config/routes.js'
 
-const SPACES_LOCATION = {
-  pathname: ROUTES.spaces,
+const HOME_LOCATION = {
+  pathname: ROUTES.home,
   search: '',
   hash: '',
   state: null,
@@ -34,5 +34,5 @@ export function resolveSettingsBackground(location) {
     return background
   }
 
-  return SPACES_LOCATION
+  return HOME_LOCATION
 }

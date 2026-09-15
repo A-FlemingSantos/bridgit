@@ -1,7 +1,10 @@
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
-import { spaces } from '../data/mock.js'
-import styles from './SpacesPage.module.css'
+import { providerUrl } from '../../../shared/config/routes.js'
+import ProviderMark from '../../spaces/components/ProviderMark.jsx'
+import { providers } from '../../spaces/data/mock.js'
+import styles from './HomePage.module.css'
 
 const rise = {
   hidden: { opacity: 0, y: 10 },
@@ -12,31 +15,32 @@ const rise = {
   }),
 }
 
-export default function SpacesPage() {
+export default function HomePage() {
   return (
-    <AppShell refreshKey="spaces">
+    <AppShell refreshKey="home">
       <main className={styles.main}>
         <section className={styles.section}>
           <header className={styles.sectionHead}>
-            <h1>Spaces</h1>
+            <h1>Provedores</h1>
           </header>
           <div className={styles.grid}>
-            {spaces.map((space, index) => (
+            {providers.map((provider, index) => (
               <motion.div
-                key={space.space_id}
+                key={provider.id}
                 variants={rise}
                 initial="hidden"
                 animate="show"
                 custom={0.06 + index * 0.05}
               >
-                <div className={`${styles.tile} ${styles.tileStatic}`}>
-                  <span className={styles.face} aria-hidden="true">
-                    <span className={styles.spaceName}>{space.name}</span>
+                <Link to={providerUrl(provider.id)} className={styles.tile}>
+                  <span className={styles.face}>
+                    <ProviderMark id={provider.id} size={40} />
                   </span>
                   <span className={styles.meta}>
-                    <span className={styles.title}>{space.name}</span>
+                    <span className={styles.title}>{provider.name}</span>
+                    <span className={styles.sub}>Conectado</span>
                   </span>
-                </div>
+                </Link>
               </motion.div>
             ))}
           </div>

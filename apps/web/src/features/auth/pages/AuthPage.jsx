@@ -19,7 +19,7 @@ export default function AuthPage() {
 
   function handleSubmit(event) {
     event.preventDefault()
-    navigate(ROUTES.spaces)
+    navigate(ROUTES.home)
   }
 
   return (
@@ -33,7 +33,7 @@ export default function AuthPage() {
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           style={{ '--auth-mark': `url("${atSign}")` }}
         />
-        <Link to={ROUTES.home} className={styles.brand}>
+        <Link to={ROUTES.landing} className={styles.brand}>
           Bridgit
         </Link>
         <p className={styles.credit}>© {year} Bridgit</p>

@@ -33,38 +33,63 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
   })
 
-  it('mostra os spaces e os provedores conectados', () => {
+  it('mostra os provedores na home', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
+    expect(screen.getByRole('link', { name: /Google Drive/ })).toHaveAttribute('href', '/providers/google-drive')
+    expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
+  })
+
+  it('mantém os cards de space inertes', () => {
     render(
       <MemoryRouter {...router} initialEntries={['/spaces']}>
         <App />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Trabalho/ })).toHaveAttribute('href', '/spaces/trabalho')
-    expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
-    expect(screen.getByRole('link', { name: /Google Drive/ })).toHaveAttribute('href', '/providers/google-drive')
+    expect(screen.getAllByText('Trabalho').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /OneDrive/ })).not.toBeInTheDocument()
   })
 
-  it('mostra a lista achatada de um space', () => {
+  it('redireciona rotas antigas de space para a home', () => {
     render(
       <MemoryRouter {...router} initialEntries={['/spaces/trabalho']}>
         <App />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: 'Trabalho' })).toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Localização atual' })).toHaveTextContent('Spaces/Trabalho')
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
+  })
+
+  it('mostra a lista de um provedor', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'OneDrive' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('navigation', { name: 'Localização atual' })).getByRole('link', { name: 'Início' }),
+    ).toHaveAttribute('href', '/home')
     expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
       'href',
-      '/spaces/trabalho/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
+      '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
     )
     expect(screen.getByRole('link', { name: /Relatório 2023/ })).toHaveAttribute(
       'href',
-      '/spaces/trabalho/file/a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0',
+      '/providers/onedrive/file/a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0',
     )
   })
 
@@ -77,7 +102,7 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Configurações' })
     expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
     expect(within(dialog).getByRole('link', { name: 'Conta' })).toHaveAttribute('href', '/settings')
     expect(within(dialog).getByRole('link', { name: 'Provedores' })).toHaveAttribute('href', '/settings/providers')
     expect(within(dialog).getByRole('link', { name: 'Sincronização' })).toHaveAttribute('href', '/settings/sync')
@@ -139,7 +164,7 @@ describe('App', () => {
   it('abre configurações sobre a página anterior e fecha no painel', async () => {
     const user = userEvent.setup()
     render(
-      <MemoryRouter {...router} initialEntries={['/spaces']}>
+      <MemoryRouter {...router} initialEntries={['/home']}>
         <App />
       </MemoryRouter>,
     )
@@ -148,13 +173,13 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Configurações' })
     expect(dialog).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
-    expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
   })
 
   it('mostra o cadastro na mesma tela', () => {

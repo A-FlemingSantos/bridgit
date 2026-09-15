@@ -80,7 +80,7 @@ export default function SecurityTab() {
           </div>
           {confirmDelete ? (
             <span className={styles.pair}>
-              <button type="button" className={styles.primary} onClick={() => navigate(ROUTES.home)}>
+              <button type="button" className={styles.primary} onClick={() => navigate(ROUTES.landing)}>
                 Confirmar exclusão
               </button>
               <button type="button" className={styles.secondary} onClick={() => setConfirmDelete(false)}>

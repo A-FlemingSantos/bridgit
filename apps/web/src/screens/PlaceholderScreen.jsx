@@ -6,11 +6,11 @@ export default function PlaceholderScreen({ title }) {
   return (
     <main className={styles.shell}>
       <div className={styles.inner}>
-        <Link to={ROUTES.home} className={styles.mark}>
+        <Link to={ROUTES.landing} className={styles.mark}>
           Bridgit
         </Link>
         <h1 className={styles.title}>{title}</h1>
-        <Link to={ROUTES.home} className={styles.back}>
+        <Link to={ROUTES.landing} className={styles.back}>
           Voltar
         </Link>
       </div>

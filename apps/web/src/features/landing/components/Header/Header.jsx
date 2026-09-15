@@ -5,7 +5,7 @@ import styles from './Header.module.css'
 export default function Header() {
   return (
     <header className={styles.bar}>
-      <Link to={ROUTES.home} className={styles.mark}>
+      <Link to={ROUTES.landing} className={styles.mark}>
         Bridgit
       </Link>
     </header>

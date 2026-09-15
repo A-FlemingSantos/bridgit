@@ -1,5 +1,6 @@
 export const ROUTES = {
-  home: '/',
+  landing: '/',
+  home: '/home',
   login: '/login',
   register: '/register',
   settings: '/settings',
@@ -8,26 +9,12 @@ export const ROUTES = {
   settingsSync: '/settings/sync',
   settingsAbout: '/settings/about',
   spaces: '/spaces',
-  space: '/spaces/:space',
-  spaceFolder: '/spaces/:space/folder/:folderRef',
-  spaceFile: '/spaces/:space/file/:fileRef',
+  providers: '/providers',
   provider: '/providers/:provider',
   providerFolder: '/providers/:provider/folder/:folderRef',
   providerFile: '/providers/:provider/file/:fileRef',
   privacy: '/privacy',
   terms: '/terms',
-}
-
-export function spaceUrl(space) {
-  return `/spaces/${space}`
-}
-
-export function spaceFolderUrl(space, folderRef) {
-  return `/spaces/${space}/folder/${folderRef}`
-}
-
-export function spaceFileUrl(space, fileRef) {
-  return `/spaces/${space}/file/${fileRef}`
 }
 
 export function providerUrl(provider) {
