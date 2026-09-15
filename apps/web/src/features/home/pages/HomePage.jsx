@@ -23,7 +23,7 @@ export default function HomePage() {
         <div className={styles.stack}>
           <div className={styles.search}>
             <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-            <input type="search" placeholder="Buscar" aria-label="Buscar" readOnly />
+            <input type="search" placeholder="Buscar" aria-label="Buscar" />
           </div>
 
           <section className={styles.section}>
