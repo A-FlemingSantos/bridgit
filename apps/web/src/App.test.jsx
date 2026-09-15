@@ -41,6 +41,7 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
     expect(screen.getByRole('link', { name: /Google Drive/ })).toHaveAttribute('href', '/providers/google-drive')
