@@ -42,9 +42,16 @@ describe('App', () => {
 
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
-    expect(screen.getByRole('link', { name: /Google Drive/ })).toHaveAttribute('href', '/providers/google-drive')
+    expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute('href', '/providers/onedrive')
+    expect(screen.getByRole('link', { name: 'Google Drive Conectado' })).toHaveAttribute('href', '/providers/google-drive')
+    expect(screen.getAllByRole('link', { name: 'Análise de desempenho' })[0]).toHaveAttribute(
+      'href',
+      '/providers/onedrive/file/c4d8b207-5a1e-49f3-8e6c-9b0d2f7a13e8',
+    )
     expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
   })
 
@@ -69,7 +76,7 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /OneDrive/ })).toHaveAttribute('href', '/providers/onedrive')
+    expect(screen.getByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute('href', '/providers/onedrive')
   })
 
   it('mostra a lista de um provedor', () => {

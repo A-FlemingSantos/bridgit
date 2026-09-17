@@ -1,8 +1,14 @@
 import styles from './FileSheet.module.css'
 
-export default function FileSheet({ large = false }) {
+export default function FileSheet({ large = false, compact = false }) {
+  const className = [
+    styles.sheet,
+    large ? styles.large : '',
+    compact ? styles.compact : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <span className={large ? `${styles.sheet} ${styles.large}` : styles.sheet} aria-hidden="true">
+    <span className={className} aria-hidden="true">
       <span />
       <span />
       <span />

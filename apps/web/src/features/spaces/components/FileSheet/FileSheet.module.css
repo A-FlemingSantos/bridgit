@@ -18,6 +18,13 @@
   padding: 28px 22px;
 }
 
+.compact {
+  width: 22px;
+  max-width: 22px;
+  gap: 3px;
+  padding: 5px 4px;
+}
+
 .sheet span {
   display: block;
   height: 1px;
