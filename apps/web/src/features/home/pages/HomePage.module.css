@@ -328,8 +328,8 @@
   .body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      'workspace'
-      'rail';
+      'rail'
+      'workspace';
     gap: 32px;
   }
 
