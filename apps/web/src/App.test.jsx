@@ -41,6 +41,7 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
@@ -55,7 +56,8 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
   })
 
-  it('mantém os cards de space inertes', () => {
+  it('mostra os spaces e abre o ambiente de sinc', async () => {
+    const user = userEvent.setup()
     render(
       <MemoryRouter {...router} initialEntries={['/spaces']}>
         <App />
@@ -63,20 +65,58 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
-    expect(screen.getAllByText('Trabalho').length).toBeGreaterThan(0)
-    expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /OneDrive/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
+    expect(screen.getByRole('link', { name: 'Trabalho' })).toHaveAttribute('href', '/spaces/trabalho')
+    expect(screen.getByRole('button', { name: 'Novo' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('link', { name: 'Trabalho' }))
+
+    expect(screen.getByRole('heading', { name: 'Trabalho' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Adicionar' })).toBeInTheDocument()
+    expect(screen.getByText('Inovações técnicas')).toBeInTheDocument()
+    expect(screen.getByText('Conflito')).toBeInTheDocument()
   })
 
-  it('redireciona rotas antigas de space para a home', () => {
+  it('cria um space pelo overlay', async () => {
+    const user = userEvent.setup()
     render(
-      <MemoryRouter {...router} initialEntries={['/spaces/trabalho']}>
+      <MemoryRouter {...router} initialEntries={['/spaces']}>
         <App />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute('href', '/providers/onedrive')
+    await user.click(screen.getByRole('button', { name: 'Novo' }))
+
+    expect(screen.getByRole('dialog', { name: 'Novo space' })).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Nome'), 'Arquivo morto')
+    await user.click(screen.getByRole('button', { name: 'Criar' }))
+
+    expect(screen.getByRole('heading', { name: 'Arquivo morto' })).toBeInTheDocument()
+    expect(screen.getByText('Este space ainda não espelha nada.')).toBeInTheDocument()
+  })
+
+  it('mostra as ações de um arquivo no provedor', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Relatório 2023' }))
+    expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Link público' })).toBeInTheDocument()
+  })
+
+  it('mostra o space vazio da empresa', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/spaces/empresa']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Empresa' })).toBeInTheDocument()
+    expect(screen.getByText('Este space ainda não espelha nada.')).toBeInTheDocument()
   })
 
   it('mostra a lista de um provedor', () => {
@@ -137,7 +177,7 @@ describe('App', () => {
     expect(within(dialog).queryByLabelText('Usuário')).not.toBeInTheDocument()
   })
 
-  it('mostra os interruptores de sincronização', () => {
+  it('mostra os spaces na sincronização', () => {
     render(
       <MemoryRouter {...router} initialEntries={['/settings/sync']}>
         <App />
@@ -145,14 +185,12 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Sincronização' })).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Espelhar itens marcados' })).toHaveAttribute(
-      'aria-checked',
-      'false',
-    )
     expect(screen.getByRole('switch', { name: 'Avisar se a sincronização falhar' })).toHaveAttribute(
       'aria-checked',
       'true',
     )
+    expect(screen.getByRole('link', { name: 'Trabalho' })).toHaveAttribute('href', '/spaces/trabalho')
+    expect(screen.getByRole('switch', { name: 'Pausar Trabalho' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('mostra senha e sessão na aba de segurança', () => {

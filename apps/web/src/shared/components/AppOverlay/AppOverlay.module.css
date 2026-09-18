@@ -1,0 +1,386 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--paper) 16%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: default;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .backdrop {
+    background: color-mix(in srgb, #000 22%, transparent);
+  }
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  height: min(560px, calc(100dvh - 48px));
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
+    0 28px 80px color-mix(in srgb, #000 22%, transparent);
+  outline: none;
+}
+
+.compact {
+  width: min(420px, 100%);
+  height: auto;
+  max-height: min(560px, calc(100dvh - 48px));
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 14px 18px 0 22px;
+}
+
+.chrome h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mute);
+}
+
+.trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--ink);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 12px 22px 28px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+  max-width: 52ch;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.field input {
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  padding: 4px 0 10px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 28%, transparent);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.field input:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primary,
+.secondary,
+.choose {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary,
+.choose {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.secondary {
+  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
+  color: var(--ink);
+}
+
+.primary:hover,
+.choose:hover {
+  opacity: 0.92;
+}
+
+.secondary:hover {
+  background: color-mix(in srgb, var(--ink) 16%, var(--wash));
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.choose:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.primary:disabled,
+.choose:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--ink);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: calc(clamp(28px, 4vw, 40px) * 1.15);
+  padding: 0 12px;
+  border: 0;
+  background: var(--wash);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.pickMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pickTitle {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pickSub {
+  font-size: 11px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.crumb {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.crumb:hover {
+  color: var(--ink);
+}
+
+.separator {
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.item:hover .face {
+  background: color-mix(in srgb, var(--ink) 6%, var(--wash));
+}
+
+.face {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  background: var(--wash);
+}
+
+.folderMark {
+  width: 28%;
+  max-width: 56px;
+  aspect-ratio: 1;
+  background: var(--ink);
+  -webkit-mask: var(--folder-mark) center / contain no-repeat;
+  mask: var(--folder-mark) center / contain no-repeat;
+}
+
+.itemTitle {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.itemSub {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

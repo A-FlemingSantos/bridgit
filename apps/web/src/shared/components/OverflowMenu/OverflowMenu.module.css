@@ -1,0 +1,64 @@
+.dock {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+.inline {
+  position: relative;
+}
+
+.trigger {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: var(--paper);
+  color: var(--mute);
+  cursor: pointer;
+}
+
+.ghost {
+  background: transparent;
+}
+
+.trigger:hover,
+.trigger[aria-expanded='true'] {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.ghost:hover,
+.ghost[aria-expanded='true'] {
+  background: var(--wash);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.hoverReveal {
+  opacity: 0.85;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hoverReveal {
+    opacity: 0;
+  }
+
+  .dock:hover .hoverReveal,
+  .wrap:hover .hoverReveal,
+  .hoverReveal[aria-expanded='true'] {
+    opacity: 1;
+  }
+}

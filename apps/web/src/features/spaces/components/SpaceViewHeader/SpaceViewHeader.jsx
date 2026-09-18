@@ -3,16 +3,32 @@ import {
   isSettingsPath,
   resolveSettingsBackground,
 } from '../../../../shared/utils/settingsOverlay.js'
+import {
+  getFile,
+  getFolder,
+  getProvider,
+  providerHasFolder,
+} from '../../../../shared/state/hubStore.js'
+import { useHub } from '../../../../shared/state/HubState.jsx'
 import ProviderMark from '../ProviderMark.jsx'
 import { resolveSpaceViewBreadcrumb } from './resolveSpaceViewBreadcrumb.js'
 import styles from './SpaceViewHeader.module.css'
 
-export default function SpaceViewHeader({ trailing = null }) {
+export default function SpaceViewHeader({ trailing = null, items: itemsProp = null }) {
   const location = useLocation()
+  const { state } = useHub()
   const pagePathname = isSettingsPath(location.pathname)
     ? resolveSettingsBackground(location).pathname
     : location.pathname
-  const { items } = resolveSpaceViewBreadcrumb(pagePathname)
+  const catalog = {
+    getFile: (fileRef) => getFile(state, fileRef),
+    getFolder: (folderRef) => getFolder(state, folderRef),
+    getProvider: (id) => getProvider(state, id),
+    providerHasFolder: (providerId, folderRef) => providerHasFolder(state, providerId, folderRef),
+  }
+  const { items } = itemsProp
+    ? { items: itemsProp }
+    : resolveSpaceViewBreadcrumb(pagePathname, catalog)
   const ancestors = items.filter((crumb) => !crumb.current)
   const current = items.find((crumb) => crumb.current) ?? items[items.length - 1]
 

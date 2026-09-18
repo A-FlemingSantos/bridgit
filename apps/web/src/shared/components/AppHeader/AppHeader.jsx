@@ -1,4 +1,4 @@
-import { House, Settings } from 'lucide-react'
+import { House, Layers, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { ROUTES } from '../../config/routes.js'
 import {
@@ -13,6 +13,10 @@ function isHomeNavActive(pathname) {
     || pathname.startsWith('/providers/')
 }
 
+function isSpacesNavActive(pathname) {
+  return pathname === ROUTES.spaces || pathname.startsWith(`${ROUTES.spaces}/`)
+}
+
 /**
  * @typedef {Object} AppHeaderProps
  * @property {string} [userName]
@@ -25,6 +29,7 @@ export default function AppHeader({ userName = 'arthur' }) {
     ? resolveSettingsBackground(location).pathname
     : location.pathname
   const homeActive = isHomeNavActive(pagePathname)
+  const spacesActive = isSpacesNavActive(pagePathname)
   const settingsState = settingsNavState(location)
   const initials = userName
     .split(' ')
@@ -47,6 +52,16 @@ export default function AppHeader({ userName = 'arthur' }) {
             aria-current={homeActive ? 'page' : undefined}
           >
             <House size={16} strokeWidth={1.75} aria-hidden="true" />
+          </Link>
+          <Link
+            to={ROUTES.spaces}
+            className={[styles.iconButton, spacesActive ? styles.iconButtonActive : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-label="Spaces"
+            aria-current={spacesActive ? 'page' : undefined}
+          >
+            <Layers size={16} strokeWidth={1.75} aria-hidden="true" />
           </Link>
         </nav>
       </div>

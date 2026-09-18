@@ -1,11 +1,5 @@
 import { matchPath } from 'react-router-dom'
 import {
-  getFile,
-  getFolder,
-  getProvider,
-  providerHasFolder,
-} from '../../data/mock.js'
-import {
   ROUTES,
   providerFolderUrl,
   providerUrl,
@@ -19,8 +13,8 @@ function homeCrumb() {
   return item('Início', { to: ROUTES.home })
 }
 
-function providerCrumb(providerId, { current = false } = {}) {
-  const resolved = getProvider(providerId)
+function providerCrumb(catalog, providerId, { current = false } = {}) {
+  const resolved = catalog.getProvider(providerId)
   return item(resolved?.name ?? 'Provedor', {
     to: current ? null : providerUrl(providerId),
     current,
@@ -28,24 +22,24 @@ function providerCrumb(providerId, { current = false } = {}) {
   })
 }
 
-function parentFolderCrumb(file, providerId) {
+function parentFolderCrumb(catalog, file, providerId) {
   if (!file?.folderRef) return []
-  const folder = getFolder(file.folderRef)
+  const folder = catalog.getFolder(file.folderRef)
   if (!folder) return []
-  if (!providerHasFolder(providerId, file.folderRef)) return []
+  if (!catalog.providerHasFolder(providerId, file.folderRef)) return []
   return [item(folder.name, { to: providerFolderUrl(providerId, file.folderRef) })]
 }
 
-export function resolveSpaceViewBreadcrumb(pathname) {
+export function resolveSpaceViewBreadcrumb(pathname, catalog) {
   const providerFile = matchPath({ path: ROUTES.providerFile, end: true }, pathname)
   if (providerFile) {
     const { provider: providerId, fileRef } = providerFile.params
-    const file = getFile(fileRef)
+    const file = catalog.getFile(fileRef)
     return {
       items: [
         homeCrumb(),
-        providerCrumb(providerId),
-        ...parentFolderCrumb(file, providerId),
+        providerCrumb(catalog, providerId),
+        ...parentFolderCrumb(catalog, file, providerId),
         item(file?.title ?? 'Arquivo', { current: true }),
       ],
     }
@@ -54,11 +48,11 @@ export function resolveSpaceViewBreadcrumb(pathname) {
   const providerFolder = matchPath({ path: ROUTES.providerFolder, end: true }, pathname)
   if (providerFolder) {
     const { provider: providerId, folderRef } = providerFolder.params
-    const folder = getFolder(folderRef)
+    const folder = catalog.getFolder(folderRef)
     return {
       items: [
         homeCrumb(),
-        providerCrumb(providerId),
+        providerCrumb(catalog, providerId),
         item(folder?.name ?? 'Pasta', { current: true }),
       ],
     }
@@ -69,7 +63,7 @@ export function resolveSpaceViewBreadcrumb(pathname) {
     return {
       items: [
         homeCrumb(),
-        providerCrumb(provider.params.provider, { current: true }),
+        providerCrumb(catalog, provider.params.provider, { current: true }),
       ],
     }
   }

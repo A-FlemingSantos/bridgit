@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useId, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Cloud, LayoutGrid, LayoutList, Plus, RefreshCw, Search, Upload } from 'lucide-react'
+import { Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, RefreshCw, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
-import { providerFileUrl, providerUrl } from '../../../shared/config/routes.js'
+import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
+import SuspendedMenu from '../../../shared/components/SuspendedMenu/SuspendedMenu.jsx'
+import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
+import { providerFileUrl, providerUrl, ROUTES } from '../../../shared/config/routes.js'
+import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
-import { providers, recents, shortcuts } from '../data/mock.js'
+import { fileMenuItems } from '../../spaces/components/entryActions.js'
+import {
+  hydrateRecents,
+  hydrateShortcuts,
+} from '../../../shared/state/hubStore.js'
+import { useHub } from '../../../shared/state/HubState.jsx'
 import styles from './HomePage.module.css'
-
-const actions = [
-  { id: 'upload', label: 'Enviar', icon: Upload },
-  { id: 'create', label: 'Criar', icon: Plus },
-  { id: 'connect', label: 'Conectar', icon: Cloud },
-  { id: 'mirror', label: 'Espelhar', icon: RefreshCw },
-]
 
 const rise = {
   hidden: { opacity: 0, y: 8 },
@@ -26,7 +28,28 @@ const rise = {
 }
 
 export default function HomePage() {
-  const [recentsView, setRecentsView] = useState('list')
+  const { state, dispatch, openOverlay } = useHub()
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const recentsView = state.recentsView === 'grid' ? 'grid' : 'list'
+  const recents = hydrateRecents(state)
+  const shortcuts = hydrateShortcuts(state)
+  const normalized = query.trim().toLowerCase()
+
+  const visibleShortcuts = useMemo(
+    () =>
+      normalized
+        ? shortcuts.filter((file) => file.title.toLowerCase().includes(normalized))
+        : shortcuts,
+    [shortcuts, normalized],
+  )
+  const visibleRecents = useMemo(
+    () =>
+      normalized
+        ? recents.filter((file) => file.title.toLowerCase().includes(normalized))
+        : recents,
+    [recents, normalized],
+  )
 
   return (
     <AppShell refreshKey="home">
@@ -34,18 +57,35 @@ export default function HomePage() {
         <div className={styles.command}>
           <div className={styles.search}>
             <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-            <input type="search" placeholder="Buscar" aria-label="Buscar" />
+            <input
+              type="search"
+              placeholder="Buscar"
+              aria-label="Buscar"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
           <div className={styles.actions}>
-            {actions.map((action) => {
-              const Icon = action.icon
-              return (
-                <button key={action.id} type="button" className={styles.action}>
-                  <Icon size={15} strokeWidth={1.6} aria-hidden="true" />
-                  {action.label}
-                </button>
-              )
-            })}
+            <UploadAction />
+            <CreateAction />
+            <button
+              type="button"
+              className={styles.action}
+              onClick={() =>
+                navigate(ROUTES.settingsProviders, { state: settingsNavState({ pathname: ROUTES.home }) })
+              }
+            >
+              <Cloud size={15} strokeWidth={1.6} aria-hidden="true" />
+              Conectar
+            </button>
+            <button
+              type="button"
+              className={styles.action}
+              onClick={() => openOverlay({ type: 'composer', mode: 'create' })}
+            >
+              <RefreshCw size={15} strokeWidth={1.6} aria-hidden="true" />
+              Espelhar
+            </button>
           </div>
         </div>
 
@@ -56,7 +96,7 @@ export default function HomePage() {
                 <h2>Provedores</h2>
               </header>
               <nav className={styles.providers} aria-label="Provedores">
-                {providers.map((provider, index) => (
+                {state.providers.map((provider, index) => (
                   <motion.div
                     key={provider.id}
                     variants={rise}
@@ -86,31 +126,42 @@ export default function HomePage() {
               <header className={styles.sectionHead}>
                 <h2>Atalhos</h2>
               </header>
-              <div className={styles.pins}>
-                {shortcuts.map((file, index) => (
-                  <motion.div
-                    key={file.fileRef}
-                    variants={rise}
-                    initial="hidden"
-                    animate="show"
-                    custom={0.08 + index * 0.04}
-                  >
-                    <Link
-                      to={providerFileUrl(file.providerId, file.fileRef)}
-                      className={styles.pin}
-                      aria-label={file.title}
+              {visibleShortcuts.length === 0 ? (
+                <p className={styles.empty}>Nenhum atalho.</p>
+              ) : (
+                <div className={styles.pins}>
+                  {visibleShortcuts.map((file, index) => (
+                    <motion.div
+                      key={file.fileRef}
+                      className={styles.cardWrap}
+                      variants={rise}
+                      initial="hidden"
+                      animate="show"
+                      custom={0.08 + index * 0.04}
                     >
-                      <span className={styles.pinFace} aria-hidden="true">
-                        <FileSheet />
-                      </span>
-                      <span className={styles.pinMeta}>
-                        <span className={styles.pinTitle}>{file.title}</span>
-                        <span className={styles.pinSub}>{file.provider}</span>
-                      </span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
+                      <Link
+                        to={providerFileUrl(file.providerId, file.fileRef)}
+                        className={styles.pin}
+                        aria-label={file.title}
+                      >
+                        <span className={styles.pinFace} aria-hidden="true">
+                          <FileSheet />
+                        </span>
+                        <span className={styles.pinMeta}>
+                          <span className={styles.pinTitle}>{file.title}</span>
+                          <span className={styles.pinSub}>{file.provider}</span>
+                        </span>
+                      </Link>
+                      <OverflowMenu
+                        floating
+                        hoverReveal
+                        label={`Ações de ${file.title}`}
+                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className={styles.section}>
@@ -122,7 +173,7 @@ export default function HomePage() {
                     className={styles.viewButton}
                     aria-pressed={recentsView === 'list'}
                     aria-label="Lista"
-                    onClick={() => setRecentsView('list')}
+                    onClick={() => dispatch({ type: 'setRecentsView', view: 'list' })}
                   >
                     <LayoutList size={15} strokeWidth={1.7} aria-hidden="true" />
                   </button>
@@ -131,18 +182,21 @@ export default function HomePage() {
                     className={styles.viewButton}
                     aria-pressed={recentsView === 'grid'}
                     aria-label="Grade"
-                    onClick={() => setRecentsView('grid')}
+                    onClick={() => dispatch({ type: 'setRecentsView', view: 'grid' })}
                   >
                     <LayoutGrid size={15} strokeWidth={1.7} aria-hidden="true" />
                   </button>
                 </div>
               </header>
 
-              {recentsView === 'list' ? (
+              {visibleRecents.length === 0 ? (
+                <p className={styles.empty}>Nada encontrado.</p>
+              ) : recentsView === 'list' ? (
                 <div className={styles.list}>
-                  {recents.map((file, index) => (
+                  {visibleRecents.map((file, index) => (
                     <motion.div
                       key={file.fileRef}
+                      className={styles.rowWrap}
                       variants={rise}
                       initial="hidden"
                       animate="show"
@@ -167,14 +221,21 @@ export default function HomePage() {
                           <ProviderMark id={file.providerId} size={16} />
                         </span>
                       </Link>
+                      <OverflowMenu
+                        ghost
+                        hoverReveal
+                        label={`Ações de ${file.title}`}
+                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                      />
                     </motion.div>
                   ))}
                 </div>
               ) : (
                 <div className={styles.grid}>
-                  {recents.map((file, index) => (
+                  {visibleRecents.map((file, index) => (
                     <motion.div
                       key={file.fileRef}
+                      className={styles.cardWrap}
                       variants={rise}
                       initial="hidden"
                       animate="show"
@@ -195,6 +256,12 @@ export default function HomePage() {
                           </span>
                         </span>
                       </Link>
+                      <OverflowMenu
+                        floating
+                        hoverReveal
+                        label={`Ações de ${file.title}`}
+                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -204,5 +271,114 @@ export default function HomePage() {
         </div>
       </main>
     </AppShell>
+  )
+}
+
+function UploadAction() {
+  const { state, dispatch } = useHub()
+  const extrasId = useId()
+  const inputRef = useRef(null)
+  const providerRef = useRef(state.providers[0]?.id ?? null)
+  const menu = useSuspendedMenu(state.providers.length)
+  const items = state.providers.map((provider) => ({
+    id: provider.id,
+    label: provider.name,
+    onSelect: () => {
+      menu.closeMenu()
+      providerRef.current = provider.id
+      inputRef.current?.click()
+    },
+  }))
+
+  return (
+    <div className={styles.actionDock} ref={menu.dockRef}>
+      <button
+        type="button"
+        className={styles.action}
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        aria-controls={extrasId}
+        onClick={menu.toggleMenu}
+      >
+        <Upload size={15} strokeWidth={1.6} aria-hidden="true" />
+        Enviar
+      </button>
+      <SuspendedMenu
+        id={extrasId}
+        open={menu.open}
+        closing={menu.closing}
+        items={items}
+      />
+      <input
+        ref={inputRef}
+        type="file"
+        hidden
+        multiple
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? [])
+          event.target.value = ''
+          const providerId = providerRef.current
+          if (!providerId) return
+          files.forEach((file) => {
+            const title = file.name.replace(/\.[^.]+$/, '') || file.name
+            const ext = file.name.split('.').pop()
+            dispatch({
+              type: 'createFile',
+              title,
+              providerId,
+              kind: ext ? ext.toUpperCase() : 'PDF',
+            })
+          })
+        }}
+      />
+    </div>
+  )
+}
+
+function CreateAction() {
+  const { openOverlay } = useHub()
+  const extrasId = useId()
+  const menu = useSuspendedMenu(2)
+  const items = [
+    {
+      id: 'space',
+      label: 'Novo space',
+      icon: Layers,
+      onSelect: () => {
+        menu.closeMenu()
+        openOverlay({ type: 'composer', mode: 'create' })
+      },
+    },
+    {
+      id: 'folder',
+      label: 'Nova pasta',
+      icon: FolderPlus,
+      onSelect: () => {
+        menu.closeMenu()
+        openOverlay({ type: 'name', kind: 'folder' })
+      },
+    },
+  ]
+
+  return (
+    <div className={styles.actionDock} ref={menu.dockRef}>
+      <button
+        type="button"
+        className={styles.action}
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        aria-controls={extrasId}
+        onClick={menu.toggleMenu}
+      >
+        <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
+        Criar
+      </button>
+      <SuspendedMenu
+        id={extrasId}
+        open={menu.open}
+        closing={menu.closing}
+        items={items}
+      />
+    </div>
   )
 }

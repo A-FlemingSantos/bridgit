@@ -9,12 +9,17 @@ export const ROUTES = {
   settingsSync: '/settings/sync',
   settingsAbout: '/settings/about',
   spaces: '/spaces',
+  space: '/spaces/:spaceRef',
   providers: '/providers',
   provider: '/providers/:provider',
   providerFolder: '/providers/:provider/folder/:folderRef',
   providerFile: '/providers/:provider/file/:fileRef',
   privacy: '/privacy',
   terms: '/terms',
+}
+
+export function spaceUrl(spaceRef) {
+  return `/spaces/${spaceRef}`
 }
 
 export function providerUrl(provider) {

@@ -218,6 +218,8 @@
 .prefTitle {
   font-size: 13px;
   letter-spacing: -0.02em;
+  color: inherit;
+  text-decoration: none;
 }
 
 .avatar {
