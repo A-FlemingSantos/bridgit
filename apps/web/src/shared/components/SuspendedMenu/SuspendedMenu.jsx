@@ -7,12 +7,14 @@ export default function SuspendedMenu({
   items,
   id,
   stretch = false,
+  align = 'end',
   labelledBy,
 }) {
   const menuVisible = open || closing
   const className = [
     extrasPanelClassName(styles, open, closing),
     stretch ? styles.stretch : '',
+    align === 'start' ? styles.start : '',
   ]
     .filter(Boolean)
     .join(' ')

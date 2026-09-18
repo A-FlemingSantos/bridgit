@@ -308,6 +308,7 @@ function UploadAction() {
         open={menu.open}
         closing={menu.closing}
         items={items}
+        align="start"
       />
       <input
         ref={inputRef}
@@ -378,6 +379,7 @@ function CreateAction() {
         open={menu.open}
         closing={menu.closing}
         items={items}
+        align="start"
       />
     </div>
   )

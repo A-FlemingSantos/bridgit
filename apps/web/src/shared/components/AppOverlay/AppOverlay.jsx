@@ -59,7 +59,8 @@ export default function AppOverlay({
           <motion.button
             type="button"
             className={styles.backdrop}
-            aria-label="Fechar"
+            aria-hidden="true"
+            tabIndex={-1}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
