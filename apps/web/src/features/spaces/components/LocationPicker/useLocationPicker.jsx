@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import ProviderMark from '../ProviderMark.jsx'
+import FileSheet from '../FileSheet/FileSheet.jsx'
 import folderMark from '../../assets/folder.svg'
 import {
   getFolder,
+  getFolderAncestry,
   getFolderContents,
   getProvider,
   getProviderContents,
@@ -81,10 +83,11 @@ export function useLocationPicker({
     }
   }
 
-  const empty = contents.folders.length === 0 && (foldersOnly || contents.files.length === 0)
+  const empty = contents.folders.length === 0 && contents.files.length === 0
   const currentBlocked = Boolean(folderRef && blockedRefs.includes(folderRef))
   const canChoose = folder ? !currentBlocked : allowRoot
   const chosenLocation = folder ? currentLocation : makeRootLocation(provider)
+  const parents = folder ? getFolderAncestry(state, folder.folderRef).slice(0, -1) : []
 
   return {
     picking: true,
@@ -110,12 +113,28 @@ export function useLocationPicker({
       <>
         {folder ? (
           <nav className={styles.crumbs} aria-label="Localização atual">
-            <button type="button" className={styles.crumb} onClick={() => setFolderRef(null)}>
-              {provider.name}
-            </button>
-            <span className={styles.separator} aria-hidden="true">
-              /
+            <span className={styles.crumbSegment}>
+              <button type="button" className={styles.crumb} onClick={() => setFolderRef(null)}>
+                {provider.name}
+              </button>
+              {parents.length > 0 ? (
+                <span className={styles.separator} aria-hidden="true">
+                  /
+                </span>
+              ) : null}
             </span>
+            {parents.map((item, index) => (
+              <span key={item.folderRef} className={styles.crumbSegment}>
+                <button type="button" className={styles.crumb} onClick={() => setFolderRef(item.folderRef)}>
+                  {item.name}
+                </button>
+                {index < parents.length - 1 ? (
+                  <span className={styles.separator} aria-hidden="true">
+                    /
+                  </span>
+                ) : null}
+              </span>
+            ))}
           </nav>
         ) : initialProviderId ? null : (
           <button type="button" className={styles.more} onClick={() => setProviderId(null)}>
@@ -132,33 +151,33 @@ export function useLocationPicker({
                 {contents.folders.map((item) => {
                   const blocked = blockedRefs.includes(item.folderRef)
                   return (
-                  <button
-                    key={item.folderRef}
-                    type="button"
-                    className={styles.item}
-                    disabled={blocked}
-                    title={blocked ? blockedHint : undefined}
-                    onClick={() => {
-                      if (blocked) return
-                      setFolderRef(item.folderRef)
-                    }}
-                  >
-                    <span className={styles.face} aria-hidden="true">
-                      <span
-                        className={styles.folderMark}
-                        style={{ '--folder-mark': `url("${folderMark}")` }}
-                      />
-                    </span>
-                    <span className={styles.meta}>
-                      <span className={styles.itemTitle}>{item.name}</span>
-                      <span className={styles.itemSub}>Pasta · {item.provider}</span>
-                    </span>
-                  </button>
+                    <button
+                      key={item.folderRef}
+                      type="button"
+                      className={styles.item}
+                      disabled={blocked}
+                      title={blocked ? blockedHint : undefined}
+                      onClick={() => {
+                        if (blocked) return
+                        setFolderRef(item.folderRef)
+                      }}
+                    >
+                      <span className={styles.face} aria-hidden="true">
+                        <span
+                          className={styles.folderMark}
+                          style={{ '--folder-mark': `url("${folderMark}")` }}
+                        />
+                      </span>
+                      <span className={styles.meta}>
+                        <span className={styles.itemTitle}>{item.name}</span>
+                        <span className={styles.itemSub}>Pasta · {item.provider}</span>
+                      </span>
+                    </button>
                   )
                 })}
               </div>
             ) : null}
-            {!foldersOnly && contents.files.length > 0 ? (
+            {contents.files.length > 0 ? (
               <div className={styles.grid}>
                 {contents.files.map((item) => (
                   <button
@@ -167,14 +186,12 @@ export function useLocationPicker({
                     className={styles.item}
                     onClick={() =>
                       onChoose?.(
-                        item.folderRef
-                          ? makeFolderLocationFromState(state, item.folderRef)
-                          : null,
+                        item.folderRef ? makeFolderLocationFromState(state, item.folderRef) : null,
                       )
                     }
                   >
                     <span className={styles.face} aria-hidden="true">
-                      <span className={styles.itemTitle}>{item.title}</span>
+                      <FileSheet />
                     </span>
                     <span className={styles.meta}>
                       <span className={styles.itemTitle}>{item.title}</span>

@@ -64,7 +64,11 @@ export default function SpaceViewHeader({
               <Link to={crumb.to} className={styles.crumb}>
                 {crumb.label}
               </Link>
-              <span className={styles.separator} aria-hidden="true">/</span>
+              {index < ancestors.length - 1 ? (
+                <span className={styles.separator} aria-hidden="true">
+                  /
+                </span>
+              ) : null}
             </span>
           ))}
         </nav>

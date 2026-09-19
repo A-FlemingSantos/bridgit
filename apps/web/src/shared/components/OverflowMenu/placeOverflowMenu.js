@@ -22,10 +22,27 @@ export function placeOverflowMenu({
   hasDanger,
   viewportWidth,
   viewportHeight,
+  prefer = 'beside',
 }) {
   const triggerRect = trigger
   const hostRect = host ?? triggerRect
   const height = menuHeight(itemCount, hasDanger, viewportWidth)
+
+  if (prefer === 'below') {
+    let left = triggerRect.left
+    if (left + MENU_WIDTH > viewportWidth - VIEW_PAD) {
+      left = triggerRect.right - MENU_WIDTH
+    }
+    left = Math.max(VIEW_PAD, Math.min(left, viewportWidth - VIEW_PAD - MENU_WIDTH))
+
+    let top = triggerRect.bottom + GAP
+    if (top + height > viewportHeight - VIEW_PAD) {
+      top = triggerRect.top - GAP - height
+    }
+    top = Math.max(VIEW_PAD, Math.min(top, viewportHeight - VIEW_PAD - height))
+
+    return { top, left, width: MENU_WIDTH }
+  }
 
   const triggerMid = triggerRect.left + triggerRect.width / 2
   const hostMid = hostRect.left + hostRect.width / 2

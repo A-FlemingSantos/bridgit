@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, RefreshCw, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import SuspendedMenu from '../../../shared/components/SuspendedMenu/SuspendedMenu.jsx'
+import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
 import { providerFileUrl, providerUrl, ROUTES } from '../../../shared/config/routes.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
@@ -277,9 +277,12 @@ export default function HomePage() {
 function UploadAction() {
   const { state, dispatch } = useHub()
   const extrasId = useId()
+  const triggerId = useId()
   const inputRef = useRef(null)
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
   const providerRef = useRef(state.providers[0]?.id ?? null)
-  const menu = useSuspendedMenu(state.providers.length)
+  const menu = useSuspendedMenu(state.providers.length, { menuRef })
   const items = state.providers.map((provider) => ({
     id: provider.id,
     label: provider.name,
@@ -294,6 +297,8 @@ function UploadAction() {
     <div className={styles.actionDock} ref={menu.dockRef}>
       <button
         type="button"
+        id={triggerId}
+        ref={triggerRef}
         className={styles.action}
         aria-haspopup="menu"
         aria-expanded={menu.open}
@@ -303,12 +308,16 @@ function UploadAction() {
         <Upload size={15} strokeWidth={1.6} aria-hidden="true" />
         Enviar
       </button>
-      <SuspendedMenu
+      <AnchoredSuspendedMenu
         id={extrasId}
+        labelledBy={triggerId}
         open={menu.open}
         closing={menu.closing}
         items={items}
-        align="start"
+        triggerRef={triggerRef}
+        hostRef={triggerRef}
+        panelRef={menuRef}
+        prefer="below"
       />
       <input
         ref={inputRef}
@@ -339,7 +348,10 @@ function UploadAction() {
 function CreateAction() {
   const { openOverlay } = useHub()
   const extrasId = useId()
-  const menu = useSuspendedMenu(2)
+  const triggerId = useId()
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
+  const menu = useSuspendedMenu(2, { menuRef })
   const items = [
     {
       id: 'space',
@@ -365,6 +377,8 @@ function CreateAction() {
     <div className={styles.actionDock} ref={menu.dockRef}>
       <button
         type="button"
+        id={triggerId}
+        ref={triggerRef}
         className={styles.action}
         aria-haspopup="menu"
         aria-expanded={menu.open}
@@ -374,12 +388,16 @@ function CreateAction() {
         <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
         Criar
       </button>
-      <SuspendedMenu
+      <AnchoredSuspendedMenu
         id={extrasId}
+        labelledBy={triggerId}
         open={menu.open}
         closing={menu.closing}
         items={items}
-        align="start"
+        triggerRef={triggerRef}
+        hostRef={triggerRef}
+        panelRef={menuRef}
+        prefer="below"
       />
     </div>
   )

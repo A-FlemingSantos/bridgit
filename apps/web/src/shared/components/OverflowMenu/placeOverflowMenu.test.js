@@ -40,4 +40,65 @@ describe('placeOverflowMenu', () => {
     expect(placed.left).toBe(host.left - GAP - MENU_WIDTH)
     expect(placed.left + MENU_WIDTH).toBeLessThanOrEqual(host.left)
   })
+
+  it('abre ao lado do gatilho e vira se não cabe na viewport', () => {
+    const leftTrigger = box({ x: 20, y: 80, w: 90, h: 36 })
+    const left = placeOverflowMenu({
+      trigger: leftTrigger,
+      host: leftTrigger,
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(left.left).toBe(leftTrigger.right + GAP)
+
+    const rightTrigger = box({ x: 1120, y: 80, w: 90, h: 36 })
+    const right = placeOverflowMenu({
+      trigger: rightTrigger,
+      host: rightTrigger,
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(right.left).toBe(rightTrigger.left - GAP - MENU_WIDTH)
+    expect(right.left).toBeGreaterThanOrEqual(VIEW_PAD)
+  })
+
+  it('abre abaixo do gatilho e vira para caber na viewport', () => {
+    const trigger = box({ x: 36, y: 80, w: 90, h: 36 })
+    const below = placeOverflowMenu({
+      trigger,
+      host: trigger,
+      prefer: 'below',
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(below.top).toBe(trigger.bottom + GAP)
+    expect(below.left).toBe(trigger.left)
+
+    const lowTrigger = box({ x: 36, y: 760, w: 90, h: 36 })
+    const above = placeOverflowMenu({
+      trigger: lowTrigger,
+      host: lowTrigger,
+      prefer: 'below',
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(above.top + above.width).toBeDefined()
+    expect(above.top + 150).toBeLessThanOrEqual(lowTrigger.top)
+
+    const rightTrigger = box({ x: 1180, y: 80, w: 90, h: 36 })
+    const flipped = placeOverflowMenu({
+      trigger: rightTrigger,
+      host: rightTrigger,
+      prefer: 'below',
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(flipped.left).toBe(rightTrigger.right - MENU_WIDTH)
+    expect(flipped.left + MENU_WIDTH).toBeLessThanOrEqual(1280 - VIEW_PAD)
+  })
 })
