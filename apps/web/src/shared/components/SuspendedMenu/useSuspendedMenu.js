@@ -15,7 +15,7 @@ export function extrasPanelClassName(styles, open, closing) {
   return styles.extras
 }
 
-export function useSuspendedMenu(itemCount, { enabled = true } = {}) {
+export function useSuspendedMenu(itemCount, { enabled = true, menuRef = null } = {}) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const dockRef = useRef(null)
@@ -70,6 +70,7 @@ export function useSuspendedMenu(itemCount, { enabled = true } = {}) {
 
     function handlePointerDown(event) {
       if (dockRef.current?.contains(event.target)) return
+      if (menuRef?.current?.contains(event.target)) return
       closeMenu()
     }
 
@@ -86,7 +87,7 @@ export function useSuspendedMenu(itemCount, { enabled = true } = {}) {
       document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, closeMenu])
+  }, [open, closeMenu, menuRef])
 
   useEffect(() => () => clearCloseTimeout(), [clearCloseTimeout])
 

@@ -9,23 +9,29 @@ export default function SuspendedMenu({
   stretch = false,
   align = 'end',
   labelledBy,
+  panelRef = null,
+  anchored = false,
+  style,
 }) {
   const menuVisible = open || closing
   const className = [
     extrasPanelClassName(styles, open, closing),
     stretch ? styles.stretch : '',
-    align === 'start' ? styles.start : '',
+    !anchored && align === 'start' ? styles.start : '',
+    anchored ? styles.fixed : '',
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
     <div
+      ref={panelRef}
       className={className}
       id={id}
       role="menu"
       aria-labelledby={labelledBy}
       aria-hidden={!menuVisible}
+      style={style}
     >
       <div className={styles.inner}>
         {items.map((item, index) => {

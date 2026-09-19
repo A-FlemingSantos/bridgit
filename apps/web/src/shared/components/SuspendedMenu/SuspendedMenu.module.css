@@ -16,9 +16,11 @@
   pointer-events: none;
 }
 
-.start {
+.fixed {
+  position: fixed;
   right: auto;
-  left: 0;
+  bottom: auto;
+  z-index: 24;
 }
 
 .stretch {
