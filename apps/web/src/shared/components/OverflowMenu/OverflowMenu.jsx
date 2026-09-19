@@ -3,47 +3,8 @@ import { createPortal } from 'react-dom'
 import { Ellipsis } from 'lucide-react'
 import SuspendedMenu from '../SuspendedMenu/SuspendedMenu.jsx'
 import { useSuspendedMenu } from '../SuspendedMenu/useSuspendedMenu.js'
+import { MENU_WIDTH, placeOverflowMenu, resolveOverflowHost } from './placeOverflowMenu.js'
 import styles from './OverflowMenu.module.css'
-
-const MENU_WIDTH = 168
-const GAP = 4
-const VIEW_PAD = 8
-
-function itemHeight() {
-  const raw = Math.min(40, Math.max(28, window.innerWidth * 0.04)) * 1.15
-  return raw
-}
-
-function menuHeight(itemCount, hasDanger) {
-  const n = Math.max(itemCount, 1)
-  return n * itemHeight() + (n - 1) * 4 + 4 + (hasDanger ? 4 : 0)
-}
-
-function placeMenu(trigger, itemCount, hasDanger) {
-  const rect = trigger.getBoundingClientRect()
-  const height = menuHeight(itemCount, hasDanger)
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-
-  const fitsAfter = rect.right + GAP + MENU_WIDTH <= vw - VIEW_PAD
-  const fitsBefore = rect.left - GAP - MENU_WIDTH >= VIEW_PAD
-  const afterLeft = rect.right + GAP
-  const beforeLeft = rect.left - GAP - MENU_WIDTH
-
-  let left = afterLeft
-  if (!fitsAfter && fitsBefore) left = beforeLeft
-  else if (!fitsAfter && !fitsBefore) {
-    left = Math.max(VIEW_PAD, Math.min(afterLeft, vw - VIEW_PAD - MENU_WIDTH))
-  }
-
-  let top = rect.top
-  if (top + height > vh - VIEW_PAD) {
-    top = rect.bottom - height
-  }
-  top = Math.max(VIEW_PAD, Math.min(top, vh - VIEW_PAD - height))
-
-  return { top, left, width: MENU_WIDTH }
-}
 
 export default function OverflowMenu({
   items,
@@ -67,7 +28,16 @@ export default function OverflowMenu({
     function update() {
       const trigger = triggerRef.current
       if (!trigger) return
-      setCoords(placeMenu(trigger, items.length, hasDanger))
+      setCoords(
+        placeOverflowMenu({
+          trigger: trigger.getBoundingClientRect(),
+          host: resolveOverflowHost(trigger).getBoundingClientRect(),
+          itemCount: items.length,
+          hasDanger,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        }),
+      )
     }
 
     update()
@@ -96,7 +66,7 @@ export default function OverflowMenu({
       items={wrappedItems}
       panelRef={menuRef}
       anchored
-      style={coords ?? { top: 0, left: 0, width: MENU_WIDTH }}
+      style={coords ?? { top: -9999, left: -9999, width: MENU_WIDTH }}
     />
   )
 
