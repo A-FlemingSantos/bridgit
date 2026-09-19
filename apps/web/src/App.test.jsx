@@ -83,7 +83,6 @@ describe('App', () => {
     expect(within(actions).getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Excluir space' })).toBeInTheDocument()
     expect(within(actions).getByRole('status')).toHaveTextContent('Sincronizado')
-    expect(within(actions).getByRole('status')).toHaveTextContent('Última sinc há 2 min')
     expect(
       within(screen.getByRole('region', { name: 'Par de sincronização' })).queryByRole('status'),
     ).not.toBeInTheDocument()
@@ -184,9 +183,6 @@ describe('App', () => {
     expect(
       within(screen.getByRole('complementary', { name: 'Ações' })).getByRole('status'),
     ).toHaveTextContent('Conflito')
-    expect(
-      within(screen.getByRole('complementary', { name: 'Ações' })).getByRole('status'),
-    ).toHaveTextContent('Última sinc há 1 h')
     expect(
       within(screen.getByRole('region', { name: 'Par de sincronização' })).queryByRole('status'),
     ).not.toBeInTheDocument()

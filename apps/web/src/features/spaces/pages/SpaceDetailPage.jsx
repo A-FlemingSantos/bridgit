@@ -139,17 +139,10 @@ export default function SpaceDetailPage() {
                 Excluir space
               </button>
             </div>
-            <div className={styles.statusCard} data-status={status} role="status">
-              <span className={styles.statusIcon} aria-hidden="true">
-                <StatusIcon status={status} />
-              </span>
-              <span className={styles.statusCopy}>
-                <span className={styles.statusLabel}>{statusLabel(status)}</span>
-                <span className={styles.statusMeta}>
-                  {space.lastSyncedAt ? `Última sinc ${space.lastSyncedAt}` : 'Nenhuma pendência'}
-                </span>
-              </span>
-            </div>
+            <p className={styles.status} data-status={status} role="status">
+              <StatusIcon status={status} />
+              {statusLabel(status)}
+            </p>
           </aside>
         </div>
       </main>
@@ -158,9 +151,10 @@ export default function SpaceDetailPage() {
 }
 
 function StatusIcon({ status }) {
-  if (status === 'conflict') return <TriangleAlert size={18} strokeWidth={1.75} />
-  if (status === 'paused') return <Pause size={18} strokeWidth={1.75} />
-  return <Check size={18} strokeWidth={1.75} />
+  const props = { size: 15, strokeWidth: 1.6, 'aria-hidden': true }
+  if (status === 'conflict') return <TriangleAlert {...props} />
+  if (status === 'paused') return <Pause {...props} />
+  return <Check {...props} />
 }
 
 function Endpoint({ role, label, location }) {
