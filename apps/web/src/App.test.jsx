@@ -69,6 +69,7 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Scripts' })).toHaveAttribute('href', '/s/scripts')
     expect(screen.getByRole('link', { name: 'Currículo' })).toHaveAttribute('href', '/s/curriculo')
     expect(screen.getByRole('button', { name: 'Novo space' })).toBeInTheDocument()
+    expect(screen.getByText('OneDrive ↔ Dropbox')).toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'Scripts' }))
 

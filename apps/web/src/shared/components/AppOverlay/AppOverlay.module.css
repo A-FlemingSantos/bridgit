@@ -453,10 +453,11 @@
 }
 
 .direction {
+  display: grid;
+  place-items: center;
   margin: 0;
   align-self: center;
   color: var(--mute);
-  font-size: 12px;
 }
 
 @media (max-width: 980px) {

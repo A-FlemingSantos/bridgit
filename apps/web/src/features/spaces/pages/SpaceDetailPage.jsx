@@ -1,5 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
-import { ArrowRight, Check, Pause, Play, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Check, Pause, Play, RefreshCw, Trash2 } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import { ROUTES, spaceUrl } from '../../../shared/config/routes.js'
 import {
@@ -52,7 +52,7 @@ export default function SpaceDetailPage() {
             <section className={styles.pair} aria-label="Par de sincronização">
               <Endpoint role="origin" label="Origem" location={space.origin} />
               <span className={styles.direction} aria-hidden="true">
-                <ArrowRight size={28} strokeWidth={1.75} />
+                <ArrowLeftRight size={28} strokeWidth={1.75} />
               </span>
               <Endpoint
                 role="destination"

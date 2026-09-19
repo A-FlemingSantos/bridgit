@@ -378,7 +378,7 @@ export function isFolderLocation(location) {
 
 export function spaceSummary(space) {
   if (!space?.origin || !space?.destination) return ''
-  return `${space.origin.provider} → ${space.destination.provider}`
+  return `${space.origin.provider} ↔ ${space.destination.provider}`
 }
 
 export function spaceProvidersLabel(space) {

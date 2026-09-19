@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ArrowLeftRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AppOverlay, { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 import { spaceUrl } from '../../../../shared/config/routes.js'
@@ -204,9 +205,9 @@ export default function SpaceComposer({ overlay }) {
               />
             </div>
 
-            <p className={styles.direction} aria-hidden="true">
-              →
-            </p>
+            <span className={styles.direction} aria-hidden="true">
+              <ArrowLeftRight size={16} strokeWidth={1.75} />
+            </span>
 
             <div className={styles.endpoint}>
               <span className={styles.endpointLabel}>Destino</span>
