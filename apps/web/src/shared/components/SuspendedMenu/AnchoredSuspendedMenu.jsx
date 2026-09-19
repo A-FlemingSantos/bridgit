@@ -16,6 +16,7 @@ export default function AnchoredSuspendedMenu({
   triggerRef,
   hostRef = null,
   panelRef = null,
+  prefer = 'beside',
 }) {
   const [coords, setCoords] = useState(null)
   const visible = open || closing
@@ -36,6 +37,7 @@ export default function AnchoredSuspendedMenu({
           hasDanger,
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
+          prefer,
         }),
       )
     }
@@ -47,7 +49,7 @@ export default function AnchoredSuspendedMenu({
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [visible, items.length, hasDanger, triggerRef, hostRef])
+  }, [visible, items.length, hasDanger, triggerRef, hostRef, prefer])
 
   const panel = (
     <SuspendedMenu

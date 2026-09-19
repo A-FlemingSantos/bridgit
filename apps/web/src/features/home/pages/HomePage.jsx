@@ -317,6 +317,7 @@ function UploadAction() {
         triggerRef={triggerRef}
         hostRef={triggerRef}
         panelRef={menuRef}
+        prefer="below"
       />
       <input
         ref={inputRef}
@@ -396,6 +397,7 @@ function CreateAction() {
         triggerRef={triggerRef}
         hostRef={triggerRef}
         panelRef={menuRef}
+        prefer="below"
       />
     </div>
   )
