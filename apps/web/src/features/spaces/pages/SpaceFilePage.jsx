@@ -1,16 +1,20 @@
 import { Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
+import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import { ROUTES, providerUrl } from '../../../shared/config/routes.js'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
-import { getFile, getProvider } from '../data/mock.js'
+import { getFile, getProvider } from '../../../shared/state/hubStore.js'
+import { useHub } from '../../../shared/state/HubState.jsx'
+import { fileMenuItems } from '../components/entryActions.js'
 import styles from './SpaceFilePage.module.css'
 
 export default function SpaceFilePage() {
   const { fileRef, provider: providerId } = useParams()
-  const provider = providerId ? getProvider(providerId) : null
-  const file = getFile(fileRef)
+  const { state, dispatch, openOverlay } = useHub()
+  const provider = providerId ? getProvider(state, providerId) : null
+  const file = getFile(state, fileRef)
 
   if (!file || !provider) {
     return (
@@ -24,7 +28,17 @@ export default function SpaceFilePage() {
   return (
     <AppShell
       refreshKey={fileRef}
-      subheader={<SpaceViewHeader />}
+      subheader={
+        <SpaceViewHeader
+          trailing={
+            <OverflowMenu
+              ghost
+              label={`Ações de ${file.title}`}
+              items={fileMenuItems(file, { openOverlay, dispatch, state })}
+            />
+          }
+        />
+      }
     >
       <main className={styles.main}>
         <motion.div

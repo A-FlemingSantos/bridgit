@@ -1,6 +1,11 @@
+import { useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Plus } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
-import { spaces } from '../data/mock.js'
+import { spaceUrl } from '../../../shared/config/routes.js'
+import { spaceStatus, spaceSummary, statusLabel } from '../../../shared/state/hubStore.js'
+import { useHub } from '../../../shared/state/HubState.jsx'
 import styles from './SpacesPage.module.css'
 
 const rise = {
@@ -13,6 +18,21 @@ const rise = {
 }
 
 export default function SpacesPage() {
+  const { state, openOverlay } = useHub()
+  const [params, setParams] = useSearchParams()
+
+  useEffect(() => {
+    if (params.get('novo') !== '1') return
+    openOverlay({ type: 'composer', mode: 'create' })
+    const next = new URLSearchParams(params)
+    next.delete('novo')
+    setParams(next, { replace: true })
+  }, [params, setParams, openOverlay])
+
+  function createSpace() {
+    openOverlay({ type: 'composer', mode: 'create' })
+  }
+
   return (
     <AppShell refreshKey="spaces">
       <main className={styles.main}>
@@ -20,25 +40,56 @@ export default function SpacesPage() {
           <header className={styles.sectionHead}>
             <h1>Spaces</h1>
           </header>
+
+          {state.spaces.length === 0 ? (
+            <p className={styles.empty}>
+              Nenhum space. A sinc nasce aqui — nada é espelhado por padrão.
+            </p>
+          ) : null}
+
           <div className={styles.grid}>
-            {spaces.map((space, index) => (
-              <motion.div
-                key={space.space_id}
-                variants={rise}
-                initial="hidden"
-                animate="show"
-                custom={0.06 + index * 0.05}
-              >
-                <div className={`${styles.tile} ${styles.tileStatic}`}>
-                  <span className={styles.face} aria-hidden="true">
-                    <span className={styles.spaceName}>{space.name}</span>
-                  </span>
-                  <span className={styles.meta}>
-                    <span className={styles.title}>{space.name}</span>
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+            {state.spaces.map((space, index) => {
+              const status = spaceStatus(space)
+              return (
+                <motion.div
+                  key={space.space_id}
+                  className={styles.wrap}
+                  variants={rise}
+                  initial="hidden"
+                  animate="show"
+                  custom={0.06 + index * 0.05}
+                >
+                  <Link to={spaceUrl(space.slug)} className={styles.tile} aria-label={space.name}>
+                    <span className={styles.face} aria-hidden="true">
+                      <span className={styles.spaceName}>{space.name}</span>
+                    </span>
+                    <span className={styles.meta}>
+                      <span className={styles.title}>{space.name}</span>
+                      <span className={styles.sub}>{spaceSummary(space)}</span>
+                      <span className={styles.status}>{statusLabel(status)}</span>
+                    </span>
+                  </Link>
+                </motion.div>
+              )
+            })}
+
+            <motion.div
+              className={styles.wrap}
+              variants={rise}
+              initial="hidden"
+              animate="show"
+              custom={0.06 + state.spaces.length * 0.05}
+            >
+              <button type="button" className={styles.add} onClick={createSpace} aria-label="Novo space">
+                <span className={styles.face} aria-hidden="true">
+                  <Plus size={22} strokeWidth={1.5} />
+                </span>
+                <span className={styles.meta}>
+                  <span className={styles.title}>Novo space</span>
+                  <span className={styles.sub}>Origem e destino</span>
+                </span>
+              </button>
+            </motion.div>
           </div>
         </section>
       </main>

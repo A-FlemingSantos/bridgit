@@ -1,0 +1,132 @@
+.extras {
+  --stagger-start: 48ms;
+  --stagger-step: 36ms;
+  --item-motion: 220ms;
+  --item-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  z-index: 8;
+  overflow: hidden;
+  width: 168px;
+  max-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fixed {
+  position: fixed;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: 24;
+}
+
+.stretch {
+  left: 0;
+  width: auto;
+}
+
+.extrasOpen,
+.extrasClosing {
+  max-height: 400px;
+  visibility: visible;
+}
+
+.extrasOpen {
+  pointer-events: auto;
+}
+
+.extrasClosing {
+  pointer-events: none;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.extrasOpen .inner,
+.extrasClosing .inner {
+  padding-top: 4px;
+}
+
+.item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: calc(clamp(28px, 4vw, 40px) * 1.15);
+  padding: 0 12px;
+  border: 0;
+  background: var(--wash);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.02em;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity var(--item-motion) var(--item-ease),
+    transform var(--item-motion) var(--item-ease);
+  transition-delay: 0ms;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+}
+
+.itemDanger {
+  margin-top: 4px;
+  color: var(--mute);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.item:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.extrasOpen .item {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: calc(var(--stagger-start) + var(--stagger-step) * var(--i, 0));
+}
+
+.extrasClosing .item {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition-delay: calc(
+    var(--stagger-start) + var(--stagger-step) * (var(--n, 1) - 1 - var(--i, 0))
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    transition: none;
+  }
+
+  .extrasOpen .item {
+    opacity: 1;
+    transform: none;
+  }
+
+  .extrasClosing .item,
+  .extras:not(.extrasOpen) .item {
+    opacity: 0;
+    transform: none;
+  }
+}

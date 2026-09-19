@@ -33,6 +33,11 @@
   text-decoration: none;
 }
 
+.wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .item:hover .face {
   background: color-mix(in srgb, var(--ink) 6%, var(--wash));
 }
@@ -77,6 +82,13 @@
   letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
 }
 
 @media (max-width: 980px) {

@@ -1,0 +1,235 @@
+.main {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 1120px);
+  margin-inline: auto;
+  padding: 22px clamp(20px, 4vw, 40px) 48px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 40px;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.endpoint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 20px;
+  background: var(--wash);
+}
+
+.endpointLabel {
+  font-size: 11px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+}
+
+.endpointHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.endpointProvider {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.endpointPath {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.direction {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  color: var(--ink);
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.primary,
+.secondary,
+.delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.secondary {
+  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
+  color: var(--ink);
+}
+
+.danger {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.delete {
+  background: transparent;
+  color: var(--mute);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0 12px;
+  color: var(--ink);
+  font-size: 13px;
+  letter-spacing: -0.02em;
+}
+
+.primary:hover {
+  opacity: 0.92;
+}
+
+.secondary:hover {
+  background: color-mix(in srgb, var(--ink) 16%, var(--wash));
+}
+
+.delete:hover {
+  color: var(--ink);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.keep:focus-visible,
+.delete:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 12px 16px;
+  background: var(--wash);
+}
+
+.conflictName {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.conflictActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.keep {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.keep:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .direction {
+    justify-self: start;
+  }
+
+  .conflict {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .primary,
+  .secondary {
+    width: auto;
+  }
+}

@@ -64,6 +64,10 @@
   gap: 8px;
 }
 
+.actionDock {
+  position: relative;
+}
+
 .action {
   display: inline-flex;
   align-items: center;
@@ -186,6 +190,18 @@
   text-decoration: none;
 }
 
+.cardWrap,
+.rowWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.rowWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+}
+
 .pinFace,
 .tileFace {
   display: grid;
@@ -257,6 +273,13 @@
 .viewButton:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
 }
 
 .list {

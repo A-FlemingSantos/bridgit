@@ -1,6 +1,9 @@
+import { useRef } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { FilePen, FolderPlus, PenLine, Stamp, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
+import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import {
   ROUTES,
   providerFileUrl,
@@ -16,7 +19,10 @@ import {
   getFolderContents,
   getProvider,
   getProviderContents,
-} from '../data/mock.js'
+  makeFolderLocationFromState,
+} from '../../../shared/state/hubStore.js'
+import { useHub } from '../../../shared/state/HubState.jsx'
+import { fileMenuItems, folderMenuItems } from '../components/entryActions.js'
 import styles from './SpaceBrowsePage.module.css'
 
 const rise = {
@@ -30,8 +36,10 @@ const rise = {
 
 export default function SpaceBrowsePage() {
   const { folderRef, provider: providerId } = useParams()
-  const provider = providerId ? getProvider(providerId) : null
-  const folder = folderRef ? getFolder(folderRef) : null
+  const { state, dispatch, openOverlay } = useHub()
+  const uploadRef = useRef(null)
+  const provider = providerId ? getProvider(state, providerId) : null
+  const folder = folderRef ? getFolder(state, folderRef) : null
 
   if (!provider) {
     return <Navigate to={ROUTES.home} replace />
@@ -41,18 +49,77 @@ export default function SpaceBrowsePage() {
     return <Navigate to={providerUrl(provider.id)} replace />
   }
 
-  const contents = (folderRef
-    ? getFolderContents(folderRef)
-    : getProviderContents(provider.id)) ?? { folders: [], files: [] }
+  const contents = folderRef
+    ? getFolderContents(state, folderRef)
+    : getProviderContents(state, provider.id)
+  const empty = contents.folders.length === 0 && contents.files.length === 0
+
+  function nameOverlay(kind) {
+    openOverlay({
+      type: 'name',
+      kind,
+      providerId: provider.id,
+      folderRef: folderRef ?? null,
+    })
+  }
+
+  function onUpload(event) {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    files.forEach((file) => {
+      const title = file.name.replace(/\.[^.]+$/, '') || file.name
+      const ext = file.name.split('.').pop()
+      dispatch({
+        type: 'createFile',
+        title,
+        providerId: provider.id,
+        parentFolderRef: folderRef ?? null,
+        kind: ext ? ext.toUpperCase() : 'PDF',
+      })
+    })
+  }
 
   return (
     <AppShell
       refreshKey={`${providerId}-${folderRef ?? 'root'}`}
       subheader={
-        <SpaceViewHeader trailing={<SpaceViewActions />} />
+        <SpaceViewHeader
+          trailing={
+            <SpaceViewActions
+              onCreate={() => nameOverlay('file')}
+              extras={[
+                {
+                  id: 'upload',
+                  label: 'Enviar',
+                  icon: Upload,
+                  onSelect: () => uploadRef.current?.click(),
+                },
+                {
+                  id: 'folder',
+                  label: 'Nova pasta',
+                  icon: FolderPlus,
+                  onSelect: () => nameOverlay('folder'),
+                },
+                { id: 'edit', label: 'Editar PDF', icon: FilePen },
+                { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp },
+                { id: 'sign', label: 'Assinar', icon: PenLine },
+              ]}
+            />
+          }
+        />
       }
     >
       <main className={styles.main}>
+        <input
+          ref={uploadRef}
+          type="file"
+          hidden
+          multiple
+          onChange={onUpload}
+        />
+
+        {empty ? <p className={styles.empty}>Esta pasta está vazia.</p> : null}
+
         {contents.folders.length > 0 ? (
           <section className={styles.section}>
             <h2>Pastas</h2>
@@ -60,6 +127,7 @@ export default function SpaceBrowsePage() {
               {contents.folders.map((item, index) => (
                 <motion.div
                   key={item.folderRef}
+                  className={styles.wrap}
                   variants={rise}
                   initial="hidden"
                   animate="show"
@@ -80,6 +148,15 @@ export default function SpaceBrowsePage() {
                       <span className={styles.itemSub}>Pasta · {item.provider}</span>
                     </span>
                   </Link>
+                  <OverflowMenu
+                    floating
+                    hoverReveal
+                    label={`Ações de ${item.name}`}
+                    items={folderMenuItems(
+                      { ...item, origin: makeFolderLocationFromState(state, item.folderRef) },
+                      { openOverlay },
+                    )}
+                  />
                 </motion.div>
               ))}
             </div>
@@ -93,6 +170,7 @@ export default function SpaceBrowsePage() {
               {contents.files.map((item, index) => (
                 <motion.div
                   key={item.fileRef}
+                  className={styles.wrap}
                   variants={rise}
                   initial="hidden"
                   animate="show"
@@ -112,6 +190,12 @@ export default function SpaceBrowsePage() {
                       </span>
                     </span>
                   </Link>
+                  <OverflowMenu
+                    floating
+                    hoverReveal
+                    label={`Ações de ${item.title}`}
+                    items={fileMenuItems(item, { openOverlay, dispatch, state })}
+                  />
                 </motion.div>
               ))}
             </div>

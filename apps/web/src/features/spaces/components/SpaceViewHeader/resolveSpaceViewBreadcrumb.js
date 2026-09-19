@@ -1,11 +1,5 @@
 import { matchPath } from 'react-router-dom'
 import {
-  getFile,
-  getFolder,
-  getProvider,
-  providerHasFolder,
-} from '../../data/mock.js'
-import {
   ROUTES,
   providerFolderUrl,
   providerUrl,
@@ -19,8 +13,8 @@ function homeCrumb() {
   return item('Início', { to: ROUTES.home })
 }
 
-function providerCrumb(providerId, { current = false } = {}) {
-  const resolved = getProvider(providerId)
+function providerCrumb(catalog, providerId, { current = false } = {}) {
+  const resolved = catalog.getProvider(providerId)
   return item(resolved?.name ?? 'Provedor', {
     to: current ? null : providerUrl(providerId),
     current,
@@ -28,24 +22,53 @@ function providerCrumb(providerId, { current = false } = {}) {
   })
 }
 
-function parentFolderCrumb(file, providerId) {
-  if (!file?.folderRef) return []
-  const folder = getFolder(file.folderRef)
-  if (!folder) return []
-  if (!providerHasFolder(providerId, file.folderRef)) return []
-  return [item(folder.name, { to: providerFolderUrl(providerId, file.folderRef) })]
+function resolveAncestry(catalog, folderRef) {
+  if (!folderRef) return []
+  if (typeof catalog.getFolderAncestry === 'function') {
+    return catalog.getFolderAncestry(folderRef)
+  }
+
+  const chain = []
+  const seen = new Set()
+  let currentRef = folderRef
+
+  while (currentRef && !seen.has(currentRef)) {
+    seen.add(currentRef)
+    const folder = catalog.getFolder(currentRef)
+    if (!folder) break
+    chain.unshift(folder)
+    currentRef = folder.parentFolderRef ?? null
+  }
+
+  return chain
 }
 
-export function resolveSpaceViewBreadcrumb(pathname) {
+function folderCrumbs(catalog, providerId, folderRef, { current = false } = {}) {
+  if (!folderRef) return []
+  if (typeof catalog.providerHasFolder === 'function' && !catalog.providerHasFolder(providerId, folderRef)) {
+    return []
+  }
+
+  const ancestry = resolveAncestry(catalog, folderRef)
+  return ancestry.map((folder, index) => {
+    const isLast = index === ancestry.length - 1
+    return item(folder.name, {
+      to: current && isLast ? null : providerFolderUrl(providerId, folder.folderRef),
+      current: current && isLast,
+    })
+  })
+}
+
+export function resolveSpaceViewBreadcrumb(pathname, catalog) {
   const providerFile = matchPath({ path: ROUTES.providerFile, end: true }, pathname)
   if (providerFile) {
     const { provider: providerId, fileRef } = providerFile.params
-    const file = getFile(fileRef)
+    const file = catalog.getFile(fileRef)
     return {
       items: [
         homeCrumb(),
-        providerCrumb(providerId),
-        ...parentFolderCrumb(file, providerId),
+        providerCrumb(catalog, providerId),
+        ...folderCrumbs(catalog, providerId, file?.folderRef),
         item(file?.title ?? 'Arquivo', { current: true }),
       ],
     }
@@ -54,12 +77,14 @@ export function resolveSpaceViewBreadcrumb(pathname) {
   const providerFolder = matchPath({ path: ROUTES.providerFolder, end: true }, pathname)
   if (providerFolder) {
     const { provider: providerId, folderRef } = providerFolder.params
-    const folder = getFolder(folderRef)
+    const crumbs = folderCrumbs(catalog, providerId, folderRef, { current: true })
     return {
       items: [
         homeCrumb(),
-        providerCrumb(providerId),
-        item(folder?.name ?? 'Pasta', { current: true }),
+        providerCrumb(catalog, providerId),
+        ...(crumbs.length
+          ? crumbs
+          : [item(catalog.getFolder(folderRef)?.name ?? 'Pasta', { current: true })]),
       ],
     }
   }
@@ -69,7 +94,7 @@ export function resolveSpaceViewBreadcrumb(pathname) {
     return {
       items: [
         homeCrumb(),
-        providerCrumb(provider.params.provider, { current: true }),
+        providerCrumb(catalog, provider.params.provider, { current: true }),
       ],
     }
   }

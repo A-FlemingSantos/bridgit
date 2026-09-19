@@ -3,7 +3,13 @@
   flex: 0 0 auto;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
   padding: 22px clamp(20px, 4vw, 40px) 12px;
+}
+
+.contained {
+  width: min(100%, 1120px);
+  margin-inline: auto;
 }
 
 .crumbs {
@@ -52,6 +58,14 @@
   min-width: 0;
 }
 
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .band h1 {
   display: flex;
   align-items: center;
@@ -63,6 +77,29 @@
   font-weight: 500;
   letter-spacing: -0.055em;
   line-height: 1.15;
+}
+
+.titleInput {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.titleInput:focus {
+  outline: none;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
 }
 
 .band h1 img {
