@@ -13,6 +13,7 @@ export default function AppOverlay({
   children,
   onClose,
   compact = false,
+  wide = false,
   trailing = null,
   labelledBy,
   refreshKey = 'overlay',
@@ -69,7 +70,13 @@ export default function AppOverlay({
           />
           <motion.div
             ref={panelRef}
-            className={[styles.panel, compact ? styles.compact : ''].filter(Boolean).join(' ')}
+            className={[
+              styles.panel,
+              compact ? styles.compact : '',
+              wide ? styles.wide : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}

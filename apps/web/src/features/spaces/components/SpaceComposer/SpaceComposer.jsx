@@ -144,6 +144,7 @@ export default function SpaceComposer({ overlay }) {
       title={picking ? picker.title : 'Novo space'}
       onClose={closeOverlay}
       compact={false}
+      wide={!picking}
       trailing={
         picking ? (
           picker.trailing

@@ -46,6 +46,12 @@
   max-height: min(560px, calc(100dvh - 48px));
 }
 
+.wide {
+  width: min(720px, 100%);
+  height: auto;
+  max-height: min(560px, calc(100dvh - 48px));
+}
+
 .chrome {
   display: flex;
   align-items: center;
