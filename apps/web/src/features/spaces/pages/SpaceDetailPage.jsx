@@ -1,4 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
+import { ArrowRight, Check, Pause, Play, RefreshCw, Trash2 } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import { ROUTES, spaceUrl } from '../../../shared/config/routes.js'
 import {
@@ -37,6 +38,7 @@ export default function SpaceDetailPage() {
       refreshKey={space.space_id}
       subheader={
         <SpaceViewHeader
+          contained
           items={crumbs}
           onRename={(name) => dispatch({ type: 'renameSpace', spaceId: space.space_id, name })}
           subtitle={space.lastSyncedAt ? `Última sinc ${space.lastSyncedAt}` : null}
@@ -47,12 +49,13 @@ export default function SpaceDetailPage() {
         <section className={styles.pair} aria-label="Par de sincronização">
           <Endpoint role="origin" label="Origem" location={space.origin} />
           <span className={styles.direction} aria-hidden="true">
-            →
+            <ArrowRight size={28} strokeWidth={1.75} />
           </span>
           <Endpoint role="destination" label="Destino" location={space.destination} />
         </section>
 
         <p className={styles.banner} data-status={status}>
+          {status === 'synced' ? <Check size={16} strokeWidth={1.75} aria-hidden="true" /> : null}
           {statusBannerLabel(status)}
         </p>
 
@@ -62,6 +65,7 @@ export default function SpaceDetailPage() {
             className={styles.primary}
             onClick={() => dispatch({ type: 'syncNow', spaceId: space.space_id })}
           >
+            <RefreshCw size={15} strokeWidth={1.6} aria-hidden="true" />
             Sincronizar
           </button>
           <button
@@ -75,6 +79,11 @@ export default function SpaceDetailPage() {
               })
             }
           >
+            {space.paused ? (
+              <Play size={15} strokeWidth={1.6} aria-hidden="true" />
+            ) : (
+              <Pause size={15} strokeWidth={1.6} aria-hidden="true" />
+            )}
             {space.paused ? 'Retomar' : 'Pausar'}
           </button>
         </div>
@@ -126,6 +135,7 @@ export default function SpaceDetailPage() {
             openOverlay({ type: 'confirm-delete-space', spaceId: space.space_id })
           }
         >
+          <Trash2 size={15} strokeWidth={1.6} aria-hidden="true" />
           Excluir space
         </button>
       </main>

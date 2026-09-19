@@ -3,7 +3,13 @@
   flex: 0 0 auto;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
   padding: 22px clamp(20px, 4vw, 40px) 12px;
+}
+
+.contained {
+  width: min(100%, 1120px);
+  margin-inline: auto;
 }
 
 .crumbs {

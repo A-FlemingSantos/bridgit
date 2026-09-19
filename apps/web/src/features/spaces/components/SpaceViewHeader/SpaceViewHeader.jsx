@@ -21,6 +21,7 @@ export default function SpaceViewHeader({
   items: itemsProp = null,
   onRename = null,
   subtitle = null,
+  contained = false,
 }) {
   const location = useLocation()
   const { state } = useHub()
@@ -55,7 +56,7 @@ export default function SpaceViewHeader({
   }
 
   return (
-    <header className={styles.band}>
+    <header className={[styles.band, contained ? styles.contained : ''].filter(Boolean).join(' ')}>
       {ancestors.length > 0 ? (
         <nav className={styles.crumbs} aria-label="Localização atual">
           {ancestors.map((crumb, index) => (
