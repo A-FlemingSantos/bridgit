@@ -35,7 +35,7 @@ export default function SuspendedMenu({
               key={item.id}
               type="button"
               role="menuitem"
-              className={styles.item}
+              className={[styles.item, item.danger ? styles.itemDanger : ''].filter(Boolean).join(' ')}
               style={{ '--i': index, '--n': items.length }}
               tabIndex={open ? 0 : -1}
               disabled={item.disabled}

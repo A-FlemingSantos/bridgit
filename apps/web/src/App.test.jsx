@@ -168,8 +168,70 @@ describe('App', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Ações de Relatório 2023' }))
+    expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Link público' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Remover atalho' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Excluir' })).toBeInTheDocument()
+  })
+
+  it('renomeia um arquivo pelo menu', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
+    const dialog = screen.getByRole('dialog', { name: 'Renomear' })
+    const input = within(dialog).getByLabelText('Nome do arquivo')
+    await user.clear(input)
+    await user.type(input, 'Relatório final')
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+    expect(screen.getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+  })
+
+  it('move um arquivo para outra pasta', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Mover' }))
+    const dialog = screen.getByRole('dialog', { name: 'Mover' })
+    await user.click(within(dialog).getByRole('button', { name: /Referências de código/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Escolher' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('link', { name: /Referências de código/ }))
+    expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
+  })
+
+  it('mostra as ações de uma pasta e exclui pelo overlay', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Ações de Inovações técnicas' }))
+    expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
+    await user.click(screen.getByRole('menuitem', { name: 'Excluir' }))
+    const dialog = screen.getByRole('dialog', { name: 'Excluir pasta' })
+    await user.click(within(dialog).getByRole('button', { name: 'Excluir' }))
+    expect(screen.queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
   })
 
   it('mostra conflitos no space', () => {

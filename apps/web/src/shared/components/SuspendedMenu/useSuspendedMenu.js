@@ -36,7 +36,9 @@ export function useSuspendedMenu(itemCount, { enabled = true } = {}) {
     clearCloseTimeout()
     setOpen(false)
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduceMotion) {
       setClosing(false)
       return

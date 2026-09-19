@@ -7,6 +7,7 @@ import {
   getProvider,
   getProviderContents,
   makeFolderLocationFromState,
+  makeRootLocation,
 } from '../../../../shared/state/hubStore.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
@@ -14,8 +15,11 @@ import { overlayStyles as styles } from '../../../../shared/components/AppOverla
 export function useLocationPicker({
   excludeProviderId,
   disabledFolderRef = null,
+  disabledFolderRefs = [],
   initialProviderId = null,
   foldersOnly = false,
+  allowRoot = false,
+  blockedHint = 'Esta pasta já é o outro lado',
   onChoose,
   resetKey,
 } = {}) {
@@ -37,6 +41,7 @@ export function useLocationPicker({
     : { folders: [], files: [] }
 
   const providers = state.providers.filter((item) => item.id !== excludeProviderId)
+  const blockedRefs = [disabledFolderRef, ...disabledFolderRefs].filter(Boolean)
   const currentLocation = useMemo(() => {
     if (!provider) return null
     if (folder) return makeFolderLocationFromState(state, folder.folderRef)
@@ -77,9 +82,9 @@ export function useLocationPicker({
   }
 
   const empty = contents.folders.length === 0 && (foldersOnly || contents.files.length === 0)
-  const currentBlocked = Boolean(disabledFolderRef && folderRef === disabledFolderRef)
-  const canChoose = Boolean(folder) && !currentBlocked
-  const sameFolderHint = 'Esta pasta já é o outro lado'
+  const currentBlocked = Boolean(folderRef && blockedRefs.includes(folderRef))
+  const canChoose = folder ? !currentBlocked : allowRoot
+  const chosenLocation = folder ? currentLocation : makeRootLocation(provider)
 
   return {
     picking: true,
@@ -92,10 +97,10 @@ export function useLocationPicker({
         type="button"
         className={styles.choose}
         disabled={!canChoose}
-        title={currentBlocked ? sameFolderHint : undefined}
+        title={currentBlocked ? blockedHint : undefined}
         onClick={() => {
           if (!canChoose) return
-          onChoose?.(currentLocation)
+          onChoose?.(chosenLocation)
         }}
       >
         Escolher
@@ -125,14 +130,14 @@ export function useLocationPicker({
             {contents.folders.length > 0 ? (
               <div className={styles.grid}>
                 {contents.folders.map((item) => {
-                  const blocked = item.folderRef === disabledFolderRef
+                  const blocked = blockedRefs.includes(item.folderRef)
                   return (
                   <button
                     key={item.folderRef}
                     type="button"
                     className={styles.item}
                     disabled={blocked}
-                    title={blocked ? sameFolderHint : undefined}
+                    title={blocked ? blockedHint : undefined}
                     onClick={() => {
                       if (blocked) return
                       setFolderRef(item.folderRef)

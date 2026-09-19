@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import AppOverlay, { overlayStyles as styles } from '../components/AppOverlay/AppOverlay.jsx'
 import ProviderMark from '../../features/spaces/components/ProviderMark.jsx'
-import { getFile, getProvider, getSpace, publicLinkFor } from './hubStore.js'
+import { useLocationPicker } from '../../features/spaces/components/LocationPicker/useLocationPicker.jsx'
+import {
+  collectDescendantFolderRefs,
+  getFile,
+  getFolder,
+  getProvider,
+  getSpace,
+  publicLinkFor,
+} from './hubStore.js'
 import { useHub } from './HubState.jsx'
 import SpaceComposer from '../../features/spaces/components/SpaceComposer/SpaceComposer.jsx'
 
@@ -16,6 +24,10 @@ export default function HubOverlays() {
 
   if (overlay.type === 'name') {
     return <NameOverlay overlay={overlay} />
+  }
+
+  if (overlay.type === 'move') {
+    return <MoveOverlay overlay={overlay} />
   }
 
   if (overlay.type === 'confirm-delete-space') {
@@ -42,6 +54,10 @@ export default function HubOverlays() {
     )
   }
 
+  if (overlay.type === 'confirm-delete-entry') {
+    return <ConfirmDeleteEntryOverlay overlay={overlay} />
+  }
+
   if (overlay.type === 'public-link') {
     return <PublicLinkOverlay fileRef={overlay.fileRef} />
   }
@@ -52,16 +68,27 @@ export default function HubOverlays() {
 function NameOverlay({ overlay }) {
   const { state, dispatch, closeOverlay } = useHub()
   const space = overlay.spaceId ? getSpace(state, overlay.spaceId) : null
+  const file = overlay.fileRef ? getFile(state, overlay.fileRef) : null
+  const folder = overlay.folderRef ? getFolder(state, overlay.folderRef) : null
+  const renaming = overlay.mode === 'rename'
   const initial =
-    overlay.kind === 'space' ? space?.name ?? '' : overlay.kind === 'file' ? 'Documento' : 'Pasta sem título'
+    overlay.kind === 'space'
+      ? space?.name ?? ''
+      : renaming && overlay.kind === 'file'
+        ? file?.title ?? ''
+        : renaming && overlay.kind === 'folder'
+          ? folder?.name ?? ''
+          : overlay.kind === 'file'
+            ? 'Documento'
+            : 'Pasta sem título'
   const [value, setValue] = useState(initial)
   const [providerId, setProviderId] = useState(overlay.providerId ?? null)
-  const needsProvider = (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
+  const needsProvider = !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
 
   const title =
-    overlay.kind === 'space' ? 'Renomear' : overlay.kind === 'file' ? 'Criar' : 'Nova pasta'
+    overlay.kind === 'space' || renaming ? 'Renomear' : overlay.kind === 'file' ? 'Criar' : 'Nova pasta'
   const label = overlay.kind === 'file' ? 'Nome do arquivo' : 'Nome'
-  const submitLabel = overlay.kind === 'space' ? 'Salvar' : 'Criar'
+  const submitLabel = overlay.kind === 'space' || renaming ? 'Salvar' : 'Criar'
   const provider = providerId ? getProvider(state, providerId) : null
 
   function submit() {
@@ -70,6 +97,16 @@ function NameOverlay({ overlay }) {
 
     if (overlay.kind === 'space') {
       dispatch({ type: 'renameSpace', spaceId: overlay.spaceId, name })
+      return
+    }
+
+    if (renaming && overlay.kind === 'file') {
+      dispatch({ type: 'renameFile', fileRef: overlay.fileRef, title: name })
+      return
+    }
+
+    if (renaming && overlay.kind === 'folder') {
+      dispatch({ type: 'renameFolder', folderRef: overlay.folderRef, name })
       return
     }
 
@@ -133,6 +170,83 @@ function NameOverlay({ overlay }) {
           />
         </div>
       )}
+    </AppOverlay>
+  )
+}
+
+function MoveOverlay({ overlay }) {
+  const { state, dispatch, closeOverlay } = useHub()
+  const entry =
+    overlay.kind === 'folder' ? getFolder(state, overlay.folderRef) : getFile(state, overlay.fileRef)
+  const currentFolderRef =
+    overlay.kind === 'folder' ? entry?.parentFolderRef ?? null : entry?.folderRef ?? null
+  const blocked =
+    overlay.kind === 'folder'
+      ? [overlay.folderRef, ...collectDescendantFolderRefs(state, overlay.folderRef)]
+      : currentFolderRef
+        ? [currentFolderRef]
+        : []
+
+  const picker = useLocationPicker({
+    initialProviderId: entry?.providerId ?? null,
+    foldersOnly: true,
+    allowRoot: true,
+    disabledFolderRefs: blocked,
+    blockedHint: 'Não dá para mover para cá',
+    resetKey: overlay.kind === 'folder' ? overlay.folderRef : overlay.fileRef,
+    onChoose: (location) => {
+      const parentFolderRef = location?.kind === 'folder' ? location.ref : null
+      if (overlay.kind === 'folder') {
+        dispatch({ type: 'moveFolder', folderRef: overlay.folderRef, parentFolderRef })
+        return
+      }
+      dispatch({ type: 'moveFile', fileRef: overlay.fileRef, parentFolderRef })
+    },
+  })
+
+  if (!entry) return null
+
+  return (
+    <AppOverlay
+      title="Mover"
+      onClose={closeOverlay}
+      compact
+      trailing={picker.trailing}
+      refreshKey={picker.refreshKey}
+    >
+      {picker.body}
+    </AppOverlay>
+  )
+}
+
+function ConfirmDeleteEntryOverlay({ overlay }) {
+  const { state, dispatch, closeOverlay } = useHub()
+  const file = overlay.kind === 'file' ? getFile(state, overlay.fileRef) : null
+  const folder = overlay.kind === 'folder' ? getFolder(state, overlay.folderRef) : null
+  const name = file?.title ?? folder?.name
+  if (!name) return null
+
+  return (
+    <AppOverlay title={overlay.kind === 'folder' ? 'Excluir pasta' : 'Excluir arquivo'} onClose={closeOverlay} compact>
+      <p className={styles.lead}>
+        {name} deixa de existir neste hub. A cópia no provedor permanece.
+      </p>
+      <div className={styles.actions}>
+        <button type="button" className={styles.secondary} onClick={closeOverlay}>
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className={styles.primary}
+          onClick={() =>
+            overlay.kind === 'folder'
+              ? dispatch({ type: 'deleteFolder', folderRef: overlay.folderRef })
+              : dispatch({ type: 'deleteFile', fileRef: overlay.fileRef })
+          }
+        >
+          Excluir
+        </button>
+      </div>
     </AppOverlay>
   )
 }

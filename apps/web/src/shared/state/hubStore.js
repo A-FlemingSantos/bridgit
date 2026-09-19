@@ -412,6 +412,89 @@ function addToContents(contents, kind, ref) {
   }
 }
 
+function withoutRef(list, ref) {
+  return (list ?? []).filter((item) => item !== ref)
+}
+
+function stripEntry(contents, kind, ref) {
+  const next = copyContents(contents)
+  const key = kind === 'folder' ? 'folderRefs' : 'fileRefs'
+  next[key] = withoutRef(next[key], ref)
+  return next
+}
+
+function mapContents(bag, mapper) {
+  const next = {}
+  for (const [key, contents] of Object.entries(bag ?? {})) {
+    next[key] = mapper(contents)
+  }
+  return next
+}
+
+export function collectDescendantFolderRefs(state, folderRef) {
+  const refs = []
+  const queue = [...(state.folderContents[folderRef]?.folderRefs ?? [])]
+  while (queue.length) {
+    const current = queue.shift()
+    if (!current || refs.includes(current)) continue
+    refs.push(current)
+    queue.push(...(state.folderContents[current]?.folderRefs ?? []))
+  }
+  return refs
+}
+
+function purgeFile(state, fileRef) {
+  const files = { ...state.files }
+  delete files[fileRef]
+  const publicLinks = { ...state.publicLinks }
+  delete publicLinks[fileRef]
+  return {
+    ...state,
+    files,
+    publicLinks,
+    folderContents: mapContents(state.folderContents, (contents) => stripEntry(contents, 'file', fileRef)),
+    providerContents: mapContents(state.providerContents, (contents) => stripEntry(contents, 'file', fileRef)),
+    shortcuts: state.shortcuts.filter((ref) => ref !== fileRef),
+    recents: state.recents.filter((entry) => entry.fileRef !== fileRef),
+  }
+}
+
+function purgeFolder(state, folderRef) {
+  const foldersToRemove = [folderRef, ...collectDescendantFolderRefs(state, folderRef)]
+  let next = state
+  for (const ref of foldersToRemove) {
+    for (const fileRef of next.folderContents[ref]?.fileRefs ?? []) {
+      next = purgeFile(next, fileRef)
+    }
+  }
+
+  const folders = { ...next.folders }
+  const folderContents = mapContents(next.folderContents, (contents) => {
+    let mapped = contents
+    for (const ref of foldersToRemove) {
+      mapped = stripEntry(mapped, 'folder', ref)
+    }
+    return mapped
+  })
+  for (const ref of foldersToRemove) {
+    delete folders[ref]
+    delete folderContents[ref]
+  }
+
+  return {
+    ...next,
+    folders,
+    folderContents,
+    providerContents: mapContents(next.providerContents, (contents) => {
+      let mapped = contents
+      for (const ref of foldersToRemove) {
+        mapped = stripEntry(mapped, 'folder', ref)
+      }
+      return mapped
+    }),
+  }
+}
+
 function touchRecent(state, fileRef) {
   const rest = state.recents.filter((entry) => entry.fileRef !== fileRef)
   return [{ fileRef, when: 'Agora' }, ...rest].slice(0, 12)
@@ -647,6 +730,127 @@ export function reducer(state, action) {
       }
       return { ...state, publicLinks }
     }
+    case 'renameFile': {
+      const title = action.title.trim()
+      const file = getFile(state, action.fileRef)
+      if (!title || !file) return state
+      return {
+        ...state,
+        files: {
+          ...state.files,
+          [action.fileRef]: { ...state.files[action.fileRef], title },
+        },
+        overlay: null,
+      }
+    }
+    case 'renameFolder': {
+      const name = action.name.trim()
+      const folder = getFolder(state, action.folderRef)
+      if (!name || !folder) return state
+      return {
+        ...state,
+        folders: {
+          ...state.folders,
+          [action.folderRef]: { ...state.folders[action.folderRef], name },
+        },
+        overlay: null,
+      }
+    }
+    case 'moveFile': {
+      const file = getFile(state, action.fileRef)
+      if (!file) return state
+      const parentFolderRef = action.parentFolderRef ?? null
+      if (parentFolderRef) {
+        const dest = getFolder(state, parentFolderRef)
+        if (!dest || dest.providerId !== file.providerId) return state
+      }
+      if ((file.folderRef ?? null) === parentFolderRef) {
+        return { ...state, overlay: null }
+      }
+
+      let folderContents = mapContents(state.folderContents, (contents) =>
+        stripEntry(contents, 'file', file.fileRef),
+      )
+      let providerContents = mapContents(state.providerContents, (contents) =>
+        stripEntry(contents, 'file', file.fileRef),
+      )
+
+      if (parentFolderRef) {
+        const dest = copyContents(folderContents[parentFolderRef] ?? emptyContents())
+        addToContents(dest, 'file', file.fileRef)
+        folderContents = { ...folderContents, [parentFolderRef]: dest }
+      } else {
+        const root = copyContents(providerContents[file.providerId])
+        addToContents(root, 'file', file.fileRef)
+        providerContents = { ...providerContents, [file.providerId]: root }
+      }
+
+      return {
+        ...state,
+        files: {
+          ...state.files,
+          [file.fileRef]: {
+            ...state.files[file.fileRef],
+            folderRef: parentFolderRef || undefined,
+          },
+        },
+        folderContents,
+        providerContents,
+        overlay: null,
+      }
+    }
+    case 'moveFolder': {
+      const folder = getFolder(state, action.folderRef)
+      if (!folder) return state
+      const parentFolderRef = action.parentFolderRef ?? null
+      if (parentFolderRef === folder.folderRef) return state
+      if (parentFolderRef && collectDescendantFolderRefs(state, folder.folderRef).includes(parentFolderRef)) {
+        return state
+      }
+      if (parentFolderRef) {
+        const dest = getFolder(state, parentFolderRef)
+        if (!dest || dest.providerId !== folder.providerId) return state
+      }
+      const currentParent = folder.parentFolderRef ?? null
+      if (currentParent === parentFolderRef) {
+        return { ...state, overlay: null }
+      }
+
+      let folderContents = mapContents(state.folderContents, (contents) =>
+        stripEntry(contents, 'folder', folder.folderRef),
+      )
+      let providerContents = mapContents(state.providerContents, (contents) =>
+        stripEntry(contents, 'folder', folder.folderRef),
+      )
+
+      if (parentFolderRef) {
+        const dest = copyContents(folderContents[parentFolderRef] ?? emptyContents())
+        addToContents(dest, 'folder', folder.folderRef)
+        folderContents = { ...folderContents, [parentFolderRef]: dest }
+      } else {
+        const root = copyContents(providerContents[folder.providerId])
+        addToContents(root, 'folder', folder.folderRef)
+        providerContents = { ...providerContents, [folder.providerId]: root }
+      }
+
+      return {
+        ...state,
+        folders: {
+          ...state.folders,
+          [folder.folderRef]: {
+            ...state.folders[folder.folderRef],
+            parentFolderRef: parentFolderRef || undefined,
+          },
+        },
+        folderContents,
+        providerContents,
+        overlay: null,
+      }
+    }
+    case 'deleteFile':
+      return { ...purgeFile(state, action.fileRef), overlay: null }
+    case 'deleteFolder':
+      return { ...purgeFolder(state, action.folderRef), overlay: null }
     default:
       return state
   }

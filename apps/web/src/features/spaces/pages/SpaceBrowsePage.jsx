@@ -22,7 +22,7 @@ import {
   makeFolderLocationFromState,
 } from '../../../shared/state/hubStore.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
-import { fileMenuItems } from '../components/entryActions.js'
+import { fileMenuItems, folderMenuItems } from '../components/entryActions.js'
 import styles from './SpaceBrowsePage.module.css'
 
 const rise = {
@@ -152,18 +152,10 @@ export default function SpaceBrowsePage() {
                     floating
                     hoverReveal
                     label={`Ações de ${item.name}`}
-                    items={[
-                      {
-                        id: 'mirror',
-                        label: 'Espelhar',
-                        onSelect: () =>
-                          openOverlay({
-                            type: 'composer',
-                            mode: 'create',
-                            origin: makeFolderLocationFromState(state, item.folderRef),
-                          }),
-                      },
-                    ]}
+                    items={folderMenuItems(
+                      { ...item, origin: makeFolderLocationFromState(state, item.folderRef) },
+                      { openOverlay },
+                    )}
                   />
                 </motion.div>
               ))}
