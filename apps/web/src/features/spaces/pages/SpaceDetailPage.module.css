@@ -36,42 +36,10 @@
   background: var(--wash);
 }
 
-.endpointTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 22px;
-}
-
 .endpointLabel {
   font-size: 11px;
   color: var(--mute);
   letter-spacing: -0.01em;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
-  color: var(--ink);
-  font-size: 11px;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-.status[data-status='synced'] {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.status[data-status='paused'] {
-  color: var(--mute);
 }
 
 .endpointHead {
@@ -154,6 +122,34 @@
 
 .delete {
   background: transparent;
+  color: var(--mute);
+}
+
+.statusSlot {
+  margin-top: 16px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.status[data-status='synced'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.status[data-status='paused'] {
   color: var(--mute);
 }
 

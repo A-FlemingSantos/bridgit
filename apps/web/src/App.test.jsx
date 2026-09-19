@@ -78,11 +78,14 @@ describe('App', () => {
     expect(screen.getByText('Destino')).toBeInTheDocument()
     expect(screen.getByText('OneDrive')).toBeInTheDocument()
     expect(screen.getByText('Dropbox')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Sincronizado')
     const actions = screen.getByRole('complementary', { name: 'Ações' })
     expect(within(actions).getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Excluir space' })).toBeInTheDocument()
+    expect(within(actions).getByRole('status')).toHaveTextContent('Sincronizado')
+    expect(
+      within(screen.getByRole('region', { name: 'Par de sincronização' })).queryByRole('status'),
+    ).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
     expect(document.querySelector('.theme-dark')).toBeTruthy()
   })
@@ -177,7 +180,12 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Currículo')
-    expect(screen.getByRole('status')).toHaveTextContent('Conflito')
+    expect(
+      within(screen.getByRole('complementary', { name: 'Ações' })).getByRole('status'),
+    ).toHaveTextContent('Conflito')
+    expect(
+      within(screen.getByRole('region', { name: 'Par de sincronização' })).queryByRole('status'),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Currículo.pdf')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Manter origem' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Manter destino' })).toBeInTheDocument()

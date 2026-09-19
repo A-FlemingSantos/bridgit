@@ -54,12 +54,7 @@ export default function SpaceDetailPage() {
               <span className={styles.direction} aria-hidden="true">
                 <ArrowLeftRight size={28} strokeWidth={1.75} />
               </span>
-              <Endpoint
-                role="destination"
-                label="Destino"
-                location={space.destination}
-                status={status}
-              />
+              <Endpoint role="destination" label="Destino" location={space.destination} />
             </section>
 
             {conflicts.length > 0 ? (
@@ -144,6 +139,12 @@ export default function SpaceDetailPage() {
                 Excluir space
               </button>
             </div>
+            <div className={styles.statusSlot}>
+              <span className={styles.status} data-status={status} role="status">
+                {status === 'synced' ? <Check size={14} strokeWidth={1.75} aria-hidden="true" /> : null}
+                {statusLabel(status)}
+              </span>
+            </div>
           </aside>
         </div>
       </main>
@@ -151,18 +152,10 @@ export default function SpaceDetailPage() {
   )
 }
 
-function Endpoint({ role, label, location, status = null }) {
+function Endpoint({ role, label, location }) {
   return (
     <div className={styles.endpoint} data-role={role}>
-      <span className={styles.endpointTop}>
-        <span className={styles.endpointLabel}>{label}</span>
-        {status ? (
-          <span className={styles.status} data-status={status} role="status">
-            {status === 'synced' ? <Check size={14} strokeWidth={1.75} aria-hidden="true" /> : null}
-            {statusLabel(status)}
-          </span>
-        ) : null}
-      </span>
+      <span className={styles.endpointLabel}>{label}</span>
       <span className={styles.endpointHead}>
         <ProviderMark id={location?.providerId} size={22} />
         <span className={styles.endpointProvider}>{location?.provider}</span>
