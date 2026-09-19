@@ -1,5 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom'
-import { ArrowLeftRight, Check, Pause, Play, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Check, Pause, Play, RefreshCw, Trash2, TriangleAlert } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import { ROUTES, spaceUrl } from '../../../shared/config/routes.js'
 import {
@@ -139,10 +139,15 @@ export default function SpaceDetailPage() {
                 Excluir space
               </button>
             </div>
-            <div className={styles.statusSlot}>
-              <span className={styles.status} data-status={status} role="status">
-                {status === 'synced' ? <Check size={14} strokeWidth={1.75} aria-hidden="true" /> : null}
-                {statusLabel(status)}
+            <div className={styles.statusCard} data-status={status} role="status">
+              <span className={styles.statusIcon} aria-hidden="true">
+                <StatusIcon status={status} />
+              </span>
+              <span className={styles.statusCopy}>
+                <span className={styles.statusLabel}>{statusLabel(status)}</span>
+                <span className={styles.statusMeta}>
+                  {space.lastSyncedAt ? `Última sinc ${space.lastSyncedAt}` : 'Nenhuma pendência'}
+                </span>
               </span>
             </div>
           </aside>
@@ -150,6 +155,12 @@ export default function SpaceDetailPage() {
       </main>
     </AppShell>
   )
+}
+
+function StatusIcon({ status }) {
+  if (status === 'conflict') return <TriangleAlert size={18} strokeWidth={1.75} />
+  if (status === 'paused') return <Pause size={18} strokeWidth={1.75} />
+  return <Check size={18} strokeWidth={1.75} />
 }
 
 function Endpoint({ role, label, location }) {
