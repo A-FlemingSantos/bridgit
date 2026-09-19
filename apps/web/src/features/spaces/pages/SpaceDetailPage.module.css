@@ -1,10 +1,23 @@
 .main {
   display: flex;
   flex-direction: column;
-  gap: 20px;
   width: min(100%, 1120px);
   margin-inline: auto;
   padding: 22px clamp(20px, 4vw, 40px) 48px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 40px;
+  align-items: start;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
 }
 
 .pair {
@@ -23,10 +36,42 @@
   background: var(--wash);
 }
 
+.endpointTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 22px;
+}
+
 .endpointLabel {
   font-size: 11px;
   color: var(--mute);
   letter-spacing: -0.01em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.status[data-status='synced'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.status[data-status='paused'] {
+  color: var(--mute);
 }
 
 .endpointHead {
@@ -61,25 +106,16 @@
   color: var(--ink);
 }
 
-.banner {
+.aside {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 14px 18px;
-  background: var(--wash);
-  font-size: 13px;
-  letter-spacing: -0.02em;
-}
-
-.banner[data-status='synced'] {
-  background: var(--ink);
-  color: var(--paper);
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 
@@ -89,6 +125,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   height: 32px;
   padding: 0 12px;
   border: 0;
@@ -109,20 +146,27 @@
   color: var(--ink);
 }
 
+.danger {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .delete {
-  align-self: flex-start;
-  margin-top: 8px;
-  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
-  color: var(--ink);
+  background: transparent;
+  color: var(--mute);
 }
 
 .primary:hover {
   opacity: 0.92;
 }
 
-.secondary:hover,
-.delete:hover {
+.secondary:hover {
   background: color-mix(in srgb, var(--ink) 16%, var(--wash));
+}
+
+.delete:hover {
+  color: var(--ink);
 }
 
 .primary:focus-visible,
@@ -181,6 +225,11 @@
 }
 
 @media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
   .pair {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -192,5 +241,15 @@
   .conflict {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .primary,
+  .secondary {
+    width: auto;
   }
 }

@@ -77,9 +77,13 @@ describe('App', () => {
     expect(screen.getByText('Destino')).toBeInTheDocument()
     expect(screen.getByText('OneDrive')).toBeInTheDocument()
     expect(screen.getByText('Dropbox')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Sincronizado')
+    const actions = screen.getByRole('complementary', { name: 'Ações' })
+    expect(within(actions).getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument()
+    expect(within(actions).getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
+    expect(within(actions).getByRole('button', { name: 'Excluir space' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
+    expect(document.querySelector('.theme-dark')).toBeTruthy()
   })
 
   it('cria um space só depois de escolher as duas pastas', async () => {
@@ -172,6 +176,7 @@ describe('App', () => {
     )
 
     expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Currículo')
+    expect(screen.getByRole('status')).toHaveTextContent('Conflito')
     expect(screen.getByText('Currículo.pdf')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Manter origem' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Manter destino' })).toBeInTheDocument()

@@ -9,7 +9,7 @@ const HOVER_ZONE_EXTRA_PX = 12
 
 export const AppShellSubheaderShownContext = createContext(true)
 
-export default function AppShell({ children, refreshKey, subheader = null }) {
+export default function AppShell({ children, refreshKey, subheader = null, className = '' }) {
   const viewportRef = useRef(null)
   const bodyRef = useRef(null)
   const subheaderRef = useRef(null)
@@ -113,7 +113,7 @@ export default function AppShell({ children, refreshKey, subheader = null }) {
 
   return (
     <AppShellSubheaderShownContext.Provider value={shown}>
-      <div className={styles.page}>
+      <div className={[styles.page, className].filter(Boolean).join(' ')}>
       <AppHeader />
       <div className={styles.body} ref={bodyRef}>
         {subheader ? (

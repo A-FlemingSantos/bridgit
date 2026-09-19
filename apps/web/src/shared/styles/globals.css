@@ -12,6 +12,16 @@
   --z-app-shell-header: 30;
 }
 
+.theme-dark {
+  color-scheme: dark;
+  --paper: #050505;
+  --hero: #1f1f1f;
+  --wash: #1f1f1f;
+  --line: #2f2f2f;
+  --mute: #ebebeb;
+  --ink: #ffffff;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #050505;

@@ -1,17 +1,11 @@
 .root {
   --custom-scroll-thumb-size: 2px;
-  --custom-scroll-thumb-color: #1f1f1f;
+  --custom-scroll-thumb-color: var(--ink);
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-}
-
-@media (prefers-color-scheme: dark) {
-  .root {
-    --custom-scroll-thumb-color: #f7f7f7;
-  }
 }
 
 .viewport {
