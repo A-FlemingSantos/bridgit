@@ -13,6 +13,7 @@ import { overlayStyles as styles } from '../../../../shared/components/AppOverla
 
 export function useLocationPicker({
   excludeProviderId,
+  disabledFolderRef = null,
   initialProviderId = null,
   foldersOnly = false,
   onChoose,
@@ -76,7 +77,9 @@ export function useLocationPicker({
   }
 
   const empty = contents.folders.length === 0 && (foldersOnly || contents.files.length === 0)
-  const canChoose = Boolean(folder)
+  const currentBlocked = Boolean(disabledFolderRef && folderRef === disabledFolderRef)
+  const canChoose = Boolean(folder) && !currentBlocked
+  const sameFolderHint = 'Esta pasta já é o outro lado'
 
   return {
     picking: true,
@@ -89,6 +92,7 @@ export function useLocationPicker({
         type="button"
         className={styles.choose}
         disabled={!canChoose}
+        title={currentBlocked ? sameFolderHint : undefined}
         onClick={() => {
           if (!canChoose) return
           onChoose?.(currentLocation)
@@ -120,12 +124,19 @@ export function useLocationPicker({
           <>
             {contents.folders.length > 0 ? (
               <div className={styles.grid}>
-                {contents.folders.map((item) => (
+                {contents.folders.map((item) => {
+                  const blocked = item.folderRef === disabledFolderRef
+                  return (
                   <button
                     key={item.folderRef}
                     type="button"
                     className={styles.item}
-                    onClick={() => setFolderRef(item.folderRef)}
+                    disabled={blocked}
+                    title={blocked ? sameFolderHint : undefined}
+                    onClick={() => {
+                      if (blocked) return
+                      setFolderRef(item.folderRef)
+                    }}
                   >
                     <span className={styles.face} aria-hidden="true">
                       <span
@@ -138,7 +149,8 @@ export function useLocationPicker({
                       <span className={styles.itemSub}>Pasta · {item.provider}</span>
                     </span>
                   </button>
-                ))}
+                  )
+                })}
               </div>
             ) : null}
             {!foldersOnly && contents.files.length > 0 ? (

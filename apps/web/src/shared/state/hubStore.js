@@ -479,7 +479,7 @@ export function reducer(state, action) {
       const origin = action.origin ?? action.left
       const destination = action.destination ?? action.right
       if (!name || !isFolderLocation(origin) || !isFolderLocation(destination)) return state
-      if (origin.providerId === destination.providerId) return state
+      if (origin.ref === destination.ref) return state
       const space_id = createId()
       const slug = uniqueSlug(name, state.spaces)
       const space = {

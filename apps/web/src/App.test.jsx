@@ -93,6 +93,14 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Novo space' }))
 
     expect(screen.getByRole('dialog', { name: 'Novo space' })).toBeInTheDocument()
+    const originTabs = screen.getByRole('tablist', { name: 'Provedor de origem' })
+    const destTabs = screen.getByRole('tablist', { name: 'Provedor de destino' })
+    expect(within(originTabs).getByRole('tab', { name: 'OneDrive' })).toBeInTheDocument()
+    expect(within(originTabs).getByRole('tab', { name: 'Google Drive' })).toBeInTheDocument()
+    expect(within(originTabs).getByRole('tab', { name: 'Dropbox' })).toBeInTheDocument()
+    expect(within(destTabs).getByRole('tab', { name: 'OneDrive' })).toBeInTheDocument()
+    expect(within(destTabs).getByRole('tab', { name: 'Google Drive' })).toBeInTheDocument()
+    expect(within(destTabs).getByRole('tab', { name: 'Dropbox' })).toBeInTheDocument()
     const create = screen.getByRole('button', { name: 'Criar' })
     expect(create).toBeDisabled()
     await user.type(screen.getByLabelText('Nome'), 'Arquivo morto')
@@ -112,6 +120,35 @@ describe('App', () => {
     expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Arquivo morto')
     expect(screen.getByText('Origem')).toBeInTheDocument()
     expect(screen.getByText('Destino')).toBeInTheDocument()
+  })
+
+  it('permite origens no mesmo provedor em pastas diferentes', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/spaces']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Novo space' }))
+    await user.type(screen.getByLabelText('Nome'), 'Espelho OneDrive')
+
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Origem' }))
+    await user.click(screen.getByRole('button', { name: /Inovações técnicas/ }))
+    await user.click(screen.getByRole('button', { name: 'Escolher' }))
+
+    await user.click(
+      within(screen.getByRole('tablist', { name: 'Provedor de destino' })).getByRole('tab', {
+        name: 'OneDrive',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Destino' }))
+    await user.click(screen.getByRole('button', { name: /Referências de código/ }))
+    await user.click(screen.getByRole('button', { name: 'Escolher' }))
+
+    expect(screen.getByRole('button', { name: 'Criar' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Criar' }))
+    expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Espelho OneDrive')
   })
 
   it('mostra as ações de um arquivo no provedor', async () => {

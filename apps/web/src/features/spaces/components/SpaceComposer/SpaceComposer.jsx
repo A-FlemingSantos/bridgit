@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Folder } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AppOverlay, { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 import { spaceUrl } from '../../../../shared/config/routes.js'
@@ -28,6 +29,12 @@ function asFolderLocation(state, location) {
   return null
 }
 
+function sameFolder(left, right) {
+  return Boolean(
+    isFolderLocation(left) && isFolderLocation(right) && left.ref && left.ref === right.ref,
+  )
+}
+
 function ProviderTabs({ label, value, options, onChange }) {
   return (
     <div className={styles.tabs} role="tablist" aria-label={label}>
@@ -42,6 +49,7 @@ function ProviderTabs({ label, value, options, onChange }) {
             className={selected ? styles.tabActive : styles.tab}
             onClick={() => onChange(provider.id)}
           >
+            <ProviderMark id={provider.id} size={16} />
             {provider.name}
           </button>
         )
@@ -59,7 +67,7 @@ function FolderPickerButton({ location, onClick, label }) {
       onClick={onClick}
       aria-label={selected ? `${label}: ${locationPath(location)}` : `Escolher pasta de ${label}`}
     >
-      {selected ? <ProviderMark id={location.providerId} size={22} /> : null}
+      <Folder size={22} strokeWidth={1.6} aria-hidden="true" />
       <span className={styles.pickMeta}>
         <span className={styles.pickTitle}>
           {selected ? locationPath(location) : 'Escolher pasta'}
@@ -78,7 +86,7 @@ export default function SpaceComposer({ overlay }) {
   const providers = state.providers
   const prefill = asFolderLocation(state, overlay.origin ?? overlay.left ?? null)
   const defaultFrom = prefill?.providerId ?? providers[0]?.id ?? null
-  const defaultTo = providers.find((provider) => provider.id !== defaultFrom)?.id ?? null
+  const defaultTo = providers.find((provider) => provider.id !== defaultFrom)?.id ?? providers[0]?.id ?? null
 
   const [name, setName] = useState('')
   const [fromProviderId, setFromProviderId] = useState(defaultFrom)
@@ -88,15 +96,13 @@ export default function SpaceComposer({ overlay }) {
   const [picking, setPicking] = useState(null)
   const [hint, setHint] = useState('')
 
-  const fromProviders = providers.filter((provider) => provider.id !== toProviderId)
-  const toProviders = providers.filter((provider) => provider.id !== fromProviderId)
   const pickingProviderId = picking === 'origin' ? fromProviderId : toProviderId
-  const excludeProviderId = picking === 'origin' ? toProviderId : fromProviderId
+  const otherFolderRef = picking === 'origin' ? destination?.ref : origin?.ref
 
   const picker = useLocationPicker({
     foldersOnly: true,
     initialProviderId: pickingProviderId,
-    excludeProviderId,
+    disabledFolderRef: otherFolderRef ?? null,
     resetKey: picking,
     onChoose: (location) => {
       if (!isFolderLocation(location)) return
@@ -109,13 +115,13 @@ export default function SpaceComposer({ overlay }) {
 
   const fromReady = isFolderLocation(origin)
   const toReady = isFolderLocation(destination)
-  const sameProvider = Boolean(origin && destination && origin.providerId === destination.providerId)
+  const sameEndpoint = sameFolder(origin, destination)
   const canSubmit = useMemo(() => {
     if (!name.trim()) return false
     if (!fromReady || !toReady) return false
-    if (sameProvider) return false
+    if (sameEndpoint) return false
     return true
-  }, [name, fromReady, toReady, sameProvider])
+  }, [name, fromReady, toReady, sameEndpoint])
 
   function changeFromProvider(id) {
     setFromProviderId(id)
@@ -130,7 +136,7 @@ export default function SpaceComposer({ overlay }) {
   function submit() {
     if (!canSubmit) {
       if (!fromReady || !toReady) setHint('Escolha uma pasta em cada lado.')
-      else if (sameProvider) setHint('A sinc é entre provedores distintos.')
+      else if (sameEndpoint) setHint('Origem e destino não podem ser a mesma pasta.')
       return
     }
 
@@ -149,7 +155,13 @@ export default function SpaceComposer({ overlay }) {
         picking ? (
           picker.trailing
         ) : (
-          <button type="button" className={styles.choose} disabled={!canSubmit} onClick={submit}>
+          <button
+            type="button"
+            className={styles.choose}
+            disabled={!canSubmit}
+            title={sameEndpoint ? 'Origem e destino não podem ser a mesma pasta.' : undefined}
+            onClick={submit}
+          >
             Criar
           </button>
         )
@@ -181,7 +193,7 @@ export default function SpaceComposer({ overlay }) {
               <ProviderTabs
                 label="Provedor de origem"
                 value={fromProviderId}
-                options={fromProviders}
+                options={providers}
                 onChange={changeFromProvider}
               />
               <FolderPickerButton
@@ -200,7 +212,7 @@ export default function SpaceComposer({ overlay }) {
               <ProviderTabs
                 label="Provedor de destino"
                 value={toProviderId}
-                options={toProviders}
+                options={providers}
                 onChange={changeToProvider}
               />
               <FolderPickerButton
