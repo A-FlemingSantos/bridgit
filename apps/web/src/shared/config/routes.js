@@ -9,7 +9,8 @@ export const ROUTES = {
   settingsSync: '/settings/sync',
   settingsAbout: '/settings/about',
   spaces: '/spaces',
-  space: '/spaces/:spaceRef',
+  space: '/s/:spaceRef',
+  legacySpace: '/spaces/:spaceRef',
   providers: '/providers',
   provider: '/providers/:provider',
   providerFolder: '/providers/:provider/folder/:folderRef',
@@ -19,7 +20,7 @@ export const ROUTES = {
 }
 
 export function spaceUrl(spaceRef) {
-  return `/spaces/${spaceRef}`
+  return `/s/${spaceRef}`
 }
 
 export function providerUrl(provider) {

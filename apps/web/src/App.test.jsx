@@ -56,7 +56,7 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
   })
 
-  it('mostra os spaces e abre o ambiente de sinc', async () => {
+  it('mostra os spaces e abre o par de sinc', async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter {...router} initialEntries={['/spaces']}>
@@ -66,18 +66,23 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
-    expect(screen.getByRole('link', { name: 'Trabalho' })).toHaveAttribute('href', '/spaces/trabalho')
-    expect(screen.getByRole('button', { name: 'Novo' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Scripts' })).toHaveAttribute('href', '/s/scripts')
+    expect(screen.getByRole('link', { name: 'Currículo' })).toHaveAttribute('href', '/s/curriculo')
+    expect(screen.getByRole('button', { name: 'Novo space' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'Trabalho' }))
+    await user.click(screen.getByRole('link', { name: 'Scripts' }))
 
-    expect(screen.getByRole('heading', { name: 'Trabalho' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Adicionar' })).toBeInTheDocument()
-    expect(screen.getByText('Inovações técnicas')).toBeInTheDocument()
-    expect(screen.getByText('Conflito')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Scripts')
+    expect(screen.getByText('Origem')).toBeInTheDocument()
+    expect(screen.getByText('Destino')).toBeInTheDocument()
+    expect(screen.getByText('OneDrive')).toBeInTheDocument()
+    expect(screen.getByText('Dropbox')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Adicionar' })).not.toBeInTheDocument()
   })
 
-  it('cria um space pelo overlay', async () => {
+  it('cria um space só depois de escolher as duas pastas', async () => {
     const user = userEvent.setup()
     render(
       <MemoryRouter {...router} initialEntries={['/spaces']}>
@@ -85,14 +90,28 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Novo' }))
+    await user.click(screen.getByRole('button', { name: 'Novo space' }))
 
     expect(screen.getByRole('dialog', { name: 'Novo space' })).toBeInTheDocument()
+    const create = screen.getByRole('button', { name: 'Criar' })
+    expect(create).toBeDisabled()
     await user.type(screen.getByLabelText('Nome'), 'Arquivo morto')
+    expect(create).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Origem' }))
+    await user.click(screen.getByRole('button', { name: /Inovações técnicas/ }))
+    await user.click(screen.getByRole('button', { name: 'Escolher' }))
+
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Destino' }))
+    await user.click(screen.getByRole('button', { name: /Acervo digital/ }))
+    await user.click(screen.getByRole('button', { name: 'Escolher' }))
+
+    expect(screen.getByRole('button', { name: 'Criar' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Criar' }))
 
-    expect(screen.getByRole('heading', { name: 'Arquivo morto' })).toBeInTheDocument()
-    expect(screen.getByText('Este space ainda não espelha nada.')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Arquivo morto')
+    expect(screen.getByText('Origem')).toBeInTheDocument()
+    expect(screen.getByText('Destino')).toBeInTheDocument()
   })
 
   it('mostra as ações de um arquivo no provedor', async () => {
@@ -108,15 +127,38 @@ describe('App', () => {
     expect(screen.getByRole('menuitem', { name: 'Link público' })).toBeInTheDocument()
   })
 
-  it('mostra o space vazio da empresa', () => {
+  it('mostra conflitos no space', () => {
     render(
-      <MemoryRouter {...router} initialEntries={['/spaces/empresa']}>
+      <MemoryRouter {...router} initialEntries={['/s/curriculo']}>
         <App />
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: 'Empresa' })).toBeInTheDocument()
-    expect(screen.getByText('Este space ainda não espelha nada.')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Currículo')
+    expect(screen.getByText('Currículo.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manter origem' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manter destino' })).toBeInTheDocument()
+  })
+
+  it('mostra as pastas ancestrais de um arquivo aninhado', () => {
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    const nav = screen.getByRole('navigation', { name: 'Localização atual' })
+    expect(within(nav).getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(within(nav).getByRole('link', { name: 'OneDrive' })).toHaveAttribute('href', '/providers/onedrive')
+    expect(within(nav).getByRole('link', { name: 'Inovações técnicas' })).toHaveAttribute(
+      'href',
+      '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
+    )
+    expect(within(nav).getByRole('link', { name: 'Relatórios' })).toHaveAttribute(
+      'href',
+      '/providers/onedrive/folder/e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193',
+    )
+    expect(screen.getAllByRole('heading', { name: 'Rascunho' }).length).toBeGreaterThan(0)
   })
 
   it('mostra a lista de um provedor', () => {
@@ -189,8 +231,8 @@ describe('App', () => {
       'aria-checked',
       'true',
     )
-    expect(screen.getByRole('link', { name: 'Trabalho' })).toHaveAttribute('href', '/spaces/trabalho')
-    expect(screen.getByRole('switch', { name: 'Pausar Trabalho' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('link', { name: 'Scripts' })).toHaveAttribute('href', '/s/scripts')
+    expect(screen.getByRole('switch', { name: 'Pausar Scripts' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('mostra senha e sessão na aba de segurança', () => {

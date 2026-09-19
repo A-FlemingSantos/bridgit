@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import AuthPage from './features/auth/pages/AuthPage.jsx'
 import HomePage from './features/home/pages/HomePage.jsx'
 import SpaceBrowsePage from './features/spaces/pages/SpaceBrowsePage.jsx'
@@ -13,7 +13,7 @@ import AboutTab from './features/settings/pages/AboutTab.jsx'
 import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
-import { ROUTES } from './shared/config/routes.js'
+import { ROUTES, spaceUrl } from './shared/config/routes.js'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
@@ -32,6 +32,7 @@ export default function App() {
         <Route path={ROUTES.home} element={<HomePage />} />
         <Route path={ROUTES.spaces} element={<SpacesPage />} />
         <Route path={ROUTES.space} element={<SpaceDetailPage />} />
+        <Route path={ROUTES.legacySpace} element={<LegacySpaceRedirect />} />
         <Route path={ROUTES.providers} element={<Navigate to={ROUTES.home} replace />} />
         <Route path={ROUTES.providerFolder} element={<SpaceBrowsePage />} />
         <Route path={ROUTES.providerFile} element={<SpaceFilePage />} />
@@ -53,4 +54,9 @@ export default function App() {
       <HubOverlays />
     </HubProvider>
   )
+}
+
+function LegacySpaceRedirect() {
+  const { spaceRef } = useParams()
+  return <Navigate to={spaceUrl(spaceRef)} replace />
 }

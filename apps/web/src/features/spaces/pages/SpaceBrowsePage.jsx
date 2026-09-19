@@ -19,7 +19,7 @@ import {
   getFolderContents,
   getProvider,
   getProviderContents,
-  makeFolderLocation,
+  makeFolderLocationFromState,
 } from '../../../shared/state/hubStore.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import { fileMenuItems } from '../components/entryActions.js'
@@ -160,7 +160,7 @@ export default function SpaceBrowsePage() {
                           openOverlay({
                             type: 'composer',
                             mode: 'create',
-                            left: makeFolderLocation(item),
+                            origin: makeFolderLocationFromState(state, item.folderRef),
                           }),
                       },
                     ]}

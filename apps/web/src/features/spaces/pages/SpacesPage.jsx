@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Plus } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
-import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import { spaceUrl } from '../../../shared/config/routes.js'
-import { spaceProvidersLabel } from '../../../shared/state/hubStore.js'
+import { spaceStatus, spaceSummary, statusLabel } from '../../../shared/state/hubStore.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import styles from './SpacesPage.module.css'
 
@@ -18,7 +18,7 @@ const rise = {
 }
 
 export default function SpacesPage() {
-  const { state, dispatch, openOverlay } = useHub()
+  const { state, openOverlay } = useHub()
   const [params, setParams] = useSearchParams()
 
   useEffect(() => {
@@ -39,18 +39,18 @@ export default function SpacesPage() {
         <section className={styles.section}>
           <header className={styles.sectionHead}>
             <h1>Spaces</h1>
-            <button type="button" className={styles.more} onClick={createSpace}>
-              Novo
-            </button>
           </header>
 
           {state.spaces.length === 0 ? (
             <p className={styles.empty}>
               Nenhum space. A sinc nasce aqui — nada é espelhado por padrão.
             </p>
-          ) : (
-            <div className={styles.grid}>
-              {state.spaces.map((space, index) => (
+          ) : null}
+
+          <div className={styles.grid}>
+            {state.spaces.map((space, index) => {
+              const status = spaceStatus(space)
+              return (
                 <motion.div
                   key={space.space_id}
                   className={styles.wrap}
@@ -65,45 +65,32 @@ export default function SpacesPage() {
                     </span>
                     <span className={styles.meta}>
                       <span className={styles.title}>{space.name}</span>
-                      <span className={styles.sub}>{spaceProvidersLabel(state, space)}</span>
+                      <span className={styles.sub}>{spaceSummary(space)}</span>
+                      <span className={styles.status}>{statusLabel(status)}</span>
                     </span>
                   </Link>
-                  <OverflowMenu
-                    floating
-                    hoverReveal
-                    label={`Ações de ${space.name}`}
-                    items={[
-                      {
-                        id: 'rename',
-                        label: 'Renomear',
-                        onSelect: () =>
-                          openOverlay({ type: 'name', kind: 'space', spaceId: space.space_id }),
-                      },
-                      {
-                        id: 'pause',
-                        label: space.paused ? 'Retomar' : 'Pausar',
-                        onSelect: () =>
-                          dispatch({
-                            type: 'pauseSpace',
-                            spaceId: space.space_id,
-                            paused: !space.paused,
-                          }),
-                      },
-                      {
-                        id: 'delete',
-                        label: 'Excluir',
-                        onSelect: () =>
-                          openOverlay({
-                            type: 'confirm-delete-space',
-                            spaceId: space.space_id,
-                          }),
-                      },
-                    ]}
-                  />
                 </motion.div>
-              ))}
-            </div>
-          )}
+              )
+            })}
+
+            <motion.div
+              className={styles.wrap}
+              variants={rise}
+              initial="hidden"
+              animate="show"
+              custom={0.06 + state.spaces.length * 0.05}
+            >
+              <button type="button" className={styles.add} onClick={createSpace} aria-label="Novo space">
+                <span className={styles.face} aria-hidden="true">
+                  <Plus size={22} strokeWidth={1.5} />
+                </span>
+                <span className={styles.meta}>
+                  <span className={styles.title}>Novo space</span>
+                  <span className={styles.sub}>Origem e destino</span>
+                </span>
+              </button>
+            </motion.div>
+          </div>
         </section>
       </main>
     </AppShell>

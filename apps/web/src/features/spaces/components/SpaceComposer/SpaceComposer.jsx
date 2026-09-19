@@ -3,24 +3,69 @@ import { useNavigate } from 'react-router-dom'
 import AppOverlay, { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 import { spaceUrl } from '../../../../shared/config/routes.js'
 import {
-  getSpace,
-  locationLabel,
+  getFolder,
+  isFolderLocation,
+  locationPath,
+  makeFolderLocationFromState,
   uniqueSlug,
 } from '../../../../shared/state/hubStore.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import ProviderMark from '../ProviderMark.jsx'
 import { useLocationPicker } from '../LocationPicker/useLocationPicker.jsx'
 
-function SideButton({ label, location, onClick }) {
+function asFolderLocation(state, location) {
+  if (isFolderLocation(location)) return location
+  if (location?.kind === 'folder' && location.ref) {
+    return makeFolderLocationFromState(state, location.ref)
+  }
+  if (location?.kind === 'file' && location.folderRef) {
+    return makeFolderLocationFromState(state, location.folderRef)
+  }
+  if (location?.folderRef) {
+    const folder = getFolder(state, location.folderRef)
+    return folder ? makeFolderLocationFromState(state, folder.folderRef) : null
+  }
+  return null
+}
+
+function ProviderTabs({ label, value, options, onChange }) {
   return (
-    <button type="button" className={styles.pick} onClick={onClick}>
-      {location ? <ProviderMark id={location.providerId} size={22} /> : null}
+    <div className={styles.tabs} role="tablist" aria-label={label}>
+      {options.map((provider) => {
+        const selected = provider.id === value
+        return (
+          <button
+            key={provider.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            className={selected ? styles.tabActive : styles.tab}
+            onClick={() => onChange(provider.id)}
+          >
+            {provider.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function FolderPickerButton({ location, onClick, label }) {
+  const selected = isFolderLocation(location)
+  return (
+    <button
+      type="button"
+      className={styles.pick}
+      onClick={onClick}
+      aria-label={selected ? `${label}: ${locationPath(location)}` : `Escolher pasta de ${label}`}
+    >
+      {selected ? <ProviderMark id={location.providerId} size={22} /> : null}
       <span className={styles.pickMeta}>
-        <span className={styles.pickTitle}>{location ? locationLabel(location) : label}</span>
+        <span className={styles.pickTitle}>
+          {selected ? locationPath(location) : 'Escolher pasta'}
+        </span>
         <span className={styles.pickSub}>
-          {location
-            ? `${location.kind === 'file' ? 'Arquivo' : 'Pasta'} · ${location.provider}`
-            : 'Provedor distinto'}
+          {selected ? location.provider : 'Pasta no provedor'}
         </span>
       </span>
     </button>
@@ -30,63 +75,73 @@ function SideButton({ label, location, onClick }) {
 export default function SpaceComposer({ overlay }) {
   const { state, dispatch, closeOverlay } = useHub()
   const navigate = useNavigate()
-  const isCreate = overlay.mode === 'create'
-  const space = overlay.spaceId ? getSpace(state, overlay.spaceId) : null
-  const [name, setName] = useState(isCreate ? '' : space?.name ?? '')
-  const [left, setLeft] = useState(overlay.left ?? null)
-  const [right, setRight] = useState(overlay.right ?? null)
+  const providers = state.providers
+  const prefill = asFolderLocation(state, overlay.origin ?? overlay.left ?? null)
+  const defaultFrom = prefill?.providerId ?? providers[0]?.id ?? null
+  const defaultTo = providers.find((provider) => provider.id !== defaultFrom)?.id ?? null
+
+  const [name, setName] = useState('')
+  const [fromProviderId, setFromProviderId] = useState(defaultFrom)
+  const [toProviderId, setToProviderId] = useState(defaultTo)
+  const [origin, setOrigin] = useState(prefill)
+  const [destination, setDestination] = useState(null)
   const [picking, setPicking] = useState(null)
   const [hint, setHint] = useState('')
 
-  const excludeProviderId =
-    picking === 'right' ? left?.providerId : picking === 'left' ? right?.providerId : null
+  const fromProviders = providers.filter((provider) => provider.id !== toProviderId)
+  const toProviders = providers.filter((provider) => provider.id !== fromProviderId)
+  const pickingProviderId = picking === 'origin' ? fromProviderId : toProviderId
+  const excludeProviderId = picking === 'origin' ? toProviderId : fromProviderId
 
   const picker = useLocationPicker({
+    foldersOnly: true,
+    initialProviderId: pickingProviderId,
     excludeProviderId,
     resetKey: picking,
     onChoose: (location) => {
-      if (picking === 'left') setLeft(location)
-      if (picking === 'right') setRight(location)
+      if (!isFolderLocation(location)) return
+      if (picking === 'origin') setOrigin(location)
+      if (picking === 'destination') setDestination(location)
       setPicking(null)
       setHint('')
     },
   })
 
-  const filled = [left, right].filter(Boolean).length
-  const sameProvider = Boolean(left && right && left.providerId === right.providerId)
+  const fromReady = isFolderLocation(origin)
+  const toReady = isFolderLocation(destination)
+  const sameProvider = Boolean(origin && destination && origin.providerId === destination.providerId)
   const canSubmit = useMemo(() => {
-    if (isCreate && !name.trim()) return false
-    if (filled === 1) return false
-    if (!isCreate && filled !== 2) return false
+    if (!name.trim()) return false
+    if (!fromReady || !toReady) return false
     if (sameProvider) return false
     return true
-  }, [isCreate, name, filled, sameProvider])
+  }, [name, fromReady, toReady, sameProvider])
+
+  function changeFromProvider(id) {
+    setFromProviderId(id)
+    if (origin?.providerId !== id) setOrigin(null)
+  }
+
+  function changeToProvider(id) {
+    setToProviderId(id)
+    if (destination?.providerId !== id) setDestination(null)
+  }
 
   function submit() {
     if (!canSubmit) {
-      if (filled === 1) setHint('Escolha os dois lados, ou nenhum.')
+      if (!fromReady || !toReady) setHint('Escolha uma pasta em cada lado.')
       else if (sameProvider) setHint('A sinc é entre provedores distintos.')
       return
     }
 
-    if (isCreate) {
-      const slug = uniqueSlug(name, state.spaces)
-      dispatch({ type: 'createSpace', name, left, right })
-      navigate(spaceUrl(slug))
-      return
-    }
-
-    dispatch({
-      type: 'addPair',
-      spaceId: overlay.spaceId,
-      left,
-      right,
-    })
+    const slug = uniqueSlug(name, state.spaces)
+    dispatch({ type: 'createSpace', name, origin, destination })
+    navigate(spaceUrl(slug))
   }
 
   return (
     <AppOverlay
-      title={picking ? picker.title : isCreate ? 'Novo space' : 'Novo espelho'}
+      title={picking ? picker.title : 'Novo space'}
       onClose={closeOverlay}
       compact={!picking}
       trailing={
@@ -94,53 +149,66 @@ export default function SpaceComposer({ overlay }) {
           picker.trailing
         ) : (
           <button type="button" className={styles.choose} disabled={!canSubmit} onClick={submit}>
-            {isCreate ? 'Criar' : 'Adicionar'}
+            Criar
           </button>
         )
       }
-      refreshKey={picking ? picker.refreshKey : isCreate ? 'create-space' : 'add-pair'}
+      refreshKey={picking ? picker.refreshKey : 'create-space'}
     >
       {picking ? (
         <>
-          {picker.stage === 'providers' ? (
-            <button type="button" className={styles.more} onClick={() => setPicking(null)}>
-              Voltar
-            </button>
-          ) : null}
+          <button type="button" className={styles.more} onClick={() => setPicking(null)}>
+            Voltar
+          </button>
           {picker.body}
         </>
       ) : (
         <>
-          {isCreate ? (
-            <div className={styles.field}>
-              <label htmlFor="space-name">Nome</label>
-              <input
-                id="space-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                autoComplete="off"
-              />
-            </div>
-          ) : (
-            <p className={styles.lead}>
-              {space?.name}: o hub orquestra o espelho. A cópia continua em cada provedor.
-            </p>
-          )}
-
-          <div className={styles.stack}>
-            <SideButton label="De" location={left} onClick={() => setPicking('left')} />
-            <SideButton label="Para" location={right} onClick={() => setPicking('right')} />
+          <div className={styles.field}>
+            <label htmlFor="space-name">Nome</label>
+            <input
+              id="space-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              autoComplete="off"
+            />
           </div>
 
-          {hint ? (
-            <p className={styles.hint}>{hint}</p>
-          ) : (
-            <p className={styles.hint}>
-              {isCreate
-                ? 'Opcional: já ligar o primeiro espelho entre duas nuvens.'
-                : 'Dois lados, provedores diferentes.'}
-            </p>
-          )}
+          <div className={styles.endpoint}>
+            <span className={styles.endpointLabel}>Origem</span>
+            <ProviderTabs
+              label="Provedor de origem"
+              value={fromProviderId}
+              options={fromProviders}
+              onChange={changeFromProvider}
+            />
+            <FolderPickerButton
+              label="Origem"
+              location={origin}
+              onClick={() => setPicking('origin')}
+            />
+          </div>
+
+          <p className={styles.direction} aria-hidden="true">
+            →
+          </p>
+
+          <div className={styles.endpoint}>
+            <span className={styles.endpointLabel}>Destino</span>
+            <ProviderTabs
+              label="Provedor de destino"
+              value={toProviderId}
+              options={toProviders}
+              onChange={changeToProvider}
+            />
+            <FolderPickerButton
+              label="Destino"
+              location={destination}
+              onClick={() => setPicking('destination')}
+            />
+          </div>
+
+          {hint ? <p className={styles.hint}>{hint}</p> : null}
         </>
       )}
     </AppOverlay>

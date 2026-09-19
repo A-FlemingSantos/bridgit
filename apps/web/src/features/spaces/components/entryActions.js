@@ -1,13 +1,14 @@
-import { makeFileLocation } from '../../../shared/state/hubStore.js'
+import { makeFolderLocationFromState } from '../../../shared/state/hubStore.js'
 
 export function fileMenuItems(item, { openOverlay, dispatch, state }) {
   const shortcut = state.shortcuts.includes(item.fileRef)
+  const origin = item.folderRef ? makeFolderLocationFromState(state, item.folderRef) : null
   return [
     {
       id: 'mirror',
       label: 'Espelhar',
       onSelect: () =>
-        openOverlay({ type: 'composer', mode: 'create', left: makeFileLocation(item) }),
+        openOverlay({ type: 'composer', mode: 'create', origin }),
     },
     {
       id: 'link',

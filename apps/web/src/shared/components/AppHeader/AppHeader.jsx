@@ -14,7 +14,9 @@ function isHomeNavActive(pathname) {
 }
 
 function isSpacesNavActive(pathname) {
-  return pathname === ROUTES.spaces || pathname.startsWith(`${ROUTES.spaces}/`)
+  return pathname === ROUTES.spaces
+    || pathname.startsWith(`${ROUTES.spaces}/`)
+    || pathname.startsWith('/s/')
 }
 
 /**

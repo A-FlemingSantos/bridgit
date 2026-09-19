@@ -1,18 +1,13 @@
 export const spaces = [
   {
     space_id: '6f2c4a1e-8b3d-4c91-9e0a-1b7d2c8f4a11',
-    slug: 'trabalho',
-    name: 'Trabalho',
+    slug: 'scripts',
+    name: 'Scripts',
   },
   {
     space_id: '2a9e71c4-0d58-4b22-a6f1-9c3e84d0b772',
-    slug: 'pessoal',
-    name: 'Pessoal',
-  },
-  {
-    space_id: 'c0d14b8f-5e27-4a90-8d3c-7f1b62ae90d4',
-    slug: 'empresa',
-    name: 'Empresa',
+    slug: 'curriculo',
+    name: 'Currículo',
   },
 ]
 

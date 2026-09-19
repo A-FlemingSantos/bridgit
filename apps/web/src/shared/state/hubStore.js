@@ -4,7 +4,7 @@ import {
 } from '../../features/spaces/data/mock.js'
 import { recents as seedRecents, shortcuts as seedShortcuts } from '../../features/home/data/mock.js'
 
-export const HUB_STORAGE_KEY = 'bridgit.hub.v1'
+export const HUB_STORAGE_KEY = 'bridgit.hub.v2'
 
 const seedFolders = {
   '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334': {
@@ -26,6 +26,12 @@ const seedFolders = {
     name: 'Referências de código',
     provider: 'OneDrive',
     providerId: 'onedrive',
+  },
+  'e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193': {
+    name: 'Relatórios',
+    provider: 'OneDrive',
+    providerId: 'onedrive',
+    parentFolderRef: '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
   },
 }
 
@@ -85,12 +91,23 @@ const seedFiles = {
     providerId: 'google-drive',
     folderRef: 'b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9',
   },
+  'f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24': {
+    title: 'Rascunho',
+    kind: 'PDF',
+    provider: 'OneDrive',
+    providerId: 'onedrive',
+    folderRef: 'e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193',
+  },
 }
 
 const seedFolderContents = {
   '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334': {
-    folderRefs: [],
+    folderRefs: ['e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193'],
     fileRefs: ['a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0', 'c4d8b207-5a1e-49f3-8e6c-9b0d2f7a13e8'],
+  },
+  'e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193': {
+    folderRefs: [],
+    fileRefs: ['f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24'],
   },
   'b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9': {
     folderRefs: [],
@@ -165,59 +182,38 @@ export function clone(value) {
   return structuredClone(value)
 }
 
-function seedPairs() {
+function seedHubSpaces() {
   return [
     {
-      pair_id: 'p-trabalho-folders',
-      space_id: seedSpaces[0].space_id,
-      left: locationFromFolder('4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334'),
-      right: locationFromFolder('b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9'),
+      ...seedSpaces[0],
+      origin: locationFromFolder('d92e4b70-1a8c-4f09-b3d6-5e7c0a18f2d3'),
+      destination: locationFromFolder('0f3c8a91-7b26-4d55-ae10-8c4f9d2a76e1'),
       status: 'synced',
+      lastSyncedAt: 'há 2 min',
+      paused: false,
+      conflicts: [],
     },
     {
-      pair_id: 'p-trabalho-files',
-      space_id: seedSpaces[0].space_id,
-      left: locationFromFile('a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0'),
-      right: locationFromFile('7b2f0c18-4e9a-4d66-a813-0f5c1b9e3d24'),
+      ...seedSpaces[1],
+      origin: locationFromFolder('b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9'),
+      destination: locationFromFolder('4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334'),
       status: 'conflict',
-    },
-    {
-      pair_id: 'p-pessoal-folders',
-      space_id: seedSpaces[1].space_id,
-      left: locationFromFolder('0f3c8a91-7b26-4d55-ae10-8c4f9d2a76e1'),
-      right: locationFromFolder('d92e4b70-1a8c-4f09-b3d6-5e7c0a18f2d3'),
-      status: 'paused',
+      lastSyncedAt: 'há 1 h',
+      paused: false,
+      conflicts: [{ id: 'c-curriculo-pdf', fileName: 'Currículo.pdf' }],
     },
   ]
 }
 
 function locationFromFolder(folderRef) {
   const folder = seedFolders[folderRef]
-  return {
-    kind: 'folder',
-    ref: folderRef,
-    name: folder.name,
-    providerId: folder.providerId,
-    provider: folder.provider,
-  }
-}
-
-function locationFromFile(fileRef) {
-  const file = seedFiles[fileRef]
-  return {
-    kind: 'file',
-    ref: fileRef,
-    name: file.title,
-    providerId: file.providerId,
-    provider: file.provider,
-  }
+  return makeFolderLocation({ folderRef, ...folder })
 }
 
 export function seedState() {
   return {
     providers: clone(seedProviders),
-    spaces: seedSpaces.map((space) => ({ ...space, paused: false })),
-    pairs: seedPairs(),
+    spaces: seedHubSpaces(),
     folders: clone(seedFolders),
     files: clone(seedFiles),
     folderContents: clone(seedFolderContents),
@@ -288,12 +284,46 @@ export function getSpace(state, spaceRef) {
   )
 }
 
-export function getSpacePairs(state, spaceId) {
-  return state.pairs.filter((pair) => pair.space_id === spaceId)
+export function getFolderParent(state, folderRef) {
+  const folder = getFolder(state, folderRef)
+  if (!folder) return null
+  if (folder.parentFolderRef) return getFolder(state, folder.parentFolderRef)
+
+  for (const [parentRef, contents] of Object.entries(state.folderContents ?? {})) {
+    if (contents.folderRefs?.includes(folderRef)) {
+      return getFolder(state, parentRef)
+    }
+  }
+
+  return null
+}
+
+export function getFolderAncestry(state, folderRef) {
+  const chain = []
+  const seen = new Set()
+  let currentRef = folderRef
+
+  while (currentRef && !seen.has(currentRef)) {
+    seen.add(currentRef)
+    const folder = getFolder(state, currentRef)
+    if (!folder) break
+    chain.unshift(folder)
+    currentRef = getFolderParent(state, currentRef)?.folderRef ?? null
+  }
+
+  return chain
+}
+
+export function folderLocationPath(state, folderRef) {
+  const ancestry = getFolderAncestry(state, folderRef)
+  if (ancestry.length === 0) return ''
+  return `/${ancestry.map((folder) => folder.name).join('/')}`
 }
 
 export function providerHasFolder(state, providerId, folderRef) {
-  return Boolean(state.providerContents[providerId]?.folderRefs.includes(folderRef))
+  const roots = state.providerContents[providerId]?.folderRefs ?? []
+  if (roots.includes(folderRef)) return true
+  return getFolderAncestry(state, folderRef).some((folder) => roots.includes(folder.folderRef))
 }
 
 function hydrate(state, refs) {
@@ -317,35 +347,42 @@ export function emptyContents() {
   return { folderRefs: [], fileRefs: [] }
 }
 
-export function spaceStatus(space, pairs) {
-  if (space.paused) return 'paused'
-  if (pairs.length === 0) return 'empty'
-  if (pairs.some((pair) => pair.status === 'conflict')) return 'conflict'
-  if (pairs.every((pair) => pair.status === 'paused')) return 'paused'
-  return 'synced'
+export function spaceStatus(space) {
+  if (space?.paused) return 'paused'
+  if ((space?.conflicts ?? []).length > 0) return 'conflict'
+  return space?.status || 'synced'
 }
 
 export function statusLabel(status) {
   if (status === 'conflict') return 'Conflito'
   if (status === 'paused') return 'Pausado'
-  if (status === 'empty') return 'Sem espelho'
   return 'Sincronizado'
 }
 
-export function spaceProvidersLabel(state, space) {
-  const pairs = getSpacePairs(state, space.space_id)
-  const status = spaceStatus(space, pairs)
-  if (status === 'empty') return statusLabel(status)
-  if (status === 'paused' || status === 'conflict') return statusLabel(status)
+export function statusBannerLabel(status) {
+  if (status === 'conflict') return 'Conflito — escolha o lado a manter'
+  if (status === 'paused') return 'Pausado'
+  return 'Sincronizado'
+}
 
-  const names = []
-  pairs.forEach((pair) => {
-    ;[pair.left, pair.right].forEach((side) => {
-      if (side.provider && !names.includes(side.provider)) names.push(side.provider)
-    })
-  })
+export function locationPath(location) {
+  if (!location) return ''
+  if (location.path) return location.path
+  if (location.kind === 'folder' && location.name) return `/${location.name}`
+  return location.name ?? ''
+}
 
-  return names.join(' · ')
+export function isFolderLocation(location) {
+  return Boolean(location && location.kind === 'folder' && location.ref)
+}
+
+export function spaceSummary(space) {
+  if (!space?.origin || !space?.destination) return ''
+  return `${space.origin.provider} → ${space.destination.provider}`
+}
+
+export function spaceProvidersLabel(space) {
+  return spaceSummary(space)
 }
 
 export function hydrateRecents(state) {
@@ -401,9 +438,16 @@ export function makeFolderLocation(folder) {
     kind: 'folder',
     ref: folder.folderRef,
     name: folder.name,
+    path: folder.path ?? `/${folder.name}`,
     providerId: folder.providerId,
     provider: folder.provider,
   }
+}
+
+export function makeFolderLocationFromState(state, folderRef) {
+  const folder = getFolder(state, folderRef)
+  if (!folder) return null
+  return makeFolderLocation({ ...folder, path: folderLocationPath(state, folderRef) })
 }
 
 export function makeFileLocation(file) {
@@ -432,24 +476,26 @@ export function reducer(state, action) {
       return { ...state, notifyFail: action.value }
     case 'createSpace': {
       const name = action.name.trim()
-      if (!name) return state
+      const origin = action.origin ?? action.left
+      const destination = action.destination ?? action.right
+      if (!name || !isFolderLocation(origin) || !isFolderLocation(destination)) return state
+      if (origin.providerId === destination.providerId) return state
       const space_id = createId()
       const slug = uniqueSlug(name, state.spaces)
-      const space = { space_id, slug, name, paused: false }
-      const pairs = [...state.pairs]
-      if (action.left && action.right) {
-        pairs.push({
-          pair_id: createId(),
-          space_id,
-          left: action.left,
-          right: action.right,
-          status: 'synced',
-        })
+      const space = {
+        space_id,
+        slug,
+        name,
+        origin,
+        destination,
+        status: 'synced',
+        lastSyncedAt: 'Agora',
+        paused: false,
+        conflicts: [],
       }
       return {
         ...state,
         spaces: [...state.spaces, space],
-        pairs,
         overlay: null,
       }
     }
@@ -468,13 +514,39 @@ export function reducer(state, action) {
       const paused = action.paused
       return {
         ...state,
+        spaces: state.spaces.map((space) => {
+          if (space.space_id !== action.spaceId) return space
+          const conflicts = space.conflicts ?? []
+          return {
+            ...space,
+            paused,
+            status: paused ? 'paused' : conflicts.length > 0 ? 'conflict' : 'synced',
+          }
+        }),
+      }
+    }
+    case 'syncNow':
+      return {
+        ...state,
         spaces: state.spaces.map((space) =>
-          space.space_id === action.spaceId ? { ...space, paused } : space,
+          space.space_id === action.spaceId
+            ? { ...space, lastSyncedAt: 'Agora' }
+            : space,
         ),
-        pairs: state.pairs.map((pair) => {
-          if (pair.space_id !== action.spaceId) return pair
-          if (paused) return { ...pair, status: pair.status === 'conflict' ? 'conflict' : 'paused' }
-          return { ...pair, status: pair.status === 'paused' ? 'synced' : pair.status }
+      }
+    case 'resolveConflict': {
+      return {
+        ...state,
+        spaces: state.spaces.map((space) => {
+          if (space.space_id !== action.spaceId) return space
+          const conflicts = (space.conflicts ?? []).filter(
+            (conflict) => conflict.id !== action.conflictId,
+          )
+          return {
+            ...space,
+            conflicts,
+            status: space.paused ? 'paused' : conflicts.length > 0 ? 'conflict' : 'synced',
+          }
         }),
       }
     }
@@ -482,37 +554,7 @@ export function reducer(state, action) {
       return {
         ...state,
         spaces: state.spaces.filter((space) => space.space_id !== action.spaceId),
-        pairs: state.pairs.filter((pair) => pair.space_id !== action.spaceId),
         overlay: null,
-      }
-    case 'addPair': {
-      if (!action.left || !action.right) return state
-      return {
-        ...state,
-        pairs: [
-          ...state.pairs,
-          {
-            pair_id: createId(),
-            space_id: action.spaceId,
-            left: action.left,
-            right: action.right,
-            status: 'synced',
-          },
-        ],
-        overlay: null,
-      }
-    }
-    case 'setPairStatus':
-      return {
-        ...state,
-        pairs: state.pairs.map((pair) =>
-          pair.pair_id === action.pairId ? { ...pair, status: action.status } : pair,
-        ),
-      }
-    case 'removePair':
-      return {
-        ...state,
-        pairs: state.pairs.filter((pair) => pair.pair_id !== action.pairId),
       }
     case 'createFolder': {
       const name = action.name.trim()
@@ -522,7 +564,12 @@ export function reducer(state, action) {
       const folderRef = createId()
       const folders = {
         ...state.folders,
-        [folderRef]: { name, provider: provider.name, providerId: provider.id },
+        [folderRef]: {
+          name,
+          provider: provider.name,
+          providerId: provider.id,
+          parentFolderRef: action.parentFolderRef ?? null,
+        },
       }
       const folderContents = { ...state.folderContents, [folderRef]: emptyContents() }
       const providerContents = { ...state.providerContents }

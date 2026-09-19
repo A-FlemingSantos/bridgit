@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import FileSheet from '../FileSheet/FileSheet.jsx'
 import ProviderMark from '../ProviderMark.jsx'
 import folderMark from '../../assets/folder.svg'
 import {
@@ -7,22 +6,26 @@ import {
   getFolderContents,
   getProvider,
   getProviderContents,
-  makeFileLocation,
-  makeFolderLocation,
-  makeRootLocation,
+  makeFolderLocationFromState,
 } from '../../../../shared/state/hubStore.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 
-export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}) {
+export function useLocationPicker({
+  excludeProviderId,
+  initialProviderId = null,
+  foldersOnly = false,
+  onChoose,
+  resetKey,
+} = {}) {
   const { state } = useHub()
-  const [providerId, setProviderId] = useState(null)
+  const [providerId, setProviderId] = useState(initialProviderId)
   const [folderRef, setFolderRef] = useState(null)
 
   useEffect(() => {
-    setProviderId(null)
+    setProviderId(initialProviderId)
     setFolderRef(null)
-  }, [resetKey, excludeProviderId])
+  }, [resetKey, excludeProviderId, initialProviderId])
 
   const provider = providerId ? getProvider(state, providerId) : null
   const folder = folderRef ? getFolder(state, folderRef) : null
@@ -35,9 +38,9 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
   const providers = state.providers.filter((item) => item.id !== excludeProviderId)
   const currentLocation = useMemo(() => {
     if (!provider) return null
-    if (folder) return makeFolderLocation(folder)
-    return makeRootLocation(provider)
-  }, [folder, provider])
+    if (folder) return makeFolderLocationFromState(state, folder.folderRef)
+    return null
+  }, [folder, provider, state])
 
   if (!provider) {
     return {
@@ -63,7 +66,7 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
               <ProviderMark id={item.id} size={22} />
               <span className={styles.pickMeta}>
                 <span className={styles.pickTitle}>{item.name}</span>
-                <span className={styles.pickSub}>Pasta ou arquivo</span>
+                <span className={styles.pickSub}>Pasta</span>
               </span>
             </button>
           ))}
@@ -72,7 +75,8 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
     }
   }
 
-  const empty = contents.folders.length === 0 && contents.files.length === 0
+  const empty = contents.folders.length === 0 && (foldersOnly || contents.files.length === 0)
+  const canChoose = Boolean(folder)
 
   return {
     picking: true,
@@ -84,7 +88,11 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
       <button
         type="button"
         className={styles.choose}
-        onClick={() => onChoose?.(currentLocation)}
+        disabled={!canChoose}
+        onClick={() => {
+          if (!canChoose) return
+          onChoose?.(currentLocation)
+        }}
       >
         Escolher
       </button>
@@ -100,7 +108,7 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
               /
             </span>
           </nav>
-        ) : (
+        ) : initialProviderId ? null : (
           <button type="button" className={styles.more} onClick={() => setProviderId(null)}>
             Provedores
           </button>
@@ -133,17 +141,23 @@ export function useLocationPicker({ excludeProviderId, onChoose, resetKey } = {}
                 ))}
               </div>
             ) : null}
-            {contents.files.length > 0 ? (
+            {!foldersOnly && contents.files.length > 0 ? (
               <div className={styles.grid}>
                 {contents.files.map((item) => (
                   <button
                     key={item.fileRef}
                     type="button"
                     className={styles.item}
-                    onClick={() => onChoose?.(makeFileLocation(item))}
+                    onClick={() =>
+                      onChoose?.(
+                        item.folderRef
+                          ? makeFolderLocationFromState(state, item.folderRef)
+                          : null,
+                      )
+                    }
                   >
                     <span className={styles.face} aria-hidden="true">
-                      <FileSheet />
+                      <span className={styles.itemTitle}>{item.title}</span>
                     </span>
                     <span className={styles.meta}>
                       <span className={styles.itemTitle}>{item.title}</span>

@@ -2,9 +2,8 @@ import { Link } from 'react-router-dom'
 import Toggle from '../components/Toggle.jsx'
 import { spaceUrl } from '../../../shared/config/routes.js'
 import {
-  getSpacePairs,
-  spaceProvidersLabel,
   spaceStatus,
+  spaceSummary,
   statusLabel,
 } from '../../../shared/state/hubStore.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -41,8 +40,7 @@ export default function SyncTab() {
       ) : (
         <div className={styles.cards}>
           {state.spaces.map((space) => {
-            const pairs = getSpacePairs(state, space.space_id)
-            const status = spaceStatus(space, pairs)
+            const status = spaceStatus(space)
             return (
               <div key={space.space_id} className={styles.pref}>
                 <span>
@@ -51,7 +49,7 @@ export default function SyncTab() {
                   </Link>
                   <span className={styles.hint}>
                     {statusLabel(status)}
-                    {status === 'synced' ? ` · ${spaceProvidersLabel(state, space)}` : ''}
+                    {status === 'synced' ? ` · ${spaceSummary(space)}` : ''}
                   </span>
                 </span>
                 <Toggle

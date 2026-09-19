@@ -114,6 +114,35 @@
   letter-spacing: -0.01em;
 }
 
+.status {
+  font-size: 11px;
+  color: var(--mute);
+  letter-spacing: -0.01em;
+}
+
+.add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.add:hover .face {
+  background: color-mix(in srgb, var(--ink) 6%, var(--wash));
+}
+
+.add:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .empty {
   margin: 0;
   font-size: 13px;
