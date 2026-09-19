@@ -56,6 +56,20 @@ describe('App', () => {
     expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
   })
 
+  it('abre o menu de Enviar com os provedores', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(screen.getByRole('menuitem', { name: 'OneDrive' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Google Drive' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Dropbox' })).toBeInTheDocument()
+  })
+
   it('mostra os spaces e abre o par de sinc', async () => {
     const user = userEvent.setup()
     render(
@@ -157,6 +171,44 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Criar' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Criar' }))
     expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Espelho OneDrive')
+  })
+
+  it('mostra pastas e arquivos no seletor de space', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/spaces']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Novo space' }))
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Origem' }))
+
+    expect(screen.getByRole('button', { name: /Inovações técnicas/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Referências de código/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Relatório 2023/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Análise de desempenho/ })).toBeInTheDocument()
+  })
+
+  it('mostra a cadeia de pastas no seletor de space', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/spaces']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Novo space' }))
+    await user.click(screen.getByRole('button', { name: 'Escolher pasta de Origem' }))
+    await user.click(screen.getByRole('button', { name: /Inovações técnicas/ }))
+    await user.click(screen.getByRole('button', { name: /Relatórios/ }))
+
+    const nav = screen.getByRole('navigation', { name: 'Localização atual' })
+    expect(within(nav).getByRole('button', { name: 'OneDrive' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Inovações técnicas' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('button', { name: 'Relatórios' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Relatórios' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Rascunho/ })).toBeInTheDocument()
   })
 
   it('mostra as ações de um arquivo no provedor', async () => {

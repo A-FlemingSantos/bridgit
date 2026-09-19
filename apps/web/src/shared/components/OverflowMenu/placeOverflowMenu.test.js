@@ -40,4 +40,27 @@ describe('placeOverflowMenu', () => {
     expect(placed.left).toBe(host.left - GAP - MENU_WIDTH)
     expect(placed.left + MENU_WIDTH).toBeLessThanOrEqual(host.left)
   })
+
+  it('abre ao lado do gatilho e vira se não cabe na viewport', () => {
+    const leftTrigger = box({ x: 20, y: 80, w: 90, h: 36 })
+    const left = placeOverflowMenu({
+      trigger: leftTrigger,
+      host: leftTrigger,
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(left.left).toBe(leftTrigger.right + GAP)
+
+    const rightTrigger = box({ x: 1120, y: 80, w: 90, h: 36 })
+    const right = placeOverflowMenu({
+      trigger: rightTrigger,
+      host: rightTrigger,
+      ...viewport,
+      itemCount: 3,
+      hasDanger: false,
+    })
+    expect(right.left).toBe(rightTrigger.left - GAP - MENU_WIDTH)
+    expect(right.left).toBeGreaterThanOrEqual(VIEW_PAD)
+  })
 })

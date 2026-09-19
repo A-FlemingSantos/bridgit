@@ -30,6 +30,11 @@
   width: auto;
 }
 
+.start {
+  right: auto;
+  left: 0;
+}
+
 .extrasOpen,
 .extrasClosing {
   max-height: 400px;

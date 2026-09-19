@@ -283,14 +283,26 @@
 
 .crumbs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 2px;
   min-width: 0;
+  max-width: 100%;
   font-size: 12px;
   letter-spacing: -0.01em;
 }
 
+.crumbSegment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .crumb {
+  min-width: 0;
   overflow: hidden;
   padding: 0;
   border: 0;
