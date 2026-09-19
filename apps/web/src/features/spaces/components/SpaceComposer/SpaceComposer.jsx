@@ -143,7 +143,7 @@ export default function SpaceComposer({ overlay }) {
     <AppOverlay
       title={picking ? picker.title : 'Novo space'}
       onClose={closeOverlay}
-      compact={!picking}
+      compact={false}
       trailing={
         picking ? (
           picker.trailing
@@ -174,38 +174,40 @@ export default function SpaceComposer({ overlay }) {
             />
           </div>
 
-          <div className={styles.endpoint}>
-            <span className={styles.endpointLabel}>Origem</span>
-            <ProviderTabs
-              label="Provedor de origem"
-              value={fromProviderId}
-              options={fromProviders}
-              onChange={changeFromProvider}
-            />
-            <FolderPickerButton
-              label="Origem"
-              location={origin}
-              onClick={() => setPicking('origin')}
-            />
-          </div>
+          <div className={styles.pair} aria-label="Par de sincronização">
+            <div className={styles.endpoint}>
+              <span className={styles.endpointLabel}>Origem</span>
+              <ProviderTabs
+                label="Provedor de origem"
+                value={fromProviderId}
+                options={fromProviders}
+                onChange={changeFromProvider}
+              />
+              <FolderPickerButton
+                label="Origem"
+                location={origin}
+                onClick={() => setPicking('origin')}
+              />
+            </div>
 
-          <p className={styles.direction} aria-hidden="true">
-            →
-          </p>
+            <p className={styles.direction} aria-hidden="true">
+              →
+            </p>
 
-          <div className={styles.endpoint}>
-            <span className={styles.endpointLabel}>Destino</span>
-            <ProviderTabs
-              label="Provedor de destino"
-              value={toProviderId}
-              options={toProviders}
-              onChange={changeToProvider}
-            />
-            <FolderPickerButton
-              label="Destino"
-              location={destination}
-              onClick={() => setPicking('destination')}
-            />
+            <div className={styles.endpoint}>
+              <span className={styles.endpointLabel}>Destino</span>
+              <ProviderTabs
+                label="Provedor de destino"
+                value={toProviderId}
+                options={toProviders}
+                onChange={changeToProvider}
+              />
+              <FolderPickerButton
+                label="Destino"
+                location={destination}
+                onClick={() => setPicking('destination')}
+              />
+            </div>
           </div>
 
           {hint ? <p className={styles.hint}>{hint}</p> : null}
