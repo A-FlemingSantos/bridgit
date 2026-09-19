@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Folder } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AppOverlay, { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 import { spaceUrl } from '../../../../shared/config/routes.js'
@@ -58,8 +57,9 @@ function ProviderTabs({ label, value, options, onChange }) {
   )
 }
 
-function FolderPickerButton({ location, onClick, label }) {
+function FolderPickerButton({ location, onClick, label, providerId }) {
   const selected = isFolderLocation(location)
+  const markId = selected ? location.providerId : providerId
   return (
     <button
       type="button"
@@ -67,7 +67,7 @@ function FolderPickerButton({ location, onClick, label }) {
       onClick={onClick}
       aria-label={selected ? `${label}: ${locationPath(location)}` : `Escolher pasta de ${label}`}
     >
-      <Folder size={22} strokeWidth={1.6} aria-hidden="true" />
+      {markId ? <ProviderMark id={markId} size={22} /> : null}
       <span className={styles.pickMeta}>
         <span className={styles.pickTitle}>
           {selected ? locationPath(location) : 'Escolher pasta'}
@@ -198,6 +198,7 @@ export default function SpaceComposer({ overlay }) {
               />
               <FolderPickerButton
                 label="Origem"
+                providerId={fromProviderId}
                 location={origin}
                 onClick={() => setPicking('origin')}
               />
@@ -217,6 +218,7 @@ export default function SpaceComposer({ overlay }) {
               />
               <FolderPickerButton
                 label="Destino"
+                providerId={toProviderId}
                 location={destination}
                 onClick={() => setPicking('destination')}
               />
