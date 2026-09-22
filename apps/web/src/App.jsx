@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { SessionProvider, useSession } from './shared/auth/SessionContext.jsx'
 import AuthPage from './features/auth/pages/AuthPage.jsx'
 import HomePage from './features/home/pages/HomePage.jsx'
 import SpaceBrowsePage from './features/spaces/pages/SpaceBrowsePage.jsx'
@@ -13,15 +14,33 @@ import AboutTab from './features/settings/pages/AboutTab.jsx'
 import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
-import { ROUTES, spaceUrl } from './shared/config/routes.js'
+import { isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
 
 export default function App() {
+  return (
+    <SessionProvider>
+      <AppShell />
+    </SessionProvider>
+  )
+}
+
+function AppShell() {
+  const { status } = useSession()
   const location = useLocation()
   const settingsOpen = isSettingsPath(location.pathname)
   const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : location
+
+  if (status === 'boot') {
+    return null
+  }
+
+  if (!isPublicRoute(location.pathname) && status === 'anonymous') {
+    const from = encodeURIComponent(`${location.pathname}${location.search}`)
+    return <Navigate to={`${ROUTES.login}?from=${from}`} replace />
+  }
 
   return (
     <HubProvider>

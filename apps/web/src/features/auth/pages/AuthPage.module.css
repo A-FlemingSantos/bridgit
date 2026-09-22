@@ -107,6 +107,12 @@
   line-height: 1;
 }
 
+.error {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--mute);
+}
+
 .fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

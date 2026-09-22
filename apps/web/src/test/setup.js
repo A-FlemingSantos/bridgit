@@ -4,12 +4,17 @@ import { cleanup } from '@testing-library/react'
 
 expect.extend(matchers)
 
+export function clearBrowserCookies() {
+  document.cookie = 'bridgit.browser=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
+}
+
 afterEach(() => {
   vi.useRealTimers()
 
   if (typeof window === 'undefined') return
 
   cleanup()
+  clearBrowserCookies()
   window.localStorage.clear()
   window.sessionStorage.clear()
 })

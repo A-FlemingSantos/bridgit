@@ -1,8 +1,10 @@
+import { ApiClientError } from '@bridgit/shared-client'
 import { useId, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
-import { ROUTES } from '../../../shared/config/routes.js'
+import { useSession } from '../../../shared/auth/SessionContext.jsx'
+import { ROUTES, sanitizeInternalAppRedirect } from '../../../shared/config/routes.js'
 import atSign from '../assets/at-sign.svg'
 import styles from './AuthPage.module.css'
 
@@ -15,11 +17,46 @@ export default function AuthPage() {
   const confirmId = useId()
   const rememberId = useId()
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { login, register: registerAccount } = useSession()
+  const redirectTo = sanitizeInternalAppRedirect(searchParams.get('from'))
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    navigate(ROUTES.home)
+    setError('')
+    setSubmitting(true)
+
+    const data = new FormData(event.currentTarget)
+    const username = String(data.get('username') ?? '').trim()
+    const password = String(data.get('password') ?? '')
+
+    try {
+      if (register) {
+        const confirm = String(data.get('confirm') ?? '')
+        if (password !== confirm) {
+          setError('As senhas nao coincidem.')
+          return
+        }
+
+        await registerAccount({ username, password })
+      } else {
+        const persistent = data.get('remember') === 'on'
+        await login({ username, password, persistent })
+      }
+
+      navigate(redirectTo, { replace: true })
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.message)
+      } else {
+        setError('Nao foi possivel concluir a operacao solicitada.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -49,6 +86,8 @@ export default function AuthPage() {
             <h1 className={styles.title}>{register ? 'Cadastro' : 'Entrar'}</h1>
           </div>
 
+          {error ? <p className={styles.error} role="alert">{error}</p> : null}
+
           <motion.div
             className={styles.fields}
             initial={{ opacity: 0 }}
@@ -63,6 +102,7 @@ export default function AuthPage() {
                 type="text"
                 autoComplete="username"
                 required
+                disabled={submitting}
               />
             </div>
 
@@ -75,6 +115,7 @@ export default function AuthPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={register ? 'new-password' : 'current-password'}
                   required
+                  disabled={submitting}
                 />
                 <button
                   type="button"
@@ -97,6 +138,7 @@ export default function AuthPage() {
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 required
+                disabled={submitting}
               />
             </div>
           ) : (
@@ -115,6 +157,7 @@ export default function AuthPage() {
             type="submit"
             className={styles.submit}
             aria-label={register ? 'Criar conta' : 'Entrar'}
+            disabled={submitting}
             whileHover={{ x: 3 }}
             whileTap={{ x: 1 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}

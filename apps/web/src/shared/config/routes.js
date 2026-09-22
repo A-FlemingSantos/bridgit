@@ -34,3 +34,27 @@ export function providerFolderUrl(provider, folderRef) {
 export function providerFileUrl(provider, fileRef) {
   return `/providers/${provider}/file/${fileRef}`
 }
+
+export const PUBLIC_ROUTES = new Set([
+  ROUTES.landing,
+  ROUTES.login,
+  ROUTES.register,
+  ROUTES.privacy,
+  ROUTES.terms,
+])
+
+export function isPublicRoute(pathname) {
+  return PUBLIC_ROUTES.has(pathname)
+}
+
+export function sanitizeInternalAppRedirect(value) {
+  if (!value || typeof value !== 'string') {
+    return ROUTES.home
+  }
+
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('://')) {
+    return ROUTES.home
+  }
+
+  return value
+}

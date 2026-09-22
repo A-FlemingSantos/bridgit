@@ -1,5 +1,7 @@
+import { ApiClientError } from '@bridgit/shared-client'
 import { useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
 import Toggle from '../components/Toggle.jsx'
 import styles from './SettingsPage.module.css'
@@ -9,21 +11,92 @@ export default function SecurityTab() {
   const currentId = useId()
   const nextId = useId()
   const confirmId = useId()
+  const { session, changePassword, deleteAccount, revokeOtherSessions, setPersistent } = useSession()
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [sessionsClosed, setSessionsClosed] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [rememberDevice, setRememberDevice] = useState(true)
+  const [rememberDevice, setRememberDevice] = useState(session?.session?.persistent ?? true)
+  const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
-  function changePassword(event) {
+  async function handleChangePassword(event) {
     event.preventDefault()
-    setPasswordSaved(true)
+    setError('')
+    setPasswordSaved(false)
+
+    const form = event.currentTarget
+    const data = new FormData(form)
+    const currentPassword = String(data.get('current') ?? '')
+    const newPassword = String(data.get('next') ?? '')
+    const confirmPassword = String(data.get('confirm') ?? '')
+
+    if (newPassword !== confirmPassword) {
+      setError('As senhas nao coincidem.')
+      return
+    }
+
+    try {
+      await changePassword(currentPassword, newPassword)
+      setPasswordSaved(true)
+      form.reset()
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.message)
+      } else {
+        setError('Nao foi possivel alterar a senha.')
+      }
+    }
+  }
+
+  async function handleRememberDevice(nextValue) {
+    const previous = rememberDevice
+    setRememberDevice(nextValue)
+
+    try {
+      await setPersistent(nextValue)
+    } catch {
+      setRememberDevice(previous)
+      setError('Nao foi possivel atualizar a sessao.')
+    }
+  }
+
+  async function handleRevokeOthers() {
+    setError('')
+
+    try {
+      await revokeOtherSessions()
+      setSessionsClosed(true)
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.message)
+      } else {
+        setError('Nao foi possivel encerrar as outras sessoes.')
+      }
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setError('')
+    setDeleting(true)
+
+    try {
+      await deleteAccount()
+      navigate(ROUTES.landing, { replace: true })
+    } catch (err) {
+      setDeleting(false)
+      if (err instanceof ApiClientError) {
+        setError(err.message)
+      } else {
+        setError('Nao foi possivel excluir a conta.')
+      }
+    }
   }
 
   return (
     <section className={styles.pane}>
       <h1>Segurança</h1>
 
-      <form className={styles.card} onSubmit={changePassword}>
+      <form className={styles.card} onSubmit={handleChangePassword}>
         <h2>Senha</h2>
         <div className={styles.fields}>
           <div className={styles.field}>
@@ -39,6 +112,7 @@ export default function SecurityTab() {
             <input id={confirmId} name="confirm" type="password" autoComplete="new-password" required />
           </div>
         </div>
+        {error ? <p className={styles.hint} role="alert">{error}</p> : null}
         <button type="submit" className={styles.primary}>
           {passwordSaved ? 'Senha alterada' : 'Salvar senha'}
         </button>
@@ -50,7 +124,7 @@ export default function SecurityTab() {
             <span className={styles.prefTitle}>Manter este dispositivo</span>
             <span className={styles.hint}>Não pede a senha de novo neste navegador.</span>
           </span>
-          <Toggle label="Manter este dispositivo" checked={rememberDevice} onChange={setRememberDevice} />
+          <Toggle label="Manter este dispositivo" checked={rememberDevice} onChange={handleRememberDevice} />
         </div>
       </div>
 
@@ -64,7 +138,7 @@ export default function SecurityTab() {
             <button
               type="button"
               className={styles.secondary}
-              onClick={() => setSessionsClosed(true)}
+              onClick={handleRevokeOthers}
             >
               {sessionsClosed ? 'Encerradas' : 'Encerrar outras sessões'}
             </button>
@@ -80,7 +154,12 @@ export default function SecurityTab() {
           </div>
           {confirmDelete ? (
             <span className={styles.pair}>
-              <button type="button" className={styles.primary} onClick={() => navigate(ROUTES.landing)}>
+              <button
+                type="button"
+                className={styles.primary}
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+              >
                 Confirmar exclusão
               </button>
               <button type="button" className={styles.secondary} onClick={() => setConfirmDelete(false)}>

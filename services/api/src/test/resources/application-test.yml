@@ -1,0 +1,12 @@
+spring:
+  flyway:
+    enabled: true
+
+app:
+  frontend-base-url: http://localhost:5173
+  cors:
+    allowed-origins: http://localhost:5173
+  jwt:
+    secret: dev-only-test-jwt-secret-change-me-00000000000000000000000000000000
+    issuer: bridgit-api-test
+    access-token-minutes: 180

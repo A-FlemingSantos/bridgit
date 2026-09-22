@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: bridgit-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=bridgit_db;encrypt=false;trustServerCertificate=true}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.SQLServerDialect
+        jdbc:
+          time_zone: UTC
+        format_sql: true
+  jackson:
+    locale: pt_BR
+    time-zone: America/Sao_Paulo
+  flyway:
+    enabled: true
+
+server:
+  error:
+    whitelabel:
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  jwt:
+    secret: ${APP_JWT_SECRET:dev-only-local-jwt-secret-change-me-00000000000000000000000000000000}
+    issuer: bridgit-api
+    access-token-minutes: 180
+  time:
+    zone-id: America/Sao_Paulo
