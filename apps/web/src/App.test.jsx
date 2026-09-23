@@ -616,4 +616,62 @@ describe('App', () => {
     expect(localStorage.getItem('bridgit.session')).toBeNull()
     expect(apiRequest).not.toHaveBeenCalled()
   })
+
+  it('depois de sair, entrar abre a home', async () => {
+    const user = userEvent.setup()
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh' || path === '/api/auth/login') {
+        return testSessionResponse
+      }
+      if (path === '/api/auth/logout') {
+        return { message: 'ok' }
+      }
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Sair' }))
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Usuário'), 'arthur')
+    await user.type(screen.getByLabelText('Senha'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('dialog', { name: 'Configurações' })).not.toBeInTheDocument()
+  })
+
+  it('excluir conta abre o login', async () => {
+    const user = userEvent.setup()
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh') {
+        return testSessionResponse
+      }
+      if (path === '/api/account') {
+        return { message: 'ok' }
+      }
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/security']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Excluir conta' }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Toda a nuvem/ })).not.toBeInTheDocument()
+  })
 })

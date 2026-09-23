@@ -32,12 +32,18 @@ export function SessionProvider({ children }) {
   const [session, setSession] = useState(null)
   const refreshTimerRef = useRef(null)
   const retryTimerRef = useRef(null)
+  const discardReturnPathRef = useRef(false)
 
   const clearAuth = useCallback(() => {
     clearSession()
     setSession(null)
     setStatus('anonymous')
   }, [])
+
+  const endSessionWithoutReturn = useCallback(() => {
+    discardReturnPathRef.current = true
+    clearAuth()
+  }, [clearAuth])
 
   const applySession = useCallback((nextSession) => {
     setSession(nextSession)
@@ -232,9 +238,9 @@ export function SessionProvider({ children }) {
     } catch (error) {
       handleUnauthorized(error)
     } finally {
-      clearAuth()
+      endSessionWithoutReturn()
     }
-  }, [clearAuth, handleUnauthorized, session?.accessToken])
+  }, [endSessionWithoutReturn, handleUnauthorized, session?.accessToken])
 
   const updateUsername = useCallback(
     async (username) => {
@@ -275,12 +281,12 @@ export function SessionProvider({ children }) {
 
     try {
       await deleteAccountRequest(token)
-      clearAuth()
+      endSessionWithoutReturn()
     } catch (error) {
       handleUnauthorized(error)
       throw error
     }
-  }, [clearAuth, handleUnauthorized, session?.accessToken])
+  }, [endSessionWithoutReturn, handleUnauthorized, session?.accessToken])
 
   const setPersistent = useCallback(
     async (persistent) => {
@@ -333,6 +339,10 @@ export function SessionProvider({ children }) {
       status,
       session,
       user: session?.user ?? null,
+      shouldDiscardReturnPath: () => discardReturnPathRef.current,
+      acknowledgeDiscardReturnPath: () => {
+        discardReturnPathRef.current = false
+      },
       login,
       register,
       logout,

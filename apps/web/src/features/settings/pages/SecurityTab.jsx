@@ -81,7 +81,7 @@ export default function SecurityTab() {
 
     try {
       await deleteAccount()
-      navigate(ROUTES.landing, { replace: true })
+      navigate(ROUTES.login, { replace: true })
     } catch (err) {
       setDeleting(false)
       if (err instanceof ApiClientError) {

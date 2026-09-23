@@ -28,16 +28,24 @@ export default function App() {
 }
 
 function AppShell() {
-  const { status } = useSession()
+  const { status, shouldDiscardReturnPath, acknowledgeDiscardReturnPath } = useSession()
   const location = useLocation()
   const settingsOpen = isSettingsPath(location.pathname)
   const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : location
+
+  if (status === 'anonymous' && isPublicRoute(location.pathname) && shouldDiscardReturnPath()) {
+    acknowledgeDiscardReturnPath()
+  }
 
   if (status === 'boot') {
     return null
   }
 
   if (!isPublicRoute(location.pathname) && status === 'anonymous') {
+    if (shouldDiscardReturnPath()) {
+      return <Navigate to={ROUTES.login} replace />
+    }
+
     const from = encodeURIComponent(`${location.pathname}${location.search}`)
     return <Navigate to={`${ROUTES.login}?from=${from}`} replace />
   }
