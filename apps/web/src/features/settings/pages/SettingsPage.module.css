@@ -321,6 +321,51 @@
   width: 100%;
 }
 
+.sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0 0;
+  list-style: none;
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.sessionMark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+}
+
+.sessionName,
+.sessionDevice {
+  display: block;
+}
+
+.sessionName {
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.sessionDevice {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.sessionTime {
+  color: var(--mute);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .facts {
   display: flex;
   flex-direction: column;

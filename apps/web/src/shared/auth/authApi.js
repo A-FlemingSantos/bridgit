@@ -89,6 +89,10 @@ export async function deleteAccountRequest(token) {
   })
 }
 
+export async function listSessionsRequest(token) {
+  return apiRequest('/api/auth/sessions', { token })
+}
+
 export async function revokeOtherSessionsRequest(token) {
   return apiRequest('/api/auth/sessions/revoke-others', {
     method: 'POST',

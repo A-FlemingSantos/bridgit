@@ -4,7 +4,7 @@ import com.bridgit.api.common.error.UnauthorizedException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Locale;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +34,11 @@ public class UserSessionService {
     session.setUserAgent(normalizeUserAgent(userAgent));
     session.setLastSeenAt(now);
     return userSessionRepository.save(session);
+  }
+
+  @Transactional(readOnly = true)
+  public List<UserSessionEntity> listActive(UUID userId) {
+    return userSessionRepository.findByUserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(userId);
   }
 
   @Transactional(readOnly = true)

@@ -1,6 +1,7 @@
 package com.bridgit.api.auth;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 public interface UserSessionRepository extends JpaRepository<UserSessionEntity, UUID> {
 
   Optional<UserSessionEntity> findByIdAndUserId(UUID id, UUID userId);
+
+  List<UserSessionEntity> findByUserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(UUID userId);
 
   Optional<UserSessionEntity> findByUserIdAndDeviceKeyAndRevokedAtIsNull(UUID userId, UUID deviceKey);
 

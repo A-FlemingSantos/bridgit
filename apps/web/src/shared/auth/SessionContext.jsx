@@ -4,6 +4,7 @@ import {
   changePasswordRequest,
   deleteAccountRequest,
   loginRequest,
+  listSessionsRequest,
   logoutRequest,
   refreshRequest,
   registerRequest,
@@ -322,6 +323,12 @@ export function SessionProvider({ children }) {
     [handleUnauthorized, session?.accessToken],
   )
 
+  const listSessions = useCallback(async () => {
+    const token = session?.accessToken
+    if (!token) return []
+    return listSessionsRequest(token)
+  }, [session?.accessToken])
+
   const revokeOtherSessions = useCallback(async () => {
     const token = session?.accessToken
     if (!token) throw new Error('Sessao indisponivel.')
@@ -351,11 +358,13 @@ export function SessionProvider({ children }) {
       changePassword,
       deleteAccount,
       setPersistent,
+      listSessions,
       revokeOtherSessions,
     }),
     [
       changePassword,
       deleteAccount,
+      listSessions,
       login,
       logout,
       refreshSession,

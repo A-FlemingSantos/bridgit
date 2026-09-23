@@ -1,9 +1,11 @@
 import { ApiClientError } from '@bridgit/shared-client'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
 import Toggle from '../components/Toggle.jsx'
+import BrowserMark from './BrowserMark.jsx'
+import { formatSessionTime } from './formatSessionTime.js'
 import styles from './SettingsPage.module.css'
 
 export default function SecurityTab() {
@@ -11,13 +13,30 @@ export default function SecurityTab() {
   const currentId = useId()
   const nextId = useId()
   const confirmId = useId()
-  const { session, changePassword, deleteAccount, revokeOtherSessions, setPersistent } = useSession()
+  const { session, changePassword, deleteAccount, listSessions, revokeOtherSessions, setPersistent } = useSession()
   const [passwordSaved, setPasswordSaved] = useState(false)
+  const [sessions, setSessions] = useState([])
   const [sessionsClosed, setSessionsClosed] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [rememberDevice, setRememberDevice] = useState(session?.session?.persistent ?? true)
   const [error, setError] = useState('')
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    listSessions()
+      .then((items) => {
+        if (active) setSessions(Array.isArray(items) ? items : [])
+      })
+      .catch(() => {
+        if (active) setSessions([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [listSessions])
 
   async function handleChangePassword(event) {
     event.preventDefault()
@@ -66,6 +85,8 @@ export default function SecurityTab() {
     try {
       await revokeOtherSessions()
       setSessionsClosed(true)
+      const items = await listSessions()
+      setSessions(Array.isArray(items) ? items : [])
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message)
@@ -144,6 +165,24 @@ export default function SecurityTab() {
             </button>
           </span>
         </div>
+        {sessions.length > 0 ? (
+          <ul className={styles.sessions}>
+            {sessions.map((item) => (
+              <li key={item.id} className={styles.session}>
+                <span className={styles.sessionMark}>
+                  <BrowserMark browser={item.browser} />
+                </span>
+                <span>
+                  <span className={styles.sessionName}>{item.browser}</span>
+                  <span className={styles.sessionDevice}>{item.device}</span>
+                </span>
+                <time className={styles.sessionTime} dateTime={item.lastSeenAt}>
+                  {formatSessionTime(item.lastSeenAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div className={styles.card}>

@@ -4,6 +4,8 @@ import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.common.security.JwtService;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -113,6 +115,16 @@ public class AuthService {
     return toSessionSummary(session);
   }
 
+  @Transactional(readOnly = true)
+  public List<AuthDtos.SessionListItem> listSessions() {
+    UUID userId = authenticatedUserService.requireUserId();
+    UUID currentSessionId = authenticatedUserService.requireSessionId();
+    return userSessionService.listActive(userId).stream()
+        .map(session -> toSessionListItem(session, currentSessionId))
+        .sorted(Comparator.comparing(AuthDtos.SessionListItem::current).reversed())
+        .toList();
+  }
+
   @Transactional
   public AuthDtos.MessageResponse revokeOtherSessions() {
     userSessionService.revokeOtherSessions(
@@ -134,6 +146,17 @@ public class AuthService {
 
   private AuthDtos.UserSummary toUserSummary(UserEntity user) {
     return new AuthDtos.UserSummary(user.getId(), user.getUsername());
+  }
+
+  private AuthDtos.SessionListItem toSessionListItem(UserSessionEntity session, UUID currentSessionId) {
+    SessionClientLabel.Label label = SessionClientLabel.fromUserAgent(session.getUserAgent());
+    return new AuthDtos.SessionListItem(
+        session.getId(),
+        session.getId().equals(currentSessionId),
+        label.browser(),
+        label.device(),
+        session.getLastSeenAt()
+    );
   }
 
   private AuthDtos.SessionSummary toSessionSummary(UserSessionEntity session) {

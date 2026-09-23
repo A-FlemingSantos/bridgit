@@ -47,6 +47,17 @@ function setupAuthenticatedApi() {
     if (path === '/api/auth/refresh') {
       return testSessionResponse
     }
+    if (path === '/api/auth/sessions') {
+      return [
+        {
+          id: 'session-1',
+          current: true,
+          browser: 'Chrome',
+          device: 'Windows',
+          lastSeenAt: new Date().toISOString(),
+        },
+      ]
+    }
     throw new Error(`Unexpected apiRequest path: ${path}`)
   })
 }
@@ -480,6 +491,8 @@ describe('App', () => {
     expect(await screen.findByLabelText('Senha atual')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Salvar senha' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Encerrar outras sessões' })).toBeInTheDocument()
+    expect(await screen.findByText('Chrome')).toBeInTheDocument()
+    expect(screen.getByText('Windows')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Excluir conta' })).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Manter este dispositivo' })).toBeInTheDocument()
   })
@@ -654,6 +667,9 @@ describe('App', () => {
     apiRequest.mockImplementation(async (path) => {
       if (path === '/api/auth/refresh') {
         return testSessionResponse
+      }
+      if (path === '/api/auth/sessions') {
+        return []
       }
       if (path === '/api/account') {
         return { message: 'ok' }

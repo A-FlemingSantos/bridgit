@@ -7,8 +7,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -67,6 +69,11 @@ public class AuthController {
   @PatchMapping("/session")
   public ApiEnvelope<AuthDtos.SessionSummary> updateSession(@Valid @RequestBody UpdateSessionRequest request) {
     return ApiEnvelope.ok(authService.updateSessionPersistent(request.persistent()));
+  }
+
+  @GetMapping("/sessions")
+  public ApiEnvelope<List<AuthDtos.SessionListItem>> listSessions() {
+    return ApiEnvelope.ok(authService.listSessions());
   }
 
   @PostMapping("/sessions/revoke-others")
