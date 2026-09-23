@@ -44,8 +44,6 @@ $apiRoot = Join-Path $repoRoot 'services\api'
 Start-BridgitScript -Name 'start-web-backend' -Target 'web api'
 Assert-BridgitCommand -Name 'mvn'
 
-$null = Set-BridgitEnvVar -Name 'SPRING_DATASOURCE_PASSWORD' -Prompt 'spring_db_password' -Secret
-
 $frontendBaseUrl = [Environment]::GetEnvironmentVariable('APP_FRONTEND_BASE_URL', 'Process')
 if ([string]::IsNullOrWhiteSpace($frontendBaseUrl)) {
   $frontendBaseUrl = 'http://localhost:5173'
@@ -64,13 +62,19 @@ if ([string]::IsNullOrWhiteSpace($datasourceUsername)) {
 }
 
 $datasourcePassword = [Environment]::GetEnvironmentVariable('SPRING_DATASOURCE_PASSWORD', 'Process')
+if ([string]::IsNullOrWhiteSpace($datasourcePassword)) {
+  throw 'SPRING_DATASOURCE_PASSWORD nao esta definida. Coloque a senha em scripts/powershell/local.secrets.ps1.'
+}
+
 $jwtSecret = [Environment]::GetEnvironmentVariable('APP_JWT_SECRET', 'Process')
-$jwtLabel = if ([string]::IsNullOrWhiteSpace($jwtSecret)) { 'default' } else { 'loaded' }
+if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
+  throw 'APP_JWT_SECRET nao esta definida. Coloque a chave em scripts/powershell/local.secrets.ps1.'
+}
 
 Write-BridgitConfig -Rows @(
   (New-BridgitConfigRow 'web_url' (Get-BridgitTrimmedUrl -Url $frontendBaseUrl)),
   (New-BridgitConfigRow 'spring_db_password' 'loaded'),
-  (New-BridgitConfigRow 'jwt' $jwtLabel)
+  (New-BridgitConfigRow 'jwt' 'loaded')
 )
 
 Assert-BridgitDatabaseExists -Username $datasourceUsername -Password $datasourcePassword

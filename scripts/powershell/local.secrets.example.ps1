@@ -4,7 +4,8 @@
 # Variaveis de ambiente ja definidas no processo antes de executar os scripts
 # tem prioridade sobre os valores deste arquivo.
 #
-# Exemplos (descomente e ajuste conforme necessario):
+# O start-web-backend.ps1 nao pede esses valores. Eles precisam estar aqui,
+# no local.secrets.ps1, ou ja definidos no processo.
 
 # $env:SPRING_DATASOURCE_PASSWORD = 'sua_senha_do_sql_server'
 # $env:APP_JWT_SECRET = 'chave_hmac_com_pelo_menos_32_bytes'

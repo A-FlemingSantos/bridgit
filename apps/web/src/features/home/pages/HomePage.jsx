@@ -30,6 +30,7 @@ const rise = {
 export default function HomePage() {
   const { state, dispatch, openOverlay } = useHub()
   const navigate = useNavigate()
+  const searchId = useId()
   const [query, setQuery] = useState('')
   const recentsView = state.recentsView === 'grid' ? 'grid' : 'list'
   const recents = hydrateRecents(state)
@@ -58,6 +59,8 @@ export default function HomePage() {
           <div className={styles.search}>
             <Search size={16} strokeWidth={1.75} aria-hidden="true" />
             <input
+              id={searchId}
+              name="search"
               type="search"
               placeholder="Buscar"
               aria-label="Buscar"
