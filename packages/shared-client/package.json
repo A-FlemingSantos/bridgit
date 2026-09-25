@@ -5,5 +5,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }
