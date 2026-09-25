@@ -71,10 +71,50 @@ if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
   throw 'APP_JWT_SECRET nao esta definida. Coloque a chave em scripts/powershell/local.secrets.ps1.'
 }
 
+$integrationTokenKey = [Environment]::GetEnvironmentVariable('APP_INTEGRATION_TOKEN_KEY_B64', 'Process')
+if ([string]::IsNullOrWhiteSpace($integrationTokenKey)) {
+  throw 'APP_INTEGRATION_TOKEN_KEY_B64 nao esta definida. Coloque a chave em scripts/powershell/local.secrets.ps1.'
+}
+
+$defaultRedirectUris = @{
+  'APP_ONEDRIVE_REDIRECT_URI' = 'http://localhost:8080/api/providers/onedrive/callback'
+  'APP_GOOGLE_DRIVE_REDIRECT_URI' = 'http://localhost:8080/api/providers/google-drive/callback'
+  'APP_DROPBOX_REDIRECT_URI' = 'http://localhost:8080/api/providers/dropbox/callback'
+}
+
+foreach ($entry in $defaultRedirectUris.GetEnumerator()) {
+  $currentValue = [Environment]::GetEnvironmentVariable($entry.Key, 'Process')
+  if ([string]::IsNullOrWhiteSpace($currentValue)) {
+    Set-BridgitProcessEnvVar -Name $entry.Key -Value $entry.Value
+  }
+}
+
+function Get-ProviderConfigStatus {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ClientIdVar,
+    [Parameter(Mandatory = $true)]
+    [string]$ClientSecretVar
+  )
+
+  $clientId = [Environment]::GetEnvironmentVariable($ClientIdVar, 'Process')
+  $clientSecret = [Environment]::GetEnvironmentVariable($ClientSecretVar, 'Process')
+
+  if ([string]::IsNullOrWhiteSpace($clientId) -or [string]::IsNullOrWhiteSpace($clientSecret)) {
+    return 'missing'
+  }
+
+  return 'loaded'
+}
+
 Write-BridgitConfig -Rows @(
   (New-BridgitConfigRow 'web_url' (Get-BridgitTrimmedUrl -Url $frontendBaseUrl)),
   (New-BridgitConfigRow 'spring_db_password' 'loaded'),
-  (New-BridgitConfigRow 'jwt' 'loaded')
+  (New-BridgitConfigRow 'jwt' 'loaded'),
+  (New-BridgitConfigRow 'integration_token_key' 'loaded'),
+  (New-BridgitConfigRow 'onedrive_oauth' (Get-ProviderConfigStatus -ClientIdVar 'APP_ONEDRIVE_CLIENT_ID' -ClientSecretVar 'APP_ONEDRIVE_CLIENT_SECRET')),
+  (New-BridgitConfigRow 'google_drive_oauth' (Get-ProviderConfigStatus -ClientIdVar 'APP_GOOGLE_DRIVE_CLIENT_ID' -ClientSecretVar 'APP_GOOGLE_DRIVE_CLIENT_SECRET')),
+  (New-BridgitConfigRow 'dropbox_oauth' (Get-ProviderConfigStatus -ClientIdVar 'APP_DROPBOX_CLIENT_ID' -ClientSecretVar 'APP_DROPBOX_CLIENT_SECRET'))
 )
 
 Assert-BridgitDatabaseExists -Username $datasourceUsername -Password $datasourcePassword
