@@ -282,6 +282,33 @@
   letter-spacing: -0.02em;
 }
 
+.inlineAction {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.searchGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.searchGroup h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mute);
+  letter-spacing: -0.02em;
+}
+
 .list {
   display: flex;
   flex-direction: column;

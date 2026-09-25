@@ -1,23 +1,31 @@
 import { render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { apiRequest } from '@bridgit/shared-client'
+import { ApiClientError, apiRequest } from '@bridgit/shared-client'
 import App from './App.jsx'
+import ProvidersTab from './features/settings/pages/ProvidersTab.jsx'
+import SettingsPage from './features/settings/pages/SettingsPage.jsx'
+import { SessionProvider } from './shared/auth/SessionContext.jsx'
+import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
 import { clearBrowserCookies } from './test/setup.js'
 
-vi.mock('@bridgit/shared-client', () => ({
-  apiRequest: vi.fn(),
-  ApiClientError: class ApiClientError extends Error {
-    constructor(message, options = {}) {
-      super(message)
-      this.name = 'ApiClientError'
-      this.status = options.status ?? 500
-      this.code = options.code
-      this.validations = options.validations ?? null
-    }
-  },
-}))
+vi.mock('@bridgit/shared-client', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    apiRequest: vi.fn(),
+    ApiClientError: class ApiClientError extends Error {
+      constructor(message, options = {}) {
+        super(message)
+        this.name = 'ApiClientError'
+        this.status = options.status ?? 500
+        this.code = options.code
+        this.validations = options.validations ?? null
+      }
+    },
+  }
+})
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
@@ -41,25 +49,333 @@ function seedAuthenticatedSession(overrides = {}) {
   )
 }
 
+const testProvidersResponse = [
+  {
+    id: 'onedrive',
+    name: 'OneDrive',
+    configured: true,
+    connected: true,
+    account: { email: 'arthur@outlook.com', name: null },
+    connectedAt: '2026-01-01T00:00:00.000Z',
+    lastError: null,
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    configured: true,
+    connected: true,
+    account: { email: 'arthur@gmail.com', name: null },
+    connectedAt: '2026-01-01T00:00:00.000Z',
+    lastError: null,
+  },
+  {
+    id: 'dropbox',
+    name: 'Dropbox',
+    configured: true,
+    connected: false,
+    account: null,
+    connectedAt: null,
+    lastError: null,
+  },
+]
+
+const FOLDER_INOV = '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334'
+const FOLDER_REF = 'd92e4b70-1a8c-4f09-b3d6-5e7c0a18f2d3'
+const FOLDER_REL = 'e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193'
+const FILE_REL = 'a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0'
+const FILE_ANALISE = 'c4d8b207-5a1e-49f3-8e6c-9b0d2f7a13e8'
+const FILE_RASCUNHO = 'f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24'
+
+function createHubTestState() {
+  const items = {
+    [FOLDER_INOV]: {
+      ref: FOLDER_INOV,
+      provider: 'onedrive',
+      name: 'Inovações técnicas',
+      kind: 'folder',
+      parentRef: null,
+    },
+    [FOLDER_REF]: {
+      ref: FOLDER_REF,
+      provider: 'onedrive',
+      name: 'Referências de código',
+      kind: 'folder',
+      parentRef: null,
+    },
+    [FOLDER_REL]: {
+      ref: FOLDER_REL,
+      provider: 'onedrive',
+      name: 'Relatórios',
+      kind: 'folder',
+      parentRef: FOLDER_INOV,
+    },
+    [FILE_REL]: {
+      ref: FILE_REL,
+      provider: 'onedrive',
+      name: 'Relatório 2023',
+      kind: 'file',
+      parentRef: null,
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+    },
+    [FILE_ANALISE]: {
+      ref: FILE_ANALISE,
+      provider: 'onedrive',
+      name: 'Análise de desempenho',
+      kind: 'file',
+      parentRef: null,
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+    },
+    [FILE_RASCUNHO]: {
+      ref: FILE_RASCUNHO,
+      provider: 'onedrive',
+      name: 'Rascunho',
+      kind: 'file',
+      parentRef: FOLDER_REL,
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+    },
+  }
+
+  const children = {
+    'onedrive:root': [FOLDER_INOV, FOLDER_REF, FILE_REL, FILE_ANALISE],
+    [`onedrive:${FOLDER_INOV}`]: [FOLDER_REL],
+    [`onedrive:${FOLDER_REL}`]: [FILE_RASCUNHO],
+    [`onedrive:${FOLDER_REF}`]: [],
+  }
+
+  const shortcuts = [{ provider: 'onedrive', ref: FILE_REL, name: 'Relatório 2023', extension: 'pdf', mimeType: 'application/pdf' }]
+  const recents = [
+    {
+      provider: 'onedrive',
+      ref: FILE_ANALISE,
+      name: 'Análise de desempenho',
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+      openedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    },
+  ]
+  const publicLinks = {}
+  let renameShouldFail = false
+
+  function ancestryFor(ref) {
+    const chain = []
+    let current = items[ref]
+    while (current?.parentRef) {
+      const parent = items[current.parentRef]
+      if (!parent) break
+      chain.unshift({ ref: parent.ref, name: parent.name })
+      current = parent
+    }
+    return chain
+  }
+
+  function listFolder(provider, parentRef) {
+    const key = `${provider}:${parentRef ?? 'root'}`
+    const refs = children[key] ?? []
+    const ancestry = parentRef ? [...ancestryFor(parentRef), { ref: parentRef, name: items[parentRef].name }] : []
+    return {
+      folder: parentRef
+        ? { ref: parentRef, name: items[parentRef].name, ancestry: ancestry.slice(0, -1) }
+        : { ref: null, name: 'OneDrive', ancestry: [] },
+      items: refs.map((itemRef) => ({ ...items[itemRef] })),
+      nextCursor: null,
+    }
+  }
+
+  function getItem(provider, ref) {
+    const item = items[ref]
+    if (!item || item.provider !== provider) return null
+    return { ...item, ancestry: ancestryFor(ref) }
+  }
+
+  return {
+    items,
+    children,
+    shortcuts,
+    recents,
+    publicLinks,
+    get renameShouldFail() {
+      return renameShouldFail
+    },
+    set renameShouldFail(value) {
+      renameShouldFail = value
+    },
+    listFolder,
+    getItem,
+    ancestryFor,
+  }
+}
+
+let hubTestState = createHubTestState()
+
+function resetHubTestState() {
+  hubTestState = createHubTestState()
+}
+
+function parseHubPath(path) {
+  const providerItems = path.match(/^\/api\/providers\/([^/]+)\/items(?:\/(.+))?$/)
+  if (providerItems) {
+    return { type: 'items', provider: decodeURIComponent(providerItems[1]), ref: providerItems[2] ? decodeURIComponent(providerItems[2]) : null }
+  }
+  const providerRoot = path.match(/^\/api\/providers\/([^/]+)$/)
+  if (providerRoot) {
+    return { type: 'provider', provider: decodeURIComponent(providerRoot[1]) }
+  }
+  return { type: 'other', path }
+}
+
+async function resolveAuthenticatedApiRequest(path, options = {}) {
+  const method = options.method ?? 'GET'
+
+  if (path === '/api/auth/refresh') {
+    return testSessionResponse
+  }
+  if (path === '/api/providers') {
+    return testProvidersResponse
+  }
+  if (path === '/api/auth/sessions') {
+    return [
+      {
+        id: 'session-1',
+        current: true,
+        browser: 'Chrome',
+        device: 'Windows',
+        lastSeenAt: new Date().toISOString(),
+      },
+    ]
+  }
+  if (path === '/api/hub/recents') {
+    if (method === 'POST') return { ok: true }
+    return hubTestState.recents
+  }
+  if (path === '/api/hub/shortcuts') {
+    return hubTestState.shortcuts
+  }
+  if (path.startsWith('/api/hub/shortcuts/')) {
+    return null
+  }
+  if (path === '/api/search') {
+    return {
+      results: [hubTestState.items[FILE_ANALISE]],
+      providers: [{ id: 'onedrive', ok: true, error: null }],
+    }
+  }
+
+  const parsed = parseHubPath(path)
+  if (parsed.type === 'items' && !parsed.ref && method === 'GET') {
+    const parentRef = options.query?.parent ?? null
+    return hubTestState.listFolder(parsed.provider, parentRef || null)
+  }
+  if (parsed.type === 'items' && parsed.ref && method === 'GET') {
+    const item = hubTestState.getItem(parsed.provider, parsed.ref)
+    if (!item) {
+      throw new ApiClientError('Not found', { code: 'NAO_ENCONTRADO', status: 404 })
+    }
+    return item
+  }
+  if (parsed.type === 'items' && parsed.ref && method === 'PATCH') {
+    if (hubTestState.renameShouldFail) {
+      throw new ApiClientError('Falhou', { code: 'ERRO', status: 500 })
+    }
+    const item = hubTestState.items[parsed.ref]
+    if (options.body?.name) item.name = options.body.name
+    if (options.body?.parentRef !== undefined) {
+      const oldParent = item.parentRef
+      const newParent = options.body.parentRef === '' ? null : options.body.parentRef || null
+      const oldKey = `${parsed.provider}:${oldParent ?? 'root'}`
+      const newKey = `${parsed.provider}:${newParent ?? 'root'}`
+      hubTestState.children[oldKey] = (hubTestState.children[oldKey] ?? []).filter((ref) => ref !== parsed.ref)
+      hubTestState.children[newKey] = [...(hubTestState.children[newKey] ?? []), parsed.ref]
+      item.parentRef = newParent
+    }
+    return { ...item }
+  }
+  if (parsed.type === 'items' && parsed.ref && method === 'DELETE') {
+    const item = hubTestState.items[parsed.ref]
+    const parentKey = `${parsed.provider}:${item.parentRef ?? 'root'}`
+    hubTestState.children[parentKey] = (hubTestState.children[parentKey] ?? []).filter((ref) => ref !== parsed.ref)
+    delete hubTestState.items[parsed.ref]
+    return { ok: true }
+  }
+  if (path.endsWith('/read')) {
+    return { mode: 'pdf', url: 'https://example.test/doc.pdf' }
+  }
+  if (path.endsWith('/ticket')) {
+    return { url: 'https://example.test/download.pdf' }
+  }
+  if (path.endsWith('/public-link')) {
+    const ref = decodeURIComponent(path.split('/items/')[1].split('/public-link')[0])
+    if (method === 'PUT') {
+      hubTestState.publicLinks[ref] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
+      return hubTestState.publicLinks[ref]
+    }
+    if (method === 'DELETE') {
+      delete hubTestState.publicLinks[ref]
+      return null
+    }
+    return hubTestState.publicLinks[ref] ?? null
+  }
+
+  throw new Error(`Unexpected apiRequest path: ${path}`)
+}
+
+function toFetchSuccess(data) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ success: true, data }),
+  }
+}
+
+function toFetchError(error) {
+  const status = error instanceof ApiClientError ? error.status : 500
+  const code = error instanceof ApiClientError ? error.code : 'ERRO'
+  return {
+    ok: false,
+    status,
+    json: async () => ({
+      success: false,
+      error: {
+        message: error.message,
+        code,
+        validations: error.validations ?? null,
+      },
+    }),
+  }
+}
+
 function setupAuthenticatedApi() {
+  resetHubTestState()
   seedAuthenticatedSession()
-  apiRequest.mockImplementation(async (path) => {
-    if (path === '/api/auth/refresh') {
-      return testSessionResponse
-    }
-    if (path === '/api/auth/sessions') {
-      return [
-        {
-          id: 'session-1',
-          current: true,
-          browser: 'Chrome',
-          device: 'Windows',
-          lastSeenAt: new Date().toISOString(),
-        },
-      ]
-    }
-    throw new Error(`Unexpected apiRequest path: ${path}`)
-  })
+  apiRequest.mockImplementation((path, options = {}) => resolveAuthenticatedApiRequest(path, options))
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const parsedUrl = new URL(url, 'http://localhost')
+      const path = parsedUrl.pathname
+      const query = Object.fromEntries(parsedUrl.searchParams.entries())
+      const method = init.method ?? 'GET'
+      let body
+
+      if (typeof init.body === 'string' && init.body) {
+        body = JSON.parse(init.body)
+      }
+
+      try {
+        const data = await resolveAuthenticatedApiRequest(path, { method, query, body })
+        return toFetchSuccess(data)
+      } catch (error) {
+        if (error instanceof ApiClientError || error instanceof Error) {
+          return toFetchError(error)
+        }
+        throw error
+      }
+    }),
+  )
 }
 
 beforeEach(() => {
@@ -67,6 +383,7 @@ beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
   apiRequest.mockReset()
+  vi.unstubAllGlobals()
 })
 
 describe('App', () => {
@@ -111,13 +428,16 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute('href', '/providers/onedrive')
-    expect(screen.getByRole('link', { name: 'Google Drive Conectado' })).toHaveAttribute('href', '/providers/google-drive')
-    expect(screen.getAllByRole('link', { name: 'Análise de desempenho' })[0]).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute(
       'href',
-      '/providers/onedrive/file/c4d8b207-5a1e-49f3-8e6c-9b0d2f7a13e8',
+      '/providers/onedrive',
     )
-    expect(screen.queryByRole('link', { name: /Trabalho/ })).not.toBeInTheDocument()
+    expect(screen.getByText('arthur@outlook.com')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Dropbox Desconectado' })).toBeInTheDocument()
+    const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
+    expect(recentLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_ANALISE}`)
+    expect(recentLink).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
   })
 
   it('abre o menu de Enviar com os provedores', async () => {
@@ -132,7 +452,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Enviar' }))
     expect(screen.getByRole('menuitem', { name: 'OneDrive' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Google Drive' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Dropbox' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Dropbox' })).not.toBeInTheDocument()
   })
 
   it('mostra os spaces e abre o par de sinc', async () => {
@@ -255,8 +575,8 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: /Inovações técnicas/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Referências de código/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Relatório 2023/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Análise de desempenho/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Análise de desempenho/ })).not.toBeInTheDocument()
   })
 
   it('mostra a cadeia de pastas no seletor de space', async () => {
@@ -278,7 +598,7 @@ describe('App', () => {
     expect(within(nav).getByRole('button', { name: 'Inovações técnicas' })).toBeInTheDocument()
     expect(within(nav).queryByRole('button', { name: 'Relatórios' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Relatórios' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Rascunho/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Rascunho/ })).not.toBeInTheDocument()
   })
 
   it('mostra as ações de um arquivo no provedor', async () => {
@@ -315,8 +635,31 @@ describe('App', () => {
     await user.clear(input)
     await user.type(input, 'Relatório final')
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
-    expect(screen.getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
+    })
     expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra erro ao falhar rename otimista', async () => {
+    const user = userEvent.setup()
+    setupAuthenticatedApi()
+    hubTestState.renameShouldFail = true
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
+    const dialog = screen.getByRole('dialog', { name: 'Renomear' })
+    const input = within(dialog).getByLabelText('Nome do arquivo')
+    await user.clear(input)
+    await user.type(input, 'Relatório final')
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Falhou')
+    expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
   })
 
   it('move um arquivo para outra pasta', async () => {
@@ -334,11 +677,15 @@ describe('App', () => {
     await user.click(within(dialog).getByRole('button', { name: /Referências de código/ }))
     await user.click(within(dialog).getByRole('button', { name: 'Escolher' }))
 
-    expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
+    })
     expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: /Referências de código/ }))
-    expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
+    })
   })
 
   it('mostra as ações de uma pasta e exclui pelo overlay', async () => {
@@ -419,10 +766,43 @@ describe('App', () => {
       'href',
       '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
     )
-    expect(screen.getByRole('link', { name: /Relatório 2023/ })).toHaveAttribute(
-      'href',
-      '/providers/onedrive/file/a1c9e4d2-8f70-4b31-9c05-2d6e8a14b7f0',
+    const fileLink = screen.getByRole('link', { name: /Relatório 2023/ })
+    expect(fileLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_REL}`)
+    expect(fileLink).toHaveAttribute('target', '_blank')
+  })
+
+  it('habilita link publico e copia endereco', async () => {
+    const user = userEvent.setup()
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+        <App />
+      </MemoryRouter>,
     )
+
+    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Link público' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Link público' })
+    await user.click(within(dialog).getByRole('button', { name: 'Criar link' }))
+    expect(await within(dialog).findByDisplayValue('https://bridgit.test/p/abc123')).toBeInTheDocument()
+  })
+
+  it('renderiza FileReader na aba de leitura', async () => {
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={[`/providers/onedrive/file/${FILE_ANALISE}`]}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Análise de desempenho' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Baixar' })).toHaveAttribute(
+      'href',
+      'https://example.test/download.pdf',
+    )
+    await waitFor(() => {
+      expect(document.querySelector('[class*="reader"]')).toBeTruthy()
+    })
   })
 
   it('mostra a aba de conta nas configurações', async () => {
@@ -451,13 +831,21 @@ describe('App', () => {
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/settings/providers']}>
-        <App />
+        <SessionProvider>
+          <HubDataProvider>
+            <Routes>
+              <Route path="/settings" element={<SettingsPage />}>
+                <Route path="providers" element={<ProvidersTab />} />
+              </Route>
+            </Routes>
+          </HubDataProvider>
+        </SessionProvider>
       </MemoryRouter>,
     )
 
     const dialog = await screen.findByRole('dialog', { name: 'Configurações' })
     expect(within(dialog).getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(within(dialog).getByText('arthur@outlook.com')).toBeInTheDocument()
+    expect(await within(dialog).findByText('arthur@outlook.com')).toBeInTheDocument()
     expect(within(dialog).getAllByRole('button', { name: 'Desconectar' })).toHaveLength(2)
     expect(within(dialog).getByRole('button', { name: 'Conectar' })).toBeInTheDocument()
     expect(within(dialog).queryByLabelText('Usuário')).not.toBeInTheDocument()
@@ -517,6 +905,38 @@ describe('App', () => {
 
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+  })
+
+  it('retorna do OAuth com background sobre a página de origem e limpa os params', async () => {
+    setupAuthenticatedApi()
+
+    let lastLocation = null
+    function LocationProbe() {
+      const location = useLocation()
+      lastLocation = location
+      return null
+    }
+
+    render(
+      <MemoryRouter
+        {...router}
+        initialEntries={[
+          '/settings/providers?provider=onedrive&status=connected&background=%2Fproviders%2Fonedrive',
+        ]}
+      >
+        <App />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('OneDrive conectado')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Configurações' })).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(lastLocation?.pathname).toBe('/settings/providers')
+      expect(lastLocation?.search).toBe('')
+    })
+    expect(lastLocation?.state?.backgroundLocation?.pathname).toBe('/providers/onedrive')
   })
 
   it('mostra o cadastro na mesma tela', async () => {

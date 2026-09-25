@@ -101,6 +101,7 @@ export default function SpaceComposer({ overlay }) {
   const otherFolderRef = picking === 'origin' ? destination?.ref : origin?.ref
 
   const picker = useLocationPicker({
+    source: 'mock',
     foldersOnly: true,
     initialProviderId: pickingProviderId,
     disabledFolderRef: otherFolderRef ?? null,

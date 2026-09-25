@@ -14,8 +14,8 @@ export function isSettingsPath(pathname) {
 function toBackgroundLocation(location) {
   return {
     pathname: location.pathname,
-    search: location.search,
-    hash: location.hash,
+    search: location.search ?? '',
+    hash: location.hash ?? '',
     state: location.state ?? null,
   }
 }

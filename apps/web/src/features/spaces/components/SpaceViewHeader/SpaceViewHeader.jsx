@@ -61,7 +61,7 @@ export default function SpaceViewHeader({
         <nav className={styles.crumbs} aria-label="Localização atual">
           {ancestors.map((crumb, index) => (
             <span key={`${crumb.label}-${crumb.to ?? index}`} className={styles.crumbSegment}>
-              <Link to={crumb.to} className={styles.crumb}>
+              <Link to={crumb.to} state={crumb.state} className={styles.crumb}>
                 {crumb.label}
               </Link>
               {index < ancestors.length - 1 ? (

@@ -57,6 +57,34 @@ describe('resolveSpaceViewBreadcrumb', () => {
     )
   })
 
+  it('usa ancestry no arquivo quando disponivel', () => {
+    const catalogWithAncestry = {
+      ...catalog,
+      getFile: () => ({
+        fileRef: 'file-nested',
+        name: 'Rascunho',
+        title: 'Rascunho',
+        ancestry: [
+          { ref: 'parent', name: 'Inovações técnicas' },
+          { ref: 'nested', name: 'Relatórios' },
+        ],
+      }),
+    }
+
+    const { items } = resolveSpaceViewBreadcrumb(
+      '/providers/onedrive/file/file-nested',
+      catalogWithAncestry,
+    )
+
+    expect(items.map((item) => item.label)).toEqual([
+      'Início',
+      'OneDrive',
+      'Inovações técnicas',
+      'Relatórios',
+      'Rascunho',
+    ])
+  })
+
   it('inclui a pasta pai ao abrir uma pasta aninhada', () => {
     const { items } = resolveSpaceViewBreadcrumb(
       '/providers/onedrive/folder/nested',

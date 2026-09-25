@@ -1,16 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import AppOverlay, { overlayStyles as styles } from '../components/AppOverlay/AppOverlay.jsx'
 import ProviderMark from '../../features/spaces/components/ProviderMark.jsx'
 import { useLocationPicker } from '../../features/spaces/components/LocationPicker/useLocationPicker.jsx'
-import {
-  collectDescendantFolderRefs,
-  getFile,
-  getFolder,
-  getProvider,
-  getSpace,
-  publicLinkFor,
-} from './hubStore.js'
+import { getSpace } from './hubStore.js'
+import { hubErrorMessage } from './hubErrorMessage.js'
 import { useHub } from './HubState.jsx'
+import { useHubActions, useProviders } from '../hub/index.js'
 import SpaceComposer from '../../features/spaces/components/SpaceComposer/SpaceComposer.jsx'
 
 export default function HubOverlays() {
@@ -59,76 +54,86 @@ export default function HubOverlays() {
   }
 
   if (overlay.type === 'public-link') {
-    return <PublicLinkOverlay fileRef={overlay.fileRef} />
+    return <PublicLinkOverlay overlay={overlay} />
   }
 
   return null
 }
 
+function splitExtension(name) {
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0 || dot === name.length - 1) return { stem: name, extension: '' }
+  return { stem: name.slice(0, dot), extension: name.slice(dot) }
+}
+
 function NameOverlay({ overlay }) {
   const { state, dispatch, closeOverlay } = useHub()
+  const actions = useHubActions()
+  const { providers } = useProviders()
   const space = overlay.spaceId ? getSpace(state, overlay.spaceId) : null
-  const file = overlay.fileRef ? getFile(state, overlay.fileRef) : null
-  const folder = overlay.folderRef ? getFolder(state, overlay.folderRef) : null
   const renaming = overlay.mode === 'rename'
+  const renamingFile = renaming && overlay.kind === 'file'
+  const { stem: fileStem, extension: fileExtension } = renamingFile
+    ? splitExtension(overlay.name ?? '')
+    : { stem: overlay.name ?? '', extension: '' }
   const initial =
     overlay.kind === 'space'
       ? space?.name ?? ''
-      : renaming && overlay.kind === 'file'
-        ? file?.title ?? ''
-        : renaming && overlay.kind === 'folder'
-          ? folder?.name ?? ''
-          : overlay.kind === 'file'
-            ? 'Documento'
-            : 'Pasta sem título'
+      : renaming
+        ? fileStem
+        : overlay.kind === 'file'
+          ? 'Documento'
+          : 'Pasta sem título'
   const [value, setValue] = useState(initial)
   const [providerId, setProviderId] = useState(overlay.providerId ?? null)
-  const needsProvider = !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+  const needsProvider =
+    !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
 
   const title =
     overlay.kind === 'space' || renaming ? 'Renomear' : overlay.kind === 'file' ? 'Criar' : 'Nova pasta'
   const label = overlay.kind === 'file' ? 'Nome do arquivo' : 'Nome'
   const submitLabel = overlay.kind === 'space' || renaming ? 'Salvar' : 'Criar'
-  const provider = providerId ? getProvider(state, providerId) : null
+  const provider = providerId ? providers.find((item) => item.id === providerId) : null
+  const connectedProviders = providers.filter((item) => item.connected)
 
-  function submit() {
+  async function submit() {
     const name = value.trim()
-    if (!name) return
+    if (!name || pending) return
 
     if (overlay.kind === 'space') {
       dispatch({ type: 'renameSpace', spaceId: overlay.spaceId, name })
       return
     }
 
-    if (renaming && overlay.kind === 'file') {
-      dispatch({ type: 'renameFile', fileRef: overlay.fileRef, title: name })
-      return
+    if (!providerId && needsProvider) return
+
+    setPending(true)
+    setError(null)
+
+    try {
+      if (renamingFile) {
+        await actions.renameItem({
+          providerId: overlay.providerId,
+          ref: overlay.ref,
+          name: name.toLowerCase().endsWith(fileExtension.toLowerCase()) ? name : `${name}${fileExtension}`,
+        })
+      } else if (renaming && overlay.kind === 'folder') {
+        await actions.renameItem({ providerId: overlay.providerId, ref: overlay.ref, name })
+      } else if (overlay.kind === 'folder') {
+        await actions.createFolder({
+          providerId,
+          parentRef: overlay.folderRef ?? null,
+          name,
+        })
+      }
+      closeOverlay()
+    } catch (submitError) {
+      setError(hubErrorMessage(submitError))
+    } finally {
+      setPending(false)
     }
-
-    if (renaming && overlay.kind === 'folder') {
-      dispatch({ type: 'renameFolder', folderRef: overlay.folderRef, name })
-      return
-    }
-
-    if (!providerId) return
-
-    if (overlay.kind === 'folder') {
-      dispatch({
-        type: 'createFolder',
-        name,
-        providerId,
-        parentFolderRef: overlay.folderRef ?? null,
-      })
-      return
-    }
-
-    dispatch({
-      type: 'createFile',
-      title: name,
-      providerId,
-      parentFolderRef: overlay.folderRef ?? null,
-      kind: 'PDF',
-    })
   }
 
   return (
@@ -138,7 +143,12 @@ function NameOverlay({ overlay }) {
       compact
       trailing={
         !provider && needsProvider ? null : (
-          <button type="button" className={styles.choose} disabled={!value.trim() || (needsProvider && !providerId)} onClick={submit}>
+          <button
+            type="button"
+            className={styles.choose}
+            disabled={!value.trim() || (needsProvider && !providerId) || pending}
+            onClick={() => void submit()}
+          >
             {submitLabel}
           </button>
         )
@@ -146,7 +156,7 @@ function NameOverlay({ overlay }) {
     >
       {needsProvider && !provider ? (
         <div className={styles.stack} role="listbox" aria-label="Provedores">
-          {state.providers.map((item) => (
+          {connectedProviders.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -162,49 +172,84 @@ function NameOverlay({ overlay }) {
       ) : (
         <div className={styles.field}>
           <label htmlFor="hub-name">{label}</label>
-          <input
-            id="hub-name"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            autoComplete="off"
-          />
+          {fileExtension ? (
+            <div className={styles.nameRow}>
+              <input
+                id="hub-name"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                autoComplete="off"
+                disabled={pending}
+              />
+              <span className={styles.nameExtension} aria-label={`Extensão ${fileExtension}`}>
+                {fileExtension}
+              </span>
+            </div>
+          ) : (
+            <input
+              id="hub-name"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              autoComplete="off"
+              disabled={pending}
+            />
+          )}
         </div>
       )}
+      {error ? (
+        <p className={styles.hint} role="alert">
+          {error}
+        </p>
+      ) : null}
     </AppOverlay>
   )
 }
 
 function MoveOverlay({ overlay }) {
-  const { state, dispatch, closeOverlay } = useHub()
-  const entry =
-    overlay.kind === 'folder' ? getFolder(state, overlay.folderRef) : getFile(state, overlay.fileRef)
-  const currentFolderRef =
-    overlay.kind === 'folder' ? entry?.parentFolderRef ?? null : entry?.folderRef ?? null
-  const blocked =
-    overlay.kind === 'folder'
-      ? [overlay.folderRef, ...collectDescendantFolderRefs(state, overlay.folderRef)]
-      : currentFolderRef
-        ? [currentFolderRef]
-        : []
+  const { closeOverlay } = useHub()
+  const actions = useHubActions()
+  const { providers } = useProviders()
+  const provider = providers.find((item) => item.id === overlay.providerId)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+
+  const blockedRefs = overlay.kind === 'folder' ? [overlay.ref] : [overlay.parentRef].filter(Boolean)
 
   const picker = useLocationPicker({
-    initialProviderId: entry?.providerId ?? null,
+    source: 'api',
+    initialProviderId: overlay.providerId ?? null,
     foldersOnly: true,
     allowRoot: true,
-    disabledFolderRefs: blocked,
+    disabledFolderRefs: blockedRefs,
     blockedHint: 'Não dá para mover para cá',
-    resetKey: overlay.kind === 'folder' ? overlay.folderRef : overlay.fileRef,
+    resetKey: `${overlay.kind}-${overlay.ref}`,
     onChoose: (location) => {
-      const parentFolderRef = location?.kind === 'folder' ? location.ref : null
-      if (overlay.kind === 'folder') {
-        dispatch({ type: 'moveFolder', folderRef: overlay.folderRef, parentFolderRef })
-        return
-      }
-      dispatch({ type: 'moveFile', fileRef: overlay.fileRef, parentFolderRef })
+      void handleMove(location)
     },
   })
 
-  if (!entry) return null
+  async function handleMove(location) {
+    if (pending) return
+    const parentRef = location?.kind === 'folder' ? location.ref : null
+    setPending(true)
+    setError(null)
+
+    try {
+      await actions.moveItem({
+        providerId: overlay.providerId,
+        ref: overlay.ref,
+        fromParentRef: overlay.parentRef ?? null,
+        parentRef,
+      })
+      closeOverlay()
+    } catch (moveError) {
+      setError(hubErrorMessage(moveError))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (!provider) return null
 
   return (
     <AppOverlay
@@ -215,35 +260,64 @@ function MoveOverlay({ overlay }) {
       refreshKey={picker.refreshKey}
     >
       {picker.body}
+      {error ? (
+        <p className={styles.hint} role="alert">
+          {error}
+        </p>
+      ) : null}
     </AppOverlay>
   )
 }
 
 function ConfirmDeleteEntryOverlay({ overlay }) {
-  const { state, dispatch, closeOverlay } = useHub()
-  const file = overlay.kind === 'file' ? getFile(state, overlay.fileRef) : null
-  const folder = overlay.kind === 'folder' ? getFolder(state, overlay.folderRef) : null
-  const name = file?.title ?? folder?.name
-  if (!name) return null
+  const { closeOverlay } = useHub()
+  const actions = useHubActions()
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+  const name = overlay.name ?? 'este item'
+  const deleteLead =
+    overlay.kind === 'folder'
+      ? `${name} será excluída do provedor e deixará de existir neste hub.`
+      : `${name} será excluído do provedor e deixará de existir neste hub.`
+
+  async function confirmDelete() {
+    if (pending) return
+    setPending(true)
+    setError(null)
+
+    try {
+      await actions.deleteItem({
+        providerId: overlay.providerId,
+        ref: overlay.ref,
+        parentRef: overlay.parentRef ?? null,
+      })
+      closeOverlay()
+    } catch (deleteError) {
+      setError(hubErrorMessage(deleteError))
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
-    <AppOverlay title={overlay.kind === 'folder' ? 'Excluir pasta' : 'Excluir arquivo'} onClose={closeOverlay} compact>
+    <AppOverlay
+      title={overlay.kind === 'folder' ? 'Excluir pasta' : 'Excluir arquivo'}
+      onClose={closeOverlay}
+      compact
+    >
       <p className={styles.lead}>
-        {name} deixa de existir neste hub. A cópia no provedor permanece.
+        {deleteLead}
       </p>
+      {error ? (
+        <p className={styles.hint} role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className={styles.actions}>
-        <button type="button" className={styles.secondary} onClick={closeOverlay}>
+        <button type="button" className={styles.secondary} onClick={closeOverlay} disabled={pending}>
           Cancelar
         </button>
-        <button
-          type="button"
-          className={styles.primary}
-          onClick={() =>
-            overlay.kind === 'folder'
-              ? dispatch({ type: 'deleteFolder', folderRef: overlay.folderRef })
-              : dispatch({ type: 'deleteFile', fileRef: overlay.fileRef })
-          }
-        >
+        <button type="button" className={styles.primary} onClick={() => void confirmDelete()} disabled={pending}>
           Excluir
         </button>
       </div>
@@ -251,21 +325,76 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   )
 }
 
-function PublicLinkOverlay({ fileRef }) {
-  const { state, dispatch, closeOverlay } = useHub()
-  const file = getFile(state, fileRef)
-  const suffix = state.publicLinks[fileRef]
-  const enabled = Boolean(suffix)
-  const url = enabled ? publicLinkFor(fileRef, suffix) : ''
+function PublicLinkOverlay({ overlay }) {
+  const { closeOverlay } = useHub()
+  const actions = useHubActions()
+  const [loading, setLoading] = useState(true)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+  const [enabled, setEnabled] = useState(false)
+  const [url, setUrl] = useState('')
 
-  if (!file) return null
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+
+    void actions
+      .getPublicLink({ providerId: overlay.providerId, ref: overlay.ref })
+      .then((data) => {
+        if (!active) return
+        setEnabled(Boolean(data?.url || data?.suffix))
+        setUrl(data?.url ?? '')
+      })
+      .catch((loadError) => {
+        if (!active) return
+        setError(hubErrorMessage(loadError))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [actions, overlay.providerId, overlay.ref])
+
+  async function enableLink() {
+    setPending(true)
+    setError(null)
+    try {
+      const data = await actions.enablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
+      setEnabled(true)
+      setUrl(data?.url ?? '')
+    } catch (enableError) {
+      setError(hubErrorMessage(enableError))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function disableLink() {
+    setPending(true)
+    setError(null)
+    try {
+      await actions.disablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
+      setEnabled(false)
+      setUrl('')
+    } catch (disableError) {
+      setError(hubErrorMessage(disableError))
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
     <AppOverlay title="Link público" onClose={closeOverlay} compact>
       <p className={styles.lead}>
-        {file.title}. Sem login, só quem tem o endereço. Não é indexado.
+        {overlay.name}. Sem login, só quem tem o endereço. Não é indexado.
       </p>
-      {enabled ? (
+      {loading ? (
+        <p className={styles.hint}>Carregando…</p>
+      ) : enabled ? (
         <div className={styles.field}>
           <label htmlFor="public-url">Endereço</label>
           <input id="public-url" value={url} readOnly />
@@ -273,25 +402,27 @@ function PublicLinkOverlay({ fileRef }) {
       ) : (
         <p className={styles.hint}>O link ainda não existe.</p>
       )}
+      {error ? (
+        <p className={styles.hint} role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className={styles.actions}>
         {enabled ? (
           <>
             <button
               type="button"
               className={styles.secondary}
+              disabled={pending}
               onClick={() => {
-                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                if (typeof navigator !== 'undefined' && navigator.clipboard && url) {
                   navigator.clipboard.writeText(url).catch(() => {})
                 }
               }}
             >
               Copiar
             </button>
-            <button
-              type="button"
-              className={styles.primary}
-              onClick={() => dispatch({ type: 'setPublicLink', fileRef, enabled: false })}
-            >
+            <button type="button" className={styles.primary} disabled={pending} onClick={() => void disableLink()}>
               Revogar
             </button>
           </>
@@ -299,7 +430,8 @@ function PublicLinkOverlay({ fileRef }) {
           <button
             type="button"
             className={styles.primary}
-            onClick={() => dispatch({ type: 'setPublicLink', fileRef, enabled: true })}
+            disabled={pending || loading}
+            onClick={() => void enableLink()}
           >
             Criar link
           </button>

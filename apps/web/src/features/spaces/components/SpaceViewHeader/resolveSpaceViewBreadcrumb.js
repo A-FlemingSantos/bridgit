@@ -53,7 +53,7 @@ function folderCrumbs(catalog, providerId, folderRef, { current = false } = {}) 
   return ancestry.map((folder, index) => {
     const isLast = index === ancestry.length - 1
     return item(folder.name, {
-      to: current && isLast ? null : providerFolderUrl(providerId, folder.folderRef),
+      to: current && isLast ? null : providerFolderUrl(providerId, folder.folderRef ?? folder.ref),
       current: current && isLast,
     })
   })
@@ -64,12 +64,26 @@ export function resolveSpaceViewBreadcrumb(pathname, catalog) {
   if (providerFile) {
     const { provider: providerId, fileRef } = providerFile.params
     const file = catalog.getFile(fileRef)
+    const parentRef = file?.parentRef ?? file?.folderRef ?? null
+    const fileAncestry = file?.ancestry ?? null
+    const folderTrail =
+      fileAncestry?.length > 0
+        ? fileAncestry.map((folder, index) =>
+            item(folder.name ?? folder.title, {
+              to:
+                index === fileAncestry.length - 1
+                  ? null
+                  : providerFolderUrl(providerId, folder.ref ?? folder.folderRef),
+              current: false,
+            }),
+          )
+        : folderCrumbs(catalog, providerId, parentRef)
     return {
       items: [
         homeCrumb(),
         providerCrumb(catalog, providerId),
-        ...folderCrumbs(catalog, providerId, file?.folderRef),
-        item(file?.title ?? 'Arquivo', { current: true }),
+        ...folderTrail,
+        item(file?.name ?? file?.title ?? 'Arquivo', { current: true }),
       ],
     }
   }

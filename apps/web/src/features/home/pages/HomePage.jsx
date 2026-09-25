@@ -6,16 +6,21 @@ import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
-import { providerFileUrl, providerUrl, ROUTES } from '../../../shared/config/routes.js'
+import { providerFileUrl, providerFolderUrl, providerUrl, ROUTES } from '../../../shared/config/routes.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
+import {
+  useHubActions,
+  useProviders,
+  useRecents,
+  useSearch,
+  useShortcuts,
+} from '../../../shared/hub/index.js'
+import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
+import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import { fileMenuItems } from '../../spaces/components/entryActions.js'
-import {
-  hydrateRecents,
-  hydrateShortcuts,
-} from '../../../shared/state/hubStore.js'
-import { useHub } from '../../../shared/state/HubState.jsx'
+import { formatRelativeTime } from '../formatRelativeTime.js'
 import styles from './HomePage.module.css'
 
 const rise = {
@@ -27,30 +32,79 @@ const rise = {
   }),
 }
 
+const PROVIDER_LABELS = {
+  onedrive: 'OneDrive',
+  'google-drive': 'Google Drive',
+  dropbox: 'Dropbox',
+}
+
+function itemKindLabel(item) {
+  if (item.extension) return item.extension.toUpperCase()
+  if (item.mimeType) return item.mimeType.split('/').pop()?.toUpperCase() ?? 'Arquivo'
+  return 'Arquivo'
+}
+
+function providerLabel(id) {
+  return PROVIDER_LABELS[id] ?? id
+}
+
 export default function HomePage() {
-  const { state, dispatch, openOverlay } = useHub()
+  const { openOverlay } = useHub()
   const navigate = useNavigate()
+  const actions = useHubActions()
+  const { providers, status: providersStatus } = useProviders()
+  const recentsQuery = useRecents()
+  const shortcutsQuery = useShortcuts()
   const searchId = useId()
   const [query, setQuery] = useState('')
-  const recentsView = state.recentsView === 'grid' ? 'grid' : 'list'
-  const recents = hydrateRecents(state)
-  const shortcuts = hydrateShortcuts(state)
+  const [recentsView, setRecentsView] = useState('list')
+  const [actionError, setActionError] = useState(null)
+  const search = useSearch(query)
+
+  const shortcuts = shortcutsQuery.entries
+  const recents = recentsQuery.entries
   const normalized = query.trim().toLowerCase()
+  const searching = normalized.length >= 2
 
   const visibleShortcuts = useMemo(
     () =>
-      normalized
-        ? shortcuts.filter((file) => file.title.toLowerCase().includes(normalized))
+      searching
+        ? shortcuts.filter((file) => file.name.toLowerCase().includes(normalized))
         : shortcuts,
-    [shortcuts, normalized],
+    [shortcuts, normalized, searching],
   )
   const visibleRecents = useMemo(
     () =>
-      normalized
-        ? recents.filter((file) => file.title.toLowerCase().includes(normalized))
+      searching
+        ? recents.filter((file) => file.name.toLowerCase().includes(normalized))
         : recents,
-    [recents, normalized],
+    [recents, normalized, searching],
   )
+
+  const searchGroups = useMemo(() => {
+    if (!searching || search.status !== 'ready') return []
+    const groups = new Map()
+    search.results.forEach((item) => {
+      const key = item.provider
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(item)
+    })
+    return [...groups.entries()]
+  }, [search.results, search.status, searching])
+
+  function menuContext(item) {
+    return {
+      openOverlay,
+      actions,
+      isShortcut: shortcutsQuery.isShortcut,
+      providerName: providerLabel(item.provider),
+      onError: (error) => setActionError(hubErrorMessage(error)),
+    }
+  }
+
+  function openSettingsProviders() {
+    navigate(ROUTES.settingsProviders, { state: settingsNavState({ pathname: ROUTES.home }) })
+  }
 
   return (
     <AppShell refreshKey="home">
@@ -69,15 +123,9 @@ export default function HomePage() {
             />
           </div>
           <div className={styles.actions}>
-            <UploadAction />
+            <UploadAction onError={setActionError} />
             <CreateAction />
-            <button
-              type="button"
-              className={styles.action}
-              onClick={() =>
-                navigate(ROUTES.settingsProviders, { state: settingsNavState({ pathname: ROUTES.home }) })
-              }
-            >
+            <button type="button" className={styles.action} onClick={openSettingsProviders}>
               <Cloud size={15} strokeWidth={1.6} aria-hidden="true" />
               Conectar
             </button>
@@ -92,35 +140,126 @@ export default function HomePage() {
           </div>
         </div>
 
+        {actionError ? (
+          <p className={styles.empty} role="alert">
+            {actionError}
+          </p>
+        ) : null}
+
+        {searching && (
+          <section className={styles.section}>
+            <header className={styles.sectionHead}>
+              <h2>Resultados</h2>
+            </header>
+            {search.status === 'loading' ? (
+              <p className={styles.empty}>Buscando…</p>
+            ) : search.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(search.error)}
+              </p>
+            ) : searchGroups.length === 0 ? (
+              <p className={styles.empty}>Nada encontrado.</p>
+            ) : (
+              searchGroups.map(([providerId, items]) => {
+                const providerResult = search.providers.find((entry) => entry.id === providerId)
+                return (
+                  <div key={providerId} className={styles.searchGroup}>
+                    <h3>{providerLabel(providerId)}</h3>
+                    {providerResult && !providerResult.ok ? (
+                      <p className={styles.empty} role="alert">
+                        {providerResult.error ?? 'Não foi possível buscar neste provedor.'}
+                      </p>
+                    ) : null}
+                    <div className={styles.list}>
+                      {items.map((item) =>
+                        item.kind === 'folder' ? (
+                          <Link
+                            key={item.uiKey ?? item.ref}
+                            to={providerFolderUrl(providerId, item.ref)}
+                            className={styles.row}
+                          >
+                            <span className={styles.rowTitle}>{item.name}</span>
+                          </Link>
+                        ) : (
+                          <a
+                            key={item.uiKey ?? item.ref}
+                            href={providerFileUrl(providerId, item.ref)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.row}
+                          >
+                            <span className={styles.rowTitle}>{item.name}</span>
+                          </a>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </section>
+        )}
+
+        {!searching ? (
         <div className={styles.body}>
           <aside className={styles.rail}>
             <section className={styles.section}>
               <header className={styles.sectionHead}>
                 <h2>Provedores</h2>
               </header>
-              <nav className={styles.providers} aria-label="Provedores">
-                {state.providers.map((provider, index) => (
-                  <motion.div
-                    key={provider.id}
-                    variants={rise}
-                    initial="hidden"
-                    animate="show"
-                    custom={0.04 + index * 0.04}
-                  >
-                    <Link
-                      to={providerUrl(provider.id)}
-                      className={styles.provider}
-                      aria-label={`${provider.name} Conectado`}
+              {providersStatus === 'loading' || providersStatus === 'idle' ? (
+                <p className={styles.empty}>Carregando…</p>
+              ) : providersStatus === 'error' ? (
+                <>
+                  <p className={styles.empty} role="alert">
+                    Não foi possível carregar os provedores.
+                  </p>
+                  <button type="button" className={styles.inlineAction} onClick={openSettingsProviders}>
+                    Conectar
+                  </button>
+                </>
+              ) : (
+                <nav className={styles.providers} aria-label="Provedores">
+                  {providers.map((provider, index) => (
+                    <motion.div
+                      key={provider.id}
+                      variants={rise}
+                      initial="hidden"
+                      animate="show"
+                      custom={0.04 + index * 0.04}
                     >
-                      <ProviderMark id={provider.id} size={22} />
-                      <span className={styles.providerMeta}>
-                        <span className={styles.providerName}>{provider.name}</span>
-                        <span className={styles.providerSub}>Conectado</span>
-                      </span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </nav>
+                      {provider.connected ? (
+                        <Link
+                          to={providerUrl(provider.id)}
+                          className={styles.provider}
+                          aria-label={`${provider.name} Conectado`}
+                        >
+                          <ProviderMark id={provider.id} size={22} />
+                          <span className={styles.providerMeta}>
+                            <span className={styles.providerName}>{provider.name}</span>
+                            <span className={styles.providerSub}>
+                              {provider.account?.email ?? 'Conectado'}
+                            </span>
+                          </span>
+                        </Link>
+                      ) : (
+                        <Link
+                          to={ROUTES.settingsProviders}
+                          state={settingsNavState({ pathname: ROUTES.home })}
+                          className={styles.provider}
+                          aria-label={`${provider.name} Desconectado`}
+                        >
+                          <ProviderMark id={provider.id} size={22} />
+                          <span className={styles.providerMeta}>
+                            <span className={styles.providerName}>{provider.name}</span>
+                            <span className={styles.providerSub}>Conectar</span>
+                          </span>
+                        </Link>
+                      )}
+                    </motion.div>
+                  ))}
+                </nav>
+              )}
             </section>
           </aside>
 
@@ -129,37 +268,55 @@ export default function HomePage() {
               <header className={styles.sectionHead}>
                 <h2>Atalhos</h2>
               </header>
-              {visibleShortcuts.length === 0 ? (
+              {shortcutsQuery.status === 'loading' ? (
+                <p className={styles.empty}>Carregando…</p>
+              ) : shortcutsQuery.status === 'error' ? (
+                <p className={styles.empty} role="alert">
+                  {hubErrorMessage(shortcutsQuery.error)}
+                </p>
+              ) : visibleShortcuts.length === 0 ? (
                 <p className={styles.empty}>Nenhum atalho.</p>
               ) : (
                 <div className={styles.pins}>
                   {visibleShortcuts.map((file, index) => (
                     <motion.div
-                      key={file.fileRef}
+                      key={`${file.provider}-${file.ref}`}
                       className={styles.cardWrap}
                       variants={rise}
                       initial="hidden"
                       animate="show"
                       custom={0.08 + index * 0.04}
                     >
-                      <Link
-                        to={providerFileUrl(file.providerId, file.fileRef)}
+                      <a
+                        href={providerFileUrl(file.provider, file.ref)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={styles.pin}
-                        aria-label={file.title}
+                        aria-label={file.name}
                       >
                         <span className={styles.pinFace} aria-hidden="true">
                           <FileSheet />
                         </span>
                         <span className={styles.pinMeta}>
-                          <span className={styles.pinTitle}>{file.title}</span>
-                          <span className={styles.pinSub}>{file.provider}</span>
+                          <span className={styles.pinTitle}>{file.name}</span>
+                          <span className={styles.pinSub}>{providerLabel(file.provider)}</span>
                         </span>
-                      </Link>
+                      </a>
                       <OverflowMenu
                         floating
                         hoverReveal
-                        label={`Ações de ${file.title}`}
-                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                        label={`Ações de ${file.name}`}
+                        items={fileMenuItems(
+                          {
+                            provider: file.provider,
+                            ref: file.ref,
+                            name: file.name,
+                            parentRef: null,
+                            mimeType: file.mimeType,
+                            extension: file.extension,
+                          },
+                          menuContext(file),
+                        )}
                       />
                     </motion.div>
                   ))}
@@ -176,7 +333,7 @@ export default function HomePage() {
                     className={styles.viewButton}
                     aria-pressed={recentsView === 'list'}
                     aria-label="Lista"
-                    onClick={() => dispatch({ type: 'setRecentsView', view: 'list' })}
+                    onClick={() => setRecentsView('list')}
                   >
                     <LayoutList size={15} strokeWidth={1.7} aria-hidden="true" />
                   </button>
@@ -185,50 +342,68 @@ export default function HomePage() {
                     className={styles.viewButton}
                     aria-pressed={recentsView === 'grid'}
                     aria-label="Grade"
-                    onClick={() => dispatch({ type: 'setRecentsView', view: 'grid' })}
+                    onClick={() => setRecentsView('grid')}
                   >
                     <LayoutGrid size={15} strokeWidth={1.7} aria-hidden="true" />
                   </button>
                 </div>
               </header>
 
-              {visibleRecents.length === 0 ? (
+              {recentsQuery.status === 'loading' ? (
+                <p className={styles.empty}>Carregando…</p>
+              ) : recentsQuery.status === 'error' ? (
+                <p className={styles.empty} role="alert">
+                  {hubErrorMessage(recentsQuery.error)}
+                </p>
+              ) : visibleRecents.length === 0 ? (
                 <p className={styles.empty}>Nada encontrado.</p>
               ) : recentsView === 'list' ? (
                 <div className={styles.list}>
                   {visibleRecents.map((file, index) => (
                     <motion.div
-                      key={file.fileRef}
+                      key={`${file.provider}-${file.ref}`}
                       className={styles.rowWrap}
                       variants={rise}
                       initial="hidden"
                       animate="show"
                       custom={0.06 + index * 0.025}
                     >
-                      <Link
-                        to={providerFileUrl(file.providerId, file.fileRef)}
+                      <a
+                        href={providerFileUrl(file.provider, file.ref)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={styles.row}
-                        aria-label={file.title}
+                        aria-label={file.name}
                       >
                         <span className={styles.rowFace} aria-hidden="true">
                           <FileSheet compact />
                         </span>
                         <span className={styles.rowBody}>
-                          <span className={styles.rowTitle}>{file.title}</span>
+                          <span className={styles.rowTitle}>{file.name}</span>
                           <span className={styles.rowSub}>
-                            {file.kind} · {file.provider}
+                            {itemKindLabel(file)} · {providerLabel(file.provider)}
                           </span>
                         </span>
-                        <span className={styles.rowWhen}>{file.when}</span>
+                        <span className={styles.rowWhen}>{formatRelativeTime(file.openedAt)}</span>
                         <span className={styles.rowMark}>
-                          <ProviderMark id={file.providerId} size={16} />
+                          <ProviderMark id={file.provider} size={16} />
                         </span>
-                      </Link>
+                      </a>
                       <OverflowMenu
                         ghost
                         hoverReveal
-                        label={`Ações de ${file.title}`}
-                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                        label={`Ações de ${file.name}`}
+                        items={fileMenuItems(
+                          {
+                            provider: file.provider,
+                            ref: file.ref,
+                            name: file.name,
+                            parentRef: null,
+                            mimeType: file.mimeType,
+                            extension: file.extension,
+                          },
+                          menuContext(file),
+                        )}
                       />
                     </motion.div>
                   ))}
@@ -237,33 +412,45 @@ export default function HomePage() {
                 <div className={styles.grid}>
                   {visibleRecents.map((file, index) => (
                     <motion.div
-                      key={file.fileRef}
+                      key={`${file.provider}-${file.ref}`}
                       className={styles.cardWrap}
                       variants={rise}
                       initial="hidden"
                       animate="show"
                       custom={0.06 + index * 0.025}
                     >
-                      <Link
-                        to={providerFileUrl(file.providerId, file.fileRef)}
+                      <a
+                        href={providerFileUrl(file.provider, file.ref)}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={styles.tile}
-                        aria-label={file.title}
+                        aria-label={file.name}
                       >
                         <span className={styles.tileFace} aria-hidden="true">
                           <FileSheet />
                         </span>
                         <span className={styles.tileMeta}>
-                          <span className={styles.rowTitle}>{file.title}</span>
+                          <span className={styles.rowTitle}>{file.name}</span>
                           <span className={styles.rowSub}>
-                            {file.kind} · {file.provider}
+                            {itemKindLabel(file)} · {providerLabel(file.provider)}
                           </span>
                         </span>
-                      </Link>
+                      </a>
                       <OverflowMenu
                         floating
                         hoverReveal
-                        label={`Ações de ${file.title}`}
-                        items={fileMenuItems(file, { openOverlay, dispatch, state })}
+                        label={`Ações de ${file.name}`}
+                        items={fileMenuItems(
+                          {
+                            provider: file.provider,
+                            ref: file.ref,
+                            name: file.name,
+                            parentRef: null,
+                            mimeType: file.mimeType,
+                            extension: file.extension,
+                          },
+                          menuContext(file),
+                        )}
                       />
                     </motion.div>
                   ))}
@@ -272,21 +459,24 @@ export default function HomePage() {
             </section>
           </div>
         </div>
+        ) : null}
       </main>
     </AppShell>
   )
 }
 
-function UploadAction() {
-  const { state, dispatch } = useHub()
+function UploadAction({ onError }) {
+  const actions = useHubActions()
+  const { providers } = useProviders()
   const extrasId = useId()
   const triggerId = useId()
   const inputRef = useRef(null)
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
-  const providerRef = useRef(state.providers[0]?.id ?? null)
-  const menu = useSuspendedMenu(state.providers.length, { menuRef })
-  const items = state.providers.map((provider) => ({
+  const connectedProviders = providers.filter((provider) => provider.connected)
+  const providerRef = useRef(connectedProviders[0]?.id ?? null)
+  const menu = useSuspendedMenu(connectedProviders.length, { menuRef })
+  const items = connectedProviders.map((provider) => ({
     id: provider.id,
     label: provider.name,
     onSelect: () => {
@@ -307,6 +497,7 @@ function UploadAction() {
         aria-expanded={menu.open}
         aria-controls={extrasId}
         onClick={menu.toggleMenu}
+        disabled={connectedProviders.length === 0}
       >
         <Upload size={15} strokeWidth={1.6} aria-hidden="true" />
         Enviar
@@ -331,17 +522,10 @@ function UploadAction() {
           const files = Array.from(event.target.files ?? [])
           event.target.value = ''
           const providerId = providerRef.current
-          if (!providerId) return
-          files.forEach((file) => {
-            const title = file.name.replace(/\.[^.]+$/, '') || file.name
-            const ext = file.name.split('.').pop()
-            dispatch({
-              type: 'createFile',
-              title,
-              providerId,
-              kind: ext ? ext.toUpperCase() : 'PDF',
-            })
-          })
+          if (!providerId || !files.length) return
+          void actions
+            .uploadFiles({ providerId, parentRef: null, files })
+            .catch((error) => onError(hubErrorMessage(error)))
         }}
       />
     </div>

@@ -1,0 +1,215 @@
+.reader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.readingRegion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.sheetShell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.sheetShellCover {
+  align-items: center;
+}
+
+.sheetShellReading {
+  width: min(720px, 100%);
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.sheetInner {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.coverPlaceholder {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.contentLayer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.contentHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.imageContent {
+  display: block;
+  width: 100%;
+  max-height: min(72vh, 900px);
+  object-fit: contain;
+}
+
+.mediaContent {
+  display: block;
+  width: 100%;
+  max-height: min(72vh, 900px);
+}
+
+.textContent {
+  margin: 0;
+  padding: clamp(20px, 4vw, 32px);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-family: var(--type);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.notice {
+  margin: 0;
+  padding: 16px clamp(20px, 4vw, 32px) 0;
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.pdfStage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+
+.pdfHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pdfVisible {
+  width: 100%;
+}
+
+.pdfStack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.pageSheet {
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.pageSheet canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
+}
+
+.message {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mute);
+  text-align: center;
+}
+
+.messageError {
+  color: var(--ink);
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.download:hover {
+  background: color-mix(in srgb, var(--ink) 12%, var(--wash));
+}
+
+.download:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheetShellReading,
+  .pageSheet {
+    background: color-mix(in srgb, var(--ink) 16%, var(--wash));
+    box-shadow: none;
+  }
+}

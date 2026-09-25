@@ -1,58 +1,188 @@
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import { ROUTES, providerUrl } from '../../../shared/config/routes.js'
+import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
+import Spinner from '../../../shared/components/Spinner/Spinner.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
-import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
-import { getFile, getProvider } from '../../../shared/state/hubStore.js'
+import {
+  ROUTES,
+  providerFolderUrl,
+  providerUrl,
+} from '../../../shared/config/routes.js'
+import { useHubActions, useItem, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { isTempRef } from '../../../shared/hub/hubCache.js'
+import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
+import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
+import { buildProviderBreadcrumbItems } from '../buildProviderBreadcrumb.js'
 import { fileMenuItems } from '../components/entryActions.js'
 import styles from './SpaceFilePage.module.css'
 
 export default function SpaceFilePage() {
   const { fileRef, provider: providerId } = useParams()
-  const { state, dispatch, openOverlay } = useHub()
-  const provider = providerId ? getProvider(state, providerId) : null
-  const file = getFile(state, fileRef)
+  const { openOverlay } = useHub()
+  const actions = useHubActions()
+  const { providers, status: providersStatus } = useProviders()
+  const { isShortcut } = useShortcuts()
+  const itemQuery = useItem(providerId, fileRef)
+  const recordedRef = useRef(null)
+  const [source, setSource] = useState(null)
+  const [readError, setReadError] = useState(null)
+  const [downloadUrl, setDownloadUrl] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
-  if (!file || !provider) {
-    return (
-      <Navigate
-        to={provider ? providerUrl(provider.id) : ROUTES.home}
-        replace
-      />
-    )
+  const providerMeta = providers.find((item) => item.id === providerId) ?? null
+  const item = itemQuery.item
+  const readableRef = item && item.kind !== 'folder' ? item.ref : null
+  // Hub actions are recreated on every cache update; reading must only restart when the file changes.
+  const actionsRef = useRef(actions)
+  actionsRef.current = actions
+
+  useEffect(() => {
+    if (item?.name) {
+      document.title = item.name
+    }
+    return () => {
+      document.title = 'Bridgit'
+    }
+  }, [item?.name])
+
+  useEffect(() => {
+    if (!readableRef) return
+    if (recordedRef.current === readableRef) return
+    recordedRef.current = readableRef
+    void actionsRef.current.recordRecent({ providerId, ref: readableRef }).catch(() => {})
+  }, [providerId, readableRef])
+
+  useEffect(() => {
+    if (!readableRef) return undefined
+
+    let active = true
+    setSource(null)
+    setReadError(null)
+
+    void actionsRef.current
+      .getReadSource({ providerId, ref: readableRef })
+      .then((nextSource) => {
+        if (!active) return
+        setSource(nextSource)
+      })
+      .catch((error) => {
+        if (!active) return
+        setReadError(hubErrorMessage(error))
+      })
+
+    void actionsRef.current
+      .getDownloadUrl({ providerId, ref: readableRef })
+      .then((url) => {
+        if (active) setDownloadUrl(url)
+      })
+      .catch(() => {})
+
+    return () => {
+      active = false
+    }
+  }, [providerId, readableRef])
+
+  if (providersStatus === 'ready' && !providerMeta) {
+    return <Navigate to={ROUTES.home} replace />
+  }
+
+  if (isTempRef(fileRef)) {
+    return <Navigate to={providerUrl(providerId)} replace />
+  }
+
+  if (itemQuery.status === 'ready' && !item) {
+    return <Navigate to={providerMeta ? providerUrl(providerMeta.id) : ROUTES.home} replace />
+  }
+
+  if (itemQuery.status === 'ready' && item?.kind === 'folder') {
+    return <Navigate to={providerFolderUrl(providerId, item.ref)} replace />
+  }
+
+  const breadcrumbItems =
+    providerMeta && item
+      ? buildProviderBreadcrumbItems({
+          provider: providerMeta,
+          folder: item.ancestry ? { ancestry: item.ancestry } : null,
+          fileName: item.name,
+        })
+      : null
+
+  const menuContext = {
+    openOverlay,
+    actions,
+    isShortcut,
+    providerName: providerMeta?.name ?? '',
+    onError: (error) => setActionError(hubErrorMessage(error)),
   }
 
   return (
     <AppShell
       refreshKey={fileRef}
       subheader={
-        <SpaceViewHeader
-          trailing={
-            <OverflowMenu
-              ghost
-              label={`Ações de ${file.title}`}
-              items={fileMenuItems(file, { openOverlay, dispatch, state })}
-            />
-          }
-        />
+        breadcrumbItems && item ? (
+          <SpaceViewHeader
+            items={breadcrumbItems}
+            trailing={
+              <div className={styles.headerActions}>
+                {downloadUrl ? (
+                  <a href={downloadUrl} className={styles.download} download={item.name}>
+                    Baixar
+                  </a>
+                ) : null}
+                <OverflowMenu
+                  ghost
+                  label={`Ações de ${item.name}`}
+                  items={fileMenuItems(item, menuContext)}
+                />
+              </div>
+            }
+          />
+        ) : (
+          <SpaceViewHeader trailing={null} />
+        )
       }
     >
       <main className={styles.main}>
-        <motion.div
-          className={styles.stage}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <FileSheet large />
-          <h1>{file.title}</h1>
-          <p>
-            {file.kind} · {file.provider}
-          </p>
-        </motion.div>
+        <div className={styles.stage}>
+          {itemQuery.status === 'loading' || itemQuery.status === 'idle' ? (
+            <>
+              <FileSheet large />
+              <Spinner />
+            </>
+          ) : itemQuery.status === 'error' ? (
+            <>
+              <p className={styles.status} role="alert">
+                {hubErrorMessage(itemQuery.error)}
+              </p>
+              <button type="button" className={styles.retry} onClick={() => itemQuery.reload()}>
+                Tentar novamente
+              </button>
+            </>
+          ) : item ? (
+            <>
+              {actionError ? (
+                <p className={styles.status} role="alert">
+                  {actionError}
+                </p>
+              ) : null}
+              <FileReader
+                file={{
+                  name: item.name,
+                  extension: item.extension,
+                  mimeType: item.mimeType,
+                  providerName: providerMeta?.name ?? '',
+                }}
+                source={source}
+                error={readError}
+                downloadUrl={downloadUrl}
+                onDownload={downloadUrl ? undefined : () => actions.getDownloadUrl({ providerId, ref: item.ref }).then(setDownloadUrl)}
+              />
+            </>
+          ) : null}
+        </div>
       </main>
     </AppShell>
   )

@@ -3,13 +3,13 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
   padding: 22px clamp(20px, 4vw, 40px) 32px;
 }
 
 .stage {
   display: flex;
-  flex: 1;
+  flex: 1 0 auto;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -18,16 +18,39 @@
   text-align: center;
 }
 
-.stage h1 {
-  margin: 0;
-  font-size: clamp(28px, 4vw, 40px);
-  font-weight: 500;
-  letter-spacing: -0.055em;
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.stage p {
+.download {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.download:hover {
+  text-decoration: underline;
+}
+
+.status {
   margin: 0;
   font-size: 13px;
   color: var(--mute);
   letter-spacing: -0.02em;
+}
+
+.retry {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
 }

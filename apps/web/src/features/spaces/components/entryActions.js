@@ -6,42 +6,67 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
-import { makeFolderLocationFromState } from '../../../shared/state/hubStore.js'
+import { makeApiFolderLocation } from '../../../shared/state/hubStore.js'
 
-export function fileMenuItems(item, { openOverlay, dispatch, state }) {
-  const shortcut = state.shortcuts.includes(item.fileRef)
-  const origin = item.folderRef ? makeFolderLocationFromState(state, item.folderRef) : null
+export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError, providerName }) {
+  const pinned = isShortcut?.(item.provider, item.ref) ?? false
+  const origin = item.parentRef
+    ? makeApiFolderLocation({ ref: item.parentRef, name: '', provider: item.provider }, providerName)
+    : null
+
   return [
     {
       id: 'rename',
       label: 'Renomear',
       icon: Pencil,
       onSelect: () =>
-        openOverlay({ type: 'name', kind: 'file', mode: 'rename', fileRef: item.fileRef }),
+        openOverlay({
+          type: 'name',
+          kind: 'file',
+          mode: 'rename',
+          providerId: item.provider,
+          ref: item.ref,
+          name: item.name,
+        }),
     },
     {
       id: 'move',
       label: 'Mover',
       icon: FolderInput,
-      onSelect: () => openOverlay({ type: 'move', kind: 'file', fileRef: item.fileRef }),
+      onSelect: () =>
+        openOverlay({
+          type: 'move',
+          kind: 'file',
+          providerId: item.provider,
+          ref: item.ref,
+          parentRef: item.parentRef ?? null,
+        }),
     },
     {
       id: 'mirror',
       label: 'Espelhar',
       icon: ArrowLeftRight,
-      onSelect: () => openOverlay({ type: 'composer', mode: 'create', origin }),
+      onSelect: () =>
+        openOverlay({
+          type: 'composer',
+          mode: 'create',
+          origin: makeApiFolderLocation(item, providerName),
+        }),
     },
     {
       id: 'link',
       label: 'Link público',
       icon: Link,
-      onSelect: () => openOverlay({ type: 'public-link', fileRef: item.fileRef }),
+      onSelect: () =>
+        openOverlay({ type: 'public-link', providerId: item.provider, ref: item.ref, name: item.name }),
     },
     {
       id: 'pin',
-      label: shortcut ? 'Remover atalho' : 'Atalho',
+      label: pinned ? 'Remover atalho' : 'Atalho',
       icon: Bookmark,
-      onSelect: () => dispatch({ type: 'toggleShortcut', fileRef: item.fileRef }),
+      onSelect: () => {
+        void actions.toggleShortcut(item).catch((error) => onError?.(error))
+      },
     },
     {
       id: 'delete',
@@ -49,12 +74,21 @@ export function fileMenuItems(item, { openOverlay, dispatch, state }) {
       icon: Trash2,
       danger: true,
       onSelect: () =>
-        openOverlay({ type: 'confirm-delete-entry', kind: 'file', fileRef: item.fileRef }),
+        openOverlay({
+          type: 'confirm-delete-entry',
+          kind: 'file',
+          providerId: item.provider,
+          ref: item.ref,
+          parentRef: item.parentRef ?? null,
+          name: item.name,
+        }),
     },
   ]
 }
 
-export function folderMenuItems(item, { openOverlay }) {
+export function folderMenuItems(item, { openOverlay, providerName }) {
+  const origin = makeApiFolderLocation(item, providerName)
+
   return [
     {
       id: 'rename',
@@ -65,14 +99,23 @@ export function folderMenuItems(item, { openOverlay }) {
           type: 'name',
           kind: 'folder',
           mode: 'rename',
-          folderRef: item.folderRef,
+          providerId: item.provider,
+          ref: item.ref,
+          name: item.name,
         }),
     },
     {
       id: 'move',
       label: 'Mover',
       icon: FolderInput,
-      onSelect: () => openOverlay({ type: 'move', kind: 'folder', folderRef: item.folderRef }),
+      onSelect: () =>
+        openOverlay({
+          type: 'move',
+          kind: 'folder',
+          providerId: item.provider,
+          ref: item.ref,
+          parentRef: item.parentRef ?? null,
+        }),
     },
     {
       id: 'mirror',
@@ -82,7 +125,7 @@ export function folderMenuItems(item, { openOverlay }) {
         openOverlay({
           type: 'composer',
           mode: 'create',
-          origin: item.origin ?? null,
+          origin,
         }),
     },
     {
@@ -94,7 +137,10 @@ export function folderMenuItems(item, { openOverlay }) {
         openOverlay({
           type: 'confirm-delete-entry',
           kind: 'folder',
-          folderRef: item.folderRef,
+          providerId: item.provider,
+          ref: item.ref,
+          parentRef: item.parentRef ?? null,
+          name: item.name,
         }),
     },
   ]

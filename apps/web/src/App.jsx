@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { matchPath, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { SessionProvider, useSession } from './shared/auth/SessionContext.jsx'
 import AuthPage from './features/auth/pages/AuthPage.jsx'
 import HomePage from './features/home/pages/HomePage.jsx'
@@ -13,8 +13,10 @@ import SyncTab from './features/settings/pages/SyncTab.jsx'
 import AboutTab from './features/settings/pages/AboutTab.jsx'
 import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
+import PublicLinkPage from './features/public-link/pages/PublicLinkPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
 import { isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
+import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
@@ -32,6 +34,14 @@ function AppShell() {
   const location = useLocation()
   const settingsOpen = isSettingsPath(location.pathname)
   const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : location
+
+  if (matchPath(ROUTES.publicLink, location.pathname)) {
+    return (
+      <Routes>
+        <Route path={ROUTES.publicLink} element={<PublicLinkPage />} />
+      </Routes>
+    )
+  }
 
   if (status === 'anonymous' && isPublicRoute(location.pathname) && shouldDiscardReturnPath()) {
     acknowledgeDiscardReturnPath()
@@ -51,6 +61,7 @@ function AppShell() {
   }
 
   return (
+    <HubDataProvider>
     <HubProvider>
       <Routes location={backgroundLocation}>
         <Route path={ROUTES.landing} element={<LandingPage />} />
@@ -80,6 +91,7 @@ function AppShell() {
       ) : null}
       <HubOverlays />
     </HubProvider>
+    </HubDataProvider>
   )
 }
 

@@ -17,7 +17,10 @@ export const ROUTES = {
   providerFile: '/providers/:provider/file/:fileRef',
   privacy: '/privacy',
   terms: '/terms',
+  publicLink: '/p/:linkRef',
 }
+
+const PUBLIC_ROUTE_PREFIXES = ['/p/']
 
 export function spaceUrl(spaceRef) {
   return `/s/${spaceRef}`
@@ -28,11 +31,11 @@ export function providerUrl(provider) {
 }
 
 export function providerFolderUrl(provider, folderRef) {
-  return `/providers/${provider}/folder/${folderRef}`
+  return `/providers/${provider}/folder/${encodeURIComponent(folderRef)}`
 }
 
 export function providerFileUrl(provider, fileRef) {
-  return `/providers/${provider}/file/${fileRef}`
+  return `/providers/${provider}/file/${encodeURIComponent(fileRef)}`
 }
 
 export const PUBLIC_ROUTES = new Set([
@@ -44,7 +47,7 @@ export const PUBLIC_ROUTES = new Set([
 ])
 
 export function isPublicRoute(pathname) {
-  return PUBLIC_ROUTES.has(pathname)
+  return PUBLIC_ROUTES.has(pathname) || PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 }
 
 export function sanitizeInternalAppRedirect(value) {

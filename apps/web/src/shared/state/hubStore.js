@@ -2,9 +2,8 @@ import {
   providers as seedProviders,
   spaces as seedSpaces,
 } from '../../features/spaces/data/mock.js'
-import { recents as seedRecents, shortcuts as seedShortcuts } from '../../features/home/data/mock.js'
 
-export const HUB_STORAGE_KEY = 'bridgit.hub.v2'
+export const HUB_STORAGE_KEY = 'bridgit.hub.v3'
 
 const seedFolders = {
   '4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334': {
@@ -136,7 +135,7 @@ const seedProviderContents = {
     folderRefs: ['b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9'],
     fileRefs: [
       '7b2f0c18-4e9a-4d66-a813-0f5c1b9e3d24',
-      '18f0a6c3-9d47-4b2e-a5c1-7e3d8b90f412',
+      '18f0a6c3-4b2e-a5c1-7e3d8b90f412',
       '91a2f0e8-3b57-4c19-8d64-2e7f1a0c9b45',
     ],
   },
@@ -182,6 +181,11 @@ export function clone(value) {
   return structuredClone(value)
 }
 
+function locationFromFolder(folderRef) {
+  const folder = seedFolders[folderRef]
+  return makeFolderLocation({ folderRef, ...folder })
+}
+
 function seedHubSpaces() {
   return [
     {
@@ -205,11 +209,6 @@ function seedHubSpaces() {
   ]
 }
 
-function locationFromFolder(folderRef) {
-  const folder = seedFolders[folderRef]
-  return makeFolderLocation({ folderRef, ...folder })
-}
-
 export function seedState() {
   return {
     providers: clone(seedProviders),
@@ -218,10 +217,6 @@ export function seedState() {
     files: clone(seedFiles),
     folderContents: clone(seedFolderContents),
     providerContents: clone(seedProviderContents),
-    recents: seedRecents.map((file) => ({ fileRef: file.fileRef, when: file.when })),
-    shortcuts: seedShortcuts.map((file) => file.fileRef),
-    publicLinks: {},
-    recentsView: 'list',
     notifyFail: true,
     overlay: null,
   }
@@ -343,10 +338,6 @@ export function getProviderContents(state, id) {
   return refs ? hydrate(state, refs) : { folders: [], files: [] }
 }
 
-export function emptyContents() {
-  return { folderRefs: [], fileRefs: [] }
-}
-
 export function spaceStatus(space) {
   if (space?.paused) return 'paused'
   if ((space?.conflicts ?? []).length > 0) return 'conflict'
@@ -385,121 +376,6 @@ export function spaceProvidersLabel(space) {
   return spaceSummary(space)
 }
 
-export function hydrateRecents(state) {
-  return state.recents
-    .map((entry) => {
-      const file = getFile(state, entry.fileRef)
-      return file ? { ...file, when: entry.when } : null
-    })
-    .filter(Boolean)
-}
-
-export function hydrateShortcuts(state) {
-  return state.shortcuts.map((fileRef) => getFile(state, fileRef)).filter(Boolean)
-}
-
-function copyContents(contents) {
-  return {
-    folderRefs: [...(contents?.folderRefs ?? [])],
-    fileRefs: [...(contents?.fileRefs ?? [])],
-  }
-}
-
-function addToContents(contents, kind, ref) {
-  const key = kind === 'folder' ? 'folderRefs' : 'fileRefs'
-  if (!contents[key].includes(ref)) {
-    contents[key] = [...contents[key], ref]
-  }
-}
-
-function withoutRef(list, ref) {
-  return (list ?? []).filter((item) => item !== ref)
-}
-
-function stripEntry(contents, kind, ref) {
-  const next = copyContents(contents)
-  const key = kind === 'folder' ? 'folderRefs' : 'fileRefs'
-  next[key] = withoutRef(next[key], ref)
-  return next
-}
-
-function mapContents(bag, mapper) {
-  const next = {}
-  for (const [key, contents] of Object.entries(bag ?? {})) {
-    next[key] = mapper(contents)
-  }
-  return next
-}
-
-export function collectDescendantFolderRefs(state, folderRef) {
-  const refs = []
-  const queue = [...(state.folderContents[folderRef]?.folderRefs ?? [])]
-  while (queue.length) {
-    const current = queue.shift()
-    if (!current || refs.includes(current)) continue
-    refs.push(current)
-    queue.push(...(state.folderContents[current]?.folderRefs ?? []))
-  }
-  return refs
-}
-
-function purgeFile(state, fileRef) {
-  const files = { ...state.files }
-  delete files[fileRef]
-  const publicLinks = { ...state.publicLinks }
-  delete publicLinks[fileRef]
-  return {
-    ...state,
-    files,
-    publicLinks,
-    folderContents: mapContents(state.folderContents, (contents) => stripEntry(contents, 'file', fileRef)),
-    providerContents: mapContents(state.providerContents, (contents) => stripEntry(contents, 'file', fileRef)),
-    shortcuts: state.shortcuts.filter((ref) => ref !== fileRef),
-    recents: state.recents.filter((entry) => entry.fileRef !== fileRef),
-  }
-}
-
-function purgeFolder(state, folderRef) {
-  const foldersToRemove = [folderRef, ...collectDescendantFolderRefs(state, folderRef)]
-  let next = state
-  for (const ref of foldersToRemove) {
-    for (const fileRef of next.folderContents[ref]?.fileRefs ?? []) {
-      next = purgeFile(next, fileRef)
-    }
-  }
-
-  const folders = { ...next.folders }
-  const folderContents = mapContents(next.folderContents, (contents) => {
-    let mapped = contents
-    for (const ref of foldersToRemove) {
-      mapped = stripEntry(mapped, 'folder', ref)
-    }
-    return mapped
-  })
-  for (const ref of foldersToRemove) {
-    delete folders[ref]
-    delete folderContents[ref]
-  }
-
-  return {
-    ...next,
-    folders,
-    folderContents,
-    providerContents: mapContents(next.providerContents, (contents) => {
-      let mapped = contents
-      for (const ref of foldersToRemove) {
-        mapped = stripEntry(mapped, 'folder', ref)
-      }
-      return mapped
-    }),
-  }
-}
-
-function touchRecent(state, fileRef) {
-  const rest = state.recents.filter((entry) => entry.fileRef !== fileRef)
-  return [{ fileRef, when: 'Agora' }, ...rest].slice(0, 12)
-}
-
 export function locationLabel(location) {
   if (!location) return ''
   if (location.kind === 'root') return location.provider
@@ -519,7 +395,7 @@ export function makeRootLocation(provider) {
 export function makeFolderLocation(folder) {
   return {
     kind: 'folder',
-    ref: folder.folderRef,
+    ref: folder.folderRef ?? folder.ref,
     name: folder.name,
     path: folder.path ?? `/${folder.name}`,
     providerId: folder.providerId,
@@ -533,18 +409,16 @@ export function makeFolderLocationFromState(state, folderRef) {
   return makeFolderLocation({ ...folder, path: folderLocationPath(state, folderRef) })
 }
 
-export function makeFileLocation(file) {
+export function makeApiFolderLocation(item, providerName) {
+  if (!item?.ref) return null
   return {
-    kind: 'file',
-    ref: file.fileRef,
-    name: file.title,
-    providerId: file.providerId,
-    provider: file.provider,
+    kind: 'folder',
+    ref: item.ref,
+    name: item.name,
+    path: `/${item.name}`,
+    providerId: item.provider,
+    provider: providerName,
   }
-}
-
-export function publicLinkFor(fileRef, suffix) {
-  return `https://bridgit.local/p/${suffix}`
 }
 
 export function reducer(state, action) {
@@ -553,8 +427,6 @@ export function reducer(state, action) {
       return { ...state, overlay: action.overlay }
     case 'closeOverlay':
       return { ...state, overlay: null }
-    case 'setRecentsView':
-      return { ...state, recentsView: action.view }
     case 'setNotifyFail':
       return { ...state, notifyFail: action.value }
     case 'createSpace': {
@@ -639,220 +511,7 @@ export function reducer(state, action) {
         spaces: state.spaces.filter((space) => space.space_id !== action.spaceId),
         overlay: null,
       }
-    case 'createFolder': {
-      const name = action.name.trim()
-      if (!name) return state
-      const provider = getProvider(state, action.providerId)
-      if (!provider) return state
-      const folderRef = createId()
-      const folders = {
-        ...state.folders,
-        [folderRef]: {
-          name,
-          provider: provider.name,
-          providerId: provider.id,
-          parentFolderRef: action.parentFolderRef ?? null,
-        },
-      }
-      const folderContents = { ...state.folderContents, [folderRef]: emptyContents() }
-      const providerContents = { ...state.providerContents }
-      const root = copyContents(providerContents[provider.id])
-      providerContents[provider.id] = root
-
-      if (action.parentFolderRef) {
-        const parent = copyContents(folderContents[action.parentFolderRef])
-        addToContents(parent, 'folder', folderRef)
-        folderContents[action.parentFolderRef] = parent
-      } else {
-        addToContents(root, 'folder', folderRef)
-      }
-
-      return {
-        ...state,
-        folders,
-        folderContents,
-        providerContents,
-        overlay: null,
-      }
-    }
-    case 'createFile': {
-      const title = action.title.trim()
-      if (!title) return state
-      const provider = getProvider(state, action.providerId)
-      if (!provider) return state
-      const fileRef = createId()
-      const files = {
-        ...state.files,
-        [fileRef]: {
-          title,
-          kind: action.kind ?? 'PDF',
-          provider: provider.name,
-          providerId: provider.id,
-          folderRef: action.parentFolderRef ?? undefined,
-        },
-      }
-      const folderContents = { ...state.folderContents }
-      const providerContents = { ...state.providerContents }
-      const root = copyContents(providerContents[provider.id])
-      providerContents[provider.id] = root
-      addToContents(root, 'file', fileRef)
-
-      if (action.parentFolderRef) {
-        const parent = copyContents(folderContents[action.parentFolderRef])
-        addToContents(parent, 'file', fileRef)
-        folderContents[action.parentFolderRef] = parent
-      }
-
-      return {
-        ...state,
-        files,
-        folderContents,
-        providerContents,
-        recents: touchRecent(state, fileRef),
-        overlay: null,
-      }
-    }
-    case 'toggleShortcut': {
-      const has = state.shortcuts.includes(action.fileRef)
-      return {
-        ...state,
-        shortcuts: has
-          ? state.shortcuts.filter((fileRef) => fileRef !== action.fileRef)
-          : [...state.shortcuts, action.fileRef],
-      }
-    }
-    case 'setPublicLink': {
-      const publicLinks = { ...state.publicLinks }
-      if (action.enabled) {
-        publicLinks[action.fileRef] = publicLinks[action.fileRef] ?? createId().slice(0, 10)
-      } else {
-        delete publicLinks[action.fileRef]
-      }
-      return { ...state, publicLinks }
-    }
-    case 'renameFile': {
-      const title = action.title.trim()
-      const file = getFile(state, action.fileRef)
-      if (!title || !file) return state
-      return {
-        ...state,
-        files: {
-          ...state.files,
-          [action.fileRef]: { ...state.files[action.fileRef], title },
-        },
-        overlay: null,
-      }
-    }
-    case 'renameFolder': {
-      const name = action.name.trim()
-      const folder = getFolder(state, action.folderRef)
-      if (!name || !folder) return state
-      return {
-        ...state,
-        folders: {
-          ...state.folders,
-          [action.folderRef]: { ...state.folders[action.folderRef], name },
-        },
-        overlay: null,
-      }
-    }
-    case 'moveFile': {
-      const file = getFile(state, action.fileRef)
-      if (!file) return state
-      const parentFolderRef = action.parentFolderRef ?? null
-      if (parentFolderRef) {
-        const dest = getFolder(state, parentFolderRef)
-        if (!dest || dest.providerId !== file.providerId) return state
-      }
-      if ((file.folderRef ?? null) === parentFolderRef) {
-        return { ...state, overlay: null }
-      }
-
-      let folderContents = mapContents(state.folderContents, (contents) =>
-        stripEntry(contents, 'file', file.fileRef),
-      )
-      let providerContents = mapContents(state.providerContents, (contents) =>
-        stripEntry(contents, 'file', file.fileRef),
-      )
-
-      if (parentFolderRef) {
-        const dest = copyContents(folderContents[parentFolderRef] ?? emptyContents())
-        addToContents(dest, 'file', file.fileRef)
-        folderContents = { ...folderContents, [parentFolderRef]: dest }
-      } else {
-        const root = copyContents(providerContents[file.providerId])
-        addToContents(root, 'file', file.fileRef)
-        providerContents = { ...providerContents, [file.providerId]: root }
-      }
-
-      return {
-        ...state,
-        files: {
-          ...state.files,
-          [file.fileRef]: {
-            ...state.files[file.fileRef],
-            folderRef: parentFolderRef || undefined,
-          },
-        },
-        folderContents,
-        providerContents,
-        overlay: null,
-      }
-    }
-    case 'moveFolder': {
-      const folder = getFolder(state, action.folderRef)
-      if (!folder) return state
-      const parentFolderRef = action.parentFolderRef ?? null
-      if (parentFolderRef === folder.folderRef) return state
-      if (parentFolderRef && collectDescendantFolderRefs(state, folder.folderRef).includes(parentFolderRef)) {
-        return state
-      }
-      if (parentFolderRef) {
-        const dest = getFolder(state, parentFolderRef)
-        if (!dest || dest.providerId !== folder.providerId) return state
-      }
-      const currentParent = folder.parentFolderRef ?? null
-      if (currentParent === parentFolderRef) {
-        return { ...state, overlay: null }
-      }
-
-      let folderContents = mapContents(state.folderContents, (contents) =>
-        stripEntry(contents, 'folder', folder.folderRef),
-      )
-      let providerContents = mapContents(state.providerContents, (contents) =>
-        stripEntry(contents, 'folder', folder.folderRef),
-      )
-
-      if (parentFolderRef) {
-        const dest = copyContents(folderContents[parentFolderRef] ?? emptyContents())
-        addToContents(dest, 'folder', folder.folderRef)
-        folderContents = { ...folderContents, [parentFolderRef]: dest }
-      } else {
-        const root = copyContents(providerContents[folder.providerId])
-        addToContents(root, 'folder', folder.folderRef)
-        providerContents = { ...providerContents, [folder.providerId]: root }
-      }
-
-      return {
-        ...state,
-        folders: {
-          ...state.folders,
-          [folder.folderRef]: {
-            ...state.folders[folder.folderRef],
-            parentFolderRef: parentFolderRef || undefined,
-          },
-        },
-        folderContents,
-        providerContents,
-        overlay: null,
-      }
-    }
-    case 'deleteFile':
-      return { ...purgeFile(state, action.fileRef), overlay: null }
-    case 'deleteFolder':
-      return { ...purgeFolder(state, action.folderRef), overlay: null }
     default:
       return state
   }
 }
-
