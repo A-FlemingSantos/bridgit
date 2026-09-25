@@ -27,7 +27,7 @@ class DatasourceSafetyGuardTest {
         () -> DatasourceSafetyGuard.validate(environment));
 
     assertEquals(
-        "Inicializacao bloqueada: fora do profile de teste, o backend deve usar exclusivamente a base 'bridgit_db'. Base recebida: 'plan_things_db'.",
+        "Inicializacao bloqueada: o backend deve usar exclusivamente a base 'bridgit_db' no profile ativo. Base recebida: 'plan_things_db'.",
         exception.getMessage()
     );
   }
@@ -41,18 +41,33 @@ class DatasourceSafetyGuardTest {
         () -> DatasourceSafetyGuard.validate(environment));
 
     assertEquals(
-        "Inicializacao bloqueada: fora do profile de teste, o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base oficial da aplicacao.",
+        "Inicializacao bloqueada: o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base permitida para o profile ativo.",
         exception.getMessage()
     );
   }
 
   @Test
-  void shouldAllowAnyDatabaseDuringTestProfile() {
+  void shouldAllowTestDatabaseDuringTestProfile() {
     MockEnvironment environment = new MockEnvironment()
         .withProperty("spring.datasource.url", "jdbc:sqlserver://localhost:1433;databaseName=bridgit_test;encrypt=false");
     environment.setActiveProfiles("test");
 
     assertDoesNotThrow(() -> DatasourceSafetyGuard.validate(environment));
+  }
+
+  @Test
+  void shouldBlockOfficialDatabaseDuringTestProfile() {
+    MockEnvironment environment = new MockEnvironment()
+        .withProperty("spring.datasource.url", "jdbc:sqlserver://localhost:1433;databaseName=bridgit_db;encrypt=false");
+    environment.setActiveProfiles("test");
+
+    IllegalStateException exception = assertThrows(IllegalStateException.class,
+        () -> DatasourceSafetyGuard.validate(environment));
+
+    assertEquals(
+        "Inicializacao bloqueada: o backend deve usar exclusivamente a base 'bridgit_test' no profile ativo. Base recebida: 'bridgit_db'.",
+        exception.getMessage()
+    );
   }
 
   @Test

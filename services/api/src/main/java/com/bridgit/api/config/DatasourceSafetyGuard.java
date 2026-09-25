@@ -10,33 +10,32 @@ public final class DatasourceSafetyGuard {
 
   private static final Pattern DATABASE_NAME_PATTERN = Pattern.compile("(?i)(?:^|;)databaseName=([^;]+)");
   private static final String OFFICIAL_DATABASE = "bridgit_db";
+  private static final String TEST_DATABASE = "bridgit_test";
 
   private DatasourceSafetyGuard() {
   }
 
   public static void validate(Environment environment) {
-    if (isTestProfile(environment)) {
-      return;
-    }
-
     String datasourceUrl = environment.getProperty("spring.datasource.url", "");
     String databaseName = extractDatabaseName(datasourceUrl);
 
     if (databaseName == null || databaseName.isBlank()) {
       throw new IllegalStateException(
-          "Inicializacao bloqueada: fora do profile de teste, o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base oficial da aplicacao."
+          "Inicializacao bloqueada: o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base permitida para o profile ativo."
       );
     }
 
     String normalizedDatabaseName = databaseName.trim().toLowerCase(Locale.ROOT);
-    if (OFFICIAL_DATABASE.equals(normalizedDatabaseName)) {
+    String expectedDatabase = isTestProfile(environment) ? TEST_DATABASE : OFFICIAL_DATABASE;
+
+    if (expectedDatabase.equals(normalizedDatabaseName)) {
       return;
     }
 
     throw new IllegalStateException(
-        "Inicializacao bloqueada: fora do profile de teste, o backend deve usar exclusivamente a base '"
-            + OFFICIAL_DATABASE
-            + "'. Base recebida: '"
+        "Inicializacao bloqueada: o backend deve usar exclusivamente a base '"
+            + expectedDatabase
+            + "' no profile ativo. Base recebida: '"
             + databaseName
             + "'."
     );

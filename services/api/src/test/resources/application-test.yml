@@ -1,4 +1,9 @@
 spring:
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=bridgit_test;encrypt=false;trustServerCertificate=true
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   flyway:
     enabled: true
 
@@ -10,3 +15,19 @@ app:
     secret: dev-only-test-jwt-secret-change-me-00000000000000000000000000000000
     issuer: bridgit-api-test
     access-token-minutes: 180
+  integrations:
+    token-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  providers:
+    state-minutes: 10
+    onedrive:
+      client-id: test-onedrive-client-id
+      client-secret: test-onedrive-client-secret
+      redirect-uri: http://localhost:8080/api/providers/onedrive/callback
+    google-drive:
+      client-id: test-google-drive-client-id
+      client-secret: test-google-drive-client-secret
+      redirect-uri: http://localhost:8080/api/providers/google-drive/callback
+    dropbox:
+      client-id: test-dropbox-client-id
+      client-secret: test-dropbox-client-secret
+      redirect-uri: http://localhost:8080/api/providers/dropbox/callback

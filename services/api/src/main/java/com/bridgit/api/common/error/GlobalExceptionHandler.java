@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -102,6 +103,20 @@ public class GlobalExceptionHandler {
         HttpStatus.BAD_REQUEST,
         "REQUISICAO_INVALIDA",
         "Os dados enviados sao invalidos.",
+        request.getRequestURI(),
+        List.of()
+    );
+  }
+
+  @ExceptionHandler(MaxUploadSizeExceededException.class)
+  public ResponseEntity<ApiEnvelope<Void>> handleMaxUploadSize(
+      MaxUploadSizeExceededException ex,
+      HttpServletRequest request
+  ) {
+    return buildResponse(
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        "ARQUIVO_GRANDE_DEMAIS",
+        "O arquivo excede o limite de 50 MB.",
         request.getRequestURI(),
         List.of()
     );

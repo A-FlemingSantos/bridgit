@@ -1,6 +1,10 @@
 spring:
   application:
     name: bridgit-api
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 52MB
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=bridgit_db;encrypt=false;trustServerCertificate=true}
     username: ${SPRING_DATASOURCE_USERNAME:sa}
@@ -43,3 +47,19 @@ app:
     access-token-minutes: 180
   time:
     zone-id: America/Sao_Paulo
+  integrations:
+    token-key-base64: ${APP_INTEGRATION_TOKEN_KEY_B64:}
+  providers:
+    state-minutes: 10
+    onedrive:
+      client-id: ${APP_ONEDRIVE_CLIENT_ID:}
+      client-secret: ${APP_ONEDRIVE_CLIENT_SECRET:}
+      redirect-uri: ${APP_ONEDRIVE_REDIRECT_URI:http://localhost:8080/api/providers/onedrive/callback}
+    google-drive:
+      client-id: ${APP_GOOGLE_DRIVE_CLIENT_ID:}
+      client-secret: ${APP_GOOGLE_DRIVE_CLIENT_SECRET:}
+      redirect-uri: ${APP_GOOGLE_DRIVE_REDIRECT_URI:http://localhost:8080/api/providers/google-drive/callback}
+    dropbox:
+      client-id: ${APP_DROPBOX_CLIENT_ID:}
+      client-secret: ${APP_DROPBOX_CLIENT_SECRET:}
+      redirect-uri: ${APP_DROPBOX_REDIRECT_URI:http://localhost:8080/api/providers/dropbox/callback}
