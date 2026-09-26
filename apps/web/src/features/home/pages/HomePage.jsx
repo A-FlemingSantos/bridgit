@@ -1,8 +1,8 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, RefreshCw, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
+import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
@@ -59,6 +59,8 @@ export default function HomePage() {
   const [query, setQuery] = useState('')
   const [recentsView, setRecentsView] = useState('list')
   const [actionError, setActionError] = useState(null)
+  const [failedUploads, setFailedUploads] = useState([])
+  const [uploadProviderId, setUploadProviderId] = useState(null)
   const search = useSearch(query)
 
   const shortcuts = shortcutsQuery.entries
@@ -84,13 +86,32 @@ export default function HomePage() {
   const searchGroups = useMemo(() => {
     if (!searching || search.status !== 'ready') return []
     const groups = new Map()
-    search.results.forEach((item) => {
+    ;(search.results ?? []).forEach((item) => {
       const key = item.provider
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key).push(item)
     })
-    return [...groups.entries()]
-  }, [search.results, search.status, searching])
+    const queried = Array.isArray(search.providers) ? search.providers : []
+    if (queried.length === 0) return [...groups.entries()].map(([id, items]) => ({ id, ok: true, error: null, items }))
+    return queried.map((entry) => ({
+      id: entry.id,
+      ok: entry.ok !== false,
+      error: entry.error ?? null,
+      items: groups.get(entry.id) ?? [],
+    }))
+  }, [search.results, search.providers, search.status, searching])
+
+  const failedProviders = searchGroups.filter((group) => !group.ok)
+  const succeededGroups = searchGroups.filter((group) => group.ok)
+  const foundCount = succeededGroups.reduce((total, group) => total + group.items.length, 0)
+  const allFailed = searchGroups.length > 0 && failedProviders.length === searchGroups.length
+  const someFailed = failedProviders.length > 0 && !allFailed
+
+  function retrySearch() {
+    const current = query
+    setQuery('')
+    window.setTimeout(() => setQuery(current), 0)
+  }
 
   function menuContext(item) {
     return {
@@ -99,6 +120,28 @@ export default function HomePage() {
       isShortcut: shortcutsQuery.isShortcut,
       providerName: providerLabel(item.provider),
       onError: (error) => setActionError(hubErrorMessage(error)),
+    }
+  }
+
+  function handleUploadError(providerId, files, error) {
+    setActionError(hubErrorMessage(error))
+    const failed = Array.isArray(error?.failed)
+      ? error.failed.map((entry) => entry?.file ?? entry).filter(Boolean)
+      : []
+    setFailedUploads(failed)
+    setUploadProviderId(providerId)
+  }
+
+  async function retryFailedUploads() {
+    if (!uploadProviderId || failedUploads.length === 0) return
+    const providerId = uploadProviderId
+    const files = failedUploads
+    setActionError(null)
+    setFailedUploads([])
+    try {
+      await actions.uploadFiles({ providerId, parentRef: null, files })
+    } catch (error) {
+      handleUploadError(providerId, files, error)
     }
   }
 
@@ -123,7 +166,7 @@ export default function HomePage() {
             />
           </div>
           <div className={styles.actions}>
-            <UploadAction onError={setActionError} />
+            <UploadAction onUploadError={handleUploadError} />
             <CreateAction />
             <button type="button" className={styles.action} onClick={openSettingsProviders}>
               <Cloud size={15} strokeWidth={1.6} aria-hidden="true" />
@@ -141,9 +184,20 @@ export default function HomePage() {
         </div>
 
         {actionError ? (
-          <p className={styles.empty} role="alert">
-            {actionError}
-          </p>
+          <>
+            <p className={styles.empty} role="alert">
+              {actionError}
+            </p>
+            {failedUploads.length > 0 && uploadProviderId ? (
+              <button
+                type="button"
+                className={styles.inlineAction}
+                onClick={() => void retryFailedUploads()}
+              >
+                Tentar novamente
+              </button>
+            ) : null}
+          </>
         ) : null}
 
         {searching && (
@@ -151,51 +205,72 @@ export default function HomePage() {
             <header className={styles.sectionHead}>
               <h2>Resultados</h2>
             </header>
-            {search.status === 'loading' ? (
+            {search.status === 'loading' || search.status === 'idle' ? (
               <p className={styles.empty}>Buscando…</p>
             ) : search.status === 'error' ? (
-              <p className={styles.empty} role="alert">
-                {hubErrorMessage(search.error)}
-              </p>
-            ) : searchGroups.length === 0 ? (
+              <>
+                <p className={styles.empty} role="alert">
+                  {hubErrorMessage(search.error)}
+                </p>
+                <button type="button" className={styles.inlineAction} onClick={retrySearch}>
+                  Tentar novamente
+                </button>
+              </>
+            ) : allFailed ? (
+              <>
+                <p className={styles.empty} role="alert">
+                  Não foi possível buscar.
+                </p>
+                <button type="button" className={styles.inlineAction} onClick={retrySearch}>
+                  Tentar novamente
+                </button>
+              </>
+            ) : foundCount === 0 && !someFailed ? (
               <p className={styles.empty}>Nada encontrado.</p>
             ) : (
-              searchGroups.map(([providerId, items]) => {
-                const providerResult = search.providers.find((entry) => entry.id === providerId)
-                return (
-                  <div key={providerId} className={styles.searchGroup}>
-                    <h3>{providerLabel(providerId)}</h3>
-                    {providerResult && !providerResult.ok ? (
+              <>
+                {someFailed ? (
+                  <p className={styles.empty} role="status">
+                    Alguns provedores não responderam. Mostrando resultados parciais.
+                  </p>
+                ) : null}
+                {searchGroups.map((group) => (
+                  <div key={group.id} className={styles.searchGroup}>
+                    <h3>{providerLabel(group.id)}</h3>
+                    {!group.ok ? (
                       <p className={styles.empty} role="alert">
-                        {providerResult.error ?? 'Não foi possível buscar neste provedor.'}
+                        {`Não foi possível buscar em ${providerLabel(group.id)}.`}
                       </p>
-                    ) : null}
-                    <div className={styles.list}>
-                      {items.map((item) =>
-                        item.kind === 'folder' ? (
-                          <Link
-                            key={item.uiKey ?? item.ref}
-                            to={providerFolderUrl(providerId, item.ref)}
-                            className={styles.row}
-                          >
-                            <span className={styles.rowTitle}>{item.name}</span>
-                          </Link>
-                        ) : (
-                          <a
-                            key={item.uiKey ?? item.ref}
-                            href={providerFileUrl(providerId, item.ref)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={styles.row}
-                          >
-                            <span className={styles.rowTitle}>{item.name}</span>
-                          </a>
-                        ),
-                      )}
-                    </div>
+                    ) : group.items.length === 0 ? (
+                      <p className={styles.empty}>Nenhum resultado</p>
+                    ) : (
+                      <div className={styles.list}>
+                        {group.items.map((item) =>
+                          item.kind === 'folder' ? (
+                            <Link
+                              key={item.uiKey ?? item.ref}
+                              to={providerFolderUrl(group.id, item.ref)}
+                              className={styles.row}
+                            >
+                              <span className={styles.rowTitle}>{item.name}</span>
+                            </Link>
+                          ) : (
+                            <a
+                              key={item.uiKey ?? item.ref}
+                              href={providerFileUrl(group.id, item.ref)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.row}
+                            >
+                              <span className={styles.rowTitle}>{item.name}</span>
+                            </a>
+                          ),
+                        )}
+                      </div>
+                    )}
                   </div>
-                )
-              })
+                ))}
+              </>
             )}
           </section>
         )}
@@ -221,12 +296,12 @@ export default function HomePage() {
               ) : (
                 <nav className={styles.providers} aria-label="Provedores">
                   {providers.map((provider, index) => (
-                    <motion.div
+                    <StaggerItem
                       key={provider.id}
+                      index={index}
+                      base={0.04}
+                      step={0.04}
                       variants={rise}
-                      initial="hidden"
-                      animate="show"
-                      custom={0.04 + index * 0.04}
                     >
                       {provider.connected ? (
                         <Link
@@ -256,7 +331,7 @@ export default function HomePage() {
                           </span>
                         </Link>
                       )}
-                    </motion.div>
+                    </StaggerItem>
                   ))}
                 </nav>
               )}
@@ -279,13 +354,13 @@ export default function HomePage() {
               ) : (
                 <div className={styles.pins}>
                   {visibleShortcuts.map((file, index) => (
-                    <motion.div
+                    <StaggerItem
                       key={`${file.provider}-${file.ref}`}
-                      className={styles.cardWrap}
+                      index={index}
+                      base={0.08}
+                      step={0.04}
                       variants={rise}
-                      initial="hidden"
-                      animate="show"
-                      custom={0.08 + index * 0.04}
+                      className={styles.cardWrap}
                     >
                       <a
                         href={providerFileUrl(file.provider, file.ref)}
@@ -311,14 +386,14 @@ export default function HomePage() {
                             provider: file.provider,
                             ref: file.ref,
                             name: file.name,
-                            parentRef: null,
+                            parentRef: undefined,
                             mimeType: file.mimeType,
                             extension: file.extension,
                           },
                           menuContext(file),
                         )}
                       />
-                    </motion.div>
+                    </StaggerItem>
                   ))}
                 </div>
               )}
@@ -360,13 +435,13 @@ export default function HomePage() {
               ) : recentsView === 'list' ? (
                 <div className={styles.list}>
                   {visibleRecents.map((file, index) => (
-                    <motion.div
+                    <StaggerItem
                       key={`${file.provider}-${file.ref}`}
-                      className={styles.rowWrap}
+                      index={index}
+                      base={0.06}
+                      step={0.025}
                       variants={rise}
-                      initial="hidden"
-                      animate="show"
-                      custom={0.06 + index * 0.025}
+                      className={styles.rowWrap}
                     >
                       <a
                         href={providerFileUrl(file.provider, file.ref)}
@@ -398,26 +473,26 @@ export default function HomePage() {
                             provider: file.provider,
                             ref: file.ref,
                             name: file.name,
-                            parentRef: null,
+                            parentRef: undefined,
                             mimeType: file.mimeType,
                             extension: file.extension,
                           },
                           menuContext(file),
                         )}
                       />
-                    </motion.div>
+                    </StaggerItem>
                   ))}
                 </div>
               ) : (
                 <div className={styles.grid}>
                   {visibleRecents.map((file, index) => (
-                    <motion.div
+                    <StaggerItem
                       key={`${file.provider}-${file.ref}`}
-                      className={styles.cardWrap}
+                      index={index}
+                      base={0.06}
+                      step={0.025}
                       variants={rise}
-                      initial="hidden"
-                      animate="show"
-                      custom={0.06 + index * 0.025}
+                      className={styles.cardWrap}
                     >
                       <a
                         href={providerFileUrl(file.provider, file.ref)}
@@ -445,14 +520,14 @@ export default function HomePage() {
                             provider: file.provider,
                             ref: file.ref,
                             name: file.name,
-                            parentRef: null,
+                            parentRef: undefined,
                             mimeType: file.mimeType,
                             extension: file.extension,
                           },
                           menuContext(file),
                         )}
                       />
-                    </motion.div>
+                    </StaggerItem>
                   ))}
                 </div>
               )}
@@ -465,7 +540,7 @@ export default function HomePage() {
   )
 }
 
-function UploadAction({ onError }) {
+function UploadAction({ onUploadError }) {
   const actions = useHubActions()
   const { providers } = useProviders()
   const extrasId = useId()
@@ -525,7 +600,7 @@ function UploadAction({ onError }) {
           if (!providerId || !files.length) return
           void actions
             .uploadFiles({ providerId, parentRef: null, files })
-            .catch((error) => onError(hubErrorMessage(error)))
+            .catch((error) => onUploadError?.(providerId, files, error))
         }}
       />
     </div>

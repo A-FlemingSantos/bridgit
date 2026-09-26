@@ -29,7 +29,9 @@ export default function SpaceFilePage() {
   const recordedRef = useRef(null)
   const [source, setSource] = useState(null)
   const [readError, setReadError] = useState(null)
-  const [downloadUrl, setDownloadUrl] = useState(null)
+  const [sourceKey, setSourceKey] = useState(0)
+  const [downloadPending, setDownloadPending] = useState(false)
+  const [downloadError, setDownloadError] = useState(null)
   const [actionError, setActionError] = useState(null)
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
@@ -73,17 +75,42 @@ export default function SpaceFilePage() {
         setReadError(hubErrorMessage(error))
       })
 
-    void actionsRef.current
-      .getDownloadUrl({ providerId, ref: readableRef })
-      .then((url) => {
-        if (active) setDownloadUrl(url)
-      })
-      .catch(() => {})
-
     return () => {
       active = false
     }
   }, [providerId, readableRef])
+
+  async function refreshSource() {
+    if (!readableRef) return
+    setReadError(null)
+    try {
+      const nextSource = await actionsRef.current.getReadSource({ providerId, ref: readableRef })
+      setSource(nextSource)
+      setSourceKey((key) => key + 1)
+    } catch (error) {
+      setReadError(hubErrorMessage(error))
+    }
+  }
+
+  async function handleDownload() {
+    if (!item || downloadPending) return
+    setDownloadPending(true)
+    setDownloadError(null)
+    try {
+      const url = await actionsRef.current.getDownloadUrl({ providerId, ref: item.ref })
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = item.name ?? ''
+      anchor.rel = 'noopener'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } catch (error) {
+      setDownloadError(hubErrorMessage(error))
+    } finally {
+      setDownloadPending(false)
+    }
+  }
 
   if (providersStatus === 'ready' && !providerMeta) {
     return <Navigate to={ROUTES.home} replace />
@@ -127,11 +154,14 @@ export default function SpaceFilePage() {
             items={breadcrumbItems}
             trailing={
               <div className={styles.headerActions}>
-                {downloadUrl ? (
-                  <a href={downloadUrl} className={styles.download} download={item.name}>
-                    Baixar
-                  </a>
-                ) : null}
+                <button
+                  type="button"
+                  className={styles.download}
+                  disabled={downloadPending}
+                  onClick={() => void handleDownload()}
+                >
+                  {downloadPending ? 'Baixando…' : 'Baixar'}
+                </button>
                 <OverflowMenu
                   ghost
                   label={`Ações de ${item.name}`}
@@ -168,7 +198,13 @@ export default function SpaceFilePage() {
                   {actionError}
                 </p>
               ) : null}
+              {downloadError ? (
+                <p className={styles.status} role="alert">
+                  {downloadError}
+                </p>
+              ) : null}
               <FileReader
+                key={sourceKey}
                 file={{
                   name: item.name,
                   extension: item.extension,
@@ -177,8 +213,9 @@ export default function SpaceFilePage() {
                 }}
                 source={source}
                 error={readError}
-                downloadUrl={downloadUrl}
-                onDownload={downloadUrl ? undefined : () => actions.getDownloadUrl({ providerId, ref: item.ref }).then(setDownloadUrl)}
+                downloadUrl={null}
+                onDownload={() => void handleDownload()}
+                onRetry={() => void refreshSource()}
               />
             </>
           ) : null}

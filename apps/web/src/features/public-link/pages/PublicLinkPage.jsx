@@ -16,6 +16,7 @@ export default function PublicLinkPage() {
   const [meta, setMeta] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
     const tag = document.createElement('meta')
@@ -75,7 +76,7 @@ export default function PublicLinkPage() {
     return () => {
       cancelled = true
     }
-  }, [suffix])
+  }, [suffix, reloadTick])
 
   const file = meta
     ? {
@@ -142,6 +143,7 @@ export default function PublicLinkPage() {
                 source={source}
                 error={null}
                 downloadUrl={meta.contentUrl}
+                onRetry={() => setReloadTick((tick) => tick + 1)}
               />
             </div>
           </>

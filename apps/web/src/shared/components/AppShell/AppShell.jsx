@@ -1,4 +1,5 @@
 import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { MotionConfig } from 'framer-motion'
 import AppHeader from '../../../shared/components/AppHeader/AppHeader.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
 import styles from './AppShell.module.css'
@@ -112,6 +113,7 @@ export default function AppShell({ children, refreshKey, subheader = null, class
   }, [hasSubheader, refreshKey])
 
   return (
+    <MotionConfig reducedMotion="user">
     <AppShellSubheaderShownContext.Provider value={shown}>
       <div className={[styles.page, className].filter(Boolean).join(' ')}>
       <AppHeader />
@@ -138,5 +140,6 @@ export default function AppShell({ children, refreshKey, subheader = null, class
       </div>
     </div>
     </AppShellSubheaderShownContext.Provider>
+    </MotionConfig>
   )
 }

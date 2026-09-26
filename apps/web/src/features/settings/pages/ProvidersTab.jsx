@@ -4,6 +4,7 @@ import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import { ROUTES, sanitizeInternalAppRedirect } from '../../../shared/config/routes.js'
 import { resolveSettingsBackground } from '../../../shared/utils/settingsOverlay.js'
 import { useProviders } from '../../../shared/hub/hooks.js'
+import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import styles from './SettingsPage.module.css'
 
 const PROVIDER_LABELS = {
@@ -42,6 +43,7 @@ export default function ProvidersTab() {
   const [confirmDisconnectId, setConfirmDisconnectId] = useState(null)
   const [banner, setBanner] = useState(null)
   const [pendingId, setPendingId] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -64,22 +66,34 @@ export default function ProvidersTab() {
     const background = resolveSettingsBackground(location)
     const redirectTo = `${background.pathname}${background.search ?? ''}${background.hash ?? ''}`
     setPendingId(providerId)
+    setActionError((prev) => (prev?.providerId === providerId ? null : prev))
     try {
       await connect(providerId, redirectTo)
-    } catch {
-      setPendingId(null)
+    } catch (err) {
+      setActionError({
+        providerId,
+        action: 'connect',
+        message: hubErrorMessage(err, 'Não foi possível conectar o provedor.'),
+      })
+    } finally {
+      setPendingId((current) => (current === providerId ? null : current))
     }
   }
 
   async function handleDisconnect(providerId) {
     setPendingId(providerId)
+    setActionError((prev) => (prev?.providerId === providerId ? null : prev))
     try {
       await disconnect(providerId)
       setConfirmDisconnectId(null)
-    } catch {
-      // error stays in useProviders
+    } catch (err) {
+      setActionError({
+        providerId,
+        action: 'disconnect',
+        message: hubErrorMessage(err, 'Não foi possível desconectar o provedor.'),
+      })
     } finally {
-      setPendingId(null)
+      setPendingId((current) => (current === providerId ? null : current))
     }
   }
 
@@ -183,6 +197,11 @@ export default function ProvidersTab() {
               <div className={styles.who}>
                 <p className={styles.whoName}>{provider.name}</p>
                 <p className={styles.whoHint}>{providerAccountLabel(provider)}</p>
+                {actionError?.providerId === provider.id ? (
+                  <p className={styles.hint} role="alert">
+                    {actionError.message}
+                  </p>
+                ) : null}
               </div>
               {action}
             </div>
