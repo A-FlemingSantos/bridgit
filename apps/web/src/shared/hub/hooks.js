@@ -1,7 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { useSession } from '../auth/SessionContext.jsx'
 import { useHubDataContext } from './HubDataProvider.jsx'
-import { folderCacheKey, isTempRef, itemCacheKey } from './hubCache.js'
+import {
+  FOLDER_STALE_MS,
+  ITEM_STALE_MS,
+  PROVIDERS_STALE_MS,
+  RECENTS_STALE_MS,
+  SHORTCUTS_STALE_MS,
+  folderCacheKey,
+  isStaleEntry,
+  isTempRef,
+  itemCacheKey,
+} from './hubCache.js'
 
 export function useProviders() {
   const { session } = useSession()
@@ -11,8 +21,10 @@ export function useProviders() {
     if (!session?.accessToken) return
     if (providersState.status === 'idle') {
       void loadProviders()
+    } else if (providersState.status === 'ready' && isStaleEntry(providersState, PROVIDERS_STALE_MS)) {
+      void loadProviders()
     }
-  }, [loadProviders, providersState.status, session?.accessToken])
+  }, [loadProviders, providersState, session?.accessToken])
 
   return {
     status: providersState.status,
@@ -33,6 +45,14 @@ export function useFolder(providerId, folderRef) {
   useEffect(() => {
     if (!session?.accessToken || !providerId || isTempRef(folderRef)) return
     if (!entry || entry.status === 'idle') {
+      if (entry?.status !== 'loading') void loadFolder(providerId, folderRef)
+    } else if (
+      entry.loaded &&
+      entry.status === 'ready' &&
+      isStaleEntry(entry, FOLDER_STALE_MS) &&
+      !entry.revalidating &&
+      !entry.isFetchingNextPage
+    ) {
       void loadFolder(providerId, folderRef)
     }
   }, [entry, folderRef, loadFolder, providerId, session?.accessToken])
@@ -42,13 +62,16 @@ export function useFolder(providerId, folderRef) {
     folder: entry?.folder ?? null,
     items: entry?.items ?? [],
     nextCursor: entry?.nextCursor ?? null,
+    hasMore: Boolean(entry?.nextCursor),
+    isFetchingNextPage: entry?.isFetchingNextPage ?? false,
+    revalidating: entry?.revalidating ?? false,
     error: entry?.error ?? null,
     loadMore() {
-      if (!entry?.nextCursor) return
-      void loadFolder(providerId, folderRef, entry.nextCursor)
+      if (!entry?.nextCursor || entry?.isFetchingNextPage) return Promise.resolve()
+      return loadFolder(providerId, folderRef, entry.nextCursor)
     },
     reload() {
-      void loadFolder(providerId, folderRef)
+      return loadFolder(providerId, folderRef, null, { force: true })
     },
   }
 }
@@ -62,6 +85,8 @@ export function useItem(providerId, ref) {
   useEffect(() => {
     if (!session?.accessToken || !providerId || !ref || isTempRef(ref)) return
     if (!entry || entry.status === 'idle') {
+      if (entry?.status !== 'loading') void loadItem(providerId, ref)
+    } else if (entry.status === 'ready' && isStaleEntry(entry, ITEM_STALE_MS)) {
       void loadItem(providerId, ref)
     }
   }, [entry, loadItem, providerId, ref, session?.accessToken])
@@ -85,8 +110,10 @@ export function useRecents() {
     if (!session?.accessToken) return
     if (recentsState.status === 'idle') {
       void loadRecents()
+    } else if (recentsState.status === 'ready' && isStaleEntry(recentsState, RECENTS_STALE_MS)) {
+      void loadRecents()
     }
-  }, [loadRecents, recentsState.status, session?.accessToken])
+  }, [loadRecents, recentsState, session?.accessToken])
 
   return {
     status: recentsState.status,
@@ -104,8 +131,10 @@ export function useShortcuts() {
     if (!session?.accessToken) return
     if (shortcutsState.status === 'idle') {
       void loadShortcuts()
+    } else if (shortcutsState.status === 'ready' && isStaleEntry(shortcutsState, SHORTCUTS_STALE_MS)) {
+      void loadShortcuts()
     }
-  }, [loadShortcuts, shortcutsState.status, session?.accessToken])
+  }, [loadShortcuts, shortcutsState, session?.accessToken])
 
   return {
     status: shortcutsState.status,
