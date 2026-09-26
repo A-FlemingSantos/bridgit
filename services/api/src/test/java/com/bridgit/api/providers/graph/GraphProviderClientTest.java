@@ -10,7 +10,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.ContentVariant;
-import com.bridgit.api.providers.CursorCodec;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
 import com.bridgit.api.providers.ProviderApiException;
@@ -73,7 +72,7 @@ class GraphProviderClientTest {
     assertEquals(ItemKind.FILE, page.items().get(1).kind());
     assertEquals("txt", page.items().get(1).extension());
     assertEquals(
-        CursorCodec.encode("https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc"),
+        "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc",
         page.nextCursor()
     );
     server.verify();
@@ -87,7 +86,7 @@ class GraphProviderClientTest {
             {"value": []}
             """, MediaType.APPLICATION_JSON));
 
-    client.list("token", null, CursorCodec.encode(nextLink));
+    client.list("token", null, nextLink);
     server.verify();
   }
 

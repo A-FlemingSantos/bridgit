@@ -4,6 +4,7 @@ import com.bridgit.api.ApiIntegrationTestSupport;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
+import com.bridgit.api.hub.HubRecentRepository;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
@@ -12,8 +13,8 @@ import com.bridgit.api.providers.ContentVariant;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
 import com.bridgit.api.providers.ReadPlan;
+import com.bridgit.api.providers.SealedCursorService;
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,12 +25,17 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.InputStreamSource;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,8 +49,14 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
   @Autowired
   private ProviderConnectionRepository connectionRepository;
 
+  @Autowired
+  private SealedCursorService sealedCursorService;
+
   @MockitoBean
   private ProviderConnectionService providerConnectionService;
+
+  @MockitoBean
+  private HubRecentRepository hubRecentRepository;
 
   @BeforeEach
   void stubProviderConnectionService() {
@@ -87,6 +99,63 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
     connection.setEncryptedRefreshToken("enc");
     connection.setConnectedAt(OffsetDateTime.now());
     connectionRepository.save(connection);
+  }
+
+  @Test
+  void sealedCursorRoundTripListsNextPage() throws Exception {
+    var register = registerUser("files-" + UUID.randomUUID().toString().substring(0, 8), "Password123!", UUID.randomUUID());
+    String token = register.path("data").path("accessToken").asText();
+    UUID userId = UUID.fromString(register.path("data").path("user").path("id").asText());
+    seedConnection(userId, CloudProvider.ONEDRIVE);
+    UUID connectionId = connectionRepository
+        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow().getId();
+
+    String sealed = sealedCursorService.seal(connectionId, null, "raw-continuation");
+
+    mockMvc.perform(get("/api/providers/onedrive/items").param("cursor", sealed)
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.items[0].name").value("Alpha"));
+  }
+
+  @Test
+  void forgedCursorIsRejectedBeforeProviderCall() throws Exception {
+    var register = registerUser("files-" + UUID.randomUUID().toString().substring(0, 8), "Password123!", UUID.randomUUID());
+    String token = register.path("data").path("accessToken").asText();
+    UUID userId = UUID.fromString(register.path("data").path("user").path("id").asText());
+    seedConnection(userId, CloudProvider.ONEDRIVE);
+    UUID connectionId = connectionRepository
+        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow().getId();
+
+    String folderCursor = sealedCursorService.seal(connectionId, "folder-1", "raw");
+
+    mockMvc.perform(get("/api/providers/onedrive/items").param("cursor", "not-a-cursor!!!")
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("CURSOR_INVALIDO"));
+
+    mockMvc.perform(get("/api/providers/onedrive/items").param("cursor", folderCursor)
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("CURSOR_INVALIDO"));
+  }
+
+  @Test
+  void uploadStillSucceedsWhenLocalSnapshotFails() throws Exception {
+    doThrow(new RuntimeException("snapshot indisponivel"))
+        .when(hubRecentRepository).updateSnapshot(any(), any(), any(), any(), any());
+
+    var register = registerUser("files-" + UUID.randomUUID().toString().substring(0, 8), "Password123!", UUID.randomUUID());
+    String token = register.path("data").path("accessToken").asText();
+    UUID userId = UUID.fromString(register.path("data").path("user").path("id").asText());
+    seedConnection(userId, CloudProvider.ONEDRIVE);
+
+    mockMvc.perform(multipart("/api/providers/onedrive/files")
+            .file(new MockMultipartFile("file", "nota.txt", "text/plain", "conteudo".getBytes()))
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("nota.txt"))
+        .andExpect(header().string("X-Bridgit-Local-Sync", "pending"));
   }
 
   @TestConfiguration
@@ -147,7 +216,7 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
             String name,
             String contentType,
             long size,
-            InputStream content
+            InputStreamSource content
         ) {
           return new CloudItem("up", provider.id(), name, ItemKind.FILE, contentType, null, size, null, parentRef);
         }

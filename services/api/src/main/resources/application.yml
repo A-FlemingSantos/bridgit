@@ -1,6 +1,11 @@
 spring:
   application:
     name: bridgit-api
+  http:
+    client:
+      connect-timeout: 5s
+      read-timeout: 30s
+      redirects: dont-follow
   servlet:
     multipart:
       max-file-size: 50MB

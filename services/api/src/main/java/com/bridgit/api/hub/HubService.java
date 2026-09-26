@@ -6,6 +6,7 @@ import com.bridgit.api.hub.HubDtos.HubEntry;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
+import com.bridgit.api.integrations.ProviderRetryService;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
@@ -29,6 +30,7 @@ public class HubService {
   private final HubShortcutRepository shortcutRepository;
   private final ProviderConnectionRepository connectionRepository;
   private final ProviderConnectionService connectionService;
+  private final ProviderRetryService retryService;
   private final CloudProviderClients providerClients;
   private final AuthenticatedUserService authenticatedUserService;
   private final Clock clock;
@@ -38,6 +40,7 @@ public class HubService {
       HubShortcutRepository shortcutRepository,
       ProviderConnectionRepository connectionRepository,
       ProviderConnectionService connectionService,
+      ProviderRetryService retryService,
       CloudProviderClients providerClients,
       AuthenticatedUserService authenticatedUserService,
       Clock clock
@@ -46,6 +49,7 @@ public class HubService {
     this.shortcutRepository = shortcutRepository;
     this.connectionRepository = connectionRepository;
     this.connectionService = connectionService;
+    this.retryService = retryService;
     this.providerClients = providerClients;
     this.authenticatedUserService = authenticatedUserService;
     this.clock = clock;
@@ -142,9 +146,8 @@ public class HubService {
   }
 
   private CloudItem fetchItem(CloudProvider provider, ProviderConnectionEntity connection, String ref) {
-    String accessToken = connectionService.accessToken(connection);
     CloudProviderClient client = providerClients.get(provider);
-    return client.get(accessToken, ref);
+    return retryService.withRetry(connection, token -> client.get(token, ref));
   }
 
   private void trimRecents(UUID userId) {

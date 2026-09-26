@@ -6,6 +6,7 @@ import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
+import com.bridgit.api.integrations.ProviderRetryService;
 import com.bridgit.api.integrations.ReconnectionRequiredException;
 import com.bridgit.api.links.LinkDtos.OwnerPublicLinkResponse;
 import com.bridgit.api.links.LinkDtos.PublicLinkMetadata;
@@ -13,6 +14,7 @@ import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
 import com.bridgit.api.providers.CloudProviderClients;
+import com.bridgit.api.providers.ContentRange;
 import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ContentStreamResponder;
 import com.bridgit.api.providers.ContentVariant;
@@ -29,7 +31,11 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 @Service
 public class PublicLinkService {
@@ -41,9 +47,12 @@ public class PublicLinkService {
   private final PublicLinkRepository linkRepository;
   private final ProviderConnectionRepository connectionRepository;
   private final ProviderConnectionService connectionService;
+  private final ProviderRetryService retryService;
   private final CloudProviderClients providerClients;
   private final AuthenticatedUserService authenticatedUserService;
   private final ContentStreamResponder contentStreamResponder;
+  private final TransactionTemplate shortTemplate;
+  private final TransactionTemplate requiresNewTemplate;
   private final Clock clock;
   private final String frontendBaseUrl;
 
@@ -51,18 +60,24 @@ public class PublicLinkService {
       PublicLinkRepository linkRepository,
       ProviderConnectionRepository connectionRepository,
       ProviderConnectionService connectionService,
+      ProviderRetryService retryService,
       CloudProviderClients providerClients,
       AuthenticatedUserService authenticatedUserService,
       ContentStreamResponder contentStreamResponder,
+      PlatformTransactionManager transactionManager,
       Clock clock,
       @Value("${app.frontend-base-url}") String frontendBaseUrl
   ) {
     this.linkRepository = linkRepository;
     this.connectionRepository = connectionRepository;
     this.connectionService = connectionService;
+    this.retryService = retryService;
     this.providerClients = providerClients;
     this.authenticatedUserService = authenticatedUserService;
     this.contentStreamResponder = contentStreamResponder;
+    this.shortTemplate = new TransactionTemplate(transactionManager);
+    this.requiresNewTemplate = new TransactionTemplate(transactionManager);
+    this.requiresNewTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     this.clock = clock;
     this.frontendBaseUrl = trimTrailingSlash(frontendBaseUrl);
   }
@@ -125,10 +140,18 @@ public class PublicLinkService {
     );
   }
 
-  @Transactional
   public void streamPublicContent(String suffix, String variant, HttpServletResponse response) throws IOException {
-    ResolvedPublicLink resolved = resolvePublicLink(suffix);
-    ReadPlan readPlan = resolved.client().readPlan(resolved.item());
+    streamPublicContent(suffix, variant, null, response);
+  }
+
+  public void streamPublicContent(
+      String suffix,
+      String variant,
+      String rangeHeader,
+      HttpServletResponse response
+  ) throws IOException {
+    PublicLinkContext context = shortTemplate.execute(status -> resolveLinkContext(suffix));
+    ReadPlan readPlan = context.client().readPlan(context.item());
 
     boolean readVariant = "read".equalsIgnoreCase(variant);
     if (readVariant && readPlan.mode() == ReadMode.NONE) {
@@ -136,17 +159,39 @@ public class PublicLinkService {
     }
 
     ContentVariant contentVariant = readVariant ? readPlan.variant() : ContentVariant.ORIGINAL;
-    ContentStream stream = resolved.client().open(resolved.accessToken(), resolved.item(), contentVariant);
-
-    resolved.link().setLastAccessedAt(OffsetDateTime.now(clock));
-    linkRepository.save(resolved.link());
-
-    contentStreamResponder.write(
-        stream,
-        response,
-        !readVariant,
-        Map.of("X-Robots-Tag", "noindex, nofollow")
+    ContentRange range = null;
+    if (!readVariant && StringUtils.hasText(rangeHeader)) {
+      range = ContentRange.parseSingle(rangeHeader, context.item().size());
+    }
+    ContentRange resolvedRange = range;
+    ContentStream stream = retryService.withRetry(
+        context.connection(),
+        token -> resolvedRange == null
+            ? context.client().open(token, context.item(), contentVariant)
+            : context.client().open(token, context.item(), contentVariant, resolvedRange)
     );
+
+    try (stream) {
+      contentStreamResponder.write(
+          stream,
+          response,
+          !readVariant,
+          Map.of("X-Robots-Tag", "noindex, nofollow")
+      );
+    } catch (IOException ex) {
+      try {
+        stream.close();
+      } catch (Exception ignored) {
+      }
+      throw ex;
+    }
+
+    shortTemplate.executeWithoutResult(status -> {
+      linkRepository.findById(context.linkId()).ifPresent(link -> {
+        link.setLastAccessedAt(OffsetDateTime.now(clock));
+        linkRepository.save(link);
+      });
+    });
   }
 
   private PublicLinkEntity createLink(
@@ -178,6 +223,18 @@ public class PublicLinkService {
     throw new IllegalStateException("Nao foi possivel gerar um sufixo unico para o link publico.");
   }
 
+  private PublicLinkContext resolveLinkContext(String suffix) {
+    ResolvedPublicLink resolved = resolvePublicLink(suffix);
+    return new PublicLinkContext(
+        resolved.link().getId(),
+        resolved.provider(),
+        resolved.client(),
+        resolved.item(),
+        resolved.accessToken(),
+        resolved.connection()
+    );
+  }
+
   private ResolvedPublicLink resolvePublicLink(String suffix) {
     if (!LinkSuffixGenerator.isValid(suffix)) {
       throw linkNotFound();
@@ -185,17 +242,21 @@ public class PublicLinkService {
 
     PublicLinkEntity link = linkRepository.findBySuffix(suffix).orElseThrow(this::linkNotFound);
     ProviderConnectionEntity connection = connectionService.findById(link.getConnectionId())
-        .orElseThrow(() -> {
-          linkRepository.delete(link);
-          return linkNotFound();
-        });
+        .orElse(null);
+    if (connection == null) {
+      deleteLinkInNewTransaction(link.getId());
+      throw linkNotFound();
+    }
 
     CloudProvider provider = CloudProvider.fromId(connection.getProvider());
     CloudProviderClient client = providerClients.get(provider);
 
     try {
+      CloudItem item = retryService.withRetry(
+          connection,
+          token -> client.get(token, link.getItemRef())
+      );
       String accessToken = connectionService.accessToken(connection);
-      CloudItem item = client.get(accessToken, link.getItemRef());
 
       link.setName(item.name());
       link.setMimeType(item.mimeType());
@@ -203,23 +264,34 @@ public class PublicLinkService {
       link.setSize(item.size());
       linkRepository.save(link);
 
-      return new ResolvedPublicLink(link, provider, client, item, accessToken);
+      return new ResolvedPublicLink(link, provider, client, item, accessToken, connection);
     } catch (ReconnectionRequiredException ex) {
       throw linkNotFound();
     } catch (ProviderApiException ex) {
+      if ("TOKEN_PROVEDOR_INVALIDO".equals(ex.getCode())) {
+        throw ex;
+      }
       if (ex.getStatus() == HttpStatus.NOT_FOUND) {
-        linkRepository.delete(link);
+        deleteLinkInNewTransaction(link.getId());
       }
       throw linkNotFound();
     } catch (NotFoundException ex) {
-      linkRepository.delete(link);
+      deleteLinkInNewTransaction(link.getId());
       throw linkNotFound();
     }
   }
 
+  private void deleteLinkInNewTransaction(UUID linkId) {
+    requiresNewTemplate.executeWithoutResult(status -> {
+      linkRepository.findById(linkId).ifPresent(linkRepository::delete);
+    });
+  }
+
   private CloudItem fetchFileItem(CloudProvider provider, ProviderConnectionEntity connection, String ref) {
-    String accessToken = connectionService.accessToken(connection);
-    CloudItem item = providerClients.get(provider).get(accessToken, ref);
+    CloudItem item = retryService.withRetry(
+        connection,
+        token -> providerClients.get(provider).get(token, ref)
+    );
     if (item.kind() == ItemKind.FOLDER) {
       throw new BadRequestException("LINK_APENAS_ARQUIVO", "Somente arquivos podem receber link publico.");
     }
@@ -250,7 +322,18 @@ public class PublicLinkService {
       CloudProvider provider,
       CloudProviderClient client,
       CloudItem item,
-      String accessToken
+      String accessToken,
+      ProviderConnectionEntity connection
+  ) {
+  }
+
+  private record PublicLinkContext(
+      UUID linkId,
+      CloudProvider provider,
+      CloudProviderClient client,
+      CloudItem item,
+      String accessToken,
+      ProviderConnectionEntity connection
   ) {
   }
 }

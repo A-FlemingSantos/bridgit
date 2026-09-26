@@ -1,10 +1,12 @@
 package com.bridgit.api.files;
 
 import com.bridgit.api.common.api.ApiEnvelope;
+import com.bridgit.api.hub.LocalSyncFlag;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -44,15 +46,16 @@ public class FilesController {
   }
 
   @PostMapping("/folders")
-  public ApiEnvelope<CloudItem> createFolder(
+  public ResponseEntity<ApiEnvelope<CloudItem>> createFolder(
       @PathVariable CloudProvider provider,
       @Valid @RequestBody FilesDtos.CreateFolderRequest request
   ) {
-    return ApiEnvelope.ok(providerFileService.createFolder(provider, request.parentRef(), request.name()));
+    CloudItem item = providerFileService.createFolder(provider, request.parentRef(), request.name());
+    return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ApiEnvelope<CloudItem> uploadFile(
+  public ResponseEntity<ApiEnvelope<CloudItem>> uploadFile(
       @PathVariable CloudProvider provider,
       @RequestParam(required = false) String parentRef,
       @RequestParam("file") MultipartFile file
@@ -63,26 +66,28 @@ public class FilesController {
         file.getOriginalFilename(),
         file.getContentType(),
         file.getSize(),
-        file.getInputStream()
+        file
     );
-    return ApiEnvelope.ok(item);
+    return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @PatchMapping("/items/{ref}")
-  public ApiEnvelope<CloudItem> updateItem(
+  public ResponseEntity<ApiEnvelope<CloudItem>> updateItem(
       @PathVariable CloudProvider provider,
       @PathVariable String ref,
       @RequestBody FilesDtos.UpdateItemRequest request
   ) {
-    return ApiEnvelope.ok(providerFileService.updateItem(provider, ref, request.name(), request.parentRef()));
+    CloudItem item = providerFileService.updateItem(provider, ref, request.name(), request.parentRef());
+    return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @DeleteMapping("/items/{ref}")
-  public ApiEnvelope<FilesDtos.DeleteItemResponse> deleteItem(
+  public ResponseEntity<ApiEnvelope<FilesDtos.DeleteItemResponse>> deleteItem(
       @PathVariable CloudProvider provider,
       @PathVariable String ref
   ) {
-    return ApiEnvelope.ok(providerFileService.deleteItem(provider, ref));
+    FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(provider, ref);
+    return withLocalSyncHeader(ApiEnvelope.ok(response));
   }
 
   @GetMapping("/items/{ref}/read")
@@ -100,5 +105,14 @@ public class FilesController {
       @RequestBody FilesDtos.TicketRequest request
   ) {
     return ApiEnvelope.ok(providerFileService.createDownloadTicket(provider, ref, request.disposition()));
+  }
+
+  private static <T> ResponseEntity<ApiEnvelope<T>> withLocalSyncHeader(ApiEnvelope<T> body) {
+    if (LocalSyncFlag.isPending()) {
+      return ResponseEntity.ok()
+          .header("X-Bridgit-Local-Sync", "pending")
+          .body(body);
+    }
+    return ResponseEntity.ok(body);
   }
 }

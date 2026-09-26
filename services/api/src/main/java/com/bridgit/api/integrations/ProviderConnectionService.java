@@ -12,15 +12,22 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
@@ -40,7 +47,11 @@ public class ProviderConnectionService {
   private final AuthenticatedUserService authenticatedUserService;
   private final Clock clock;
   private final String frontendBaseUrl;
+  private final TransactionTemplate requiresNewTemplate;
   private final ConcurrentHashMap<UUID, CachedAccessToken> accessTokenCache = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<UUID, CompletableFuture<RefreshOutcome>> inFlightRefreshes =
+      new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<UUID, AtomicLong> refreshGenerations = new ConcurrentHashMap<>();
 
   public ProviderConnectionService(
       ProviderConnectionRepository connectionRepository,
@@ -50,6 +61,7 @@ public class ProviderConnectionService {
       CloudProvidersProperties properties,
       AuthenticatedUserService authenticatedUserService,
       Clock clock,
+      PlatformTransactionManager transactionManager,
       @Value("${app.frontend-base-url}") String frontendBaseUrl
   ) {
     this.connectionRepository = connectionRepository;
@@ -60,6 +72,8 @@ public class ProviderConnectionService {
     this.authenticatedUserService = authenticatedUserService;
     this.clock = clock;
     this.frontendBaseUrl = frontendBaseUrl;
+    this.requiresNewTemplate = new TransactionTemplate(transactionManager);
+    this.requiresNewTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
   @Transactional(readOnly = true)
@@ -163,7 +177,7 @@ public class ProviderConnectionService {
       connection.setConnectedAt(now);
       connection.setLastError(null);
       connectionRepository.save(connection);
-      evict(connection.getId());
+      invalidate(connection.getId());
 
       return callbackRedirect(provider, "connected", null, redirectPath);
     } catch (Exception ex) {
@@ -190,8 +204,9 @@ public class ProviderConnectionService {
         // best effort
       }
 
-      evict(connection.getId());
+      invalidate(connection.getId());
       connectionRepository.delete(connection);
+      invalidate(connection.getId());
     });
 
     return listForCurrentUser();
@@ -211,7 +226,6 @@ public class ProviderConnectionService {
     return connectionRepository.findById(connectionId);
   }
 
-  @Transactional(noRollbackFor = ReconnectionRequiredException.class)
   public String accessToken(ProviderConnectionEntity connection) {
     UUID connectionId = connection.getId();
     CachedAccessToken cached = accessTokenCache.get(connectionId);
@@ -221,32 +235,128 @@ public class ProviderConnectionService {
       return cached.accessToken();
     }
 
-    CloudProvider provider = CloudProvider.fromId(connection.getProvider());
-    ProviderOAuthClient client = oauthClients.get(provider);
-    String refreshToken = tokenCipher.decrypt(connection.getEncryptedRefreshToken());
+    CompletableFuture<RefreshOutcome> future = new CompletableFuture<>();
+    CompletableFuture<RefreshOutcome> existing = inFlightRefreshes.putIfAbsent(connectionId, future);
+    if (existing != null) {
+      try {
+        return existing.join().accessToken();
+      } catch (CompletionException ex) {
+        throw unwrapCompletion(ex);
+      }
+    }
 
     try {
-      TokenResult tokenResult = client.refresh(refreshToken);
-      Instant expiresAt = now.plusSeconds(Math.max(tokenResult.expiresInSeconds(), 60));
-
-      if (tokenResult.refreshToken() != null && !tokenResult.refreshToken().isBlank()) {
-        connection.setEncryptedRefreshToken(tokenCipher.encrypt(tokenResult.refreshToken()));
+      RefreshOutcome outcome = doRefresh(connection, now);
+      if (outcome == null) {
+        ProviderConnectionEntity current = connectionRepository.findById(connectionId)
+            .orElseThrow(ReconnectionRequiredException::new);
+        outcome = doRefresh(current, now);
+        if (outcome == null) {
+          throw new ReconnectionRequiredException();
+        }
       }
-      connection.setLastError(null);
-      connectionRepository.save(connection);
+      future.complete(outcome);
+      return outcome.accessToken();
+    } catch (Throwable ex) {
+      future.completeExceptionally(ex);
+      throw ex;
+    } finally {
+      inFlightRefreshes.remove(connectionId, future);
+    }
+  }
 
-      accessTokenCache.put(connectionId, new CachedAccessToken(tokenResult.accessToken(), expiresAt));
-      return tokenResult.accessToken();
+  private RefreshOutcome doRefresh(ProviderConnectionEntity connection, Instant now) {
+    UUID connectionId = connection.getId();
+    long generation = generationOf(connectionId);
+    String usedEncryptedRefresh = connection.getEncryptedRefreshToken();
+    OffsetDateTime usedConnectedAt = connection.getConnectedAt();
+
+    CloudProvider provider = CloudProvider.fromId(connection.getProvider());
+    ProviderOAuthClient client = oauthClients.get(provider);
+    String refreshToken = tokenCipher.decrypt(usedEncryptedRefresh);
+
+    TokenResult tokenResult;
+    try {
+      tokenResult = client.refresh(refreshToken);
     } catch (ReconnectionRequiredException ex) {
-      connection.setLastError("RECONEXAO_NECESSARIA");
-      connectionRepository.save(connection);
+      markReconnectionRequired(connectionId);
       evict(connectionId);
       throw ex;
     }
+
+    Instant expiresAt = now.plusSeconds(Math.max(tokenResult.expiresInSeconds(), 60));
+    String rotatedRefresh = tokenResult.refreshToken();
+
+    if (generation != generationOf(connectionId)) {
+      evict(connectionId);
+      return null;
+    }
+
+    String persisted = requiresNewTemplate.execute(status -> {
+      Optional<ProviderConnectionEntity> fresh = connectionRepository.findById(connectionId);
+      if (fresh.isEmpty()) {
+        return null;
+      }
+      ProviderConnectionEntity entity = fresh.get();
+      if (!Objects.equals(entity.getEncryptedRefreshToken(), usedEncryptedRefresh)
+          || !sameInstant(entity.getConnectedAt(), usedConnectedAt)) {
+        return null;
+      }
+      if (rotatedRefresh != null && !rotatedRefresh.isBlank()) {
+        entity.setEncryptedRefreshToken(tokenCipher.encrypt(rotatedRefresh));
+      }
+      entity.setLastError(null);
+      connectionRepository.save(entity);
+      return tokenResult.accessToken();
+    });
+
+    if (persisted == null) {
+      evict(connectionId);
+      return null;
+    }
+
+    accessTokenCache.put(connectionId, new CachedAccessToken(persisted, expiresAt));
+    return new RefreshOutcome(persisted);
+  }
+
+  private void markReconnectionRequired(UUID connectionId) {
+    requiresNewTemplate.executeWithoutResult(status -> {
+      connectionRepository.findById(connectionId).ifPresent(entity -> {
+        entity.setLastError("RECONEXAO_NECESSARIA");
+        connectionRepository.save(entity);
+      });
+    });
+  }
+
+  private static boolean sameInstant(OffsetDateTime first, OffsetDateTime second) {
+    if (first == null || second == null) {
+      return first == null && second == null;
+    }
+    return first.toInstant().toEpochMilli() == second.toInstant().toEpochMilli();
+  }
+
+  private static RuntimeException unwrapCompletion(CompletionException ex) {
+    if (ex.getCause() instanceof RuntimeException cause) {
+      return cause;
+    }
+    return ex;
+  }
+
+  private long generationOf(UUID connectionId) {
+    AtomicLong generation = refreshGenerations.get(connectionId);
+    return generation == null ? 0L : generation.get();
   }
 
   public void evict(UUID connectionId) {
     if (connectionId != null) {
+      accessTokenCache.remove(connectionId);
+    }
+  }
+
+  // Connection identity changed (reconnect/disconnect): in-flight refreshes must not publish their result.
+  public void invalidate(UUID connectionId) {
+    if (connectionId != null) {
+      refreshGenerations.computeIfAbsent(connectionId, key -> new AtomicLong()).incrementAndGet();
       accessTokenCache.remove(connectionId);
     }
   }
@@ -332,5 +442,8 @@ public class ProviderConnectionService {
   }
 
   private record CachedAccessToken(String accessToken, Instant expiresAt) {
+  }
+
+  private record RefreshOutcome(String accessToken) {
   }
 }

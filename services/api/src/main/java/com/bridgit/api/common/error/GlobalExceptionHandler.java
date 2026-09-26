@@ -3,6 +3,7 @@ package com.bridgit.api.common.error;
 import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.common.api.ApiErrorResponse;
 import com.bridgit.api.common.api.ApiValidationError;
+import com.bridgit.api.providers.ProviderApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -34,13 +35,26 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(ApiException.class)
   public ResponseEntity<ApiEnvelope<Void>> handleApiException(ApiException ex, HttpServletRequest request) {
-    return buildResponse(
-        ex.getStatus(),
-        ex.getCode(),
+    HttpStatus status = ex.getStatus();
+    String code = ex.getCode();
+    if (ex instanceof ProviderApiException providerEx
+        && "TOKEN_PROVEDOR_INVALIDO".equals(code)
+        && status == HttpStatus.UNAUTHORIZED) {
+      status = HttpStatus.BAD_GATEWAY;
+    }
+    ResponseEntity<ApiEnvelope<Void>> response = buildResponse(
+        status,
+        code,
         ex.getMessage(),
         request.getRequestURI(),
         List.of()
     );
+    if (ex instanceof ProviderApiException providerEx && providerEx.getRetryAfterSeconds() != null) {
+      return ResponseEntity.status(response.getStatusCode())
+          .header("Retry-After", String.valueOf(providerEx.getRetryAfterSeconds()))
+          .body(response.getBody());
+    }
+    return response;
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
