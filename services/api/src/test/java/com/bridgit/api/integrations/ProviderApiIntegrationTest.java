@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,14 +16,26 @@ import com.bridgit.api.ApiIntegrationTestSupport;
 import com.bridgit.api.providers.CloudProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
@@ -36,6 +49,9 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Autowired
   private IntegrationTokenCipher tokenCipher;
+
+  @Autowired
+  private CloudProvidersProperties cloudProvidersProperties;
 
   @Autowired
   private ProviderConnectionService providerConnectionService;
@@ -302,6 +318,182 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
     ProviderConnectionEntity updated = connectionRepository.findById(saved.getId()).orElseThrow();
     assertThat(updated.getLastError()).isEqualTo("RECONEXAO_NECESSARIA");
+  }
+
+  @Test
+  void invalidGrantThroughRealHttpPersistsReconnectionAndAnswers409() throws Exception {
+    ProviderConnectionEntity connection = new ProviderConnectionEntity();
+    connection.setUserId(userId);
+    connection.setProvider(CloudProvider.ONEDRIVE.id());
+    connection.setAccountId("account-1");
+    connection.setEncryptedRefreshToken(tokenCipher.encrypt("refresh-token"));
+    connection.setConnectedAt(java.time.OffsetDateTime.now());
+    ProviderConnectionEntity saved = connectionRepository.save(connection);
+
+    RestClient.Builder tokenBuilder = RestClient.builder();
+    MockRestServiceServer tokenServer = MockRestServiceServer.bindTo(tokenBuilder).build();
+    MicrosoftOAuthClient realClient = new MicrosoftOAuthClient(
+        cloudProvidersProperties, tokenBuilder, objectMapper);
+    when(providerOAuthClients.get(CloudProvider.ONEDRIVE)).thenReturn(realClient);
+    tokenServer.expect(org.springframework.test.web.client.match.MockRestRequestMatchers
+            .requestTo("https://login.microsoftonline.com/common/oauth2/v2.0/token"))
+        .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+            .withStatus(HttpStatus.BAD_REQUEST)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("{\"error\":\"invalid_grant\"}"));
+
+    mockMvc.perform(put("/api/providers/onedrive/items/some-ref/public-link")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("RECONEXAO_NECESSARIA"));
+
+    assertThat(connectionRepository.findById(saved.getId()).orElseThrow().getLastError())
+        .isEqualTo("RECONEXAO_NECESSARIA");
+
+    mockMvc.perform(get("/api/providers")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].lastError").value("RECONEXAO_NECESSARIA"));
+
+    tokenServer.verify();
+  }
+
+  @Test
+  void concurrentAccessTokensTriggerSingleRefresh() throws Exception {
+    ProviderConnectionEntity saved = seedConnection();
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    AtomicInteger calls = new AtomicInteger();
+    when(microsoftOAuthClient.refresh(anyString())).thenAnswer(invocation -> {
+      calls.incrementAndGet();
+      entered.countDown();
+      assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+      return new TokenResult("shared-access", null, 3600, "scope");
+    });
+
+    ExecutorService pool = Executors.newFixedThreadPool(8);
+    try {
+      List<Future<String>> futures = new ArrayList<>();
+      for (int i = 0; i < 8; i++) {
+        futures.add(pool.submit(() -> providerConnectionService.accessToken(saved)));
+      }
+      assertThat(entered.await(15, TimeUnit.SECONDS)).isTrue();
+      release.countDown();
+      for (Future<String> future : futures) {
+        assertThat(future.get(15, TimeUnit.SECONDS)).isEqualTo("shared-access");
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+    assertThat(calls.get()).isEqualTo(1);
+  }
+
+  @Test
+  void disconnectDuringRefreshCachesNothing() throws Exception {
+    ProviderConnectionEntity saved = seedConnection();
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    AtomicInteger calls = new AtomicInteger();
+    when(microsoftOAuthClient.refresh(anyString())).thenAnswer(invocation -> {
+      calls.incrementAndGet();
+      entered.countDown();
+      assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+      return new TokenResult("stale-access", "rotated", 3600, "scope");
+    });
+
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    Future<String> inFlight = pool.submit(() -> providerConnectionService.accessToken(saved));
+    try {
+      assertThat(entered.await(15, TimeUnit.SECONDS)).isTrue();
+      connectionRepository.deleteById(saved.getId());
+      providerConnectionService.invalidate(saved.getId());
+      release.countDown();
+      assertThatThrownBy(() -> inFlight.get(15, TimeUnit.SECONDS))
+          .hasCauseInstanceOf(ReconnectionRequiredException.class);
+    } finally {
+      pool.shutdownNow();
+    }
+
+    assertThat(connectionRepository.findById(saved.getId())).isEmpty();
+    assertThatThrownBy(() -> providerConnectionService.accessToken(saved))
+        .isInstanceOf(ReconnectionRequiredException.class);
+    assertThat(calls.get()).isEqualTo(2);
+  }
+
+  @Test
+  void reconnectDuringRefreshDiscardsStaleResult() throws Exception {
+    ProviderConnectionEntity saved = seedConnection();
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    AtomicInteger calls = new AtomicInteger();
+    when(microsoftOAuthClient.refresh(anyString())).thenAnswer(invocation -> {
+      calls.incrementAndGet();
+      entered.countDown();
+      assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+      String used = invocation.getArgument(0);
+      if ("brand-new-refresh".equals(used)) {
+        return new TokenResult("fresh-access", null, 3600, "scope");
+      }
+      return new TokenResult("stale-access", "stale-rotated", 3600, "scope");
+    });
+
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    Future<String> inFlight = pool.submit(() -> providerConnectionService.accessToken(saved));
+    try {
+      assertThat(entered.await(15, TimeUnit.SECONDS)).isTrue();
+      ProviderConnectionEntity current = connectionRepository.findById(saved.getId()).orElseThrow();
+      current.setEncryptedRefreshToken(tokenCipher.encrypt("brand-new-refresh"));
+      current.setConnectedAt(OffsetDateTime.now().plusMinutes(1));
+      connectionRepository.save(current);
+      providerConnectionService.invalidate(saved.getId());
+      release.countDown();
+      assertThat(inFlight.get(15, TimeUnit.SECONDS)).isEqualTo("fresh-access");
+    } finally {
+      pool.shutdownNow();
+    }
+
+    assertThat(tokenCipher.decrypt(
+        connectionRepository.findById(saved.getId()).orElseThrow().getEncryptedRefreshToken()))
+        .isEqualTo("brand-new-refresh");
+    assertThat(calls.get()).isEqualTo(2);
+  }
+
+  @Test
+  void cacheEvictionDuringRefreshKeepsTheRefreshedToken() throws Exception {
+    ProviderConnectionEntity saved = seedConnection();
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    AtomicInteger calls = new AtomicInteger();
+    when(microsoftOAuthClient.refresh(anyString())).thenAnswer(invocation -> {
+      calls.incrementAndGet();
+      entered.countDown();
+      assertThat(release.await(15, TimeUnit.SECONDS)).isTrue();
+      return new TokenResult("refreshed-access", null, 3600, "scope");
+    });
+
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    Future<String> inFlight = pool.submit(() -> providerConnectionService.accessToken(saved));
+    try {
+      assertThat(entered.await(15, TimeUnit.SECONDS)).isTrue();
+      providerConnectionService.evict(saved.getId());
+      release.countDown();
+      assertThat(inFlight.get(15, TimeUnit.SECONDS)).isEqualTo("refreshed-access");
+    } finally {
+      pool.shutdownNow();
+    }
+
+    assertThat(connectionRepository.findById(saved.getId()).orElseThrow().getLastError()).isNull();
+    assertThat(calls.get()).isEqualTo(1);
+  }
+
+  private ProviderConnectionEntity seedConnection() {
+    ProviderConnectionEntity connection = new ProviderConnectionEntity();
+    connection.setUserId(userId);
+    connection.setProvider(CloudProvider.ONEDRIVE.id());
+    connection.setAccountId("account-1");
+    connection.setEncryptedRefreshToken(tokenCipher.encrypt("refresh-token"));
+    connection.setConnectedAt(java.time.OffsetDateTime.now());
+    return connectionRepository.save(connection);
   }
 
 }

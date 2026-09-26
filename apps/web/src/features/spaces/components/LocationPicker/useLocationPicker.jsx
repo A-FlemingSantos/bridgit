@@ -259,36 +259,55 @@ function useApiLocationPicker({
   resetKey,
 } = {}) {
   const { providers } = useProviders()
-  const [folderRef, setFolderRef] = useState(null)
+  const [destination, setDestination] = useState(null)
+  const [continuationError, setContinuationError] = useState(null)
   const providerId = initialProviderId
   const provider = providers.find((item) => item.id === providerId) ?? null
+  const folderRef = destination?.ref ?? null
   const folderQuery = useFolder(providerId, folderRef)
 
   useEffect(() => {
-    setFolderRef(null)
+    setDestination(null)
+    setContinuationError(null)
   }, [resetKey, initialProviderId])
 
   const blockedRefs = [disabledFolderRef, ...disabledFolderRefs].filter(Boolean)
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
+  const hasMore = folderQuery.hasMore ?? Boolean(folderQuery.nextCursor)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const isFetchingNextPage = folderQuery.isFetchingNextPage ?? loadingMore
   const parents = folderRef ? (folderQuery.folder?.ancestry ?? []) : []
-  const currentFolder =
-    folderRef && folderQuery.folder
-      ? { ref: folderQuery.folder.ref, name: folderQuery.folder.name }
-      : null
-  const currentBlocked = Boolean(folderRef && blockedRefs.includes(folderRef))
-  const canChoose = currentFolder ? !currentBlocked : allowRoot
+  const exhausted = !hasMore && !isFetchingNextPage
 
-  const chosenLocation = provider
-    ? currentFolder
-      ? {
-          kind: 'folder',
-          ref: currentFolder.ref,
-          name: currentFolder.name,
-          providerId: provider.id,
-          provider: provider.name,
-        }
-      : makeRootLocation(provider)
-    : null
+  async function handleLoadMore() {
+    if (loadingMore || folderQuery.isFetchingNextPage || !hasMore) return
+    setContinuationError(null)
+    setLoadingMore(true)
+    try {
+      await folderQuery.loadMore?.()
+    } catch (error) {
+      setContinuationError(error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  useEffect(() => {
+    if (folderQuery.status !== 'ready') return
+    if (folders.length > 0 || continuationError) return
+    if (!hasMore || isFetchingNextPage) return
+    void handleLoadMore()
+  })
+
+  function goTo(ref, name) {
+    setDestination({ ref, name })
+    setContinuationError(null)
+  }
+
+  function goRoot() {
+    setDestination(null)
+    setContinuationError(null)
+  }
 
   if (!provider) {
     return {
@@ -298,15 +317,38 @@ function useApiLocationPicker({
       title: 'Provedor',
       trailing: null,
       refreshKey: 'providers',
+      validated: false,
+      chosenLocation: null,
       body: <p className={styles.empty}>Provedor indisponível.</p>,
     }
   }
+
+  const atRoot = destination === null
+  const subfolderValidated =
+    !atRoot && folderQuery.status === 'ready' && folderQuery.folder?.ref === folderRef
+  const validated = atRoot ? true : subfolderValidated
+  const currentBlocked = Boolean(!atRoot && blockedRefs.includes(folderRef))
+  const canChoose = validated && (atRoot ? allowRoot : !currentBlocked)
+
+  const chosenLocation = !validated
+    ? null
+    : atRoot
+      ? makeRootLocation(provider)
+      : {
+          kind: 'folder',
+          ref: folderRef,
+          name: destination?.name ?? folderQuery.folder?.name ?? '',
+          providerId: provider.id,
+          provider: provider.name,
+        }
+
+  const chooseDisabled = !canChoose || (!atRoot && folderQuery.status !== 'ready')
 
   let bodyContent = null
 
   if (folderQuery.status === 'loading' || folderQuery.status === 'idle') {
     bodyContent = <p className={styles.empty}>Carregando…</p>
-  } else if (folderQuery.status === 'error') {
+  } else if (folderQuery.status === 'error' && folders.length === 0) {
     bodyContent = (
       <>
         <p className={styles.hint} role="alert">
@@ -318,13 +360,13 @@ function useApiLocationPicker({
       </>
     )
   } else {
-    const empty = folders.length === 0
+    const showEmpty = folders.length === 0 && exhausted
     bodyContent = (
       <>
         {folderRef ? (
           <nav className={styles.crumbs} aria-label="Localização atual">
             <span className={styles.crumbSegment}>
-              <button type="button" className={styles.crumb} onClick={() => setFolderRef(null)}>
+              <button type="button" className={styles.crumb} onClick={goRoot}>
                 {provider.name}
               </button>
               {parents.length > 0 ? (
@@ -335,7 +377,11 @@ function useApiLocationPicker({
             </span>
             {parents.map((item, index) => (
               <span key={item.ref} className={styles.crumbSegment}>
-                <button type="button" className={styles.crumb} onClick={() => setFolderRef(item.ref)}>
+                <button
+                  type="button"
+                  className={styles.crumb}
+                  onClick={() => goTo(item.ref, item.name)}
+                >
                   {item.name}
                 </button>
                 {index < parents.length - 1 ? (
@@ -348,7 +394,18 @@ function useApiLocationPicker({
           </nav>
         ) : null}
 
-        {empty ? (
+        {folderQuery.status === 'error' ? (
+          <p className={styles.hint} role="alert">
+            Não foi possível carregar tudo. Mostrando o que já carregou.
+          </p>
+        ) : null}
+        {continuationError ? (
+          <p className={styles.hint} role="alert">
+            Não foi possível carregar mais pastas.
+          </p>
+        ) : null}
+
+        {showEmpty ? (
           <p className={styles.empty}>Esta pasta está vazia.</p>
         ) : (
           <div className={styles.grid}>
@@ -363,7 +420,7 @@ function useApiLocationPicker({
                   title={blocked ? blockedHint : undefined}
                   onClick={() => {
                     if (blocked) return
-                    setFolderRef(item.ref)
+                    goTo(item.ref, item.name)
                   }}
                 >
                   <span className={styles.face} aria-hidden="true">
@@ -381,6 +438,22 @@ function useApiLocationPicker({
             })}
           </div>
         )}
+
+        {hasMore ? (
+          <button
+            type="button"
+            className={styles.more}
+            disabled={isFetchingNextPage}
+            onClick={() => void handleLoadMore()}
+          >
+            {isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
+          </button>
+        ) : null}
+        {(folderQuery.status === 'error' && folders.length > 0) || continuationError ? (
+          <button type="button" className={styles.more} onClick={() => void handleLoadMore()}>
+            Tentar novamente
+          </button>
+        ) : null}
       </>
     )
   }
@@ -389,16 +462,18 @@ function useApiLocationPicker({
     picking: true,
     stage: 'browse',
     atRoot: !folderRef,
-    title: currentFolder?.name ?? provider.name,
+    title: atRoot ? provider.name : (destination?.name ?? folderQuery.folder?.name ?? provider.name),
     refreshKey: `${provider.id}-${folderRef ?? 'root'}`,
+    validated,
+    chosenLocation,
     trailing: (
       <button
         type="button"
         className={styles.choose}
-        disabled={!canChoose || folderQuery.status === 'loading'}
+        disabled={chooseDisabled}
         title={currentBlocked ? blockedHint : undefined}
         onClick={() => {
-          if (!canChoose) return
+          if (chooseDisabled) return
           onChoose?.(chosenLocation)
         }}
       >

@@ -1,4 +1,4 @@
-import { ApiClientError } from '@bridgit/shared-client'
+import { isApiClientError, isHubSessionFailure } from './hubCache.js'
 import {
   addShortcut as addShortcutRequest,
   connectProvider as connectProviderRequest,
@@ -22,6 +22,8 @@ import {
   uploadFile as uploadFileRequest,
 } from '@bridgit/shared-client'
 
+export { isApiClientError, isHubSessionFailure }
+
 export function createHubApi(getToken, onUnauthorized) {
   async function call(request) {
     const token = getToken()
@@ -32,7 +34,7 @@ export function createHubApi(getToken, onUnauthorized) {
     try {
       return await request(token)
     } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
+      if (isHubSessionFailure(error)) {
         onUnauthorized(error)
       }
       throw error

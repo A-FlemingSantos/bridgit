@@ -85,6 +85,7 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
 
     fakeOneDriveClient.putItem(FakeOneDriveClient.file("file-1", "Document.pdf", "application/pdf", "pdf", 1024));
     fakeOneDriveClient.putItem(FakeOneDriveClient.folder("folder-1", "Projects"));
+    fakeOneDriveClient.setGetFailure(null);
   }
 
   @Test

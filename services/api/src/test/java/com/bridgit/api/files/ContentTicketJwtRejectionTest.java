@@ -22,7 +22,7 @@ class ContentTicketJwtRejectionTest {
     ContentTicketService contentTickets = new ContentTicketService(SECRET, clock);
     JwtService authJwt = new JwtService(SECRET, "bridgit-api", 180, clock);
 
-    String ticket = contentTickets.createTicket(
+    ContentTicketService.IssuedTicket issued = contentTickets.createTicket(
         UUID.randomUUID(),
         UUID.randomUUID(),
         "ref",
@@ -30,6 +30,6 @@ class ContentTicketJwtRejectionTest {
         "inline"
     );
 
-    assertThrows(JwtException.class, () -> authJwt.extractUserId(ticket));
+    assertThrows(JwtException.class, () -> authJwt.extractUserId(issued.ticket()));
   }
 }
