@@ -175,6 +175,11 @@ export function HubDataProvider({ children }) {
         upsertItemsCache(mappedItems)
       } catch (error) {
         if ((folderGenerationsRef.current[key] ?? 0) !== captured) return
+        if (error?.code === 'CURSOR_INVALIDO') {
+          inFlightNextRef.current.delete(flightKey)
+          await loadFolderRef.current(providerId, folderRef, null, { force: true })
+          return
+        }
         setFolderCache((prev) => {
           const entry = prev[key]
           if (!entry) return prev

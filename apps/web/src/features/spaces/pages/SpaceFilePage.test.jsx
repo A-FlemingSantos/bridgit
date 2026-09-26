@@ -117,4 +117,33 @@ describe('SpaceFilePage download e leitura', () => {
       expect(getReadSource).toHaveBeenCalledTimes(2)
     })
   })
+
+  it('renova sozinho uma vez a fonte vencida e depois mostra o erro', async () => {
+    const expired = new Date(Date.now() - 1000).toISOString()
+    const getReadSource = vi
+      .fn()
+      .mockResolvedValueOnce({ mode: 'image', url: '/velha.png', expiresAt: expired })
+      .mockResolvedValue({ mode: 'image', url: '/nova.png', expiresAt: expired })
+    setup({
+      recordRecent: vi.fn().mockResolvedValue(undefined),
+      getReadSource,
+      getDownloadUrl: vi.fn().mockResolvedValue('https://tickets.test/x'),
+    })
+    renderPage()
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src="/velha.png"]')).toBeTruthy()
+    })
+    fireEvent.error(document.querySelector('img[src="/velha.png"]'))
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src="/nova.png"]')).toBeTruthy()
+    })
+    expect(getReadSource).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    fireEvent.error(document.querySelector('img[src="/nova.png"]'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar a imagem.')
+    expect(getReadSource).toHaveBeenCalledTimes(2)
+  })
 })

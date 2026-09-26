@@ -726,6 +726,31 @@ describe('hub findings', () => {
     expect(result.current.item.item).toBeNull()
   })
 
+  it('cursor recusado pelo servidor recarrega a pasta desde a primeira pagina', async () => {
+    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+      if (cursor) throw new ApiClientError('Cursor', { code: 'CURSOR_INVALIDO', status: 400 })
+      return {
+        folder: { ref: null, name: 'OneDrive', ancestry: [] },
+        items: [{ ...sampleItem, ref: 'page-1' }],
+        nextCursor: 'sealed-old',
+      }
+    })
+
+    const { result } = renderHook(() => useFolder('onedrive', null), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    await act(async () => {
+      await result.current.loadMore()
+    })
+
+    await waitFor(() => {
+      expect(hubApiMock.listFolder).toHaveBeenCalledTimes(3)
+    })
+    expect(hubApiMock.listFolder.mock.calls[2][2] ?? null).toBeNull()
+    expect(result.current.error).toBeNull()
+    expect(result.current.items.map((item) => item.ref)).toEqual(['page-1'])
+  })
+
   it('F09 resposta tardia apos invalidacao nao repopula a pasta', async () => {
     const first = deferred()
     const second = deferred()

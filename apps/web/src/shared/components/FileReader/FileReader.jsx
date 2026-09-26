@@ -23,6 +23,7 @@ export default function FileReader({
   downloadUrl = null,
   onDownload,
   onRetry,
+  onContentError,
 }) {
   const [contentReady, setContentReady] = useState(false)
   const [localError, setLocalError] = useState(null)
@@ -62,9 +63,10 @@ export default function FileReader({
   }, [])
 
   const handleContentError = useCallback((message) => {
+    if (onContentError?.(message) === true) return
     setLocalError(message)
     setContentReady(false)
-  }, [])
+  }, [onContentError])
 
   const handleRetry = useCallback(() => {
     setLocalError(null)

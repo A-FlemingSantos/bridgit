@@ -27,6 +27,7 @@ export default function SpaceFilePage() {
   const { isShortcut } = useShortcuts()
   const itemQuery = useItem(providerId, fileRef)
   const recordedRef = useRef(null)
+  const renewedExpiredSourceRef = useRef(false)
   const [source, setSource] = useState(null)
   const [readError, setReadError] = useState(null)
   const [sourceKey, setSourceKey] = useState(0)
@@ -61,6 +62,7 @@ export default function SpaceFilePage() {
     if (!readableRef) return undefined
 
     let active = true
+    renewedExpiredSourceRef.current = false
     setSource(null)
     setReadError(null)
 
@@ -90,6 +92,14 @@ export default function SpaceFilePage() {
     } catch (error) {
       setReadError(hubErrorMessage(error))
     }
+  }
+
+  function handleContentError() {
+    const expiresAt = source?.expiresAt ? Date.parse(source.expiresAt) : NaN
+    if (renewedExpiredSourceRef.current || !(expiresAt <= Date.now())) return false
+    renewedExpiredSourceRef.current = true
+    void refreshSource()
+    return true
   }
 
   async function handleDownload() {
@@ -216,6 +226,7 @@ export default function SpaceFilePage() {
                 downloadUrl={null}
                 onDownload={() => void handleDownload()}
                 onRetry={() => void refreshSource()}
+                onContentError={handleContentError}
               />
             </>
           ) : null}
