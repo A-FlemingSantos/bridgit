@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.bridgit.api.providers.CursorCodec;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,7 +22,7 @@ class DropboxProviderClientTest {
   void setUp() {
     RestClient.Builder builder = RestClient.builder();
     server = MockRestServiceServer.bindTo(builder).build();
-    client = new DropboxProviderClient(builder, new ObjectMapper());
+    client = new DropboxProviderClient(builder.build(), builder.build(), new ObjectMapper());
   }
 
   @Test
@@ -57,7 +56,7 @@ class DropboxProviderClientTest {
     assertEquals(2, page.items().size());
     assertEquals(ItemKind.FOLDER, page.items().get(0).kind());
     assertEquals("id:folder1", page.items().get(0).ref());
-    assertEquals(CursorCodec.encode("cursor-1"), page.nextCursor());
+    assertEquals("cursor-1", page.nextCursor());
     server.verify();
   }
 
@@ -68,7 +67,7 @@ class DropboxProviderClientTest {
             {"entries": [], "has_more": false}
             """, MediaType.APPLICATION_JSON));
 
-    client.list("token", null, CursorCodec.encode("cursor-1"));
+    client.list("token", null, "cursor-1");
     server.verify();
   }
 }

@@ -4,9 +4,9 @@ import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudItemSupport;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
+import com.bridgit.api.providers.ContentRange;
 import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ContentVariant;
-import com.bridgit.api.providers.CursorCodec;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
 import com.bridgit.api.providers.ProviderApiException;
@@ -15,6 +15,7 @@ import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -23,7 +24,9 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +53,7 @@ public class GraphProviderClient implements CloudProviderClient {
   @Autowired
   public GraphProviderClient(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
     this(
-        restClientBuilder.build(),
+        restClientBuilder.requestFactory(NoRedirectClientHttpRequestFactory.create()).build(),
         RestClient.builder()
             .requestFactory(NoRedirectClientHttpRequestFactory.create())
             .build(),
@@ -73,7 +76,7 @@ public class GraphProviderClient implements CloudProviderClient {
   public ItemPage list(String accessToken, String parentRef, String cursor) {
     String url;
     if (StringUtils.hasText(cursor)) {
-      url = CursorCodec.decode(cursor);
+      url = requireGraphUrl(cursor);
     } else if (!StringUtils.hasText(parentRef)) {
       url = DRIVE_BASE + "/root/children?$select=" + SELECT + "&$top=" + PAGE_SIZE;
     } else {
@@ -81,15 +84,39 @@ public class GraphProviderClient implements CloudProviderClient {
     }
 
     JsonNode json = authorizedGet(accessToken, url);
-    List<CloudItem> items = mapChildren(json.path("value"));
+    List<CloudItem> items = mapChildren(json.path("value"), parentRef);
     String nextLink = json.path("@odata.nextLink").asText(null);
-    return new ItemPage(CloudItemSupport.sortItems(items), CursorCodec.encode(nextLink));
+    return new ItemPage(CloudItemSupport.sortItems(items), nextLink);
+  }
+
+  static String requireGraphUrl(String url) {
+    try {
+      URI uri = URI.create(url);
+      boolean ok = "https".equalsIgnoreCase(uri.getScheme())
+          && "graph.microsoft.com".equalsIgnoreCase(uri.getHost())
+          && uri.getUserInfo() == null
+          && (uri.getPort() == -1 || uri.getPort() == 443)
+          && uri.getPath() != null
+          && uri.getPath().startsWith("/v1.0/me/drive/");
+      if (!ok) {
+        throw cursorInvalid();
+      }
+      return url;
+    } catch (ProviderApiException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw cursorInvalid();
+    }
+  }
+
+  private static ProviderApiException cursorInvalid() {
+    return new ProviderApiException(HttpStatus.BAD_REQUEST, "CURSOR_INVALIDO", "Cursor de paginacao invalido.");
   }
 
   @Override
   public CloudItem get(String accessToken, String ref) {
     JsonNode json = authorizedGet(accessToken, DRIVE_BASE + "/items/" + ref + "?$select=" + SELECT);
-    return mapItem(json);
+    return mapItem(json, fetchRootId(accessToken));
   }
 
   @Override
@@ -107,6 +134,7 @@ public class GraphProviderClient implements CloudProviderClient {
           accessToken,
           DRIVE_BASE + "/items/" + parentId + "?$select=id,name,parentReference"
       );
+      String grandParentId = parent.path("parentReference").path("id").asText(null);
       path.add(new CloudItem(
           parent.path("id").asText(),
           CloudProvider.ONEDRIVE.id(),
@@ -116,9 +144,9 @@ public class GraphProviderClient implements CloudProviderClient {
           null,
           null,
           null,
-          parent.path("parentReference").path("id").asText(null)
+          rootId.equals(grandParentId) ? null : grandParentId
       ));
-      parentId = parent.path("parentReference").path("id").asText(null);
+      parentId = grandParentId;
       if (rootId.equals(parent.path("id").asText())) {
         break;
       }
@@ -141,7 +169,7 @@ public class GraphProviderClient implements CloudProviderClient {
         body,
         MediaType.APPLICATION_JSON
     );
-    return mapItem(json);
+    return mapCreated(json, parentRef);
   }
 
   @Override
@@ -151,10 +179,10 @@ public class GraphProviderClient implements CloudProviderClient {
       String name,
       String contentType,
       long size,
-      InputStream content
+      InputStreamSource content
   ) {
     if (size <= SIMPLE_UPLOAD_MAX) {
-      return simpleUpload(accessToken, parentRef, name, contentType, content);
+      return simpleUpload(accessToken, parentRef, name, contentType, size, content);
     }
     return sessionUpload(accessToken, parentRef, name, contentType, size, content);
   }
@@ -182,7 +210,10 @@ public class GraphProviderClient implements CloudProviderClient {
         body.toString(),
         MediaType.APPLICATION_JSON
     );
-    return mapItem(json);
+    if (newParentRef != null) {
+      return mapCreated(json, newParentRef.isBlank() ? null : newParentRef);
+    }
+    return mapItem(json, fetchRootId(accessToken));
   }
 
   @Override
@@ -201,7 +232,44 @@ public class GraphProviderClient implements CloudProviderClient {
     if (variant == ContentVariant.READ) {
       url += "?format=pdf";
     }
-    return followRedirectStream(accessToken, url, item.name(), contentTypeFor(item, variant));
+    return followRedirectStream(accessToken, url, item.name(), contentTypeFor(item, variant), null);
+  }
+
+  @Override
+  public ContentStream open(String accessToken, CloudItem item, ContentVariant variant, ContentRange range) {
+    if (variant != ContentVariant.ORIGINAL || range == null) {
+      return open(accessToken, item, variant);
+    }
+    ContentStream unsatisfiable = unsatisfiableRange(item, range);
+    if (unsatisfiable != null) {
+      return unsatisfiable;
+    }
+    String url = DRIVE_BASE + "/items/" + item.ref() + "/content";
+    return followRedirectStream(
+        accessToken, url, item.name(), contentTypeFor(item, variant), range.headerValue());
+  }
+
+  static ContentStream unsatisfiableRange(CloudItem item, ContentRange range) {
+    Long size = item.size();
+    if (size == null || size < 0) {
+      return null;
+    }
+    if (range.start() >= size) {
+      return new ContentStream(
+          new ByteArrayInputStream(new byte[0]),
+          contentTypeOf(item),
+          0L,
+          item.name(),
+          416,
+          "bytes */" + size,
+          size
+      );
+    }
+    return null;
+  }
+
+  private static String contentTypeOf(CloudItem item) {
+    return StringUtils.hasText(item.mimeType()) ? item.mimeType() : "application/octet-stream";
   }
 
   @Override
@@ -210,7 +278,12 @@ public class GraphProviderClient implements CloudProviderClient {
     String url = DRIVE_BASE + "/root/search(q='" + UriUtils.encodePathSegment(escaped, StandardCharsets.UTF_8) + "')"
         + "?$select=" + SELECT + "&$top=" + Math.min(limit, PAGE_SIZE);
     JsonNode json = authorizedGet(accessToken, url);
-    return mapChildren(json.path("value")).stream().limit(limit).toList();
+    List<CloudItem> results = new ArrayList<>();
+    JsonNode value = json.path("value");
+    if (value.isArray()) {
+      value.forEach(node -> results.add(mapUnknownParent(node)));
+    }
+    return results.stream().limit(limit).toList();
   }
 
   private CloudItem simpleUpload(
@@ -218,7 +291,8 @@ public class GraphProviderClient implements CloudProviderClient {
       String parentRef,
       String name,
       String contentType,
-      InputStream content
+      long size,
+      InputStreamSource content
   ) {
     String parent = StringUtils.hasText(parentRef) ? parentRef : "root";
     String encodedName = UriUtils.encodePathSegment(name, StandardCharsets.UTF_8);
@@ -231,7 +305,12 @@ public class GraphProviderClient implements CloudProviderClient {
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
         .contentType(mediaType)
-        .body(content)
+        .contentLength(size)
+        .body((org.springframework.http.StreamingHttpOutputMessage.Body) out -> {
+          try (InputStream in = content.getInputStream()) {
+            in.transferTo(out);
+          }
+        })
         .exchange((request, response) -> {
           ensureSuccess(response);
           try {
@@ -240,7 +319,7 @@ public class GraphProviderClient implements CloudProviderClient {
             throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
           }
         });
-    return mapItem(json);
+    return mapCreated(json, parentRef);
   }
 
   private CloudItem sessionUpload(
@@ -249,7 +328,7 @@ public class GraphProviderClient implements CloudProviderClient {
       String name,
       String contentType,
       long size,
-      InputStream content
+      InputStreamSource content
   ) {
     String parent = StringUtils.hasText(parentRef) ? parentRef : "root";
     String body = """
@@ -271,10 +350,10 @@ public class GraphProviderClient implements CloudProviderClient {
     long uploaded = 0;
     JsonNode lastResponse = null;
 
-    try {
+    try (InputStream stream = content.getInputStream()) {
       while (uploaded < size) {
         int toRead = (int) Math.min(CHUNK_SIZE, size - uploaded);
-        int read = content.read(buffer, 0, toRead);
+        int read = stream.read(buffer, 0, toRead);
         if (read <= 0) {
           break;
         }
@@ -313,18 +392,24 @@ public class GraphProviderClient implements CloudProviderClient {
     if (lastResponse == null) {
       throw new ProviderApiException("Nao foi possivel concluir o envio do arquivo.");
     }
-    return mapItem(lastResponse);
+    return mapCreated(lastResponse, parentRef);
   }
 
   private ContentStream followRedirectStream(
       String accessToken,
       String url,
       String fileName,
-      String contentType
+      String contentType,
+      String rangeHeader
   ) {
     RedirectResult redirect = noRedirectClient.get()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .headers(headers -> {
+          if (rangeHeader != null) {
+            headers.set(HttpHeaders.RANGE, rangeHeader);
+          }
+        })
         .exchange((request, response) -> {
           int statusCode = response.getStatusCode().value();
           if (statusCode >= 300 && statusCode < 400) {
@@ -332,7 +417,7 @@ public class GraphProviderClient implements CloudProviderClient {
             response.close();
             return new RedirectResult(location, null);
           }
-          if (statusCode >= 200 && statusCode < 300) {
+          if (statusCode >= 200 && statusCode < 300 || statusCode == 416) {
             return new RedirectResult(null, response);
           }
           ensureSuccess(response);
@@ -342,8 +427,13 @@ public class GraphProviderClient implements CloudProviderClient {
     if (redirect.location() != null) {
       ClientHttpResponse finalResponse = restClient.get()
           .uri(redirect.location())
+          .headers(headers -> {
+            if (rangeHeader != null) {
+              headers.set(HttpHeaders.RANGE, rangeHeader);
+            }
+          })
           .exchange((request, response) -> {
-            ensureSuccess(response);
+            ensureSuccessOrRange(response);
             return response;
           }, false);
       return toContentStream(finalResponse, fileName, contentType);
@@ -416,16 +506,19 @@ public class GraphProviderClient implements CloudProviderClient {
     return json.path("id").asText();
   }
 
-  private List<CloudItem> mapChildren(JsonNode value) {
+  private List<CloudItem> mapChildren(JsonNode value, String listedParentRef) {
     List<CloudItem> items = new ArrayList<>();
     if (!value.isArray()) {
       return items;
     }
-    value.forEach(node -> items.add(mapItem(node)));
+    String parentRef = StringUtils.hasText(listedParentRef) ? listedParentRef : null;
+    for (JsonNode node : value) {
+      items.add(mapListed(node, parentRef));
+    }
     return items;
   }
 
-  private CloudItem mapItem(JsonNode node) {
+  private CloudItem mapListed(JsonNode node, String parentRef) {
     boolean folder = node.has("folder");
     String mime = folder ? null : node.path("file").path("mimeType").asText(null);
     String name = node.path("name").asText(null);
@@ -433,8 +526,6 @@ public class GraphProviderClient implements CloudProviderClient {
     if (!folder && size == 0 && node.path("size").isMissingNode()) {
       size = null;
     }
-    OffsetDateTime modified = parseDateTime(node.path("lastModifiedDateTime").asText(null));
-    String parentRef = node.path("parentReference").path("id").asText(null);
 
     return new CloudItem(
         node.path("id").asText(),
@@ -444,8 +535,73 @@ public class GraphProviderClient implements CloudProviderClient {
         mime,
         CloudItemSupport.extensionFromName(name),
         size,
-        modified,
-        parentRef
+        parseDateTime(node.path("lastModifiedDateTime").asText(null)),
+        parentRef,
+        true
+    );
+  }
+
+  private CloudItem mapItem(JsonNode node, String rootId) {
+    boolean folder = node.has("folder");
+    String mime = folder ? null : node.path("file").path("mimeType").asText(null);
+    String name = node.path("name").asText(null);
+    Long size = folder ? null : node.path("size").asLong(0);
+    if (!folder && size == 0 && node.path("size").isMissingNode()) {
+      size = null;
+    }
+    String parentId = node.path("parentReference").path("id").asText(null);
+
+    return new CloudItem(
+        node.path("id").asText(),
+        CloudProvider.ONEDRIVE.id(),
+        name,
+        folder ? ItemKind.FOLDER : ItemKind.FILE,
+        mime,
+        CloudItemSupport.extensionFromName(name),
+        size,
+        parseDateTime(node.path("lastModifiedDateTime").asText(null)),
+        !StringUtils.hasText(parentId) || (rootId != null && rootId.equals(parentId)) ? null : parentId,
+        true
+    );
+  }
+
+  private CloudItem mapCreated(JsonNode node, String parentRef) {
+    CloudItem mapped = mapItem(node, null);
+    String parent = StringUtils.hasText(parentRef) ? parentRef : null;
+    return new CloudItem(
+        mapped.ref(),
+        mapped.provider(),
+        mapped.name(),
+        mapped.kind(),
+        mapped.mimeType(),
+        mapped.extension(),
+        mapped.size(),
+        mapped.modifiedAt(),
+        parent,
+        true
+    );
+  }
+
+  private static CloudItem mapUnknownParent(JsonNode node) {
+    boolean folder = node.has("folder");
+    String mime = folder ? null : node.path("file").path("mimeType").asText(null);
+    String name = node.path("name").asText(null);
+    Long size = folder ? null : node.path("size").asLong(0);
+    if (!folder && size == 0 && node.path("size").isMissingNode()) {
+      size = null;
+    }
+
+    return new CloudItem(
+        node.path("id").asText(),
+        CloudProvider.ONEDRIVE.id(),
+        name,
+        folder ? ItemKind.FOLDER : ItemKind.FILE,
+        mime,
+        CloudItemSupport.extensionFromName(name),
+        size,
+        parseDateTime(node.path("lastModifiedDateTime").asText(null)),
+        null,
+        false
     );
   }
 
@@ -463,14 +619,57 @@ public class GraphProviderClient implements CloudProviderClient {
     return StringUtils.hasText(item.mimeType()) ? item.mimeType() : "application/octet-stream";
   }
 
-  private static ContentStream toContentStream(ClientHttpResponse response, String fileName, String contentType) {
+  static ContentStream toContentStream(ClientHttpResponse response, String fileName, String contentType) {
     try {
-      Long length = response.getHeaders().getContentLength();
+      int status = response.getStatusCode().value();
+      HttpHeaders headers = response.getHeaders();
+      if (status == 416) {
+        String contentRange = headers.getFirst(HttpHeaders.CONTENT_RANGE);
+        long total = parseTotal(contentRange);
+        response.close();
+        return new ContentStream(
+            new ByteArrayInputStream(new byte[0]),
+            contentType,
+            0L,
+            fileName,
+            416,
+            contentRange != null ? contentRange : "bytes */" + total,
+            total
+        );
+      }
+      Long length = headers.getContentLength();
       InputStream body = response.getBody();
+      if (status == 206) {
+        String contentRange = headers.getFirst(HttpHeaders.CONTENT_RANGE);
+        return new ContentStream(
+            body,
+            contentType,
+            length >= 0 ? length : null,
+            fileName,
+            206,
+            contentRange,
+            parseTotal(contentRange)
+        );
+      }
       return new ContentStream(body, contentType, length >= 0 ? length : null, fileName);
+    } catch (ProviderApiException ex) {
+      throw ex;
     } catch (Exception ex) {
       throw new ProviderApiException("Nao foi possivel abrir o conteudo.");
     }
+  }
+
+  private static long parseTotal(String contentRange) {
+    if (contentRange != null) {
+      int slash = contentRange.lastIndexOf('/');
+      if (slash >= 0) {
+        try {
+          return Long.parseLong(contentRange.substring(slash + 1).trim());
+        } catch (NumberFormatException ignored) {
+        }
+      }
+    }
+    return -1L;
   }
 
   private static void ensureSuccess(ClientHttpResponse response) {
@@ -479,14 +678,26 @@ public class GraphProviderClient implements CloudProviderClient {
       if (!status.isError()) {
         return;
       }
+      HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
       response.close();
-      ProviderHttpSupport.throwOnError(status, body);
+      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.ONEDRIVE);
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
       throw new ProviderApiException("Nao foi possivel concluir a operacao.");
     }
+  }
+
+  private static void ensureSuccessOrRange(ClientHttpResponse response) {
+    try {
+      if (response.getStatusCode().value() == 416) {
+        return;
+      }
+    } catch (Exception ex) {
+      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+    }
+    ensureSuccess(response);
   }
 
   private static String readBody(ClientHttpResponse response) {

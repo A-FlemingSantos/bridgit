@@ -27,9 +27,12 @@ export default function SpaceFilePage() {
   const { isShortcut } = useShortcuts()
   const itemQuery = useItem(providerId, fileRef)
   const recordedRef = useRef(null)
+  const renewedExpiredSourceRef = useRef(false)
   const [source, setSource] = useState(null)
   const [readError, setReadError] = useState(null)
-  const [downloadUrl, setDownloadUrl] = useState(null)
+  const [sourceKey, setSourceKey] = useState(0)
+  const [downloadPending, setDownloadPending] = useState(false)
+  const [downloadError, setDownloadError] = useState(null)
   const [actionError, setActionError] = useState(null)
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
@@ -38,6 +41,12 @@ export default function SpaceFilePage() {
   // Hub actions are recreated on every cache update; reading must only restart when the file changes.
   const actionsRef = useRef(actions)
   actionsRef.current = actions
+  // Identity of the latest read-source request; stale responses must not touch a newer file.
+  const sourceRequestRef = useRef(0)
+  const readableRefRef = useRef(readableRef)
+  readableRefRef.current = readableRef
+  const providerRef = useRef(providerId)
+  providerRef.current = providerId
 
   useEffect(() => {
     if (item?.name) {
@@ -57,33 +66,79 @@ export default function SpaceFilePage() {
 
   useEffect(() => {
     if (!readableRef) return undefined
+    const requestId = (sourceRequestRef.current += 1)
+    const capturedRef = readableRef
+    const capturedProvider = providerId
 
     let active = true
+    renewedExpiredSourceRef.current = false
     setSource(null)
     setReadError(null)
 
     void actionsRef.current
-      .getReadSource({ providerId, ref: readableRef })
+      .getReadSource({ providerId: capturedProvider, ref: capturedRef })
       .then((nextSource) => {
-        if (!active) return
+        if (!active || sourceRequestRef.current !== requestId) return
+        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
         setSource(nextSource)
       })
       .catch((error) => {
-        if (!active) return
+        if (!active || sourceRequestRef.current !== requestId) return
+        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
         setReadError(hubErrorMessage(error))
       })
-
-    void actionsRef.current
-      .getDownloadUrl({ providerId, ref: readableRef })
-      .then((url) => {
-        if (active) setDownloadUrl(url)
-      })
-      .catch(() => {})
 
     return () => {
       active = false
     }
   }, [providerId, readableRef])
+
+  async function refreshSource() {
+    if (!readableRef) return
+    const requestId = (sourceRequestRef.current += 1)
+    const capturedRef = readableRef
+    const capturedProvider = providerId
+    setReadError(null)
+    try {
+      const nextSource = await actionsRef.current.getReadSource({ providerId: capturedProvider, ref: capturedRef })
+      if (sourceRequestRef.current !== requestId) return
+      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+      setSource(nextSource)
+      setSourceKey((key) => key + 1)
+    } catch (error) {
+      if (sourceRequestRef.current !== requestId) return
+      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+      setReadError(hubErrorMessage(error))
+    }
+  }
+
+  function handleContentError() {
+    const expiresAt = source?.expiresAt ? Date.parse(source.expiresAt) : NaN
+    if (renewedExpiredSourceRef.current || !(expiresAt <= Date.now())) return false
+    renewedExpiredSourceRef.current = true
+    void refreshSource()
+    return true
+  }
+
+  async function handleDownload() {
+    if (!item || downloadPending) return
+    setDownloadPending(true)
+    setDownloadError(null)
+    try {
+      const url = await actionsRef.current.getDownloadUrl({ providerId, ref: item.ref })
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = item.name ?? ''
+      anchor.rel = 'noopener'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } catch (error) {
+      setDownloadError(hubErrorMessage(error))
+    } finally {
+      setDownloadPending(false)
+    }
+  }
 
   if (providersStatus === 'ready' && !providerMeta) {
     return <Navigate to={ROUTES.home} replace />
@@ -127,11 +182,14 @@ export default function SpaceFilePage() {
             items={breadcrumbItems}
             trailing={
               <div className={styles.headerActions}>
-                {downloadUrl ? (
-                  <a href={downloadUrl} className={styles.download} download={item.name}>
-                    Baixar
-                  </a>
-                ) : null}
+                <button
+                  type="button"
+                  className={styles.download}
+                  disabled={downloadPending}
+                  onClick={() => void handleDownload()}
+                >
+                  {downloadPending ? 'Baixando…' : 'Baixar'}
+                </button>
                 <OverflowMenu
                   ghost
                   label={`Ações de ${item.name}`}
@@ -168,7 +226,13 @@ export default function SpaceFilePage() {
                   {actionError}
                 </p>
               ) : null}
+              {downloadError ? (
+                <p className={styles.status} role="alert">
+                  {downloadError}
+                </p>
+              ) : null}
               <FileReader
+                key={sourceKey}
                 file={{
                   name: item.name,
                   extension: item.extension,
@@ -177,8 +241,10 @@ export default function SpaceFilePage() {
                 }}
                 source={source}
                 error={readError}
-                downloadUrl={downloadUrl}
-                onDownload={downloadUrl ? undefined : () => actions.getDownloadUrl({ providerId, ref: item.ref }).then(setDownloadUrl)}
+                downloadUrl={null}
+                onDownload={() => void handleDownload()}
+                onRetry={() => void refreshSource()}
+                onContentError={handleContentError}
               />
             </>
           ) : null}

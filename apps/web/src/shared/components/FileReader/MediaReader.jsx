@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import styles from './FileReader.module.css'
 
-export default function MediaReader({ mode, url, title, onReady }) {
+export default function MediaReader({ mode, url, title, onReady, onError }) {
   const readyRef = useRef(false)
 
   useEffect(() => {
@@ -14,6 +14,10 @@ export default function MediaReader({ mode, url, title, onReady }) {
     onReady?.()
   }
 
+  function markFailed() {
+    onError?.('Não foi possível carregar este arquivo.')
+  }
+
   if (mode === 'audio') {
     return (
       <audio
@@ -23,6 +27,7 @@ export default function MediaReader({ mode, url, title, onReady }) {
         preload="metadata"
         aria-label={title}
         onLoadedData={markReady}
+        onError={markFailed}
       />
     )
   }
@@ -35,6 +40,7 @@ export default function MediaReader({ mode, url, title, onReady }) {
       preload="metadata"
       aria-label={title}
       onLoadedData={markReady}
+      onError={markFailed}
     />
   )
 }

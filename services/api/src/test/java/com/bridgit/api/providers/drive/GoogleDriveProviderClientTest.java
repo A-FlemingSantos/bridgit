@@ -5,7 +5,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.bridgit.api.providers.ContentVariant;
-import com.bridgit.api.providers.CursorCodec;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
 import com.bridgit.api.providers.ReadMode;
@@ -26,7 +25,7 @@ class GoogleDriveProviderClientTest {
   void setUp() {
     RestClient.Builder builder = RestClient.builder();
     server = MockRestServiceServer.bindTo(builder).build();
-    client = new GoogleDriveProviderClient(builder, new ObjectMapper());
+    client = new GoogleDriveProviderClient(builder.build(), new ObjectMapper());
   }
 
   @Test
@@ -57,7 +56,7 @@ class GoogleDriveProviderClientTest {
 
     assertEquals(1, page.items().size());
     assertEquals(ItemKind.FOLDER, page.items().get(0).kind());
-    assertEquals(CursorCodec.encode("token-2"), page.nextCursor());
+    assertEquals("token-2", page.nextCursor());
     server.verify();
   }
 

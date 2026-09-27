@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { FilePen, FolderPlus, PenLine, Stamp, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
+import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import {
   ROUTES,
@@ -61,6 +61,7 @@ export default function SpaceBrowsePage() {
   const folderQuery = useFolder(providerId, folderRef ?? null)
   const uploadRef = useRef(null)
   const [actionError, setActionError] = useState(null)
+  const [failedUploads, setFailedUploads] = useState([])
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
   const knownProvider = providersStatus === 'ready' ? providerMeta : providersStatus === 'loading' ? true : providerMeta
@@ -106,17 +107,32 @@ export default function SpaceBrowsePage() {
     const selected = Array.from(event.target.files ?? [])
     event.target.value = ''
     if (!selected.length) return
+    await sendUpload(selected)
+  }
 
+  async function sendUpload(files) {
     setActionError(null)
+    setFailedUploads([])
     try {
       await actions.uploadFiles({
         providerId,
         parentRef: folderRef ?? null,
-        files: selected,
+        files,
       })
     } catch (error) {
       setActionError(hubErrorMessage(error))
+      const failed = Array.isArray(error?.failed) ? error.failed.filter(Boolean) : []
+      setFailedUploads(failed)
     }
+  }
+
+  const retryableUploads = failedUploads.filter((entry) => entry?.ambiguous !== true)
+  const pendingVerificationUploads = failedUploads.filter((entry) => entry?.ambiguous === true)
+
+  async function retryRejectedUploads() {
+    const files = retryableUploads.map((entry) => entry?.file ?? entry).filter(Boolean)
+    if (files.length === 0) return
+    await sendUpload(files)
   }
 
   function menuContext(item) {
@@ -175,13 +191,13 @@ export default function SpaceBrowsePage() {
             <h2>Pastas</h2>
             <div className={styles.grid}>
               {folders.map((item, index) => (
-                <motion.div
+                <StaggerItem
                   key={item.uiKey ?? item.ref}
-                  className={styles.wrap}
+                  index={index}
+                  base={0.06}
+                  step={0.04}
                   variants={rise}
-                  initial="hidden"
-                  animate="show"
-                  custom={0.06 + index * 0.04}
+                  className={styles.wrap}
                 >
                   <PendingAware
                     pending={item.pending}
@@ -213,7 +229,7 @@ export default function SpaceBrowsePage() {
                       items={folderMenuItems(item, menuContext(item))}
                     />
                   )}
-                </motion.div>
+                </StaggerItem>
               ))}
             </div>
           </section>
@@ -224,13 +240,13 @@ export default function SpaceBrowsePage() {
             <h2>Arquivos</h2>
             <div className={styles.grid}>
               {files.map((item, index) => (
-                <motion.div
+                <StaggerItem
                   key={item.uiKey ?? item.ref}
-                  className={styles.wrap}
+                  index={index}
+                  base={0.14}
+                  step={0.03}
                   variants={rise}
-                  initial="hidden"
-                  animate="show"
-                  custom={0.14 + index * 0.03}
+                  className={styles.wrap}
                 >
                   <PendingAware
                     pending={item.pending}
@@ -262,7 +278,7 @@ export default function SpaceBrowsePage() {
                       items={fileMenuItems(item, menuContext(item))}
                     />
                   )}
-                </motion.div>
+                </StaggerItem>
               ))}
             </div>
           </section>
@@ -321,9 +337,25 @@ export default function SpaceBrowsePage() {
       <main className={styles.main}>
         <input ref={uploadRef} type="file" hidden multiple onChange={(event) => void onUpload(event)} />
         {actionError ? (
-          <p className={styles.empty} role="alert">
-            {actionError}
-          </p>
+          <>
+            <p className={styles.empty} role="alert">
+              {actionError}
+            </p>
+            {pendingVerificationUploads.length > 0 ? (
+              <p className={styles.empty} role="status">
+                O envio pode ter sido concluído; a pasta está sendo atualizada.
+              </p>
+            ) : null}
+            {retryableUploads.length > 0 ? (
+              <button
+                type="button"
+                className={styles.loadMore}
+                onClick={() => void retryRejectedUploads()}
+              >
+                Tentar novamente
+              </button>
+            ) : null}
+          </>
         ) : null}
         {renderBody()}
       </main>

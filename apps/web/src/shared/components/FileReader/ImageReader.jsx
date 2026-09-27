@@ -15,7 +15,7 @@ export default function ImageReader({ url, alt, onReady, onError }) {
       src={url}
       alt={alt}
       onLoad={handleLoad}
-      onError={() => onError?.('Nao foi possivel carregar a imagem.')}
+      onError={() => onError?.('Não foi possível carregar a imagem.')}
       data-loaded={loaded ? 'true' : 'false'}
     />
   )

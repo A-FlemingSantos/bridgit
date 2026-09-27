@@ -787,7 +787,8 @@ describe('App', () => {
     expect(await within(dialog).findByDisplayValue('https://bridgit.test/p/abc123')).toBeInTheDocument()
   })
 
-  it('renderiza FileReader na aba de leitura', async () => {
+  it('busca um ticket novo ao clicar em Baixar', async () => {
+    const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={[`/providers/onedrive/file/${FILE_ANALISE}`]}>
@@ -796,12 +797,22 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Análise de desempenho' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Baixar' })).toHaveAttribute(
-      'href',
-      'https://example.test/download.pdf',
-    )
     await waitFor(() => {
       expect(document.querySelector('[class*="reader"]')).toBeTruthy()
+    })
+
+    const ticketCalls = () =>
+      globalThis.fetch.mock.calls.filter(([input]) => String(input).endsWith('/ticket')).length
+    const callsBefore = ticketCalls()
+    const headerDownload = () => screen.getAllByRole('button', { name: 'Baixar' })[0]
+
+    await user.click(headerDownload())
+    await waitFor(() => {
+      expect(ticketCalls()).toBe(callsBefore + 1)
+    })
+    await user.click(headerDownload())
+    await waitFor(() => {
+      expect(ticketCalls()).toBe(callsBefore + 2)
     })
   })
 

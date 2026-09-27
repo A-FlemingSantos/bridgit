@@ -22,9 +22,12 @@ export default function FileReader({
   error = null,
   downloadUrl = null,
   onDownload,
+  onRetry,
+  onContentError,
 }) {
   const [contentReady, setContentReady] = useState(false)
   const [localError, setLocalError] = useState(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [abortSignal, setAbortSignal] = useState(() => new AbortController().signal)
 
   const mode = source?.mode ?? null
@@ -60,9 +63,19 @@ export default function FileReader({
   }, [])
 
   const handleContentError = useCallback((message) => {
+    if (onContentError?.(message) === true) return
     setLocalError(message)
     setContentReady(false)
-  }, [])
+  }, [onContentError])
+
+  const handleRetry = useCallback(() => {
+    setLocalError(null)
+    setContentReady(false)
+    setRetryKey((key) => key + 1)
+    onRetry?.()
+  }, [onRetry])
+
+  const readerKey = `${source?.url ?? 'sem-fonte'}-${retryKey}`
 
   function renderReadableContent() {
     if (!readable || !source?.url) return null
@@ -70,6 +83,7 @@ export default function FileReader({
     if (mode === 'image') {
       return (
         <ImageReader
+          key={readerKey}
           url={source.url}
           alt={file?.name ?? 'Imagem do arquivo'}
           onReady={handleContentReady}
@@ -81,6 +95,7 @@ export default function FileReader({
     if (mode === 'text') {
       return (
         <TextReader
+          key={readerKey}
           url={source.url}
           signal={abortSignal}
           onReady={handleContentReady}
@@ -92,10 +107,12 @@ export default function FileReader({
     if (mode === 'video' || mode === 'audio') {
       return (
         <MediaReader
+          key={readerKey}
           mode={mode}
           url={source.url}
           title={file?.name ?? 'Arquivo de midia'}
           onReady={handleContentReady}
+          onError={handleContentError}
         />
       )
     }
@@ -119,7 +136,12 @@ export default function FileReader({
               </>
             ) : null}
             <div className={contentReady ? styles.pdfVisible : styles.pdfHidden} aria-hidden={!contentReady}>
-              <PdfReader url={source.url} onFirstPageReady={handleContentReady} />
+              <PdfReader
+                key={readerKey}
+                url={source.url}
+                onFirstPageReady={handleContentReady}
+                onError={handleContentError}
+              />
             </div>
           </div>
         ) : (
@@ -173,6 +195,12 @@ export default function FileReader({
         >
           {statusMessage}
         </p>
+      ) : null}
+
+      {displayError && onRetry ? (
+        <button type="button" className={styles.download} onClick={handleRetry}>
+          Tentar novamente
+        </button>
       ) : null}
 
       {showDownload ? <DownloadAction onDownload={onDownload} downloadUrl={downloadUrl} /> : null}

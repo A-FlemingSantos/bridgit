@@ -3,6 +3,7 @@ package com.bridgit.api.files;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.ReadMode;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public final class FilesDtos {
@@ -31,13 +32,21 @@ public final class FilesDtos {
   public record DeleteItemResponse(boolean deleted) {
   }
 
-  public record ReadResponse(ReadMode mode, String url) {
+  public record ReadResponse(ReadMode mode, String url, OffsetDateTime expiresAt) {
+
+    public ReadResponse(ReadMode mode, String url) {
+      this(mode, url, null);
+    }
   }
 
   public record TicketRequest(String disposition) {
   }
 
-  public record TicketResponse(String url) {
+  public record TicketResponse(String url, OffsetDateTime expiresAt) {
+
+    public TicketResponse(String url) {
+      this(url, null);
+    }
   }
 
   public record SearchProviderStatus(String id, boolean ok, String error) {

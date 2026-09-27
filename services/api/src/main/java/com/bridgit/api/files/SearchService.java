@@ -4,12 +4,13 @@ import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
-import com.bridgit.api.integrations.ProviderConnectionService;
+import com.bridgit.api.integrations.ProviderRetryService;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
 import com.bridgit.api.providers.CloudProviderClients;
 import com.bridgit.api.providers.ProviderApiException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -18,33 +19,38 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SearchService {
 
-  private static final int RESULTS_PER_PROVIDER = 20;
-  private static final long PROVIDER_TIMEOUT_SECONDS = 8;
+  static final int RESULTS_PER_PROVIDER = 20;
+  static final int MAX_CONCURRENT_PROVIDERS = 6;
 
   private final AuthenticatedUserService authenticatedUserService;
   private final ProviderConnectionRepository connectionRepository;
-  private final ProviderConnectionService connectionService;
+  private final ProviderRetryService retryService;
   private final CloudProviderClients clients;
+  private final Duration searchBudget;
   private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+  private final Semaphore concurrency = new Semaphore(MAX_CONCURRENT_PROVIDERS);
 
   public SearchService(
       AuthenticatedUserService authenticatedUserService,
       ProviderConnectionRepository connectionRepository,
-      ProviderConnectionService connectionService,
-      CloudProviderClients clients
+      ProviderRetryService retryService,
+      CloudProviderClients clients,
+      @Value("${app.search.budget-ms:8000}") long budgetMs
   ) {
     this.authenticatedUserService = authenticatedUserService;
     this.connectionRepository = connectionRepository;
-    this.connectionService = connectionService;
+    this.retryService = retryService;
     this.clients = clients;
+    this.searchBudget = Duration.ofMillis(budgetMs);
   }
 
   public FilesDtos.SearchResponse search(String query) {
@@ -65,19 +71,26 @@ public class SearchService {
 
     List<CloudItem> allResults = new ArrayList<>();
     List<FilesDtos.SearchProviderStatus> statuses = new ArrayList<>();
+    long deadlineNanos = System.nanoTime() + searchBudget.toNanos();
 
     for (int i = 0; i < futures.size(); i++) {
       Future<ProviderSearchResult> future = futures.get(i);
       String providerId = providerIds.get(i);
+      long remainingNanos = deadlineNanos - System.nanoTime();
+      if (remainingNanos <= 0) {
+        future.cancel(true);
+        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO"));
+        continue;
+      }
       try {
-        ProviderSearchResult result = future.get(PROVIDER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        ProviderSearchResult result = future.get(remainingNanos, TimeUnit.NANOSECONDS);
         statuses.add(new FilesDtos.SearchProviderStatus(result.providerId(), result.ok(), result.error()));
         if (result.ok()) {
           allResults.addAll(result.items());
         }
       } catch (TimeoutException ex) {
         future.cancel(true);
-        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_FALHOU"));
+        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO"));
       } catch (Exception ex) {
         statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_FALHOU"));
       }
@@ -94,32 +107,27 @@ public class SearchService {
     return () -> {
       CloudProvider provider = CloudProvider.fromId(connection.getProvider());
       CloudProviderClient client = clients.get(provider);
+      boolean acquired = false;
       try {
-        List<CloudItem> items = searchWithRetry(connection, client, query);
+        acquired = concurrency.tryAcquire(searchBudget.toMillis(), TimeUnit.MILLISECONDS);
+        if (!acquired) {
+          return new ProviderSearchResult(provider.id(), false, "PROVEDOR_TEMPO_ESGOTADO", List.of());
+        }
+        List<CloudItem> items = retryService.withRetry(
+            connection,
+            token -> client.search(token, query, RESULTS_PER_PROVIDER)
+        );
         return new ProviderSearchResult(provider.id(), true, null, items);
       } catch (ProviderApiException ex) {
         return new ProviderSearchResult(provider.id(), false, ex.getCode(), List.of());
       } catch (Exception ex) {
         return new ProviderSearchResult(provider.id(), false, "PROVEDOR_FALHOU", List.of());
+      } finally {
+        if (acquired) {
+          concurrency.release();
+        }
       }
     };
-  }
-
-  private List<CloudItem> searchWithRetry(
-      ProviderConnectionEntity connection,
-      CloudProviderClient client,
-      String query
-  ) {
-    String token = connectionService.accessToken(connection);
-    try {
-      return client.search(token, query, RESULTS_PER_PROVIDER);
-    } catch (ProviderApiException ex) {
-      if (ex.getStatus() == HttpStatus.UNAUTHORIZED) {
-        connectionService.evict(connection.getId());
-        return client.search(connectionService.accessToken(connection), query, RESULTS_PER_PROVIDER);
-      }
-      throw ex;
-    }
   }
 
   private record ProviderSearchResult(String providerId, boolean ok, String error, List<CloudItem> items) {

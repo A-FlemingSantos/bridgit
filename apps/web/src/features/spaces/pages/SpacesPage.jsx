@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
+import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import { spaceUrl } from '../../../shared/config/routes.js'
 import { spaceStatus, spaceSummary, statusLabel } from '../../../shared/state/hubStore.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -51,13 +51,13 @@ export default function SpacesPage() {
             {state.spaces.map((space, index) => {
               const status = spaceStatus(space)
               return (
-                <motion.div
+                <StaggerItem
                   key={space.space_id}
-                  className={styles.wrap}
+                  index={index}
+                  base={0.06}
+                  step={0.05}
                   variants={rise}
-                  initial="hidden"
-                  animate="show"
-                  custom={0.06 + index * 0.05}
+                  className={styles.wrap}
                 >
                   <Link to={spaceUrl(space.slug)} className={styles.tile} aria-label={space.name}>
                     <span className={styles.face} aria-hidden="true">
@@ -69,16 +69,16 @@ export default function SpacesPage() {
                       <span className={styles.status}>{statusLabel(status)}</span>
                     </span>
                   </Link>
-                </motion.div>
+                </StaggerItem>
               )
             })}
 
-            <motion.div
-              className={styles.wrap}
+            <StaggerItem
+              index={state.spaces.length}
+              base={0.06}
+              step={0.05}
               variants={rise}
-              initial="hidden"
-              animate="show"
-              custom={0.06 + state.spaces.length * 0.05}
+              className={styles.wrap}
             >
               <button type="button" className={styles.add} onClick={createSpace} aria-label="Novo space">
                 <span className={styles.face} aria-hidden="true">
@@ -89,7 +89,7 @@ export default function SpacesPage() {
                   <span className={styles.sub}>Origem e destino</span>
                 </span>
               </button>
-            </motion.div>
+            </StaggerItem>
           </div>
         </section>
       </main>

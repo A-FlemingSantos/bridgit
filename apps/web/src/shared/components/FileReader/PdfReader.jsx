@@ -8,7 +8,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 const ROOT_MARGIN = '240px 0px'
 
-export default function PdfReader({ url, onFirstPageReady }) {
+export default function PdfReader({ url, onFirstPageReady, onError }) {
   const containerRef = useRef(null)
   const [pageCount, setPageCount] = useState(0)
   const [renderWidth, setRenderWidth] = useState(0)
@@ -17,6 +17,8 @@ export default function PdfReader({ url, onFirstPageReady }) {
   const renderedPages = useRef(new Set())
   const firstPageReadyRef = useRef(false)
   const renderWidthRef = useRef(renderWidth)
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
 
   useEffect(() => {
     renderWidthRef.current = renderWidth
@@ -59,11 +61,15 @@ export default function PdfReader({ url, onFirstPageReady }) {
           firstPageReadyRef.current = true
           onFirstPageReady?.()
         }
-      } catch {
+      } catch (err) {
         renderedPages.current.delete(pageNumber)
+        if (err?.name === 'AbortError') return
+        if (pageNumber === 1 && !firstPageReadyRef.current) {
+          onError?.('Não foi possível ler este PDF.')
+        }
       }
     },
-    [onFirstPageReady],
+    [onFirstPageReady, onError],
   )
 
   useEffect(() => {
@@ -98,8 +104,8 @@ export default function PdfReader({ url, onFirstPageReady }) {
         pdfRef.current = pdf
         setPageCount(pdf.numPages)
       } catch (err) {
-        if (cancelled || err.name === 'AbortError') return
-        setPageCount(0)
+        if (cancelled || err?.name === 'AbortError') return
+        onErrorRef.current?.('Não foi possível ler este PDF.')
       }
     }
 

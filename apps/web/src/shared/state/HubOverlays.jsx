@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AppOverlay, { overlayStyles as styles } from '../components/AppOverlay/AppOverlay.jsx'
 import ProviderMark from '../../features/spaces/components/ProviderMark.jsx'
 import { useLocationPicker } from '../../features/spaces/components/LocationPicker/useLocationPicker.jsx'
@@ -88,6 +88,11 @@ function NameOverlay({ overlay }) {
   const [providerId, setProviderId] = useState(overlay.providerId ?? null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  const activeRef = useRef(true)
+
+  useEffect(() => () => {
+    activeRef.current = false
+  }, [])
   const needsProvider =
     !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
 
@@ -130,9 +135,9 @@ function NameOverlay({ overlay }) {
       }
       closeOverlay()
     } catch (submitError) {
-      setError(hubErrorMessage(submitError))
+      if (activeRef.current) setError(hubErrorMessage(submitError))
     } finally {
-      setPending(false)
+      if (activeRef.current) setPending(false)
     }
   }
 
@@ -212,6 +217,11 @@ function MoveOverlay({ overlay }) {
   const provider = providers.find((item) => item.id === overlay.providerId)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  const activeRef = useRef(true)
+
+  useEffect(() => () => {
+    activeRef.current = false
+  }, [])
 
   const blockedRefs = overlay.kind === 'folder' ? [overlay.ref] : [overlay.parentRef].filter(Boolean)
 
@@ -230,6 +240,7 @@ function MoveOverlay({ overlay }) {
 
   async function handleMove(location) {
     if (pending) return
+    if (!picker.validated) return
     const parentRef = location?.kind === 'folder' ? location.ref : null
     setPending(true)
     setError(null)
@@ -238,14 +249,14 @@ function MoveOverlay({ overlay }) {
       await actions.moveItem({
         providerId: overlay.providerId,
         ref: overlay.ref,
-        fromParentRef: overlay.parentRef ?? null,
+        fromParentRef: overlay.parentRef ?? undefined,
         parentRef,
       })
       closeOverlay()
     } catch (moveError) {
-      setError(hubErrorMessage(moveError))
+      if (activeRef.current) setError(hubErrorMessage(moveError))
     } finally {
-      setPending(false)
+      if (activeRef.current) setPending(false)
     }
   }
 
@@ -274,6 +285,11 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   const actions = useHubActions()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  const activeRef = useRef(true)
+
+  useEffect(() => () => {
+    activeRef.current = false
+  }, [])
   const name = overlay.name ?? 'este item'
   const deleteLead =
     overlay.kind === 'folder'
@@ -289,13 +305,13 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
       await actions.deleteItem({
         providerId: overlay.providerId,
         ref: overlay.ref,
-        parentRef: overlay.parentRef ?? null,
+        parentRef: overlay.parentRef ?? undefined,
       })
       closeOverlay()
     } catch (deleteError) {
-      setError(hubErrorMessage(deleteError))
+      if (activeRef.current) setError(hubErrorMessage(deleteError))
     } finally {
-      setPending(false)
+      if (activeRef.current) setPending(false)
     }
   }
 

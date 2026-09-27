@@ -15,7 +15,7 @@ export default function TextReader({ url, onReady, onError, signal }) {
         const response = await fetch(url, { signal })
 
         if (!response.ok) {
-          throw new Error('Nao foi possivel carregar o arquivo.')
+          throw new Error('Não foi possível carregar o arquivo.')
         }
 
         const buffer = await response.arrayBuffer()
@@ -29,7 +29,7 @@ export default function TextReader({ url, onReady, onError, signal }) {
         onReady?.()
       } catch (err) {
         if (cancelled || err.name === 'AbortError') return
-        onError?.('Nao foi possivel ler este arquivo como texto.')
+        onError?.('Não foi possível ler este arquivo como texto.')
       }
     }
 
