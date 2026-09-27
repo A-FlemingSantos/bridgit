@@ -111,6 +111,45 @@ describe('useApiLocationPicker', () => {
     expect(loadMore.mock.calls.length).toBeGreaterThan(1)
   })
 
+  it('mostra erro de paginação quando a camada de dados guarda error com status ready', async () => {
+    const user = userEvent.setup()
+    const loadMore = vi.fn().mockResolvedValue(undefined)
+    setupStubs({
+      root: folderStub({
+        items: [{ kind: 'folder', ref: 'folder-a', name: 'Pasta A' }],
+        nextCursor: 'c1',
+        hasMore: true,
+        error: new Error('rede'),
+        loadMore,
+      }),
+    })
+    render(<Picker allowRoot onChoose={vi.fn()} resetKey="paginacao" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('mais pastas')
+    const retry = screen.getByRole('button', { name: 'Tentar novamente' })
+    await user.click(retry)
+    expect(loadMore).toHaveBeenCalledTimes(1)
+    expect(await screen.findByRole('button', { name: /Pasta A/ })).toBeInTheDocument()
+  })
+
+  it('não repete sozinho a continuação após erro de paginação', async () => {
+    const loadMore = vi.fn().mockResolvedValue(undefined)
+    setupStubs({
+      root: folderStub({
+        items: [{ kind: 'file', ref: 'file-1', name: 'Nota.txt' }],
+        nextCursor: 'c1',
+        hasMore: true,
+        error: new Error('rede'),
+        loadMore,
+      }),
+    })
+    render(<Picker allowRoot onChoose={vi.fn()} resetKey="sem-laco" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('mais pastas')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(loadMore).not.toHaveBeenCalled()
+  })
+
   it('encontra destino só na última página', async () => {
     const loadMore = vi.fn().mockImplementation(async () => {
       setupStubs({

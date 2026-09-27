@@ -14,10 +14,25 @@ export function hubErrorMessage(error, fallback = 'Algo deu errado. Tente novame
     const uploaded = Array.isArray(error.uploaded) ? error.uploaded.length : 0
     const failed = Array.isArray(error.failed) ? error.failed : []
     const total = uploaded + failed.length
-    const names = failed.map((entry) => entry?.file?.name ?? entry?.name ?? 'arquivo').join(', ')
+    const nameOf = (entry) => entry?.file?.name ?? entry?.name ?? 'arquivo'
+    const explicit = failed.filter((entry) => entry?.ambiguous !== true)
+    const ambiguous = failed.filter((entry) => entry?.ambiguous === true)
     if (total <= 0) return fallback
-    if (total === 1) return `Falha ao enviar ${names || 'arquivo'}.`
-    return `${uploaded} de ${total} arquivos enviados. Falhou: ${names}.`
+    if (total === 1) {
+      const only = failed[0]
+      if (only?.ambiguous === true) {
+        return `Não foi possível confirmar o envio de ${nameOf(only)}. Verificando se foi concluído…`
+      }
+      return `Falha ao enviar ${nameOf(only) || 'arquivo'}.`
+    }
+    const parts = [`${uploaded} de ${total} arquivos enviados.`]
+    if (explicit.length > 0) {
+      parts.push(`Falhou: ${explicit.map(nameOf).join(', ')}.`)
+    }
+    if (ambiguous.length > 0) {
+      parts.push(`Verificando: ${ambiguous.map(nameOf).join(', ')}.`)
+    }
+    return parts.join(' ')
   }
   if (error instanceof ApiClientError || error?.name === 'ApiClientError') {
     if (error.code && CODE_MESSAGES[error.code]) return CODE_MESSAGES[error.code]

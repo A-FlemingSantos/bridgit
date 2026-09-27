@@ -278,6 +278,9 @@ function useApiLocationPicker({
   const isFetchingNextPage = folderQuery.isFetchingNextPage ?? loadingMore
   const parents = folderRef ? (folderQuery.folder?.ancestry ?? []) : []
   const exhausted = !hasMore && !isFetchingNextPage
+  const queryError = folderQuery.error ?? null
+  const paginationError =
+    continuationError ?? (folderQuery.status === 'ready' ? queryError : null)
 
   async function handleLoadMore() {
     if (loadingMore || folderQuery.isFetchingNextPage || !hasMore) return
@@ -294,6 +297,7 @@ function useApiLocationPicker({
 
   useEffect(() => {
     if (folderQuery.status !== 'ready') return
+    if (queryError) return
     if (folders.length > 0 || continuationError) return
     if (!hasMore || isFetchingNextPage) return
     void handleLoadMore()
@@ -399,7 +403,7 @@ function useApiLocationPicker({
             Não foi possível carregar tudo. Mostrando o que já carregou.
           </p>
         ) : null}
-        {continuationError ? (
+        {paginationError ? (
           <p className={styles.hint} role="alert">
             Não foi possível carregar mais pastas.
           </p>
@@ -449,7 +453,7 @@ function useApiLocationPicker({
             {isFetchingNextPage ? 'Carregando…' : 'Carregar mais'}
           </button>
         ) : null}
-        {(folderQuery.status === 'error' && folders.length > 0) || continuationError ? (
+        {(folderQuery.status === 'error' && folders.length > 0) || paginationError ? (
           <button type="button" className={styles.more} onClick={() => void handleLoadMore()}>
             Tentar novamente
           </button>

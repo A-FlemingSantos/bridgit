@@ -125,17 +125,18 @@ export default function HomePage() {
 
   function handleUploadError(providerId, files, error) {
     setActionError(hubErrorMessage(error))
-    const failed = Array.isArray(error?.failed)
-      ? error.failed.map((entry) => entry?.file ?? entry).filter(Boolean)
-      : []
+    const failed = Array.isArray(error?.failed) ? error.failed.filter(Boolean) : []
     setFailedUploads(failed)
     setUploadProviderId(providerId)
   }
 
+  const retryableUploads = failedUploads.filter((entry) => entry?.ambiguous !== true)
+  const pendingVerificationUploads = failedUploads.filter((entry) => entry?.ambiguous === true)
+
   async function retryFailedUploads() {
-    if (!uploadProviderId || failedUploads.length === 0) return
+    if (!uploadProviderId || retryableUploads.length === 0) return
     const providerId = uploadProviderId
-    const files = failedUploads
+    const files = retryableUploads.map((entry) => entry?.file ?? entry).filter(Boolean)
     setActionError(null)
     setFailedUploads([])
     try {
@@ -188,7 +189,12 @@ export default function HomePage() {
             <p className={styles.empty} role="alert">
               {actionError}
             </p>
-            {failedUploads.length > 0 && uploadProviderId ? (
+            {pendingVerificationUploads.length > 0 ? (
+              <p className={styles.empty} role="status">
+                O envio pode ter sido concluído; a pasta está sendo atualizada.
+              </p>
+            ) : null}
+            {retryableUploads.length > 0 && uploadProviderId ? (
               <button
                 type="button"
                 className={styles.inlineAction}

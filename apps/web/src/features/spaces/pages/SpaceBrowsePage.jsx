@@ -121,11 +121,18 @@ export default function SpaceBrowsePage() {
       })
     } catch (error) {
       setActionError(hubErrorMessage(error))
-      const failed = Array.isArray(error?.failed)
-        ? error.failed.map((entry) => entry?.file ?? entry).filter(Boolean)
-        : []
+      const failed = Array.isArray(error?.failed) ? error.failed.filter(Boolean) : []
       setFailedUploads(failed)
     }
+  }
+
+  const retryableUploads = failedUploads.filter((entry) => entry?.ambiguous !== true)
+  const pendingVerificationUploads = failedUploads.filter((entry) => entry?.ambiguous === true)
+
+  async function retryRejectedUploads() {
+    const files = retryableUploads.map((entry) => entry?.file ?? entry).filter(Boolean)
+    if (files.length === 0) return
+    await sendUpload(files)
   }
 
   function menuContext(item) {
@@ -334,11 +341,16 @@ export default function SpaceBrowsePage() {
             <p className={styles.empty} role="alert">
               {actionError}
             </p>
-            {failedUploads.length > 0 ? (
+            {pendingVerificationUploads.length > 0 ? (
+              <p className={styles.empty} role="status">
+                O envio pode ter sido concluído; a pasta está sendo atualizada.
+              </p>
+            ) : null}
+            {retryableUploads.length > 0 ? (
               <button
                 type="button"
                 className={styles.loadMore}
-                onClick={() => void sendUpload(failedUploads)}
+                onClick={() => void retryRejectedUploads()}
               >
                 Tentar novamente
               </button>

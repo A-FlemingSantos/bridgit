@@ -704,8 +704,9 @@ export function HubDataProvider({ children }) {
             replaceOptimisticItem(folderKey, placeholder.uiKey, created)
             uploaded.push(withUiKey(created, placeholder.uiKey))
           } catch (error) {
-            failed.push({ file, error })
-            if (isAmbiguousError(error)) {
+            const ambiguous = isAmbiguousError(error)
+            failed.push({ file, error, ambiguous })
+            if (ambiguous) {
               sawAmbiguous = true
               setFolderCache((prev) => {
                 const entry = prev[folderKey]

@@ -41,6 +41,12 @@ export default function SpaceFilePage() {
   // Hub actions are recreated on every cache update; reading must only restart when the file changes.
   const actionsRef = useRef(actions)
   actionsRef.current = actions
+  // Identity of the latest read-source request; stale responses must not touch a newer file.
+  const sourceRequestRef = useRef(0)
+  const readableRefRef = useRef(readableRef)
+  readableRefRef.current = readableRef
+  const providerRef = useRef(providerId)
+  providerRef.current = providerId
 
   useEffect(() => {
     if (item?.name) {
@@ -60,6 +66,9 @@ export default function SpaceFilePage() {
 
   useEffect(() => {
     if (!readableRef) return undefined
+    const requestId = (sourceRequestRef.current += 1)
+    const capturedRef = readableRef
+    const capturedProvider = providerId
 
     let active = true
     renewedExpiredSourceRef.current = false
@@ -67,13 +76,15 @@ export default function SpaceFilePage() {
     setReadError(null)
 
     void actionsRef.current
-      .getReadSource({ providerId, ref: readableRef })
+      .getReadSource({ providerId: capturedProvider, ref: capturedRef })
       .then((nextSource) => {
-        if (!active) return
+        if (!active || sourceRequestRef.current !== requestId) return
+        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
         setSource(nextSource)
       })
       .catch((error) => {
-        if (!active) return
+        if (!active || sourceRequestRef.current !== requestId) return
+        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
         setReadError(hubErrorMessage(error))
       })
 
@@ -84,12 +95,19 @@ export default function SpaceFilePage() {
 
   async function refreshSource() {
     if (!readableRef) return
+    const requestId = (sourceRequestRef.current += 1)
+    const capturedRef = readableRef
+    const capturedProvider = providerId
     setReadError(null)
     try {
-      const nextSource = await actionsRef.current.getReadSource({ providerId, ref: readableRef })
+      const nextSource = await actionsRef.current.getReadSource({ providerId: capturedProvider, ref: capturedRef })
+      if (sourceRequestRef.current !== requestId) return
+      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
       setSource(nextSource)
       setSourceKey((key) => key + 1)
     } catch (error) {
+      if (sourceRequestRef.current !== requestId) return
+      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
       setReadError(hubErrorMessage(error))
     }
   }

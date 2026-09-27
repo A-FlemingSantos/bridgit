@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -145,5 +145,59 @@ describe('SpaceFilePage download e leitura', () => {
     fireEvent.error(document.querySelector('img[src="/nova.png"]'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar a imagem.')
     expect(getReadSource).toHaveBeenCalledTimes(2)
+  })
+
+  it('ignora a resposta de nova tentativa obsoleta após trocar de arquivo', async () => {
+    const user = userEvent.setup()
+    let resolveStaleRetry
+    const getReadSource = vi.fn().mockImplementation(({ ref }) => {
+      if (ref === 'file-1') {
+        const callsForFile1 = getReadSource.mock.calls.filter(([{ ref: r }]) => r === 'file-1').length
+        if (callsForFile1 === 1) {
+          return Promise.resolve({ mode: 'image', url: '/foto-1.png' })
+        }
+        return new Promise((resolve) => {
+          resolveStaleRetry = () => resolve({ mode: 'image', url: '/foto-obsoleta.png' })
+        })
+      }
+      return Promise.resolve({ mode: 'image', url: '/foto-2.png' })
+    })
+    setup({
+      recordRecent: vi.fn().mockResolvedValue(undefined),
+      getReadSource,
+      getDownloadUrl: vi.fn().mockResolvedValue('https://tickets.test/x'),
+    })
+    const view = renderPage()
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src="/foto-1.png"]')).toBeTruthy()
+    })
+    fireEvent.error(document.querySelector('img[src="/foto-1.png"]'))
+    await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }))
+    await waitFor(() => {
+      expect(getReadSource.mock.calls.filter(([{ ref }]) => ref === 'file-1')).toHaveLength(2)
+    })
+
+    useItem.mockReturnValue({
+      status: 'ready',
+      item: { ...item, ref: 'file-2', name: 'Outra.png' },
+      error: null,
+      reload: vi.fn(),
+    })
+    view.rerender(
+      <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/file-1']}>
+        <Routes>
+          <Route path="/providers/:provider/file/:fileRef" element={<SpaceFilePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src="/foto-2.png"]')).toBeTruthy()
+    })
+    resolveStaleRetry?.()
+    await act(async () => {})
+    expect(document.querySelector('img[src="/foto-2.png"]')).toBeTruthy()
+    expect(document.querySelector('img[src="/foto-obsoleta.png"]')).toBeNull()
   })
 })
