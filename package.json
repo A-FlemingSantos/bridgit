@@ -15,12 +15,20 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3"
   },
+  "overrides": {
+    "react-native-svg": "15.8.0"
+  },
   "scripts": {
     "prepare": "husky",
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
     "preview": "npm --workspace apps/web run preview",
     "test": "npm --workspace apps/web run test",
-    "test:run": "npm --workspace apps/web run test:run"
+    "test:run": "npm --workspace apps/web run test:run",
+    "mobile:start": "npm --workspace apps/mobile run start",
+    "mobile:android": "npm --workspace apps/mobile run android",
+    "mobile:android:device": "npm --workspace apps/mobile run android:device",
+    "mobile:android:dev-client": "npm --workspace apps/mobile run android:dev-client",
+    "mobile:web": "npm --workspace apps/mobile run web"
   }
 }
