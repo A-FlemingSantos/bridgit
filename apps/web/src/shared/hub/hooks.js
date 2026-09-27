@@ -108,16 +108,17 @@ export function useRecents() {
 
   useEffect(() => {
     if (!session?.accessToken) return
-    if (recentsState.status === 'idle') {
-      void loadRecents()
-    } else if (recentsState.status === 'ready' && isStaleEntry(recentsState, RECENTS_STALE_MS)) {
+    if (recentsState.status === 'loading' || recentsState.status === 'error') return
+    const incomplete = recentsState.authoritative !== true
+    if (incomplete || isStaleEntry(recentsState, RECENTS_STALE_MS)) {
       void loadRecents()
     }
   }, [loadRecents, recentsState, session?.accessToken])
 
+  const synced = recentsState.authoritative === true
   return {
-    status: recentsState.status,
-    entries: recentsState.entries,
+    status: synced ? recentsState.status : recentsState.status === 'error' ? 'error' : 'loading',
+    entries: synced ? recentsState.entries : [],
     error: recentsState.error,
     reload: loadRecents,
   }

@@ -4,6 +4,7 @@ export const FOLDER_STALE_MS = 30 * 1000
 export const ITEM_STALE_MS = 60 * 1000
 export const PROVIDERS_STALE_MS = 60 * 1000
 export const RECENTS_STALE_MS = 30 * 1000
+export const RECENTS_LIMIT = 12
 export const SHORTCUTS_STALE_MS = 60 * 1000
 
 export const HUB_SESSION_FAILURE_CODES = ['TOKEN_INVALIDO', 'SESSAO_INVALIDA', 'AUTENTICACAO_OBRIGATORIA']
@@ -97,6 +98,43 @@ export function dedupeItemsByRef(items) {
     out.push(item)
   }
   return out
+}
+
+function recentOpenedAt(entry) {
+  const time = Date.parse(entry?.openedAt ?? '')
+  return Number.isFinite(time) ? time : 0
+}
+
+export function placeRecent(entries, entry) {
+  if (!entry?.ref) return Array.isArray(entries) ? entries.slice() : []
+  const key = itemIdentity(entry.provider, entry.ref)
+  const rest = (entries ?? []).filter(
+    (candidate) => itemIdentity(candidate.provider, candidate.ref) !== key,
+  )
+  return [entry, ...rest].slice(0, RECENTS_LIMIT)
+}
+
+export function mergeRecentsLists(serverEntries, localEntries) {
+  const merged = new Map()
+  for (const entry of serverEntries ?? []) {
+    if (!entry?.ref) continue
+    merged.set(itemIdentity(entry.provider, entry.ref), entry)
+  }
+  for (const entry of localEntries ?? []) {
+    if (!entry?.ref) continue
+    const key = itemIdentity(entry.provider, entry.ref)
+    const current = merged.get(key)
+    if (!current || recentOpenedAt(entry) > recentOpenedAt(current)) {
+      merged.set(key, entry)
+    }
+  }
+  return [...merged.values()]
+    .sort((a, b) => {
+      const byTime = recentOpenedAt(b) - recentOpenedAt(a)
+      if (byTime !== 0) return byTime
+      return itemIdentity(a.provider, a.ref).localeCompare(itemIdentity(b.provider, b.ref))
+    })
+    .slice(0, RECENTS_LIMIT)
 }
 
 export function mergeFolderItems(previousItems, serverItems) {

@@ -1032,5 +1032,89 @@ describe('hub findings', () => {
     })
     expect(result.current.folder.items.some((item) => item.ref === 'file-9')).toBe(true)
   })
+
+  it('não publica o arquivo recém-aberto como lista de recentes enquanto a lista completa não chega', async () => {
+    const older = { ...sampleItem, ref: 'old', name: 'Antigo.pdf', openedAt: '2026-01-01T00:00:00.000Z' }
+    const recorded = { ...sampleItem, ref: 'new', name: 'Novo.pdf', openedAt: '2026-09-26T00:00:00.000Z' }
+    const pending = []
+    hubApiMock.listRecents.mockImplementation(() => {
+      const slot = deferred()
+      pending.push(slot)
+      return slot.promise
+    })
+    hubApiMock.recordRecent.mockResolvedValue(recorded)
+
+    const { result } = renderHook(
+      () => ({
+        recents: useRecents(),
+        actions: useHubActions(),
+      }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(pending.length).toBeGreaterThan(0)
+    })
+
+    await act(async () => {
+      await result.current.actions.recordRecent({ providerId: 'onedrive', ref: 'new' })
+    })
+
+    expect(result.current.recents.status).toBe('loading')
+    expect(result.current.recents.entries).toEqual([])
+
+    await waitFor(() => {
+      expect(pending.length).toBeGreaterThan(1)
+    })
+
+    const stale = [older]
+    const fresh = [recorded, older]
+    const last = pending.length - 1
+
+    await act(async () => {
+      pending.slice(0, last).forEach((slot) => slot.resolve(stale))
+      await Promise.all(pending.slice(0, last).map((slot) => slot.promise))
+    })
+    expect(result.current.recents.status).toBe('loading')
+    expect(result.current.recents.entries).toEqual([])
+
+    await act(async () => {
+      pending[last].resolve(fresh)
+      await pending[last].promise
+    })
+
+    await waitFor(() => {
+      expect(result.current.recents.status).toBe('ready')
+    })
+    expect(result.current.recents.entries.map((entry) => entry.ref)).toEqual(['new', 'old'])
+  })
+
+  it('mantém os outros recentes ao registrar um arquivo numa lista já sincronizada', async () => {
+    const first = { ...sampleItem, ref: 'a', name: 'A.pdf', openedAt: '2026-01-02T00:00:00.000Z' }
+    const second = { ...sampleItem, ref: 'b', name: 'B.pdf', openedAt: '2026-01-01T00:00:00.000Z' }
+    const opened = { ...second, openedAt: '2026-09-26T00:00:00.000Z' }
+    hubApiMock.listRecents.mockResolvedValue([first, second])
+    hubApiMock.recordRecent.mockResolvedValue(opened)
+
+    const { result } = renderHook(
+      () => ({
+        recents: useRecents(),
+        actions: useHubActions(),
+      }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(result.current.recents.status).toBe('ready')
+    })
+    const calls = hubApiMock.listRecents.mock.calls.length
+
+    await act(async () => {
+      await result.current.actions.recordRecent({ providerId: 'onedrive', ref: 'b' })
+    })
+
+    expect(result.current.recents.entries.map((entry) => entry.ref)).toEqual(['b', 'a'])
+    expect(hubApiMock.listRecents.mock.calls.length).toBe(calls)
+  })
 })
 

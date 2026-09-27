@@ -18,12 +18,15 @@ import {
   isTempRef,
   itemCacheKey,
   mergeFolderItems,
+  mergeRecentsLists,
+  placeRecent,
   withUiKey,
 } from './hubCache.js'
 
 const HubDataContext = createContext(null)
 
 const emptyListState = { status: 'idle', entries: [], error: null, fetchedAt: 0 }
+const emptyRecentsState = { ...emptyListState, authoritative: false }
 const emptyProvidersState = { status: 'idle', providers: [], error: null, fetchedAt: 0 }
 const emptySearchState = {
   status: 'idle',
@@ -51,7 +54,7 @@ export function HubDataProvider({ children }) {
   const [providersState, setProvidersState] = useState(emptyProvidersState)
   const [folderCache, setFolderCache] = useState({})
   const [itemCache, setItemCache] = useState({})
-  const [recentsState, setRecentsState] = useState(emptyListState)
+  const [recentsState, setRecentsState] = useState(emptyRecentsState)
   const [shortcutsState, setShortcutsState] = useState(emptyListState)
   const [searchState, setSearchState] = useState(emptySearchState)
 
@@ -67,6 +70,8 @@ export function HubDataProvider({ children }) {
   providersRef.current = providersState
 
   const folderGenerationsRef = useRef({})
+  const recentsRequestRef = useRef(0)
+  const recentsGenerationRef = useRef(0)
   const itemGenerationsRef = useRef({})
   const keyMetaRef = useRef({})
   const inFlightFolderRef = useRef(new Map())
@@ -320,6 +325,8 @@ export function HubDataProvider({ children }) {
   }, [])
 
   const loadRecents = useCallback(async (opts = {}) => {
+    const requestId = (recentsRequestRef.current += 1)
+    const generationAtStart = recentsGenerationRef.current
     const prev = recentsRef.current
     const background = prev.status === 'ready' && !opts.force
     if (!background) {
@@ -327,11 +334,25 @@ export function HubDataProvider({ children }) {
     }
     try {
       const entries = await hubApiRef.current.listRecents()
-      setRecentsState({ status: 'ready', entries, error: null, fetchedAt: Date.now() })
+      if (requestId !== recentsRequestRef.current) return
+      const serverEntries = Array.isArray(entries) ? entries : []
+      setRecentsState((current) => {
+        const nextEntries = recentsGenerationRef.current === generationAtStart
+          ? serverEntries
+          : mergeRecentsLists(serverEntries, current.entries)
+        return {
+          status: 'ready',
+          entries: nextEntries,
+          error: null,
+          fetchedAt: Date.now(),
+          authoritative: true,
+        }
+      })
     } catch (error) {
+      if (requestId !== recentsRequestRef.current) return
       setRecentsState((current) => ({
         ...current,
-        status: current.status === 'ready' ? 'ready' : 'error',
+        status: current.authoritative ? 'ready' : 'error',
         error,
         fetchedAt: Date.now(),
       }))
@@ -1183,14 +1204,21 @@ export function HubDataProvider({ children }) {
         try {
           const entry = await hubApiRef.current.recordRecent(providerId, ref)
           if (entry && entry.ref) {
+            recentsGenerationRef.current += 1
+            const recorded = {
+              ...entry,
+              provider: entry.provider ?? providerId,
+              ref: entry.ref ?? ref,
+            }
             setRecentsState((prev) => ({
               ...prev,
               status: 'ready',
-              entries: [entry, ...(prev.entries ?? []).filter(
-                (candidate) => !(candidate.provider === (entry.provider ?? providerId) && candidate.ref === (entry.ref ?? ref)),
-              )],
+              entries: placeRecent(prev.entries, recorded),
               error: null,
-              fetchedAt: Date.now(),
+              // One recorded file is not a synced list. Keep the last full fetch
+              // time so an empty cache stays stale and home still loads the rest.
+              fetchedAt: prev.authoritative ? prev.fetchedAt : 0,
+              authoritative: prev.authoritative === true,
             }))
             return entry
           }
