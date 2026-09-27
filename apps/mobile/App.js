@@ -4,25 +4,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import * as NavigationBar from 'expo-navigation-bar'
 import { NavigationContainer } from '@react-navigation/native'
-import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import WelcomeScreen from './src/screens/WelcomeScreen'
 import { theme } from './src/theme/tokens'
 import { MobileThemeProvider, useMobileTheme, useThemedStyles } from './src/theme/ThemeProvider'
 
-const Stack = createNativeStackNavigator()
-
-const linking = {
-  prefixes: ['bridgit://'],
-  config: {
-    screens: {
-      Welcome: '',
-    },
-  },
-}
-
 function ThemedAppRoot() {
   styles = useThemedStyles(createStyles)
-  const { navigationTheme, isDark } = useMobileTheme()
+  const { navigationTheme, statusBarStyle, isDark } = useMobileTheme()
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined
@@ -43,11 +31,9 @@ function ThemedAppRoot() {
     <View style={[Platform.OS === 'web' ? styles.webFullscreen : styles.nativeRoot, styles.fullscreenAuth]}>
       <View style={[Platform.OS === 'web' ? styles.webFullscreenDevice : styles.nativeRoot, styles.fullscreenAuth]}>
         <SafeAreaProvider>
-          <StatusBar style="light" translucent backgroundColor="transparent" />
-          <NavigationContainer linking={linking} theme={navigationTheme}>
-            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
-              <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            </Stack.Navigator>
+          <StatusBar style={statusBarStyle} translucent backgroundColor="transparent" />
+          <NavigationContainer theme={navigationTheme}>
+            <WelcomeScreen />
           </NavigationContainer>
         </SafeAreaProvider>
       </View>

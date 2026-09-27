@@ -291,10 +291,71 @@ const createStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  welcomePrimaryButtonDisabled: {
+    opacity: 0.7,
+  },
   welcomePrimaryButtonText: {
     color: theme.colors.textInverse,
     fontSize: 16,
     fontWeight: '700',
+  },
+  continueAccountButton: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 14,
+  },
+  continueAvatarWrap: {
+    width: 36,
+    height: 36,
+  },
+  continueAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.textInverse,
+  },
+  continueAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.textInverse,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueAvatarInitials: {
+    color: theme.colors.text1,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  continueGoogleBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: theme.colors.text1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: theme.colors.text1,
+  },
+  continueAccountText: {
+    flex: 1,
+    gap: 1,
+    paddingRight: 4,
+  },
+  continueAccountTitle: {
+    color: theme.colors.textInverse,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  continueAccountEmail: {
+    color: theme.colors.textInverse,
+    fontSize: 12,
+    fontWeight: '400',
+    opacity: 0.72,
   },
   welcomeDividerRow: {
     flexDirection: 'row',
@@ -337,6 +398,26 @@ const createStyles = (theme) => StyleSheet.create({
   welcomeLegalLink: {
     color: theme.colors.text1,
     textDecorationLine: 'underline',
+  },
+  oauthError: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.dangerBorder,
+    borderRadius: 18,
+    backgroundColor: theme.colors.dangerBgSoft,
+  },
+  oauthErrorText: {
+    color: theme.colors.red,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  oauthErrorDismiss: {
+    color: theme.colors.text1,
+    fontSize: 12,
+    fontWeight: '700',
   },
 })
 
