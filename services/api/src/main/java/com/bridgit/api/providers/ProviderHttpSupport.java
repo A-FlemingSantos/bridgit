@@ -1,10 +1,28 @@
 package com.bridgit.api.providers;
 
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 public final class ProviderHttpSupport {
+
+  private static final Pattern ERROR_REASON_PATTERN =
+      Pattern.compile("\"reason\"\\s*:\\s*\"([^\"]+)\"");
+
+  private static final Set<String> RATE_LIMIT_REASONS = Set.of(
+      "ratelimitexceeded",
+      "userratelimitexceeded",
+      "activitylimitreached",
+      "dailylimitexceeded",
+      "quotaexceeded",
+      "sharingratelimitexceeded",
+      "downloadquotaexceeded"
+  );
 
   private ProviderHttpSupport() {
   }
@@ -162,10 +180,22 @@ public final class ProviderHttpSupport {
     if (body == null) {
       return false;
     }
-    String lower = body.toLowerCase();
-    return lower.contains("ratelimitexceeded")
+    String lower = body.toLowerCase(Locale.ROOT);
+    if (lower.contains("ratelimitexceeded")
         || lower.contains("userratelimitexceeded")
-        || lower.contains("activitylimitreached");
+        || lower.contains("activitylimitreached")) {
+      return true;
+    }
+    return extractErrorReasons(body).stream().anyMatch(RATE_LIMIT_REASONS::contains);
+  }
+
+  private static Set<String> extractErrorReasons(String body) {
+    Set<String> reasons = new HashSet<>();
+    Matcher matcher = ERROR_REASON_PATTERN.matcher(body);
+    while (matcher.find()) {
+      reasons.add(matcher.group(1).toLowerCase(Locale.ROOT));
+    }
+    return reasons;
   }
 
   private static boolean isNameConflict(int code, String body) {

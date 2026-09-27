@@ -15,6 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bridgit.api.ApiIntegrationTestSupport;
 import com.bridgit.api.providers.CloudProvider;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -25,11 +27,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -40,6 +48,33 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
+
+  @TestConfiguration
+  static class FindByIdHookConfig {
+    static final AtomicBoolean hookArmed = new AtomicBoolean(false);
+
+    @Bean
+    @Primary
+    ProviderConnectionRepository hookingConnectionRepository(
+        @Qualifier("providerConnectionRepository") ProviderConnectionRepository real,
+        ApplicationContext context) {
+      return (ProviderConnectionRepository) Proxy.newProxyInstance(
+          FindByIdHookConfig.class.getClassLoader(),
+          new Class<?>[] { ProviderConnectionRepository.class },
+          (proxy, method, args) -> {
+            Object result;
+            try {
+              result = method.invoke(real, args);
+            } catch (InvocationTargetException ex) {
+              throw ex.getCause();
+            }
+            if (method.getName().equals("findById") && hookArmed.compareAndSet(true, false)) {
+              context.getBean(ProviderConnectionService.class).invalidate((UUID) args[0]);
+            }
+            return result;
+          });
+    }
+  }
 
   @Autowired
   private ProviderOAuthStateRepository oauthStateRepository;
@@ -67,6 +102,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @BeforeEach
   void setUp() throws Exception {
+    FindByIdHookConfig.hookArmed.set(false);
     UUID deviceKey = UUID.randomUUID();
     JsonNode register = registerUser("provider_user", "password123", deviceKey);
     accessToken = register.path("data").path("accessToken").asText();
@@ -484,6 +520,30 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
     assertThat(connectionRepository.findById(saved.getId()).orElseThrow().getLastError()).isNull();
     assertThat(calls.get()).isEqualTo(1);
+  }
+
+  @Test
+  void invalidateAfterProviderRefreshDiscardsStaleToken() {
+    ProviderConnectionEntity saved = seedConnection();
+    UUID connectionId = saved.getId();
+    AtomicInteger calls = new AtomicInteger();
+
+    when(microsoftOAuthClient.refresh(anyString())).thenAnswer(invocation -> {
+      if (calls.getAndIncrement() == 0) {
+        return new TokenResult("stale-access", "stale-rotated", 3600, "scope");
+      }
+      return new TokenResult("fresh-access", "fresh-rotated", 3600, "scope");
+    });
+
+    FindByIdHookConfig.hookArmed.set(true);
+
+    assertThat(providerConnectionService.accessToken(saved)).isEqualTo("fresh-access");
+
+    assertThat(tokenCipher.decrypt(
+        connectionRepository.findById(connectionId).orElseThrow().getEncryptedRefreshToken()))
+        .isEqualTo("fresh-rotated");
+    assertThat(providerConnectionService.accessToken(saved)).isEqualTo("fresh-access");
+    assertThat(calls.get()).isEqualTo(2);
   }
 
   private ProviderConnectionEntity seedConnection() {

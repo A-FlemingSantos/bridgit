@@ -102,7 +102,27 @@ public class FakeOneDriveClient implements CloudProviderClient {
 
   @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
-    throw new UnsupportedOperationException();
+    CloudItem current = items.get(ref);
+    if (current == null) {
+      throw new com.bridgit.api.providers.ProviderApiException(
+          org.springframework.http.HttpStatus.NOT_FOUND,
+          "ITEM_NAO_ENCONTRADO",
+          "Item nao encontrado."
+      );
+    }
+    CloudItem updated = new CloudItem(
+        current.ref(),
+        current.provider(),
+        newName != null ? newName : current.name(),
+        current.kind(),
+        current.mimeType(),
+        current.extension(),
+        current.size(),
+        current.modifiedAt(),
+        newParentRef != null ? newParentRef : current.parentRef()
+    );
+    items.put(ref, updated);
+    return updated;
   }
 
   @Override

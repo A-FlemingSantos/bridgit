@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,18 +25,50 @@ import com.bridgit.api.providers.CloudItemChangedEvent;
 import com.bridgit.api.providers.CloudItemDeletedEvent;
 import com.bridgit.api.providers.CloudProvider;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-@Import(HubTestCloudProviderConfig.class)
+@Import({HubTestCloudProviderConfig.class, HubApiIntegrationTest.FlakySnapshotConfig.class})
 class HubApiIntegrationTest extends ApiIntegrationTestSupport {
+
+  @TestConfiguration
+  static class FlakySnapshotConfig {
+    static final AtomicInteger failuresRemaining = new AtomicInteger(0);
+
+    @Bean
+    @Primary
+    HubRecentRepository flakyRecentRepository(
+        @Qualifier("hubRecentRepository") HubRecentRepository real) {
+      return (HubRecentRepository) Proxy.newProxyInstance(
+          FlakySnapshotConfig.class.getClassLoader(),
+          new Class<?>[] { HubRecentRepository.class },
+          (proxy, method, args) -> {
+            if (method.getName().equals("updateSnapshot") && failuresRemaining.getAndDecrement() > 0) {
+              throw new DataAccessResourceFailureException("snapshot indisponivel");
+            }
+            try {
+              return method.invoke(real, args);
+            } catch (InvocationTargetException ex) {
+              throw ex.getCause();
+            }
+          });
+    }
+  }
 
   @Autowired
   private FakeOneDriveClient fakeOneDriveClient;
@@ -66,6 +100,7 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @BeforeEach
   void setUp() throws Exception {
+    FlakySnapshotConfig.failuresRemaining.set(0);
     UUID deviceKey = UUID.randomUUID();
     JsonNode register = registerUser("hub_user", "password123", deviceKey);
     accessToken = register.path("data").path("accessToken").asText();
@@ -221,5 +256,45 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
     assertThat(recentRepository.findByConnectionIdAndItemRef(connection.getId(), "file-1")).isEmpty();
     assertThat(shortcutRepository.findByConnectionIdAndItemRef(connection.getId(), "file-1")).isEmpty();
     assertThat(publicLinkRepository.findByConnectionIdAndItemRef(connection.getId(), "file-1")).isEmpty();
+  }
+
+  @Test
+  void itemChangedListenerRetriesInFreshTransactionAfterDataAccessFailure() throws Exception {
+    seedRecent("file-1", "Old Name");
+    FlakySnapshotConfig.failuresRemaining.set(1);
+
+    mockMvc.perform(patch("/api/providers/onedrive/items/file-1")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Renamed.pdf\"}"))
+        .andExpect(status().isOk())
+        .andExpect(header().doesNotExist("X-Bridgit-Local-Sync"))
+        .andExpect(jsonPath("$.data.name").value("Renamed.pdf"));
+
+    assertThat(recentRepository.findByConnectionIdAndItemRef(connection.getId(), "file-1").orElseThrow().getName())
+        .isEqualTo("Renamed.pdf");
+  }
+
+  @Test
+  void itemChangedListenerDegradesToPendingSyncWhenSnapshotsUnavailable() throws Exception {
+    seedRecent("file-1", "Old Name");
+    FlakySnapshotConfig.failuresRemaining.set(Integer.MAX_VALUE);
+
+    mockMvc.perform(patch("/api/providers/onedrive/items/file-1")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Renamed.pdf\"}"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("X-Bridgit-Local-Sync", "pending"));
+  }
+
+  private void seedRecent(String itemRef, String name) {
+    HubRecentEntity recent = new HubRecentEntity();
+    recent.setUserId(userId);
+    recent.setConnectionId(connection.getId());
+    recent.setItemRef(itemRef);
+    recent.setName(name);
+    recent.setOpenedAt(OffsetDateTime.now());
+    recentRepository.save(recent);
   }
 }

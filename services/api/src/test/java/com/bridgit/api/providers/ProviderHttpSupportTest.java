@@ -87,7 +87,15 @@ class ProviderHttpSupportTest {
       "'{\"error\": {\"code\": \"rateLimitExceeded\"}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
       "'{\"error\": {\"message\": \"userRateLimitExceeded\"}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
       "'{\"error\": {\"code\": \"activityLimitReached\"}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
-      "'{\"error\": {\"code\": \"accessDenied\"}}', SEM_PERMISSAO, FORBIDDEN"
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"rateLimitExceeded\", \"message\": \"Rate Limit Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"userRateLimitExceeded\", \"message\": \"User Rate Limit Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"dailyLimitExceeded\", \"message\": \"Daily Limit Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"quotaExceeded\", \"message\": \"Quota Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"sharingRateLimitExceeded\", \"message\": \"Sharing Rate Limit Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"downloadQuotaExceeded\", \"message\": \"Download Quota Exceeded\"}], \"code\": 403}}', PROVEDOR_LIMITADO, TOO_MANY_REQUESTS",
+      "'{\"error\": {\"code\": \"accessDenied\"}}', SEM_PERMISSAO, FORBIDDEN",
+      "'{\"error\": {\"errors\": [{\"domain\": \"global\", \"reason\": \"forbidden\", \"message\": \"The user does not have sufficient permissions\"}], \"code\": 403}}', SEM_PERMISSAO, FORBIDDEN",
+      "'{\"error\": {\"errors\": [{\"domain\": \"global\", \"reason\": \"insufficientFilePermissions\", \"message\": \"Insufficient permissions\"}], \"code\": 403}}', SEM_PERMISSAO, FORBIDDEN"
   })
   void graphAndDrive403DistinguishRateLimit(String body, String code, HttpStatus status) {
     ProviderApiException graph = assertThrows(

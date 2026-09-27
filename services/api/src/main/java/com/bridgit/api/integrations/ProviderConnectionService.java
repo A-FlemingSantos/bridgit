@@ -293,6 +293,9 @@ public class ProviderConnectionService {
     }
 
     String persisted = requiresNewTemplate.execute(status -> {
+      if (generation != generationOf(connectionId)) {
+        return null;
+      }
       Optional<ProviderConnectionEntity> fresh = connectionRepository.findById(connectionId);
       if (fresh.isEmpty()) {
         return null;
@@ -300,6 +303,9 @@ public class ProviderConnectionService {
       ProviderConnectionEntity entity = fresh.get();
       if (!Objects.equals(entity.getEncryptedRefreshToken(), usedEncryptedRefresh)
           || !sameInstant(entity.getConnectedAt(), usedConnectedAt)) {
+        return null;
+      }
+      if (generation != generationOf(connectionId)) {
         return null;
       }
       if (rotatedRefresh != null && !rotatedRefresh.isBlank()) {
@@ -315,7 +321,16 @@ public class ProviderConnectionService {
       return null;
     }
 
-    accessTokenCache.put(connectionId, new CachedAccessToken(persisted, expiresAt));
+    if (generation != generationOf(connectionId)) {
+      evict(connectionId);
+      return null;
+    }
+
+    CachedAccessToken cached = new CachedAccessToken(persisted, expiresAt);
+    accessTokenCache.put(connectionId, cached);
+    if (generation != generationOf(connectionId)) {
+      accessTokenCache.remove(connectionId, cached);
+    }
     return new RefreshOutcome(persisted);
   }
 
