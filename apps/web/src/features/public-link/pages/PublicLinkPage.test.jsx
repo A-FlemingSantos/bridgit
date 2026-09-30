@@ -18,6 +18,7 @@ vi.mock('@bridgit/shared-client', () => ({
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
+  PDFDataRangeTransport: class {},
   getDocument: vi.fn(() => ({
     promise: Promise.resolve({ numPages: 0 }),
     destroy: vi.fn(async () => {}),

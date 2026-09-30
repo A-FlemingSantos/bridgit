@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -149,6 +150,13 @@ public class GlobalExceptionHandler {
         request.getRequestURI(),
         List.of()
     );
+  }
+
+  @ExceptionHandler(AsyncRequestNotUsableException.class)
+  public void handleDisconnectedAsyncResponse(AsyncRequestNotUsableException ex) {
+    // The framework may flush again after a streaming callback has ended.
+    // A disconnected client cannot receive a JSON error response.
+    logger.debug("Asynchronous response is no longer writable", ex);
   }
 
   @ExceptionHandler(Exception.class)

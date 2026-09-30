@@ -30,7 +30,7 @@ export default function App() {
 }
 
 function AppShell() {
-  const { status, shouldDiscardReturnPath, acknowledgeDiscardReturnPath } = useSession()
+  const { status, session, shouldDiscardReturnPath, acknowledgeDiscardReturnPath } = useSession()
   const location = useLocation()
   const settingsOpen = isSettingsPath(location.pathname)
   const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : location
@@ -61,7 +61,7 @@ function AppShell() {
   }
 
   return (
-    <HubDataProvider>
+    <HubDataProvider key={session?.user?.id ?? 'anonymous'}>
     <HubProvider>
       <Routes location={backgroundLocation}>
         <Route path={ROUTES.landing} element={<LandingPage />} />

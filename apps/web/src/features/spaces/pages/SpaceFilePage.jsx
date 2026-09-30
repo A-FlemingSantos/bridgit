@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -27,13 +27,15 @@ export default function SpaceFilePage() {
   const { isShortcut } = useShortcuts()
   const itemQuery = useItem(providerId, fileRef)
   const recordedRef = useRef(null)
-  const renewedExpiredSourceRef = useRef(false)
+  const renewedExpiredSourceRef = useRef(null)
+  const sourceRecoveryRef = useRef(null)
   const [source, setSource] = useState(null)
   const [readError, setReadError] = useState(null)
-  const [sourceKey, setSourceKey] = useState(0)
   const [downloadPending, setDownloadPending] = useState(false)
   const [downloadError, setDownloadError] = useState(null)
   const [actionError, setActionError] = useState(null)
+  const operationError = actions.getOperationError?.(providerId) ?? null
+  useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
   const item = itemQuery.item
@@ -47,6 +49,12 @@ export default function SpaceFilePage() {
   readableRefRef.current = readableRef
   const providerRef = useRef(providerId)
   providerRef.current = providerId
+  const sourceRef = useRef(source)
+  sourceRef.current = source
+  const readerSource = useMemo(
+    () => (source ? { ...source, providerId: source.providerId ?? providerId } : null),
+    [providerId, source],
+  )
 
   useEffect(() => {
     if (item?.name) {
@@ -71,7 +79,8 @@ export default function SpaceFilePage() {
     const capturedProvider = providerId
 
     let active = true
-    renewedExpiredSourceRef.current = false
+    renewedExpiredSourceRef.current = null
+    sourceRecoveryRef.current = null
     setSource(null)
     setReadError(null)
 
@@ -90,34 +99,53 @@ export default function SpaceFilePage() {
 
     return () => {
       active = false
+      sourceRequestRef.current += 1
     }
   }, [providerId, readableRef])
 
-  async function refreshSource() {
-    if (!readableRef) return
+  async function refreshSource({ preserveRevision = false } = {}) {
+    if (!readableRef) return false
     const requestId = (sourceRequestRef.current += 1)
     const capturedRef = readableRef
     const capturedProvider = providerId
     setReadError(null)
     try {
-      const nextSource = await actionsRef.current.getReadSource({ providerId: capturedProvider, ref: capturedRef })
-      if (sourceRequestRef.current !== requestId) return
-      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+      const nextSource = await actionsRef.current.getReadSource({ providerId: capturedProvider, ref: capturedRef, refresh: true })
+      if (sourceRequestRef.current !== requestId) return false
+      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return false
+      if (
+        preserveRevision &&
+        sourceRef.current?.revision &&
+        nextSource?.revision &&
+        sourceRef.current.revision !== nextSource.revision
+      ) {
+        return false
+      }
+      if (preserveRevision && nextSource?.url === sourceRef.current?.url) return false
+      if (preserveRevision && Date.parse(nextSource?.expiresAt) <= Date.now()) return false
       setSource(nextSource)
-      setSourceKey((key) => key + 1)
+      return true
     } catch (error) {
       if (sourceRequestRef.current !== requestId) return
       if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
       setReadError(hubErrorMessage(error))
+      return false
     }
   }
 
   function handleContentError() {
-    const expiresAt = source?.expiresAt ? Date.parse(source.expiresAt) : NaN
-    if (renewedExpiredSourceRef.current || !(expiresAt <= Date.now())) return false
-    renewedExpiredSourceRef.current = true
-    void refreshSource()
-    return true
+    const current = sourceRef.current
+    const expiresAt = current?.expiresAt ? Date.parse(current.expiresAt) : NaN
+    if (sourceRecoveryRef.current && sourceRecoveryRef.current.url === current?.url) return sourceRecoveryRef.current.promise
+    if (!current?.url || renewedExpiredSourceRef.current === current.url || !(expiresAt <= Date.now() + 5000)) return false
+    // One recovery per ticket, rather than one for the entire time the file is open.
+    renewedExpiredSourceRef.current = current.url
+    const recovery = { url: current.url, promise: null }
+    recovery.promise = refreshSource({ preserveRevision: true }).finally(() => {
+      if (sourceRecoveryRef.current === recovery) sourceRecoveryRef.current = null
+    })
+    sourceRecoveryRef.current = recovery
+    return recovery.promise
   }
 
   async function handleDownload() {
@@ -232,14 +260,13 @@ export default function SpaceFilePage() {
                 </p>
               ) : null}
               <FileReader
-                key={sourceKey}
                 file={{
                   name: item.name,
                   extension: item.extension,
                   mimeType: item.mimeType,
                   providerName: providerMeta?.name ?? '',
                 }}
-                source={source}
+                source={readerSource}
                 error={readError}
                 downloadUrl={null}
                 onDownload={() => void handleDownload()}

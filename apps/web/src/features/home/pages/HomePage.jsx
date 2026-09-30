@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, RefreshCw, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
@@ -59,6 +59,8 @@ export default function HomePage() {
   const [query, setQuery] = useState('')
   const [recentsView, setRecentsView] = useState('list')
   const [actionError, setActionError] = useState(null)
+  const operationError = actions.getOperationError?.() ?? null
+  useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
   const [failedUploads, setFailedUploads] = useState([])
   const [uploadProviderId, setUploadProviderId] = useState(null)
   const search = useSearch(query)

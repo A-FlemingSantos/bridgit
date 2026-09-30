@@ -51,6 +51,7 @@ public class SecurityConfiguration {
             .requestMatchers(HttpMethod.GET, "/api/providers/*/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/public/links/**").permitAll()
+            .requestMatchers("/api/webhooks/**").permitAll()
             .anyRequest()
             .authenticated()
         )
@@ -77,8 +78,8 @@ public class SecurityConfiguration {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(allowedOrigins(frontendBaseUrl, extraAllowedOrigins));
     configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-    configuration.setExposedHeaders(List.of("Location"));
+    configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range", "Last-Event-ID"));
+    configuration.setExposedHeaders(List.of("Location", "Content-Range", "Accept-Ranges", "Content-Length"));
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/api/**", configuration);

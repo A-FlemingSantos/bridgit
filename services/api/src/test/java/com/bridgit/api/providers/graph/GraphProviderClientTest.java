@@ -40,7 +40,7 @@ class GraphProviderClientTest {
 
   @Test
   void listRootMapsItemsAndCursor() {
-    server.expect(requestTo("https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,size,file,folder,lastModifiedDateTime,parentReference&$top=200"))
+    server.expect(requestTo("https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag&$top=200"))
         .andRespond(withSuccess("""
             {
               "value": [
@@ -56,6 +56,8 @@ class GraphProviderClientTest {
                   "name": "readme.txt",
                   "size": 12,
                   "file": { "mimeType": "text/plain" },
+                  "eTag": "etag-1",
+                  "cTag": "ctag-1",
                   "lastModifiedDateTime": "2026-01-02T00:00:00Z",
                   "parentReference": { "id": "root-id" }
                 }
@@ -71,6 +73,8 @@ class GraphProviderClientTest {
     assertEquals("Alpha", page.items().get(0).name());
     assertEquals(ItemKind.FILE, page.items().get(1).kind());
     assertEquals("txt", page.items().get(1).extension());
+    assertEquals("etag-1", page.items().get(1).remoteVersion());
+    assertEquals("ctag-1", page.items().get(1).contentRevision());
     assertEquals(
         "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc",
         page.nextCursor()

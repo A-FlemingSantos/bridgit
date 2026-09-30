@@ -35,7 +35,7 @@ class GoogleDriveProviderClientTest {
 
     server.expect(requestTo(org.hamcrest.Matchers.allOf(
             org.hamcrest.Matchers.containsString("/drive/v3/files?q=%27root-id%27"),
-            org.hamcrest.Matchers.containsString("fields=nextPageToken%2Cfiles%28"),
+            org.hamcrest.Matchers.containsString("fields=nextPageToken%2CincompleteSearch%2Cfiles%28"),
             org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("%25")))))
         .andRespond(withSuccess("""
             {

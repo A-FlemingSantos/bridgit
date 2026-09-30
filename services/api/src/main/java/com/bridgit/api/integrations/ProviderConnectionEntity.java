@@ -11,6 +11,12 @@ import java.util.UUID;
 @Table(name = "provider_connections")
 public class ProviderConnectionEntity extends BaseEntity {
 
+  @Column(nullable = false)
+  private long generation = 1;
+
+  public long getGeneration() { return generation; }
+  public void setGeneration(long generation) { this.generation = generation; }
+
   @Column(name = "user_id", nullable = false)
   private UUID userId;
 

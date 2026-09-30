@@ -1,6 +1,8 @@
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getContent, putContent, withContentLock } from '../../hub/storage/index.js'
+import { isCacheableContent, verifyContentRevision } from '../../hub/content/index.js'
 import { useDebouncedCallback } from './useDebouncedCallback.js'
 import styles from './FileReader.module.css'
 
@@ -8,7 +10,185 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 const ROOT_MARGIN = '240px 0px'
 
-export default function PdfReader({ url, onFirstPageReady, onError }) {
+export class ProgressivePdfTransport extends pdfjs.PDFDataRangeTransport {
+  constructor(source, onFailure) {
+    super(source.size, null, false)
+    this.source = source
+    this.controller = new AbortController()
+    this.fullChunks = []
+    this.fullLoaded = 0
+    this.rangeRequests = new Map()
+    this.proxyFallbackUsed = false
+    this.activeUrl = source.url
+    this.started = false
+    this.onFailure = onFailure
+  }
+
+  start() {
+    if (this.started) return
+    this.started = true
+    void withContentLock(
+      this.source,
+      async () => {
+        const cached = await getContent(this.source)
+        if (cached) {
+          await this.pushCached(cached)
+          return
+        }
+        const blob = await this.download()
+        if (blob && blob.size === this.source.size && await verifyContentRevision(this.source)) {
+          await putContent(this.source, blob)
+        }
+      },
+      { signal: this.controller.signal },
+    ).catch((error) => {
+      if (!this.controller.signal.aborted) this.onFailure?.(error)
+      this.abort()
+    })
+  }
+
+  async pushCached(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    this.fullChunks.push(bytes.slice())
+    this.fullLoaded = bytes.byteLength
+    this.flushRanges()
+    this.onDataProgressiveRead(bytes.slice())
+    this.onDataProgressiveDone()
+  }
+
+  async download() {
+    try {
+      return await this.downloadFrom(this.source.url)
+    } catch (error) {
+      if (
+        this.controller.signal.aborted ||
+        this.fullLoaded > 0 ||
+        this.proxyFallbackUsed ||
+        this.source.providerId !== 'onedrive' ||
+        !this.source.proxyUrl
+      ) {
+        throw error
+      }
+      this.proxyFallbackUsed = true
+      this.activeUrl = this.source.proxyUrl
+      return this.downloadFrom(this.source.proxyUrl)
+    }
+  }
+
+  async downloadFrom(url) {
+    const response = await fetch(url, { signal: this.controller.signal })
+    if (!response.ok || !response.body) throw new Error('Não foi possível carregar o arquivo.')
+
+    const reader = response.body.getReader()
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        if (!value) continue
+        const cached = value.slice()
+        this.fullChunks.push(cached)
+        this.fullLoaded += cached.byteLength
+        this.onDataProgressiveRead(value.slice())
+        this.flushRanges()
+      }
+    } finally {
+      reader.releaseLock()
+    }
+
+    this.flushRanges()
+    this.onDataProgressiveDone()
+    return this.fullLoaded === this.source.size
+      ? new Blob(this.fullChunks, { type: 'application/pdf' })
+      : null
+  }
+
+  requestDataRange(begin, end) {
+    if (begin < 0 || end <= begin || end > this.source.size) return
+    if (end <= this.fullLoaded) {
+      this.onDataRange(begin, this.sliceFull(begin, end).slice())
+      return
+    }
+    const key = `${begin}:${end}`
+    if (this.rangeRequests.has(key)) return
+    const entry = { begin, end, fulfilled: false }
+    this.rangeRequests.set(key, entry)
+    entry.promise = this.downloadRange(begin, end)
+      .then((bytes) => {
+        if (entry.fulfilled) return
+        entry.fulfilled = true
+        this.onDataRange(begin, bytes.slice())
+      })
+      .catch((error) => {
+        if (!this.controller.signal.aborted) this.onFailure?.(error)
+      })
+      .finally(() => {
+        if (this.rangeRequests.get(key) === entry) this.rangeRequests.delete(key)
+      })
+  }
+
+  flushRanges() {
+    this.rangeRequests.forEach((entry, key) => {
+      if (entry.fulfilled || entry.end > this.fullLoaded) return
+      entry.fulfilled = true
+      this.onDataRange(entry.begin, this.sliceFull(entry.begin, entry.end).slice())
+      this.rangeRequests.delete(key)
+    })
+  }
+
+  sliceFull(begin, end) {
+    const all = new Uint8Array(end - begin)
+    let offset = 0
+    let position = 0
+    for (const chunk of this.fullChunks) {
+      const chunkEnd = position + chunk.byteLength
+      if (chunkEnd > begin && position < end) {
+        const from = Math.max(begin - position, 0)
+        const to = Math.min(end - position, chunk.byteLength)
+        all.set(chunk.subarray(from, to), offset)
+        offset += to - from
+      }
+      position = chunkEnd
+      if (position >= end) break
+    }
+    return all
+  }
+
+  async downloadRange(begin, end) {
+    try {
+      return await this.downloadRangeFrom(this.activeUrl, begin, end)
+    } catch (error) {
+      if (
+        this.controller.signal.aborted ||
+        this.proxyFallbackUsed ||
+        this.source.providerId !== 'onedrive' ||
+        !this.source.proxyUrl
+      ) {
+        throw error
+      }
+      this.proxyFallbackUsed = true
+      this.activeUrl = this.source.proxyUrl
+      return this.downloadRangeFrom(this.source.proxyUrl, begin, end)
+    }
+  }
+
+  async downloadRangeFrom(url, begin, end) {
+    const response = await fetch(url, {
+      signal: this.controller.signal,
+      headers: { Range: `bytes=${begin}-${end - 1}` },
+    })
+    if (!response.ok) throw new Error('Não foi possível carregar o arquivo.')
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    if (bytes.byteLength !== end - begin) throw new Error('Intervalo de PDF inválido.')
+    return bytes
+  }
+
+  abort() {
+    this.controller.abort()
+    this.rangeRequests.clear()
+  }
+}
+
+export default function PdfReader({ url, content, source, onFirstPageReady, onError }) {
   const containerRef = useRef(null)
   const [pageCount, setPageCount] = useState(0)
   const [renderWidth, setRenderWidth] = useState(0)
@@ -18,6 +198,9 @@ export default function PdfReader({ url, onFirstPageReady, onError }) {
   const firstPageReadyRef = useRef(false)
   const renderWidthRef = useRef(renderWidth)
   const onErrorRef = useRef(onError)
+  const sourceRef = useRef(source)
+  sourceRef.current = source
+  const loadKey = content ? source?.revision ?? url : url
   onErrorRef.current = onError
 
   useEffect(() => {
@@ -93,11 +276,27 @@ export default function PdfReader({ url, onFirstPageReady, onError }) {
     let cancelled = false
     renderedPages.current = new Set()
     firstPageReadyRef.current = false
-    // pdfjs-dist 6 releases the document through the loading task, not the document proxy.
-    const loadingTask = pdfjs.getDocument({ url })
+    let transport = null
+    let loadingTask = null
 
     async function loadDocument() {
       try {
+        if (content) {
+          const data = new Uint8Array(await content.arrayBuffer())
+          if (cancelled) return
+          loadingTask = pdfjs.getDocument({ data })
+        } else if (isCacheableContent(sourceRef.current)) {
+          transport = new ProgressivePdfTransport(sourceRef.current, () => onErrorRef.current?.('Não foi possível ler este PDF.'))
+          loadingTask = pdfjs.getDocument({
+            range: transport,
+            disableRange: false,
+            disableStream: false,
+            rangeChunkSize: 64 * 1024,
+          })
+          transport.start()
+        } else {
+          loadingTask = pdfjs.getDocument({ url })
+        }
         const pdf = await loadingTask.promise
         if (cancelled) return
 
@@ -114,9 +313,10 @@ export default function PdfReader({ url, onFirstPageReady, onError }) {
     return () => {
       cancelled = true
       pdfRef.current = null
-      void loadingTask.destroy()
+      transport?.abort()
+      void loadingTask?.destroy()
     }
-  }, [url])
+  }, [loadKey, content])
 
   useEffect(() => {
     if (!pageCount || !renderWidth) return undefined

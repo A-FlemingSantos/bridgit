@@ -757,7 +757,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'OneDrive' })).toBeInTheDocument()
+    // The stable header may be hydrated before the connected provider response arrives.
+    expect(await screen.findByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'OneDrive' })).toBeInTheDocument()
     expect(
       within(screen.getByRole('navigation', { name: 'Localização atual' })).getByRole('link', { name: 'Início' }),
     ).toHaveAttribute('href', '/home')
@@ -766,7 +768,7 @@ describe('App', () => {
       'href',
       '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
     )
-    const fileLink = screen.getByRole('link', { name: /Relatório 2023/ })
+    const fileLink = await screen.findByRole('link', { name: /Relatório 2023/ })
     expect(fileLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_REL}`)
     expect(fileLink).toHaveAttribute('target', '_blank')
   })

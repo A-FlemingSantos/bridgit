@@ -8,6 +8,11 @@ spring:
     enabled: true
 
 app:
+  hub:
+    worker-enabled: false
+    catalog-enabled: false
+    operations-enabled: false
+    direct-read-enabled: false
   frontend-base-url: http://localhost:5173
   cors:
     allowed-origins: http://localhost:5173

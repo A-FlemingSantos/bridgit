@@ -32,6 +32,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class ProviderConnectionService {
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.bridgit.api.catalog.LocalHubProperties localHubProperties;
 
   private static final List<CloudProvider> PROVIDER_ORDER = List.of(
       CloudProvider.ONEDRIVE,
@@ -166,6 +168,16 @@ public class ProviderConnectionService {
       ProviderConnectionEntity connection = connectionRepository
           .findByUserIdAndProvider(stateEntity.getUserId(), provider.id())
           .orElseGet(ProviderConnectionEntity::new);
+
+      if (connection.getId() != null && !account.accountId().equals(connection.getAccountId())) {
+        // A different remote account must never inherit snapshots, tickets or pending writes.
+        connectionRepository.delete(connection);
+        connectionRepository.flush();
+        invalidate(connection.getId());
+        connection = new ProviderConnectionEntity();
+      } else if (connection.getId() != null) {
+        connection.setGeneration(connection.getGeneration() + 1);
+      }
 
       connection.setUserId(stateEntity.getUserId());
       connection.setProvider(provider.id());
@@ -404,7 +416,11 @@ public class ProviderConnectionService {
         connected,
         account,
         connectedAt,
-        lastError
+        lastError,
+        connection == null ? null : connection.getId(),
+        connection == null ? null : connection.getGeneration(),
+        connection == null ? null : lastError == null ? "scheduled" : "attention",
+        localHubProperties != null && localHubProperties.isOperationsEnabled() && localHubProperties.providerEnabled(provider.id())
     );
   }
 

@@ -93,9 +93,10 @@ public class FilesController {
   @GetMapping("/items/{ref}/read")
   public ApiEnvelope<FilesDtos.ReadResponse> readItem(
       @PathVariable CloudProvider provider,
-      @PathVariable String ref
+      @PathVariable String ref,
+      @RequestParam(defaultValue = "false") boolean refresh
   ) {
-    return ApiEnvelope.ok(providerFileService.readItem(provider, ref));
+    return ApiEnvelope.ok(providerFileService.readItem(provider, ref, refresh));
   }
 
   @PostMapping("/items/{ref}/ticket")

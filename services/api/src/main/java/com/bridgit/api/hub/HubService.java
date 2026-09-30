@@ -24,6 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class HubService {
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.bridgit.api.catalog.CatalogStore catalog;
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.bridgit.api.catalog.LocalHubProperties localHubProperties;
+
   private static final int RECENT_LIMIT = 12;
 
   private final HubRecentRepository recentRepository;
@@ -146,6 +151,11 @@ public class HubService {
   }
 
   private CloudItem fetchItem(CloudProvider provider, ProviderConnectionEntity connection, String ref) {
+    if (catalog != null && localHubProperties != null && localHubProperties.isCatalogEnabled()
+        && localHubProperties.providerEnabled(provider.id())) {
+      var known = catalog.entry(connection, ref);
+      if (known != null && !known.deleted()) return known.item();
+    }
     CloudProviderClient client = providerClients.get(provider);
     return retryService.withRetry(connection, token -> client.get(token, ref));
   }

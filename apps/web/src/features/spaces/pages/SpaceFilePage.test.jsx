@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SpaceFilePage from './SpaceFilePage.jsx'
 
 vi.mock('../../../shared/hub/index.js', () => ({
@@ -53,6 +53,7 @@ describe('SpaceFilePage download e leitura', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('busca um ticket novo a cada clique em Baixar', async () => {
     const user = userEvent.setup()
@@ -118,12 +119,13 @@ describe('SpaceFilePage download e leitura', () => {
     })
   })
 
-  it('renova sozinho uma vez a fonte vencida e depois mostra o erro', async () => {
+  it('renova a fonte vencida sem repetir a recuperação se o ticket novo ainda é válido', async () => {
     const expired = new Date(Date.now() - 1000).toISOString()
+    const valid = new Date(Date.now() + 300_000).toISOString()
     const getReadSource = vi
       .fn()
       .mockResolvedValueOnce({ mode: 'image', url: '/velha.png', expiresAt: expired })
-      .mockResolvedValue({ mode: 'image', url: '/nova.png', expiresAt: expired })
+      .mockResolvedValue({ mode: 'image', url: '/nova.png', expiresAt: valid })
     setup({
       recordRecent: vi.fn().mockResolvedValue(undefined),
       getReadSource,
@@ -145,6 +147,57 @@ describe('SpaceFilePage download e leitura', () => {
     fireEvent.error(document.querySelector('img[src="/nova.png"]'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar a imagem.')
     expect(getReadSource).toHaveBeenCalledTimes(2)
+  })
+
+  it('recupera dois vencimentos durante a mesma leitura mantendo a mídia e a posição', async () => {
+    const initialTime = Date.now()
+    let currentTime = initialTime
+    vi.spyOn(Date, 'now').mockImplementation(() => currentTime)
+    const getReadSource = vi.fn().mockImplementation(() => Promise.resolve({
+      mode: 'video', url: `/video-${getReadSource.mock.calls.length}`, revision: 'r-1',
+      expiresAt: new Date(currentTime + 300_000).toISOString(),
+    }))
+    setup({ recordRecent: vi.fn().mockResolvedValue(), getReadSource })
+    renderPage()
+    await waitFor(() => expect(document.querySelector('video')?.getAttribute('src')).toBe('/video-1'))
+    const video = document.querySelector('video')
+    fireEvent.loadedData(video)
+    video.currentTime = 37
+    fireEvent.timeUpdate(video)
+
+    for (let cycle = 1; cycle <= 2; cycle += 1) {
+      currentTime = initialTime + cycle * 360_000
+      fireEvent.error(video)
+      await waitFor(() => expect(video.getAttribute('src')).toBe(`/video-${cycle + 1}`))
+      expect(document.querySelector('video')).toBe(video)
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.queryByRole('status', { name: 'Carregando arquivo' })).toBeNull()
+      video.currentTime = 0
+      fireEvent.loadedData(video)
+      expect(video.currentTime).toBe(37)
+    }
+    expect(getReadSource).toHaveBeenCalledTimes(3)
+    expect(getReadSource).toHaveBeenLastCalledWith({ providerId: 'onedrive', ref: 'file-1', refresh: true })
+  })
+
+  it('agrupa falhas simultâneas enquanto aguarda a recuperação de um ticket', async () => {
+    let resolveRecovery
+    const getReadSource = vi.fn()
+      .mockResolvedValueOnce({ mode: 'video', url: '/expired', revision: 'r-1', expiresAt: new Date(Date.now() - 1000).toISOString() })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRecovery = resolve }))
+    setup({ recordRecent: vi.fn().mockResolvedValue(), getReadSource })
+    renderPage()
+    await waitFor(() => expect(document.querySelector('video')).toBeTruthy())
+    const video = document.querySelector('video')
+    fireEvent.loadedData(video)
+    fireEvent.error(video)
+    fireEvent.error(video)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('video')).toBe(video)
+    expect(getReadSource).toHaveBeenCalledTimes(2)
+    await act(async () => resolveRecovery({ mode: 'video', url: '/renewed', revision: 'r-1', expiresAt: new Date(Date.now() + 300_000).toISOString() }))
+    expect(video.getAttribute('src')).toBe('/renewed')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('ignora a resposta de nova tentativa obsoleta após trocar de arquivo', async () => {

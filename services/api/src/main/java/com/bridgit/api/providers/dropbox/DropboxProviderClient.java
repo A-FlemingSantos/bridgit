@@ -14,6 +14,10 @@ import com.bridgit.api.providers.ProviderHttpSupport;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
 import com.bridgit.api.providers.graph.NoRedirectClientHttpRequestFactory;
+import com.bridgit.api.providers.sync.CloudChange;
+import com.bridgit.api.providers.sync.CloudSyncClient;
+import com.bridgit.api.providers.sync.SyncPage;
+import com.bridgit.api.providers.sync.SyncResetException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
@@ -25,6 +29,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -36,7 +42,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 @Component
-public class DropboxProviderClient implements CloudProviderClient {
+public class DropboxProviderClient implements CloudProviderClient, CloudSyncClient {
 
   private static final String API_BASE = "https://api.dropboxapi.com/2";
   private static final String CONTENT_BASE = "https://content.dropboxapi.com/2";
@@ -129,7 +135,7 @@ public class DropboxProviderClient implements CloudProviderClient {
           parseClientModified(ancestor.path("client_modified").asText(null)),
           null,
           false
-      ));
+      ).withVersions(ancestor.path("rev").asText(null), null));
     }
 
     return path;
@@ -142,7 +148,7 @@ public class DropboxProviderClient implements CloudProviderClient {
     JsonNode json = rpc(accessToken, API_BASE + "/files/create_folder_v2", """
         {"path":"%s","autorename":true}
         """.formatted(escapeJson(targetPath)));
-    return mapEntry(json.path("metadata"), listedParentRef(parentRef));
+    return mapEntry(json.path("metadata"), listedParentRef(parentRef), ItemKind.FOLDER);
   }
 
   @Override
@@ -156,14 +162,12 @@ public class DropboxProviderClient implements CloudProviderClient {
   ) {
     String parentPath = resolveParentPath(accessToken, parentRef);
     String targetPath = parentPath.isEmpty() ? "/" + name : parentPath + "/" + name;
-    String apiArg = """
-        {"path":"%s","mode":"add","autorename":true}
-        """.formatted(escapeJson(targetPath));
+    String apiArg = apiArg(Map.of("path", targetPath, "mode", "add", "autorename", true));
 
     JsonNode json = contentClient.post()
         .uri(CONTENT_BASE + "/files/upload")
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
-        .header("Dropbox-API-Arg", escapeApiArg(apiArg))
+        .header("Dropbox-API-Arg", apiArg)
         .contentType(MediaType.APPLICATION_OCTET_STREAM)
         .contentLength(size)
         .body((org.springframework.http.StreamingHttpOutputMessage.Body) out -> {
@@ -213,10 +217,48 @@ public class DropboxProviderClient implements CloudProviderClient {
   }
 
   @Override
+  public CloudItem updateConditional(
+      String accessToken, String ref, String newName, String newParentRef, String remoteVersion
+  ) {
+    assertCurrentVersion(accessToken, ref, remoteVersion);
+    return update(accessToken, ref, newName, newParentRef);
+  }
+
+  @Override
   public void delete(String accessToken, String ref) {
     rpc(accessToken, API_BASE + "/files/delete_v2", """
         {"path":"%s"}
         """.formatted(escapeJson(ref)));
+  }
+
+  @Override
+  public void deleteConditional(String accessToken, String ref, String remoteVersion) {
+    assertCurrentVersion(accessToken, ref, remoteVersion);
+    delete(accessToken, ref);
+  }
+
+  @Override
+  public SyncPage syncPage(String accessToken, String checkpoint) {
+    JsonNode json;
+    if (StringUtils.hasText(checkpoint)) {
+      json = syncRpc(accessToken, API_BASE + "/files/list_folder/continue",
+          compactJson(Map.of("cursor", checkpoint)));
+    } else {
+      json = syncRpc(accessToken, API_BASE + "/files/list_folder", compactJson(Map.of(
+          "path", "",
+          "recursive", true,
+          "include_deleted", true,
+          "include_mounted_folders", true,
+          "limit", PAGE_SIZE
+      )));
+    }
+    String nextCheckpoint = json.path("cursor").asText(checkpoint);
+    return new SyncPage(
+        mapSyncChanges(json.path("entries")),
+        nextCheckpoint,
+        !json.path("has_more").asBoolean(false),
+        null
+    );
   }
 
   @Override
@@ -304,11 +346,11 @@ public class DropboxProviderClient implements CloudProviderClient {
       String contentType,
       String rangeHeader
   ) {
-    String apiArg = "{\"path\":\"" + escapeJson(ref) + "\"}";
+    String apiArg = apiArg(Map.of("path", ref));
     ClientHttpResponse response = contentClient.post()
         .uri(url)
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
-        .header("Dropbox-API-Arg", escapeApiArg(apiArg))
+        .header("Dropbox-API-Arg", apiArg)
         .headers(headers -> {
           if (rangeHeader != null) {
             headers.set(HttpHeaders.RANGE, rangeHeader);
@@ -329,6 +371,22 @@ public class DropboxProviderClient implements CloudProviderClient {
         .body(body)
         .exchange((request, response) -> {
           ensureSuccess(response);
+          try {
+            return objectMapper.readTree(response.getBody());
+          } catch (Exception ex) {
+            throw new ProviderApiException("Resposta invalida do provedor.");
+          }
+        });
+  }
+
+  private JsonNode syncRpc(String accessToken, String url, String body) {
+    return apiClient.post()
+        .uri(url)
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(body)
+        .exchange((request, response) -> {
+          ensureSyncSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
@@ -361,8 +419,12 @@ public class DropboxProviderClient implements CloudProviderClient {
   }
 
   private CloudItem mapEntry(JsonNode node, String parentRef) {
+    return mapEntry(node, parentRef, null);
+  }
+
+  private CloudItem mapEntry(JsonNode node, String parentRef, ItemKind fallbackKind) {
     String tag = node.path(".tag").asText();
-    boolean folder = "folder".equals(tag);
+    boolean folder = fallbackKind == ItemKind.FOLDER || "folder".equals(tag);
     String name = node.path("name").asText(null);
     String id = node.path("id").asText(null);
     Long size = folder ? null : node.path("size").asLong(0);
@@ -381,7 +443,8 @@ public class DropboxProviderClient implements CloudProviderClient {
         parseClientModified(node.path("client_modified").asText(null)),
         parentRef,
         true
-    );
+    ).withVersions(node.path("rev").asText(null),
+        folder ? null : node.path("content_hash").asText(null));
   }
 
   private CloudItem mapEntryWithResolvedParent(String accessToken, JsonNode node) {
@@ -409,7 +472,9 @@ public class DropboxProviderClient implements CloudProviderClient {
         mapped.size(),
         mapped.modifiedAt(),
         parentId,
-        true
+        true,
+        mapped.remoteVersion(),
+        mapped.contentRevision()
     );
   }
 
@@ -429,7 +494,56 @@ public class DropboxProviderClient implements CloudProviderClient {
         parseClientModified(node.path("client_modified").asText(null)),
         null,
         false
-    );
+    ).withVersions(node.path("rev").asText(null),
+        folder ? null : node.path("content_hash").asText(null));
+  }
+
+  private List<CloudChange> mapSyncChanges(JsonNode entries) {
+    List<CloudChange> changes = new ArrayList<>();
+    if (!entries.isArray()) {
+      return changes;
+    }
+    entries.forEach(entry -> {
+      String path = entry.path("path_display").asText(null);
+      if (!StringUtils.hasText(path)) {
+        path = entry.path("path_lower").asText(null);
+      }
+      String parentPath = parentDirectory(path);
+      if ("deleted".equals(entry.path(".tag").asText())) {
+        changes.add(new CloudChange(null, null, true, path, parentPath, Set.of()));
+        return;
+      }
+      CloudItem item = mapEntry(entry, null);
+      boolean parentKnown = !StringUtils.hasText(parentPath);
+      if (!parentKnown) {
+        item = withParentState(item, null, false);
+      }
+      changes.add(new CloudChange(item.ref(), item, false, path, parentPath,
+          knownSyncFields(entry, parentKnown)));
+    });
+    return changes;
+  }
+
+  private static CloudItem withParentState(CloudItem item, String parentRef, boolean parentKnown) {
+    return new CloudItem(
+        item.ref(), item.provider(), item.name(), item.kind(), item.mimeType(), item.extension(),
+        item.size(), item.modifiedAt(), parentRef, parentKnown, item.remoteVersion(),
+        item.contentRevision());
+  }
+
+  private static Set<String> knownSyncFields(JsonNode entry, boolean parentKnown) {
+    java.util.LinkedHashSet<String> known = new java.util.LinkedHashSet<>(Set.of(
+        "name", "kind", "mimeType", "extension", "size", "modifiedAt"));
+    if (parentKnown) {
+      known.add("parentRef");
+    }
+    if (entry.has("rev")) {
+      known.add("remoteVersion");
+    }
+    if (entry.has("content_hash")) {
+      known.add("contentRevision");
+    }
+    return Set.copyOf(known);
   }
 
   private static String guessMime(String name) {
@@ -474,13 +588,37 @@ public class DropboxProviderClient implements CloudProviderClient {
     StringBuilder out = new StringBuilder(json.length());
     for (int i = 0; i < json.length(); i++) {
       char ch = json.charAt(i);
-      if (ch > 127) {
+      if (ch < 0x20 || ch > 0x7e) {
         out.append(String.format("\\u%04x", (int) ch));
       } else {
         out.append(ch);
       }
     }
     return out.toString();
+  }
+
+  private String apiArg(Map<String, ?> values) {
+    return escapeApiArg(compactJson(values));
+  }
+
+  private String compactJson(Map<String, ?> values) {
+    try {
+      return objectMapper.writeValueAsString(values);
+    } catch (Exception ex) {
+      throw new ProviderApiException("Nao foi possivel preparar a requisicao ao provedor.");
+    }
+  }
+
+  private void assertCurrentVersion(String accessToken, String ref, String expectedVersion) {
+    if (!StringUtils.hasText(expectedVersion)) {
+      return;
+    }
+    JsonNode current = rpc(accessToken, API_BASE + "/files/get_metadata", compactJson(Map.of("path", ref)));
+    String actualVersion = current.path("rev").asText(null);
+    if (!expectedVersion.equals(actualVersion)) {
+      throw new ProviderApiException(org.springframework.http.HttpStatus.CONFLICT, "ITEM_CONFLITO",
+          "O item foi alterado no provedor.");
+    }
   }
 
   static ContentStream toContentStream(ClientHttpResponse response, String fileName, String contentType) {
@@ -562,6 +700,27 @@ public class DropboxProviderClient implements CloudProviderClient {
       throw new ProviderApiException("Nao foi possivel concluir a operacao.");
     }
     ensureSuccess(response);
+  }
+
+  private static void ensureSyncSuccess(ClientHttpResponse response) {
+    try {
+      if (response.getStatusCode().value() != 409) {
+        ensureSuccess(response);
+        return;
+      }
+      HttpStatusCode status = response.getStatusCode();
+      HttpHeaders headers = response.getHeaders();
+      String body = readBody(response);
+      response.close();
+      if (body.toLowerCase(java.util.Locale.ROOT).contains("reset")) {
+        throw new SyncResetException("O cursor do Dropbox expirou e o inventario deve ser reiniciado.");
+      }
+      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.DROPBOX);
+    } catch (SyncResetException | ProviderApiException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+    }
   }
 
   private static String readBody(ClientHttpResponse response) {

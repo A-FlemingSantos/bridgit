@@ -15,19 +15,19 @@ import {
 
 export function useProviders() {
   const { session } = useSession()
-  const { providersState, loadProviders, connectProvider, disconnectProvider } = useHubDataContext()
+  const { providersState, loadProviders, connectProvider, disconnectProvider, hydrated } = useHubDataContext()
 
   useEffect(() => {
-    if (!session?.accessToken) return
+    if (!session?.accessToken || !hydrated) return
     if (providersState.status === 'idle') {
       void loadProviders()
     } else if (providersState.status === 'ready' && isStaleEntry(providersState, PROVIDERS_STALE_MS)) {
       void loadProviders()
     }
-  }, [loadProviders, providersState, session?.accessToken])
+  }, [hydrated, loadProviders, providersState, session?.accessToken])
 
   return {
-    status: providersState.status,
+    status: hydrated ? providersState.status : 'loading',
     providers: providersState.providers,
     error: providersState.error,
     reload: loadProviders,
@@ -38,12 +38,12 @@ export function useProviders() {
 
 export function useFolder(providerId, folderRef) {
   const { session } = useSession()
-  const { folderCache, loadFolder } = useHubDataContext()
+  const { folderCache, loadFolder, hydrated } = useHubDataContext()
   const key = folderCacheKey(providerId, folderRef)
   const entry = folderCache[key]
 
   useEffect(() => {
-    if (!session?.accessToken || !providerId || isTempRef(folderRef)) return
+    if (!session?.accessToken || !hydrated || !providerId || isTempRef(folderRef)) return
     if (!entry || entry.status === 'idle') {
       if (entry?.status !== 'loading') void loadFolder(providerId, folderRef)
     } else if (
@@ -55,7 +55,7 @@ export function useFolder(providerId, folderRef) {
     ) {
       void loadFolder(providerId, folderRef)
     }
-  }, [entry, folderRef, loadFolder, providerId, session?.accessToken])
+  }, [hydrated, entry, folderRef, loadFolder, providerId, session?.accessToken])
 
   return {
     status: entry?.status ?? 'idle',
@@ -78,18 +78,18 @@ export function useFolder(providerId, folderRef) {
 
 export function useItem(providerId, ref) {
   const { session } = useSession()
-  const { itemCache, loadItem } = useHubDataContext()
+  const { itemCache, loadItem, hydrated } = useHubDataContext()
   const key = providerId && ref ? itemCacheKey(providerId, ref) : null
   const entry = key ? itemCache[key] : null
 
   useEffect(() => {
-    if (!session?.accessToken || !providerId || !ref || isTempRef(ref)) return
+    if (!session?.accessToken || !hydrated || !providerId || !ref || isTempRef(ref)) return
     if (!entry || entry.status === 'idle') {
       if (entry?.status !== 'loading') void loadItem(providerId, ref)
-    } else if (entry.status === 'ready' && isStaleEntry(entry, ITEM_STALE_MS)) {
+    } else if (entry.status === 'ready' && !entry.revalidating && (entry.complete === false || isStaleEntry(entry, ITEM_STALE_MS))) {
       void loadItem(providerId, ref)
     }
-  }, [entry, loadItem, providerId, ref, session?.accessToken])
+  }, [hydrated, entry, loadItem, providerId, ref, session?.accessToken])
 
   return {
     status: entry?.status ?? 'idle',
@@ -104,16 +104,16 @@ export function useItem(providerId, ref) {
 
 export function useRecents() {
   const { session } = useSession()
-  const { recentsState, loadRecents } = useHubDataContext()
+  const { recentsState, loadRecents, hydrated } = useHubDataContext()
 
   useEffect(() => {
-    if (!session?.accessToken) return
+    if (!session?.accessToken || !hydrated) return
     if (recentsState.status === 'loading' || recentsState.status === 'error') return
     const incomplete = recentsState.authoritative !== true
     if (incomplete || isStaleEntry(recentsState, RECENTS_STALE_MS)) {
       void loadRecents()
     }
-  }, [loadRecents, recentsState, session?.accessToken])
+  }, [hydrated, loadRecents, recentsState, session?.accessToken])
 
   const synced = recentsState.authoritative === true
   return {
@@ -126,16 +126,16 @@ export function useRecents() {
 
 export function useShortcuts() {
   const { session } = useSession()
-  const { shortcutsState, loadShortcuts } = useHubDataContext()
+  const { shortcutsState, loadShortcuts, hydrated } = useHubDataContext()
 
   useEffect(() => {
-    if (!session?.accessToken) return
+    if (!session?.accessToken || !hydrated) return
     if (shortcutsState.status === 'idle') {
       void loadShortcuts()
     } else if (shortcutsState.status === 'ready' && isStaleEntry(shortcutsState, SHORTCUTS_STALE_MS)) {
       void loadShortcuts()
     }
-  }, [loadShortcuts, shortcutsState, session?.accessToken])
+  }, [hydrated, loadShortcuts, shortcutsState, session?.accessToken])
 
   return {
     status: shortcutsState.status,
@@ -152,12 +152,12 @@ export function useShortcuts() {
 
 export function useSearch(query) {
   const { session } = useSession()
-  const { searchState, setSearchState, runSearch } = useHubDataContext()
+  const { searchState, setSearchState, runSearch, hydrated } = useHubDataContext()
   const activeRequestRef = useRef(0)
   const trimmed = query.trim()
 
   useEffect(() => {
-    if (!session?.accessToken) return undefined
+    if (!session?.accessToken || !hydrated) return undefined
 
     if (trimmed.length < 2) {
       activeRequestRef.current += 1
@@ -178,7 +178,7 @@ export function useSearch(query) {
     }, 300)
 
     return () => window.clearTimeout(timer)
-  }, [runSearch, session?.accessToken, setSearchState, trimmed])
+  }, [hydrated, runSearch, session?.accessToken, setSearchState, trimmed])
 
   if (trimmed.length < 2) {
     return {

@@ -28,6 +28,19 @@ import org.springframework.util.StringUtils;
 @Service
 public class ProviderFileService {
 
+  private com.bridgit.api.catalog.CatalogService catalog;
+  private com.bridgit.api.operations.OperationService operations;
+  private com.bridgit.api.catalog.ReadAuthorizationService readAuthorization;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  public void configureLocalHub(com.bridgit.api.catalog.CatalogService catalog,
+      com.bridgit.api.operations.OperationService operations,
+      com.bridgit.api.catalog.ReadAuthorizationService readAuthorization) {
+    this.catalog = catalog;
+    this.operations = operations;
+    this.readAuthorization = readAuthorization;
+  }
+
   private final AuthenticatedUserService authenticatedUserService;
   private final ProviderConnectionService connectionService;
   private final ProviderRetryService retryService;
@@ -60,6 +73,8 @@ public class ProviderFileService {
     CloudProviderClient client = clients.get(provider);
     String normalizedParent = normalizeParent(parentRef);
 
+    if (catalog != null && catalog.enabled(client)) return catalog.list(connection, client, normalizedParent, cursor);
+
     String rawCursor = null;
     if (StringUtils.hasText(cursor)) {
       rawCursor = sealedCursorService.unseal(cursor, connection.getId(), normalizedParent);
@@ -80,12 +95,16 @@ public class ProviderFileService {
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
     CloudProviderClient client = clients.get(provider);
 
+    if (catalog != null && catalog.enabled(client)) return catalog.get(connection, client, ref);
+
     CloudItem item = retryService.withRetry(connection, token -> client.get(token, ref));
     List<FilesDtos.FolderRef> ancestry = mapAncestry(client, connection, ref);
     return new FilesDtos.ItemWithAncestry(item, ancestry);
   }
 
   public CloudItem createFolder(CloudProvider provider, String parentRef, String name) {
+    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+        com.bridgit.api.operations.OperationDtos.Kind.CREATE_FOLDER, null, parentRef, name, null, 0, null);
     String validName = ItemNameValidator.requireValidName(name);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -107,6 +126,8 @@ public class ProviderFileService {
       long size,
       InputStreamSource content
   ) {
+    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+        com.bridgit.api.operations.OperationDtos.Kind.UPLOAD, null, parentRef, name, contentType, size, content);
     String validName = ItemNameValidator.requireValidName(name);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -121,6 +142,8 @@ public class ProviderFileService {
   }
 
   public CloudItem updateItem(CloudProvider provider, String ref, String newName, String newParentRef) {
+    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+        com.bridgit.api.operations.OperationDtos.Kind.UPDATE, ref, newParentRef, newName, null, 0, null);
     String validatedName = newName == null ? null : ItemNameValidator.requireValidName(newName);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -148,6 +171,10 @@ public class ProviderFileService {
   }
 
   public FilesDtos.DeleteItemResponse deleteItem(CloudProvider provider, String ref) {
+    if (operations != null && operations.enabled(provider)) {
+      operations.runLegacy(provider, com.bridgit.api.operations.OperationDtos.Kind.DELETE, ref, null, null, null, 0, null);
+      return new FilesDtos.DeleteItemResponse(true);
+    }
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
     CloudProviderClient client = clients.get(provider);
@@ -161,9 +188,18 @@ public class ProviderFileService {
   }
 
   public FilesDtos.ReadResponse readItem(CloudProvider provider, String ref) {
+    return readItem(provider, ref, false);
+  }
+
+  public FilesDtos.ReadResponse readItem(CloudProvider provider, String ref, boolean refresh) {
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
     CloudProviderClient client = clients.get(provider);
+
+    if (readAuthorization != null) {
+      if (refresh) readAuthorization.invalidate(connection.getId(), ref);
+      return readAuthorization.describe(connection, client, ref);
+    }
 
     CloudItem item = retryService.withRetry(connection, token -> client.get(token, ref));
     ReadPlan plan = client.readPlan(item);
@@ -195,7 +231,9 @@ public class ProviderFileService {
         connection.getId(),
         ref,
         ContentVariant.ORIGINAL,
-        resolvedDisposition
+        resolvedDisposition,
+        connection.getGeneration(),
+        null
     );
     return new FilesDtos.TicketResponse("/api/content/" + issued.ticket(), issued.expiresAt());
   }
@@ -221,6 +259,9 @@ public class ProviderFileService {
 
     CloudProvider provider = CloudProvider.fromId(connection.getProvider());
     CloudProviderClient client = clients.get(provider);
+    if (readAuthorization != null && parsed.generation() != null) {
+      return readAuthorization.open(connection, client, parsed, rangeHeader);
+    }
     CloudItem item = retryService.withRetry(connection, token -> client.get(token, parsed.ref()));
     if (parsed.variant() == ContentVariant.ORIGINAL && StringUtils.hasText(rangeHeader)) {
       ContentRange range = ContentRange.parseSingle(rangeHeader, item.size());

@@ -20,8 +20,16 @@ public final class ProviderConnectionDtos {
       boolean connected,
       ProviderAccountSummary account,
       OffsetDateTime connectedAt,
-      String lastError
+      String lastError,
+      java.util.UUID connectionId,
+      Long generation,
+      String syncState,
+      boolean operationsEnabled
   ) {
+    public ProviderStatus(String id, String name, boolean configured, boolean connected,
+        ProviderAccountSummary account, OffsetDateTime connectedAt, String lastError) {
+      this(id, name, configured, connected, account, connectedAt, lastError, null, null, null, false);
+    }
   }
 
   public record AuthorizationResponse(

@@ -5,6 +5,33 @@ import org.springframework.core.io.InputStreamSource;
 
 public interface CloudProviderClient {
 
+  default com.bridgit.api.providers.sync.PreparedWrite prepareCreate(String accessToken) {
+    return new com.bridgit.api.providers.sync.PreparedWrite(null, null);
+  }
+
+  default CloudItem createFolderPrepared(String accessToken, String parentRef, String name,
+      com.bridgit.api.providers.sync.PreparedWrite prepared) {
+    return createFolder(accessToken, parentRef, name);
+  }
+
+  default CloudItem uploadPrepared(String accessToken, String parentRef, String name,
+      String contentType, long size, InputStreamSource content,
+      com.bridgit.api.providers.sync.PreparedWrite prepared) {
+    return upload(accessToken, parentRef, name, contentType, size, content);
+  }
+
+  default CloudItem updateConditional(String accessToken, String ref, String name,
+      String parentRef, String remoteVersion) {
+    return update(accessToken, ref, name, parentRef);
+  }
+
+  default void deleteConditional(String accessToken, String ref, String remoteVersion) {
+    delete(accessToken, ref);
+  }
+
+  /** Optional temporary ORIGINAL download URL, never persisted as content identity. */
+  default String directReadUrl(String accessToken, String ref) { return null; }
+
   CloudProvider provider();
 
   /**

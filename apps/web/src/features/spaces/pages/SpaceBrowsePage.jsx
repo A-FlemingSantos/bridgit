@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FilePen, FolderPlus, PenLine, Stamp, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
@@ -61,6 +61,8 @@ export default function SpaceBrowsePage() {
   const folderQuery = useFolder(providerId, folderRef ?? null)
   const uploadRef = useRef(null)
   const [actionError, setActionError] = useState(null)
+  const operationError = actions.getOperationError?.(providerId) ?? null
+  useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
   const [failedUploads, setFailedUploads] = useState([])
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null

@@ -124,6 +124,47 @@ beforeEach(() => {
 })
 
 describe('hub hooks', () => {
+  it('força um novo descritor na recuperação mesmo com autorização de cache válida', async () => {
+    const source = {
+      mode: 'text', url: '/ticket-1', revision: 'r-1', connectionId: 'connection-1', generation: 1,
+      authorizedUntil: new Date(Date.now() + 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    }
+    hubApiMock.getReadSource.mockResolvedValueOnce(source).mockResolvedValueOnce({ ...source, url: '/ticket-2' })
+    const { result } = renderHook(() => ({ providers: useProviders(), actions: useHubActions() }), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.providers.status).toBe('ready'))
+    let first
+    let cached
+    let fresh
+    await act(async () => {
+      first = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
+      cached = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
+      fresh = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1', refresh: true })
+    })
+    expect(cached).toBe(first)
+    expect(fresh.url).toBe('/ticket-2')
+    expect(hubApiMock.getReadSource).toHaveBeenCalledTimes(2)
+    expect(hubApiMock.getReadSource).toHaveBeenLastCalledWith('onedrive', 'file-1', true)
+  })
+
+  it('não reutiliza ticket expirado quando a verificação do cache prolongou a autorização', async () => {
+    const source = {
+      mode: 'text', url: '/expired', revision: 'r-1', connectionId: 'connection-1', generation: 1,
+      authorizedUntil: new Date(Date.now() + 60_000).toISOString(),
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    }
+    hubApiMock.getReadSource.mockResolvedValueOnce(source).mockResolvedValueOnce({ ...source, url: '/renewed', expiresAt: new Date(Date.now() + 300_000).toISOString() })
+    const { result } = renderHook(() => ({ providers: useProviders(), actions: useHubActions() }), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.providers.status).toBe('ready'))
+    let fresh
+    await act(async () => {
+      await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
+      fresh = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
+    })
+    expect(fresh.url).toBe('/renewed')
+    expect(hubApiMock.getReadSource).toHaveBeenCalledTimes(2)
+  })
+
   it('reverte rename otimista quando a API falha', async () => {
     hubApiMock.listFolder.mockResolvedValue({
       folder: { ref: null, name: 'OneDrive', ancestry: [] },

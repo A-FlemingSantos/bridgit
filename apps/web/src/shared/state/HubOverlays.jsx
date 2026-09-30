@@ -90,8 +90,9 @@ function NameOverlay({ overlay }) {
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
 
-  useEffect(() => () => {
-    activeRef.current = false
+  useEffect(() => {
+    activeRef.current = true
+    return () => { activeRef.current = false }
   }, [])
   const needsProvider =
     !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
@@ -219,8 +220,9 @@ function MoveOverlay({ overlay }) {
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
 
-  useEffect(() => () => {
-    activeRef.current = false
+  useEffect(() => {
+    activeRef.current = true
+    return () => { activeRef.current = false }
   }, [])
 
   const blockedRefs = overlay.kind === 'folder' ? [overlay.ref] : [overlay.parentRef].filter(Boolean)
@@ -287,8 +289,9 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
 
-  useEffect(() => () => {
-    activeRef.current = false
+  useEffect(() => {
+    activeRef.current = true
+    return () => { activeRef.current = false }
   }, [])
   const name = overlay.name ?? 'este item'
   const deleteLead =
