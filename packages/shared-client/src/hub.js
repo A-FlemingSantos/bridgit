@@ -99,8 +99,8 @@ export function deleteItem(token, provider, ref) {
   })
 }
 
-export function getReadSource(token, provider, ref) {
-  return apiRequest(`${itemPath(provider, ref)}/read`, { token })
+export function getReadSource(token, provider, ref, refresh = false) {
+  return apiRequest(`${itemPath(provider, ref)}/read`, { token, query: refresh ? { refresh: true } : undefined })
 }
 
 export function createContentTicket(token, provider, ref, disposition) {

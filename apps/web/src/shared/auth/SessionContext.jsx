@@ -1,4 +1,5 @@
 import { ApiClientError } from '@bridgit/shared-client'
+import { clearUserStorage } from '../hub/storage/index.js'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   changePasswordRequest,
@@ -34,8 +35,12 @@ export function SessionProvider({ children }) {
   const refreshTimerRef = useRef(null)
   const retryTimerRef = useRef(null)
   const discardReturnPathRef = useRef(false)
+  const activeUserRef = useRef(null)
 
   const clearAuth = useCallback(() => {
+    const previousUser = activeUserRef.current ?? readSession()?.user?.id
+    activeUserRef.current = null
+    if (previousUser) void clearUserStorage(previousUser)
     clearSession()
     setSession(null)
     setStatus('anonymous')
@@ -47,6 +52,9 @@ export function SessionProvider({ children }) {
   }, [clearAuth])
 
   const applySession = useCallback((nextSession) => {
+    const nextUser = nextSession?.user?.id ?? null
+    if (activeUserRef.current && activeUserRef.current !== nextUser) void clearUserStorage(activeUserRef.current)
+    activeUserRef.current = nextUser
     setSession(nextSession)
     setStatus('authenticated')
   }, [])
@@ -173,6 +181,8 @@ export function SessionProvider({ children }) {
       if (event.key !== SESSION_KEY) return
 
       if (!event.newValue) {
+        if (activeUserRef.current) void clearUserStorage(activeUserRef.current)
+        activeUserRef.current = null
         setSession(null)
         setStatus('anonymous')
         return
@@ -180,8 +190,7 @@ export function SessionProvider({ children }) {
 
       try {
         const parsed = JSON.parse(event.newValue)
-        setSession(parsed)
-        setStatus('authenticated')
+        applySession(parsed)
       } catch {
         setSession(null)
         setStatus('anonymous')
@@ -190,7 +199,7 @@ export function SessionProvider({ children }) {
 
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  }, [applySession])
 
   useEffect(
     () => () => {

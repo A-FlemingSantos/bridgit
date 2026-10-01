@@ -1,6 +1,7 @@
 package com.bridgit.api.providers.dropbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -51,6 +52,24 @@ class DropboxUploadTest {
         .andRespond(withSuccess(itemJson("id:up2", "empty.txt", 0), MediaType.APPLICATION_JSON));
 
     client.upload("token", null, "empty.txt", "text/plain", 0, new ByteArrayResource(data));
+    server.verify();
+  }
+
+  @Test
+  void uploadUsesCompactAsciiOnlyApiArgumentHeader() {
+    byte[] data = new byte[] {1};
+    server.expect(requestTo("https://content.dropboxapi.com/2/files/upload"))
+        .andExpect(request -> {
+          String apiArg = request.getHeaders().getFirst("Dropbox-API-Arg");
+          assertTrue(apiArg.chars().allMatch(ch -> ch >= 0x20 && ch <= 0x7e));
+          assertTrue(apiArg.contains("\\u007f"));
+          assertTrue(apiArg.contains("\\u00e9"));
+          assertTrue(!apiArg.contains("\n") && !apiArg.contains("\r"));
+        })
+        .andRespond(withSuccess(itemJson("id:up3", "café.bin", 1), MediaType.APPLICATION_JSON));
+
+    client.upload("token", null, "café\u007f.bin", "application/octet-stream", data.length,
+        new ByteArrayResource(data));
     server.verify();
   }
 

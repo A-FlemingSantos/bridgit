@@ -1,6 +1,7 @@
 import FileSheet from '../../../features/spaces/components/FileSheet/FileSheet.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getCachedContent, isCacheableContent, loadContent } from '../../hub/content/index.js'
 import Spinner from '../Spinner/Spinner.jsx'
 import DownloadAction from './DownloadAction.jsx'
 import { formatFileMeta } from './formatFileMeta.js'
@@ -29,6 +30,7 @@ export default function FileReader({
   const [localError, setLocalError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
   const [abortSignal, setAbortSignal] = useState(() => new AbortController().signal)
+  const [loadedContent, setLoadedContent] = useState(null)
 
   const mode = source?.mode ?? null
   const waitingForSource = source === null && !error
@@ -36,13 +38,33 @@ export default function FileReader({
   const unreadable = Boolean(displayError) || mode === 'none'
   const readable = Boolean(source && isReadableMode(mode) && !displayError)
   const isPdf = mode === 'pdf'
+  const readerIdentity = source?.revision
+    ? [source.userId, source.connectionId, source.generation, source.ref ?? file?.ref, source.variant, source.revision].join('|')
+    : source?.url ?? null
+  const contentSession = `${readerIdentity ?? 'sem-fonte'}|${mode}|${retryKey}`
+  const content = loadedContent?.session === contentSession ? loadedContent.blob : null
+  const contentRef = useRef(content)
+  contentRef.current = content
+  const sourceRef = useRef(source)
+  sourceRef.current = source
+  const contentPlanRef = useRef(null)
+  if (contentPlanRef.current?.session !== contentSession) {
+    // Authorization limits new cache reads. It must not evict bytes already opened in this session.
+    contentPlanRef.current = { session: contentSession, cacheable: isCacheableContent(source) }
+  }
+  const cacheable = contentPlanRef.current.cacheable
+  const contentErrorRef = useRef(onContentError)
+  contentErrorRef.current = onContentError
+  const currentRequestRef = useRef(null)
+  const requestIdentity = `${contentSession}|${source?.url ?? ''}`
+  currentRequestRef.current = requestIdentity
   const showCover = !isPdf && (waitingForSource || unreadable || (readable && !contentReady))
   const showLoader = waitingForSource || (readable && !contentReady)
 
   useEffect(() => {
     setContentReady(false)
     setLocalError(null)
-  }, [source?.url, source?.mode, error])
+  }, [readerIdentity, source?.mode, error])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -51,7 +73,7 @@ export default function FileReader({
     return () => {
       controller.abort()
     }
-  }, [source?.url, source?.mode])
+  }, [readerIdentity, source?.mode])
 
   const metaLine = useMemo(() => formatFileMeta(file), [file])
   const noneMessage = mode === 'none' ? 'Este arquivo não tem leitura no Bridgit' : null
@@ -63,10 +85,54 @@ export default function FileReader({
   }, [])
 
   const handleContentError = useCallback((message) => {
-    if (onContentError?.(message) === true) return
-    setLocalError(message)
-    setContentReady(false)
-  }, [onContentError])
+    const request = currentRequestRef.current
+    const fail = () => {
+      if (currentRequestRef.current !== request) return
+      setLocalError(message)
+      setContentReady(false)
+    }
+    const recovery = contentErrorRef.current?.(message)
+    if (recovery === true) return
+    if (recovery?.then) {
+      void Promise.resolve(recovery).then((recovered) => { if (recovered !== true) fail() }, fail)
+      return
+    }
+    fail()
+  }, [])
+
+  useEffect(() => {
+    setLocalError(null)
+  }, [source?.url])
+
+  useEffect(() => {
+    currentRequestRef.current = requestIdentity
+    return () => { currentRequestRef.current = null }
+  }, [requestIdentity])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    const descriptor = sourceRef.current
+    if (contentRef.current || !isCacheableContent(descriptor)) return () => controller.abort()
+
+    const read = descriptor.mode === 'pdf'
+      ? getCachedContent(descriptor)
+      : loadContent(descriptor, { signal: controller.signal })
+
+    void read
+      .then((blob) => {
+        if (active && blob) setLoadedContent({ session: contentSession, blob })
+      })
+      .catch((error) => {
+        if (!active || error?.name === 'AbortError') return
+        handleContentError('Não foi possível carregar o arquivo.')
+      })
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [contentSession, source?.url, handleContentError])
 
   const handleRetry = useCallback(() => {
     setLocalError(null)
@@ -75,7 +141,7 @@ export default function FileReader({
     onRetry?.()
   }, [onRetry])
 
-  const readerKey = `${source?.url ?? 'sem-fonte'}-${retryKey}`
+  const readerKey = `${readerIdentity ?? 'sem-fonte'}-${retryKey}`
 
   function renderReadableContent() {
     if (!readable || !source?.url) return null
@@ -85,6 +151,8 @@ export default function FileReader({
         <ImageReader
           key={readerKey}
           url={source.url}
+          content={content}
+          deferNetwork={cacheable}
           alt={file?.name ?? 'Imagem do arquivo'}
           onReady={handleContentReady}
           onError={handleContentError}
@@ -97,6 +165,8 @@ export default function FileReader({
         <TextReader
           key={readerKey}
           url={source.url}
+          content={content}
+          deferNetwork={cacheable}
           signal={abortSignal}
           onReady={handleContentReady}
           onError={handleContentError}
@@ -139,6 +209,8 @@ export default function FileReader({
               <PdfReader
                 key={readerKey}
                 url={source.url}
+                content={content}
+                source={source}
                 onFirstPageReady={handleContentReady}
                 onError={handleContentError}
               />

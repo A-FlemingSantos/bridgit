@@ -46,6 +46,11 @@ public class ContentTicketService {
       ContentVariant variant,
       String disposition
   ) {
+    return createTicket(userId, connectionId, ref, variant, disposition, null, null);
+  }
+
+  public IssuedTicket createTicket(UUID userId, UUID connectionId, String ref, ContentVariant variant,
+      String disposition, Long generation, String revision) {
     Instant now = Instant.now(clock);
     Instant expiresAt = now.plus(5, ChronoUnit.MINUTES);
     String ticket = Jwts.builder()
@@ -58,6 +63,8 @@ public class ContentTicketService {
         .claim("ref", ref)
         .claim("variant", variant.name())
         .claim("disp", disposition)
+        .claim("generation", generation)
+        .claim("revision", revision)
         .signWith(secretKey, SignatureAlgorithm.HS256)
         .compact();
     return new IssuedTicket(ticket, OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC));
@@ -79,7 +86,9 @@ public class ContentTicketService {
           UUID.fromString(claims.get("cid", String.class)),
           claims.get("ref", String.class),
           ContentVariant.valueOf(claims.get("variant", String.class)),
-          claims.get("disp", String.class)
+          claims.get("disp", String.class),
+          claims.get("generation", Long.class),
+          claims.get("revision", String.class)
       );
     } catch (ExpiredJwtException ex) {
       throw new ApiException(
@@ -104,8 +113,13 @@ public class ContentTicketService {
       UUID connectionId,
       String ref,
       ContentVariant variant,
-      String disposition
+      String disposition,
+      Long generation,
+      String revision
   ) {
+    public ContentTicket(UUID userId, UUID connectionId, String ref, ContentVariant variant, String disposition) {
+      this(userId, connectionId, ref, variant, disposition, null, null);
+    }
     public boolean attachment() {
       return "attachment".equalsIgnoreCase(disposition);
     }

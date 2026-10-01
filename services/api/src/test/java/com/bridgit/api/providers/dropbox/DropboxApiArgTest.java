@@ -1,7 +1,9 @@
 package com.bridgit.api.providers.dropbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 class DropboxApiArgTest {
@@ -17,5 +19,16 @@ class DropboxApiArgTest {
   void leavesAsciiUntouched() {
     String json = "{\"path\":\"/docs/file.txt\"}";
     assertEquals(json, DropboxProviderClient.escapeApiArg(json));
+  }
+
+  @Test
+  void escapesCharactersForbiddenInHttpHeaderValues() throws Exception {
+    String path = "/a" + Character.toString(0x7f) + "b\ncafé";
+    String json = "{\"path\":\"" + path + "\"}";
+    String escaped = DropboxProviderClient.escapeApiArg(json);
+
+    assertEquals("{\"path\":\"/a\\u007fb\\u000acaf\\u00e9\"}", escaped);
+    assertTrue(escaped.chars().allMatch(ch -> ch >= 0x20 && ch <= 0x7e));
+    assertEquals(path, new ObjectMapper().readTree(escaped).path("path").asText());
   }
 }

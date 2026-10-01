@@ -5,6 +5,7 @@ import FileReader from './FileReader.jsx'
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
+  PDFDataRangeTransport: class {},
   getDocument: vi.fn(),
 }))
 

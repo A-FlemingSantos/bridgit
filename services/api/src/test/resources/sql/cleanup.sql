@@ -1,3 +1,5 @@
+DELETE FROM cloud_events;
+DELETE FROM cloud_operations;
 DELETE FROM public_links;
 DELETE FROM hub_shortcuts;
 DELETE FROM hub_recents;

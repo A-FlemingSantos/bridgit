@@ -3,7 +3,7 @@ import styles from './FileReader.module.css'
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024
 
-export default function TextReader({ url, onReady, onError, signal }) {
+export default function TextReader({ url, content, deferNetwork = false, onReady, onError, signal }) {
   const [text, setText] = useState('')
   const [truncated, setTruncated] = useState(false)
 
@@ -12,13 +12,13 @@ export default function TextReader({ url, onReady, onError, signal }) {
 
     async function loadText() {
       try {
-        const response = await fetch(url, { signal })
-
-        if (!response.ok) {
-          throw new Error('Não foi possível carregar o arquivo.')
-        }
-
-        const buffer = await response.arrayBuffer()
+        if (deferNetwork && !content) return
+        const buffer = content
+          ? await content.arrayBuffer()
+          : await fetch(url, { signal }).then(async (response) => {
+              if (!response.ok) throw new Error('Não foi possível carregar o arquivo.')
+              return response.arrayBuffer()
+            })
         const slice = buffer.byteLength > MAX_TEXT_BYTES ? buffer.slice(0, MAX_TEXT_BYTES) : buffer
         const decoded = new TextDecoder('utf-8', { fatal: false }).decode(slice)
 
@@ -38,7 +38,7 @@ export default function TextReader({ url, onReady, onError, signal }) {
     return () => {
       cancelled = true
     }
-  }, [url, signal, onReady, onError])
+  }, [url, content, deferNetwork, signal, onReady, onError])
 
   return (
     <>

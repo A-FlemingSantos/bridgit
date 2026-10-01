@@ -1,4 +1,8 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
   application:
     name: bridgit-api
   http:
@@ -43,6 +47,14 @@ management:
         include: health,info
 
 app:
+  hub:
+    catalog-enabled: ${APP_HUB_CATALOG_ENABLED:true}
+    operations-enabled: ${APP_HUB_OPERATIONS_ENABLED:true}
+    worker-enabled: ${APP_HUB_WORKER_ENABLED:true}
+    direct-read-enabled: ${APP_HUB_DIRECT_READ_ENABLED:true}
+    content-cache-enabled: ${APP_HUB_CONTENT_CACHE_ENABLED:true}
+    webhook-base-url: ${APP_HUB_WEBHOOK_BASE_URL:}
+    upload-directory: ${APP_HUB_UPLOAD_DIRECTORY:./data/pending-uploads}
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}

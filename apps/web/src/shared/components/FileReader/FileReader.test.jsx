@@ -4,6 +4,7 @@ import FileReader from './FileReader.jsx'
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
+  PDFDataRangeTransport: class {},
   getDocument: vi.fn(() => ({
     promise: Promise.resolve({
       numPages: 1,
@@ -114,5 +115,32 @@ describe('FileReader', () => {
 
     expect(await screen.findByText('<strong>alert(1)</strong>')).toBeInTheDocument()
     expect(document.querySelector('strong')).not.toBeInTheDocument()
+  })
+
+  it('mantém o leitor de mídia e o tempo ao renovar URL da mesma revisão', () => {
+    const view = render(
+      <FileReader
+        file={{ ...file, extension: 'mp4', mimeType: 'video/mp4' }}
+        source={{ mode: 'video', url: '/primeiro.mp4', revision: 'r-1' }}
+        error={null}
+        downloadUrl={null}
+      />,
+    )
+
+    const video = document.querySelector('video')
+    video.currentTime = 24
+
+    view.rerender(
+      <FileReader
+        file={{ ...file, extension: 'mp4', mimeType: 'video/mp4' }}
+        source={{ mode: 'video', url: '/renovado.mp4', revision: 'r-1' }}
+        error={null}
+        downloadUrl={null}
+      />,
+    )
+
+    expect(document.querySelector('video')).toBe(video)
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(video.currentTime).toBe(24)
   })
 })

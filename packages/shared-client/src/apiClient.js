@@ -39,12 +39,14 @@ export async function apiRequest(path, options = {}) {
     origin,
     relative,
     fetchImpl = globalThis.fetch,
+    signal,
   } = options
 
   const requestHeaders = new Headers(headers)
   const init = {
     method,
     headers: requestHeaders,
+    ...(signal ? { signal } : {}),
   }
 
   if (token) {

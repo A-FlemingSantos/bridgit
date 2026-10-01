@@ -13,6 +13,12 @@ import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ProviderHttpSupport;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
+import com.bridgit.api.providers.sync.CloudChange;
+import com.bridgit.api.providers.sync.CloudSyncClient;
+import com.bridgit.api.providers.sync.CloudWatchClient;
+import com.bridgit.api.providers.sync.SyncPage;
+import com.bridgit.api.providers.sync.SyncResetException;
+import com.bridgit.api.providers.sync.WatchRegistration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
@@ -20,10 +26,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -37,11 +47,14 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriUtils;
 
 @Component
-public class GraphProviderClient implements CloudProviderClient {
+public class GraphProviderClient implements CloudProviderClient, CloudSyncClient, CloudWatchClient {
 
   private static final String DRIVE_BASE = "https://graph.microsoft.com/v1.0/me/drive";
   private static final String SELECT =
-      "id,name,size,file,folder,lastModifiedDateTime,parentReference";
+      "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag";
+  private static final String DELTA_SELECT = SELECT;
+  private static final String ROOT_DELTA_URL = DRIVE_BASE + "/root/delta?$select=" + DELTA_SELECT;
+  private static final String SUBSCRIPTIONS_URL = "https://graph.microsoft.com/v1.0/subscriptions";
   private static final int PAGE_SIZE = 200;
   private static final long SIMPLE_UPLOAD_MAX = 4L * 1024L * 1024L;
   private static final int CHUNK_SIZE = 320 * 1024;
@@ -70,6 +83,56 @@ public class GraphProviderClient implements CloudProviderClient {
   @Override
   public CloudProvider provider() {
     return CloudProvider.ONEDRIVE;
+  }
+
+  @Override
+  public SyncPage syncPage(String accessToken, String checkpoint) {
+    String url = ROOT_DELTA_URL;
+    String rootId = null;
+    if (StringUtils.hasText(checkpoint)) {
+      if (checkpoint.startsWith("{")) {
+        try {
+          JsonNode state = objectMapper.readTree(checkpoint);
+          url = requireDeltaUrl(state.path("url").asText());
+          rootId = state.path("rootRef").asText(null);
+        } catch (Exception ex) { throw new SyncResetException("Checkpoint OneDrive invalido."); }
+      } else url = requireDeltaUrl(checkpoint); // Existing raw checkpoints remain readable.
+    }
+    if (!StringUtils.hasText(rootId)) rootId = fetchRootId(accessToken);
+    JsonNode json = authorizedDeltaGet(accessToken, url);
+    List<CloudChange> changes = mapDeltaChanges(json.path("value"), rootId);
+    String nextLink = json.path("@odata.nextLink").asText(null);
+    String deltaLink = json.path("@odata.deltaLink").asText(null);
+    String nextUrl = StringUtils.hasText(nextLink) ? requireDeltaUrl(nextLink)
+        : StringUtils.hasText(deltaLink) ? requireDeltaUrl(deltaLink) : null;
+    if (nextUrl == null) throw new ProviderApiException("Resposta OneDrive sem continuidade de sincronizacao.");
+    String nextCheckpoint = objectMapper.createObjectNode().put("url", nextUrl).put("rootRef", rootId).toString();
+    return new SyncPage(changes, nextCheckpoint, !StringUtils.hasText(nextLink), rootId);
+  }
+
+  @Override
+  public WatchRegistration watch(String accessToken, String callbackUrl, String clientState,
+      WatchRegistration previous) {
+    String expiration = Instant.now().plus(2, ChronoUnit.DAYS).toString();
+    JsonNode subscription;
+    if (previous != null && StringUtils.hasText(previous.id())) {
+      subscription = authorizedPatch(
+          accessToken,
+          SUBSCRIPTIONS_URL + "/" + UriUtils.encodePathSegment(previous.id(), StandardCharsets.UTF_8),
+          "{\"expirationDateTime\":\"" + expiration + "\"}",
+          MediaType.APPLICATION_JSON
+      );
+    } else {
+      String body = "{\"changeType\":\"updated\",\"notificationUrl\":\""
+          + escapeJson(callbackUrl) + "\",\"resource\":\"/me/drive/root\",\"expirationDateTime\":\""
+          + expiration + "\",\"clientState\":\"" + escapeJson(clientState) + "\"}";
+      subscription = authorizedPost(accessToken, SUBSCRIPTIONS_URL, body, MediaType.APPLICATION_JSON);
+    }
+    return new WatchRegistration(
+        subscription.path("id").asText(null),
+        subscription.path("resource").asText("/me/drive/root"),
+        parseInstant(subscription.path("expirationDateTime").asText(null))
+    );
   }
 
   @Override
@@ -107,6 +170,15 @@ public class GraphProviderClient implements CloudProviderClient {
     } catch (Exception ex) {
       throw cursorInvalid();
     }
+  }
+
+  static String requireDeltaUrl(String url) {
+    String graphUrl = requireGraphUrl(url);
+    String path = URI.create(graphUrl).getPath();
+    if (!path.matches("/v1\\.0/me/drive(?:/root)?/delta(?:\\([^/]*\\))?")) {
+      throw cursorInvalid();
+    }
+    return graphUrl;
   }
 
   private static ProviderApiException cursorInvalid() {
@@ -189,6 +261,17 @@ public class GraphProviderClient implements CloudProviderClient {
 
   @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
+    return update(accessToken, ref, newName, newParentRef, null);
+  }
+
+  @Override
+  public CloudItem updateConditional(String accessToken, String ref, String newName,
+      String newParentRef, String remoteVersion) {
+    return update(accessToken, ref, newName, newParentRef, remoteVersion);
+  }
+
+  private CloudItem update(String accessToken, String ref, String newName, String newParentRef,
+      String remoteVersion) {
     StringBuilder body = new StringBuilder("{");
     boolean first = true;
     if (StringUtils.hasText(newName)) {
@@ -208,7 +291,8 @@ public class GraphProviderClient implements CloudProviderClient {
         accessToken,
         DRIVE_BASE + "/items/" + ref,
         body.toString(),
-        MediaType.APPLICATION_JSON
+        MediaType.APPLICATION_JSON,
+        remoteVersion
     );
     if (newParentRef != null) {
       return mapCreated(json, newParentRef.isBlank() ? null : newParentRef);
@@ -218,7 +302,25 @@ public class GraphProviderClient implements CloudProviderClient {
 
   @Override
   public void delete(String accessToken, String ref) {
-    authorizedDelete(accessToken, DRIVE_BASE + "/items/" + ref);
+    delete(accessToken, ref, null);
+  }
+
+  @Override
+  public void deleteConditional(String accessToken, String ref, String remoteVersion) {
+    delete(accessToken, ref, remoteVersion);
+  }
+
+  private void delete(String accessToken, String ref, String remoteVersion) {
+    authorizedDelete(accessToken, DRIVE_BASE + "/items/" + ref, remoteVersion);
+  }
+
+  @Override
+  public String directReadUrl(String accessToken, String ref) {
+    JsonNode json = authorizedGet(
+        accessToken,
+        DRIVE_BASE + "/items/" + ref + "?$select=@microsoft.graph.downloadUrl"
+    );
+    return json.path("@microsoft.graph.downloadUrl").asText(null);
   }
 
   @Override
@@ -455,6 +557,24 @@ public class GraphProviderClient implements CloudProviderClient {
         });
   }
 
+  private JsonNode authorizedDeltaGet(String accessToken, String url) {
+    return restClient.get()
+        .uri(URI.create(url))
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .exchange((request, response) -> {
+          if (response.getStatusCode().value() == HttpStatus.GONE.value()) {
+            response.close();
+            throw new SyncResetException("O checkpoint do OneDrive expirou e requer novo inventario.");
+          }
+          ensureSuccess(response);
+          try {
+            return objectMapper.readTree(response.getBody());
+          } catch (Exception ex) {
+            throw new ProviderApiException("Resposta invalida do provedor.");
+          }
+        });
+  }
+
   private JsonNode authorizedPost(String accessToken, String url, String body, MediaType contentType) {
     return restClient.post()
         .uri(URI.create(url))
@@ -472,9 +592,15 @@ public class GraphProviderClient implements CloudProviderClient {
   }
 
   private JsonNode authorizedPatch(String accessToken, String url, String body, MediaType contentType) {
+    return authorizedPatch(accessToken, url, body, contentType, null);
+  }
+
+  private JsonNode authorizedPatch(String accessToken, String url, String body, MediaType contentType,
+      String remoteVersion) {
     return restClient.patch()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .headers(headers -> setIfMatch(headers, remoteVersion))
         .contentType(contentType)
         .body(body)
         .exchange((request, response) -> {
@@ -488,9 +614,14 @@ public class GraphProviderClient implements CloudProviderClient {
   }
 
   private void authorizedDelete(String accessToken, String url) {
+    authorizedDelete(accessToken, url, null);
+  }
+
+  private void authorizedDelete(String accessToken, String url, String remoteVersion) {
     restClient.delete()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .headers(headers -> setIfMatch(headers, remoteVersion))
         .exchange((request, response) -> {
           if (response.getStatusCode().value() == 204 || response.getStatusCode().is2xxSuccessful()) {
             response.close();
@@ -504,6 +635,12 @@ public class GraphProviderClient implements CloudProviderClient {
   private String fetchRootId(String accessToken) {
     JsonNode json = authorizedGet(accessToken, DRIVE_BASE + "/root?$select=id");
     return json.path("id").asText();
+  }
+
+  private static void setIfMatch(HttpHeaders headers, String remoteVersion) {
+    if (StringUtils.hasText(remoteVersion)) {
+      headers.set(HttpHeaders.IF_MATCH, remoteVersion);
+    }
   }
 
   private List<CloudItem> mapChildren(JsonNode value, String listedParentRef) {
@@ -537,7 +674,9 @@ public class GraphProviderClient implements CloudProviderClient {
         size,
         parseDateTime(node.path("lastModifiedDateTime").asText(null)),
         parentRef,
-        true
+        true,
+        remoteVersion(node),
+        contentRevision(node)
     );
   }
 
@@ -561,7 +700,9 @@ public class GraphProviderClient implements CloudProviderClient {
         size,
         parseDateTime(node.path("lastModifiedDateTime").asText(null)),
         !StringUtils.hasText(parentId) || (rootId != null && rootId.equals(parentId)) ? null : parentId,
-        true
+        true,
+        remoteVersion(node),
+        contentRevision(node)
     );
   }
 
@@ -578,7 +719,9 @@ public class GraphProviderClient implements CloudProviderClient {
         mapped.size(),
         mapped.modifiedAt(),
         parent,
-        true
+        true,
+        mapped.remoteVersion(),
+        mapped.contentRevision()
     );
   }
 
@@ -601,8 +744,96 @@ public class GraphProviderClient implements CloudProviderClient {
         size,
         parseDateTime(node.path("lastModifiedDateTime").asText(null)),
         null,
-        false
+        false,
+        remoteVersion(node),
+        contentRevision(node)
     );
+  }
+
+  private List<CloudChange> mapDeltaChanges(JsonNode value, String rootId) {
+    List<CloudChange> changes = new ArrayList<>();
+    if (!value.isArray()) {
+      return changes;
+    }
+    for (JsonNode node : value) {
+      String ref = node.path("id").asText(null);
+      if (!StringUtils.hasText(ref)) {
+        continue;
+      }
+      if (rootId.equals(ref) || node.has("root")) {
+        continue;
+      }
+      if (node.has("deleted")) {
+        changes.add(CloudChange.removed(ref));
+        continue;
+      }
+      CloudItem item = mapDeltaItem(node, rootId);
+      changes.add(new CloudChange(ref, item, false, itemPath(node), parentPath(node), knownFields(node)));
+    }
+    return changes;
+  }
+
+  private CloudItem mapDeltaItem(JsonNode node, String rootId) {
+    CloudItem item = mapItem(node, rootId);
+    if (node.path("parentReference").has("id")) {
+      return item;
+    }
+    return new CloudItem(
+        item.ref(),
+        item.provider(),
+        item.name(),
+        item.kind(),
+        item.mimeType(),
+        item.extension(),
+        item.size(),
+        item.modifiedAt(),
+        null,
+        false,
+        item.remoteVersion(),
+        item.contentRevision()
+    );
+  }
+
+  private static Set<String> knownFields(JsonNode node) {
+    Set<String> fields = new LinkedHashSet<>();
+    if (node.has("name")) fields.add("name");
+    if (node.has("file") || node.has("folder")) fields.add("kind");
+    if (node.path("file").has("mimeType")) fields.add("mimeType");
+    if (node.has("size")) fields.add("size");
+    if (node.has("lastModifiedDateTime")) fields.add("modifiedAt");
+    if (node.path("parentReference").has("id")) fields.add("parentRef");
+    if (node.has("eTag") || node.has("@odata.etag")) fields.add("remoteVersion");
+    if (node.has("cTag")) fields.add("contentRevision");
+    if (node.has("name")) fields.add("extension");
+    return fields;
+  }
+
+  private static String parentPath(JsonNode node) {
+    String path = node.path("parentReference").path("path").asText(null);
+    if (!StringUtils.hasText(path)) {
+      return null;
+    }
+    int rootMarker = path.indexOf("root:");
+    String normalized = rootMarker >= 0 ? path.substring(rootMarker + "root:".length()) : path;
+    return StringUtils.hasText(normalized) ? normalized : "/";
+  }
+
+  private static String itemPath(JsonNode node) {
+    String parent = parentPath(node);
+    String name = node.path("name").asText(null);
+    if (!StringUtils.hasText(parent) || !StringUtils.hasText(name)) {
+      return null;
+    }
+    return parent.endsWith("/") ? parent + name : parent + "/" + name;
+  }
+
+  private static String remoteVersion(JsonNode node) {
+    String version = node.path("eTag").asText(null);
+    return StringUtils.hasText(version) ? version : node.path("@odata.etag").asText(null);
+  }
+
+  private static String contentRevision(JsonNode node) {
+    return node.path("cTag").asText(null);
   }
 
   private static OffsetDateTime parseDateTime(String value) {
@@ -610,6 +841,13 @@ public class GraphProviderClient implements CloudProviderClient {
       return null;
     }
     return OffsetDateTime.parse(value);
+  }
+
+  private static Instant parseInstant(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return OffsetDateTime.parse(value).toInstant();
   }
 
   private static String contentTypeFor(CloudItem item, ContentVariant variant) {
@@ -677,6 +915,14 @@ public class GraphProviderClient implements CloudProviderClient {
       HttpStatusCode status = response.getStatusCode();
       if (!status.isError()) {
         return;
+      }
+      if (status.value() == HttpStatus.PRECONDITION_FAILED.value()) {
+        response.close();
+        throw new ProviderApiException(
+            HttpStatus.CONFLICT,
+            "ITEM_CONFLITO",
+            "O item foi alterado no provedor. Atualize e tente novamente."
+        );
       }
       HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
