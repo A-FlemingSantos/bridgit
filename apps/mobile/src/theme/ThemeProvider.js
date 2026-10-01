@@ -24,7 +24,7 @@ function buildNavigationTheme(activeTheme) {
   }
 }
 
-export function MobileThemeProvider({ children }) {
+export function MobileThemeProvider({ children, fontsReady = true }) {
   const systemScheme = useColorScheme()
   const activeTheme = systemScheme === 'dark' ? darkTheme : lightTheme
   applyTheme(activeTheme)
@@ -32,9 +32,10 @@ export function MobileThemeProvider({ children }) {
   const value = useMemo(() => ({
     theme: activeTheme,
     isDark: activeTheme.isDark,
+    fontsReady,
     navigationTheme: buildNavigationTheme(activeTheme),
     statusBarStyle: activeTheme.isDark ? 'light' : 'dark',
-  }), [activeTheme])
+  }), [activeTheme, fontsReady])
 
   return (
     <MobileThemeContext.Provider value={value}>

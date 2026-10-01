@@ -1,4 +1,7 @@
 .expo/
+.expo-*/
+.bundle-check.js
+.bundle-out/
 dist-check/
 android/
 ios/

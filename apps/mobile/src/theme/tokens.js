@@ -46,7 +46,13 @@ export const lightTheme = {
   isDark: false,
   colors: {
     ...colors,
-    appBg: colors.white,
+    appBg: '#ffffff',
+    paper: '#ffffff',
+    hero: '#f7f7f7',
+    wash: '#f7f7f7',
+    line: '#e0e0e0',
+    mute: '#4a4a4a',
+    ink: '#0a0a0a',
     surface1: colors.white,
     surface2: colors.gray50,
     surface3: colors.gray100,
@@ -73,7 +79,13 @@ export const darkTheme = {
   isDark: true,
   colors: {
     ...colors,
-    appBg: colors.black,
+    appBg: '#050505',
+    paper: '#050505',
+    hero: '#1f1f1f',
+    wash: '#1f1f1f',
+    line: '#2f2f2f',
+    mute: '#ebebeb',
+    ink: '#ffffff',
     surface1: '#0d0d0d',
     surface2: '#121212',
     surface3: '#1a1a1a',
@@ -106,6 +118,7 @@ export function applyTheme(nextTheme) {
   theme.colors = nextTheme.colors
   theme.radius = nextTheme.radius
   theme.spacing = nextTheme.spacing
+  theme.type = nextTheme.type
 }
 
 export function normalizeThemePreference(value) {

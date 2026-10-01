@@ -2,22 +2,29 @@ import { useEffect } from 'react'
 import { Platform, StyleSheet, View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
+import { useFonts } from 'expo-font'
+import {
+  Geist_400Regular,
+  Geist_500Medium,
+  Geist_600SemiBold,
+  Geist_700Bold,
+} from '@expo-google-fonts/geist'
 import * as NavigationBar from 'expo-navigation-bar'
 import { NavigationContainer } from '@react-navigation/native'
-import WelcomeScreen from './src/screens/WelcomeScreen'
+import RootNavigator from './src/navigation/RootNavigator'
 import { theme } from './src/theme/tokens'
 import { MobileThemeProvider, useMobileTheme, useThemedStyles } from './src/theme/ThemeProvider'
 
 function ThemedAppRoot() {
   styles = useThemedStyles(createStyles)
-  const { navigationTheme, statusBarStyle, isDark } = useMobileTheme()
+  const { navigationTheme, statusBarStyle, isDark, theme: activeTheme } = useMobileTheme()
 
   useEffect(() => {
     if (Platform.OS !== 'android') return undefined
 
     async function syncNavigationBar() {
       try {
-        await NavigationBar.setBackgroundColorAsync(isDark ? '#000000' : '#ffffff')
+        await NavigationBar.setBackgroundColorAsync(activeTheme.colors.paper)
         await NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark')
       } catch {
         // Expo Go / unsupported hosts can ignore navigation bar APIs.
@@ -25,15 +32,15 @@ function ThemedAppRoot() {
     }
 
     syncNavigationBar()
-  }, [isDark])
+  }, [activeTheme.colors.paper, isDark])
 
   return (
-    <View style={[Platform.OS === 'web' ? styles.webFullscreen : styles.nativeRoot, styles.fullscreenAuth]}>
-      <View style={[Platform.OS === 'web' ? styles.webFullscreenDevice : styles.nativeRoot, styles.fullscreenAuth]}>
+    <View style={[Platform.OS === 'web' ? styles.webFullscreen : styles.nativeRoot, styles.fullscreen]}>
+      <View style={[Platform.OS === 'web' ? styles.webFullscreenDevice : styles.nativeRoot, styles.fullscreen]}>
         <SafeAreaProvider>
           <StatusBar style={statusBarStyle} translucent backgroundColor="transparent" />
           <NavigationContainer theme={navigationTheme}>
-            <WelcomeScreen />
+            <RootNavigator />
           </NavigationContainer>
         </SafeAreaProvider>
       </View>
@@ -42,8 +49,17 @@ function ThemedAppRoot() {
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    Geist_700Bold,
+  })
+
+  if (!fontsLoaded && !fontError) return null
+
   return (
-    <MobileThemeProvider>
+    <MobileThemeProvider fontsReady={Boolean(fontsLoaded) && !fontError}>
       <ThemedAppRoot />
     </MobileThemeProvider>
   )
@@ -56,7 +72,7 @@ const createStyles = (theme) => StyleSheet.create({
     height: '100%',
     ...(Platform.OS === 'web' ? { minHeight: '100dvh' } : null),
   },
-  fullscreenAuth: {
+  fullscreen: {
     backgroundColor: theme.colors.appBg,
   },
   webFullscreen: {

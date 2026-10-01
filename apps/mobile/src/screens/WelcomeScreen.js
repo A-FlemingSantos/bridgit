@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Path } from 'react-native-svg'
 import { theme } from '../theme/tokens'
+import { useNativeDriver } from '../theme/motion'
 import { useMobileTheme, useThemedStyles } from '../theme/ThemeProvider'
 
 const WELCOME_BACKGROUND = require('../../assets/images/welcome-background.jpg')
@@ -52,7 +53,7 @@ function GoogleGlyph({ size = 22 }) {
 function WelcomeFadeBand({ isDark }) {
   const channel = isDark ? '0, 0, 0' : '255, 255, 255'
   return (
-    <View style={styles.welcomeFade} pointerEvents="none">
+    <View style={[styles.welcomeFade, { pointerEvents: 'none' }]}>
       {Array.from({ length: 18 }, (_, index) => (
         <View
           key={`welcome-fade-${index}`}
@@ -124,11 +125,11 @@ export default function WelcomeScreen() {
 
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(panelOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
-        Animated.timing(panelTranslateY, { toValue: 0, duration: 480, useNativeDriver: true }),
+        Animated.timing(panelOpacity, { toValue: 1, duration: 420, useNativeDriver }),
+        Animated.timing(panelTranslateY, { toValue: 0, duration: 480, useNativeDriver }),
       ]),
-      Animated.timing(brandOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      Animated.timing(actionsOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
+      Animated.timing(brandOpacity, { toValue: 1, duration: 320, useNativeDriver }),
+      Animated.timing(actionsOpacity, { toValue: 1, duration: 320, useNativeDriver }),
     ]).start()
   }, [actionsOpacity, brandOpacity, panelOpacity, panelTranslateY])
 
