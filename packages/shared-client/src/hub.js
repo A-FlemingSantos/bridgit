@@ -2,6 +2,10 @@ import { ApiClientError, apiRequest } from './apiClient.js'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
+function mutationHeaders(options) {
+  return { 'Idempotency-Key': options.clientKey ?? crypto.randomUUID() }
+}
+
 function providerBase(provider) {
   return `/api/providers/${encodeURIComponent(provider)}`
 }
@@ -47,15 +51,16 @@ export function getItem(token, provider, ref) {
   return apiRequest(itemPath(provider, ref), { token })
 }
 
-export function createFolder(token, provider, parentRef, name) {
+export function createFolder(token, provider, parentRef, name, options = {}) {
   return apiRequest(`${providerBase(provider)}/folders`, {
     method: 'POST',
     token,
     body: { parentRef, name },
+    headers: mutationHeaders(options),
   })
 }
 
-export function uploadFile(token, provider, parentRef, file) {
+export function uploadFile(token, provider, parentRef, file, options = {}) {
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new ApiClientError('O arquivo excede o limite de 50 MB.', {
       code: 'ARQUIVO_GRANDE',
@@ -71,10 +76,11 @@ export function uploadFile(token, provider, parentRef, file) {
     method: 'POST',
     token,
     body,
+    headers: mutationHeaders(options),
   })
 }
 
-export function updateItem(token, provider, ref, { name, parentRef } = {}) {
+export function updateItem(token, provider, ref, { name, parentRef } = {}, options = {}) {
   const body = {}
 
   if (name !== undefined) {
@@ -89,13 +95,15 @@ export function updateItem(token, provider, ref, { name, parentRef } = {}) {
     method: 'PATCH',
     token,
     body,
+    headers: mutationHeaders(options),
   })
 }
 
-export function deleteItem(token, provider, ref) {
+export function deleteItem(token, provider, ref, options = {}) {
   return apiRequest(itemPath(provider, ref), {
     method: 'DELETE',
     token,
+    headers: mutationHeaders(options),
   })
 }
 

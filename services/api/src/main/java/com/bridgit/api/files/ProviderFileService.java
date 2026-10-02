@@ -103,8 +103,12 @@ public class ProviderFileService {
   }
 
   public CloudItem createFolder(CloudProvider provider, String parentRef, String name) {
+    return createFolder(provider, parentRef, name, null);
+  }
+
+  public CloudItem createFolder(CloudProvider provider, String parentRef, String name, String clientKey) {
     if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
-        com.bridgit.api.operations.OperationDtos.Kind.CREATE_FOLDER, null, parentRef, name, null, 0, null);
+        com.bridgit.api.operations.OperationDtos.Kind.CREATE_FOLDER, null, parentRef, name, null, 0, null, clientKey);
     String validName = ItemNameValidator.requireValidName(name);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -126,8 +130,13 @@ public class ProviderFileService {
       long size,
       InputStreamSource content
   ) {
+    return uploadFile(provider, parentRef, name, contentType, size, content, null);
+  }
+
+  public CloudItem uploadFile(CloudProvider provider, String parentRef, String name, String contentType,
+      long size, InputStreamSource content, String clientKey) {
     if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
-        com.bridgit.api.operations.OperationDtos.Kind.UPLOAD, null, parentRef, name, contentType, size, content);
+        com.bridgit.api.operations.OperationDtos.Kind.UPLOAD, null, parentRef, name, contentType, size, content, clientKey);
     String validName = ItemNameValidator.requireValidName(name);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -142,8 +151,12 @@ public class ProviderFileService {
   }
 
   public CloudItem updateItem(CloudProvider provider, String ref, String newName, String newParentRef) {
+    return updateItem(provider, ref, newName, newParentRef, null);
+  }
+
+  public CloudItem updateItem(CloudProvider provider, String ref, String newName, String newParentRef, String clientKey) {
     if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
-        com.bridgit.api.operations.OperationDtos.Kind.UPDATE, ref, newParentRef, newName, null, 0, null);
+        com.bridgit.api.operations.OperationDtos.Kind.UPDATE, ref, newParentRef, newName, null, 0, null, clientKey);
     String validatedName = newName == null ? null : ItemNameValidator.requireValidName(newName);
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
@@ -171,8 +184,12 @@ public class ProviderFileService {
   }
 
   public FilesDtos.DeleteItemResponse deleteItem(CloudProvider provider, String ref) {
+    return deleteItem(provider, ref, null);
+  }
+
+  public FilesDtos.DeleteItemResponse deleteItem(CloudProvider provider, String ref, String clientKey) {
     if (operations != null && operations.enabled(provider)) {
-      operations.runLegacy(provider, com.bridgit.api.operations.OperationDtos.Kind.DELETE, ref, null, null, null, 0, null);
+      operations.runLegacy(provider, com.bridgit.api.operations.OperationDtos.Kind.DELETE, ref, null, null, null, 0, null, clientKey);
       return new FilesDtos.DeleteItemResponse(true);
     }
     UUID userId = authenticatedUserService.requireUserId();

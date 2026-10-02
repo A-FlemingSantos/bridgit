@@ -54,14 +54,17 @@ public class OperationService {
 
   /** Legacy routes retain their response shape, but use exactly the same journal and executor. */
   public CloudItem runLegacy(CloudProvider provider, OperationDtos.Kind kind, String ref, String parent, String name,
-      String contentType, long size, InputStreamSource content) {
-    OperationDtos.Request request = new OperationDtos.Request(UUID.randomUUID().toString(), provider.id(), null, null, kind, ref, parent, name, contentType, null, null);
+      String contentType, long size, InputStreamSource content, String clientKey) {
+    if (clientKey == null || clientKey.isBlank() || clientKey.length() > 100) {
+      throw new BadRequestException("IDEMPOTENCIA_OBRIGATORIA", "Envie Idempotency-Key (ate 100 caracteres) e reutilize a mesma chave ao repetir esta acao.");
+    }
+    OperationDtos.Request request = new OperationDtos.Request(clientKey, provider.id(), null, null, kind, ref, parent, name, contentType, null, null);
     OperationDtos.View accepted = kind == OperationDtos.Kind.UPLOAD ? upload(request, size, content) : submit(request);
     worker.execute(accepted.id());
     OperationDtos.View result = get(accepted.id());
     if ("SUCCEEDED".equals(result.status())) return result.item();
     if ("REJECTED".equals(result.status())) throw new ApiException(HttpStatus.CONFLICT, result.errorCode(), result.errorMessage());
-    throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACAO_EM_VERIFICACAO", "A operacao foi registrada e esta sendo verificada. Atualize antes de repetir.");
+    throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACAO_EM_VERIFICACAO", "A operacao foi registrada e esta sendo verificada. Reutilize a mesma Idempotency-Key ao repetir.");
   }
   private ProviderConnectionEntity validateConnection(UUID user, OperationDtos.Request request) {
     if (!enabled()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACOES_INDISPONIVEIS", "Operacoes temporariamente indisponiveis.");

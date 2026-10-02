@@ -10,6 +10,7 @@ spring:
 app:
   hub:
     worker-enabled: false
+    upload-cleanup-poll-ms: 3600000
     catalog-enabled: false
     operations-enabled: false
     direct-read-enabled: false

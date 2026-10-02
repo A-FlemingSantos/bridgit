@@ -10,6 +10,7 @@ import com.bridgit.api.auth.UsernameRules;
 import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
+import com.bridgit.api.operations.UploadCleanupService;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,19 +25,25 @@ public class AccountService {
   private final AuthenticatedUserService authenticatedUserService;
   private final UserSessionService userSessionService;
   private final AuthService authService;
+  private final AccountDeletionService accountDeletion;
+  private final UploadCleanupService uploadCleanup;
 
   public AccountService(
       UserRepository userRepository,
       PasswordEncoder passwordEncoder,
       AuthenticatedUserService authenticatedUserService,
       UserSessionService userSessionService,
-      AuthService authService
+      AuthService authService,
+      AccountDeletionService accountDeletion,
+      UploadCleanupService uploadCleanup
   ) {
     this.userRepository = userRepository;
     this.passwordEncoder = passwordEncoder;
     this.authenticatedUserService = authenticatedUserService;
     this.userSessionService = userSessionService;
     this.authService = authService;
+    this.accountDeletion = accountDeletion;
+    this.uploadCleanup = uploadCleanup;
   }
 
   @Transactional(readOnly = true)
@@ -80,10 +87,9 @@ public class AccountService {
     return new AuthDtos.MessageResponse("Senha atualizada com sucesso.");
   }
 
-  @Transactional
   public AuthDtos.MessageResponse deleteAccount() {
     UserEntity user = authenticatedUserService.requireUser();
-    userRepository.delete(user);
+    uploadCleanup.complete(accountDeletion.delete(user));
     return new AuthDtos.MessageResponse("Conta removida com sucesso.");
   }
 

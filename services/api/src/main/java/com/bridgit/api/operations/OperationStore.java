@@ -3,6 +3,7 @@ package com.bridgit.api.operations;
 import com.bridgit.api.catalog.*;
 import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.common.error.NotFoundException;
+import com.bridgit.api.common.error.UnauthorizedException;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.sync.PreparedWrite;
@@ -39,7 +40,9 @@ public class OperationStore {
     String encoded = json.write(request);
     String hash = HubJson.hash(encoded + (payload == null ? "" : ":" + payload.size() + ":" + payload.hash()));
     return tx.execute(status -> {
-      jdbc.queryForList("SELECT id FROM users WITH(UPDLOCK,ROWLOCK) WHERE id=?", user.toString());
+      if (jdbc.queryForList("SELECT id FROM users WITH(UPDLOCK,ROWLOCK) WHERE id=?", user.toString()).isEmpty()) {
+        throw new UnauthorizedException("USUARIO_INVALIDO", "Nao foi possivel identificar o usuario autenticado.");
+      }
       List<String> existing = jdbc.query("SELECT request_hash FROM cloud_operations WHERE user_id=? AND client_key=?",
           (rs, row) -> rs.getString(1), user.toString(), request.clientKey());
       if (!existing.isEmpty()) {

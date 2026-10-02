@@ -32,6 +32,7 @@ export { isApiClientError, isHubSessionFailure }
 
 export function createHubApi(getToken, onUnauthorized, options = {}) {
   const uncertainRequests = new Map()
+  const uncertainLegacyRequests = new Map()
   const fileIdentities = new WeakMap()
   async function call(request) {
     const token = getToken()
@@ -106,6 +107,25 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     return kind === 'DELETE' ? { deleted: true } : accepted.item
   }
 
+  async function legacy(provider, kind, fields, file, request) {
+    const identity = options.getIdentity?.() ?? getToken()
+    const connection = options.getConnection?.(provider)
+    if (file && !fileIdentities.has(file)) fileIdentities.set(file, crypto.randomUUID())
+    const signature = JSON.stringify([identity, provider, connection?.connectionId, connection?.generation,
+      kind, fields, file ? fileIdentities.get(file) : null])
+    const clientKey = uncertainLegacyRequests.get(signature) ?? crypto.randomUUID()
+    uncertainLegacyRequests.set(signature, clientKey)
+    try {
+      const result = await call((token) => request(token, { clientKey }))
+      uncertainLegacyRequests.delete(signature)
+      return result
+    } catch (error) {
+      // A lost response or accepted-but-pending 503 must keep the original action identity.
+      if (error.status >= 400 && error.status < 500) uncertainLegacyRequests.delete(signature)
+      throw error
+    }
+  }
+
   return {
     listProviders: () => call((token) => listProvidersRequest(token)),
     connectProvider: (provider, redirectTo) =>
@@ -115,15 +135,20 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       call((token) => listFolderRequest(token, provider, parentRef, cursor)),
     getItem: (provider, ref) => call((token) => getItemRequest(token, provider, ref)),
     createFolder: async (provider, parentRef, name) =>
-      await operation(provider, 'CREATE_FOLDER', { parentRef, name }) ?? call((token) => createFolderRequest(token, provider, parentRef, name)),
+      await operation(provider, 'CREATE_FOLDER', { parentRef, name }) ?? legacy(provider, 'CREATE_FOLDER', { parentRef, name }, null,
+        (token, requestOptions) => createFolderRequest(token, provider, parentRef, name, requestOptions)),
     uploadFile: async (provider, parentRef, file) => {
       if (file.size > 50 * 1024 * 1024) throw new ApiClientError('O arquivo excede o limite de 50 MB.', { status: 400, code: 'ARQUIVO_GRANDE' })
-      return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? call((token) => uploadFileRequest(token, provider, parentRef, file))
+      return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(provider, 'UPLOAD',
+        { parentRef, name: file.name, contentType: file.type }, file,
+        (token, requestOptions) => uploadFileRequest(token, provider, parentRef, file, requestOptions))
     },
     updateItem: async (provider, ref, patch) => await operation(provider, 'UPDATE', { ref, ...patch,
       ...(patch.parentRef !== undefined ? { parentRef: patch.parentRef || '' } : {}),
-    }) ?? call((token) => updateItemRequest(token, provider, ref, patch)),
-    deleteItem: async (provider, ref) => await operation(provider, 'DELETE', { ref }) ?? call((token) => deleteItemRequest(token, provider, ref)),
+    }) ?? legacy(provider, 'UPDATE', { ref, ...patch }, null,
+      (token, requestOptions) => updateItemRequest(token, provider, ref, patch, requestOptions)),
+    deleteItem: async (provider, ref) => await operation(provider, 'DELETE', { ref }) ?? legacy(provider, 'DELETE', { ref }, null,
+      (token, requestOptions) => deleteItemRequest(token, provider, ref, requestOptions)),
     getReadSource: (provider, ref, refresh = false) => call((token) => getReadSourceRequest(token, provider, ref, refresh)),
     listOperations: () => call(listOperations),
     retryOperation: (id) => call((token) => retryOperation(token, id)),

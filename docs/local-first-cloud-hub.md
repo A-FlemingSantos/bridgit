@@ -6,6 +6,12 @@ O catálogo e as operações ficam no SQL Server. A interface hidrata metadados 
 
 Os valores padrão mantêm as novas capacidades habilitadas. A migration Flyway V3 é aditiva; a atualização ocorre pelo fluxo normal de inicialização. Não é necessário criar outro banco. Os testes usam exclusivamente `bridgit_test`; desenvolvimento mantém `bridgit_db`.
 
+A migration V4 adiciona cascatas de exclusão por usuário para operações/eventos e uma fila persistente de limpeza de uploads. Ela também remove registros órfãos anteriores, preservando seus caminhos na fila. A exclusão de conta remove os registros e tenta apagar os arquivos logo após o commit. Se o disco impedir a remoção, a conta continua excluída e a limpeza é retomada automaticamente, independente de `APP_HUB_WORKER_ENABLED`. O intervalo é `app.hub.upload-cleanup-poll-ms` (5 segundos por padrão). O diretório de uploads deve ser persistente e compartilhado por processos que usam o mesmo banco, como já exigido pelo executor de uploads.
+
+Com operações duráveis habilitadas para o provedor, as quatro rotas antigas de escrita (`POST /folders`, `POST /files`, `PATCH /items/{ref}`, `DELETE /items/{ref}`) exigem o header `Idempotency-Key`, não vazio e com até 100 caracteres. Sem ele, retornam 400 antes de aceitar a operação. Repetições da mesma ação devem manter a chave e os dados, inclusive após 503; outra ação, ainda que idêntica, deve usar outra chave. Reutilizar a chave com dados diferentes retorna 409. As respostas de sucesso preservam o formato anterior. Se o diário estiver desabilitado, permanece o caminho síncrono anterior, sem as garantias de idempotência do diário.
+
+O cliente compartilhado envia a chave e aceita `{ clientKey }` como último argumento das escritas para retries explícitos. O wrapper web preserva a chave das chamadas antigas após falha de rede ou 5xx e a libera após sucesso ou rejeição definitiva. Esse fallback mantém a chave durante a vida da instância; quem retoma uma chamada antiga após reiniciar deve persistir e reenviar a chave. O fluxo moderno mantém seu diário de intenções existente.
+
 | Variável | Uso |
 |---|---|
 | `APP_HUB_CATALOG_ENABLED` | Servir listagens e detalhes pelo catálogo. |

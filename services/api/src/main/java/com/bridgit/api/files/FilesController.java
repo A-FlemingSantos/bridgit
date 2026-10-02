@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,9 +49,10 @@ public class FilesController {
   @PostMapping("/folders")
   public ResponseEntity<ApiEnvelope<CloudItem>> createFolder(
       @PathVariable CloudProvider provider,
-      @Valid @RequestBody FilesDtos.CreateFolderRequest request
+      @Valid @RequestBody FilesDtos.CreateFolderRequest request,
+      @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    CloudItem item = providerFileService.createFolder(provider, request.parentRef(), request.name());
+    CloudItem item = providerFileService.createFolder(provider, request.parentRef(), request.name(), clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
@@ -58,7 +60,8 @@ public class FilesController {
   public ResponseEntity<ApiEnvelope<CloudItem>> uploadFile(
       @PathVariable CloudProvider provider,
       @RequestParam(required = false) String parentRef,
-      @RequestParam("file") MultipartFile file
+      @RequestParam("file") MultipartFile file,
+      @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) throws Exception {
     CloudItem item = providerFileService.uploadFile(
         provider,
@@ -66,7 +69,8 @@ public class FilesController {
         file.getOriginalFilename(),
         file.getContentType(),
         file.getSize(),
-        file
+        file,
+        clientKey
     );
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
@@ -75,18 +79,20 @@ public class FilesController {
   public ResponseEntity<ApiEnvelope<CloudItem>> updateItem(
       @PathVariable CloudProvider provider,
       @PathVariable String ref,
-      @RequestBody FilesDtos.UpdateItemRequest request
+      @RequestBody FilesDtos.UpdateItemRequest request,
+      @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    CloudItem item = providerFileService.updateItem(provider, ref, request.name(), request.parentRef());
+    CloudItem item = providerFileService.updateItem(provider, ref, request.name(), request.parentRef(), clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @DeleteMapping("/items/{ref}")
   public ResponseEntity<ApiEnvelope<FilesDtos.DeleteItemResponse>> deleteItem(
       @PathVariable CloudProvider provider,
-      @PathVariable String ref
+      @PathVariable String ref,
+      @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(provider, ref);
+    FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(provider, ref, clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(response));
   }
 

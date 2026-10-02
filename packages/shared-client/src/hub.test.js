@@ -102,11 +102,12 @@ describe('hub api', () => {
 
   it('createFolder posts parentRef and name', async () => {
     apiRequest.mockResolvedValue({ ref: 'new-folder' })
-    await createFolder(token, 'onedrive', null, 'Docs')
+    await createFolder(token, 'onedrive', null, 'Docs', { clientKey: 'folder-action' })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/folders', {
       method: 'POST',
       token,
       body: { parentRef: null, name: 'Docs' },
+      headers: { 'Idempotency-Key': 'folder-action' },
     })
   })
 
@@ -130,25 +131,40 @@ describe('hub api', () => {
     expect(options.body).toBeInstanceOf(FormData)
     expect(options.body.get('parentRef')).toBe('parent-1')
     expect(options.body.get('file')).toBe(smallFile)
+    expect(options.headers['Idempotency-Key']).toEqual(expect.any(String))
   })
 
   it('updateItem sends empty parentRef for root moves', async () => {
     apiRequest.mockResolvedValue({ ref: 'item-1' })
-    await updateItem(token, 'onedrive', 'item-1', { parentRef: null })
+    await updateItem(token, 'onedrive', 'item-1', { parentRef: null }, { clientKey: 'move-action' })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/item-1', {
       method: 'PATCH',
       token,
       body: { parentRef: '' },
+      headers: { 'Idempotency-Key': 'move-action' },
     })
   })
 
   it('deleteItem deletes encoded ref', async () => {
     apiRequest.mockResolvedValue(undefined)
-    await deleteItem(token, 'dropbox', 'x/y')
+    await deleteItem(token, 'dropbox', 'x/y', { clientKey: 'delete-action' })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/dropbox/items/x%2Fy', {
       method: 'DELETE',
       token,
+      headers: { 'Idempotency-Key': 'delete-action' },
     })
+  })
+
+  it('uses distinct keys for new actions and preserves explicit keys for retries', async () => {
+    apiRequest.mockResolvedValue({ ref: 'folder' })
+    await createFolder(token, 'onedrive', null, 'Docs')
+    await createFolder(token, 'onedrive', null, 'Docs')
+    expect(apiRequest.mock.calls[0][1].headers['Idempotency-Key']).not.toBe(apiRequest.mock.calls[1][1].headers['Idempotency-Key'])
+    const file = new File(['hello'], 'hello.txt')
+    await uploadFile(token, 'onedrive', null, file, { clientKey: 'upload-action' })
+    await uploadFile(token, 'onedrive', null, file, { clientKey: 'upload-action' })
+    expect(apiRequest.mock.calls[2][1].headers['Idempotency-Key']).toBe('upload-action')
+    expect(apiRequest.mock.calls[3][1].headers['Idempotency-Key']).toBe('upload-action')
   })
 
   it('getReadSource and createContentTicket hit read/ticket endpoints', async () => {

@@ -1,4 +1,5 @@
 DELETE FROM cloud_events;
+DELETE FROM upload_cleanup_queue;
 DELETE FROM cloud_operations;
 DELETE FROM public_links;
 DELETE FROM hub_shortcuts;
