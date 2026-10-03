@@ -1,13 +1,14 @@
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import BrowseHeader from '../components/BrowseHeader'
 import CollapsingHeader from '../components/CollapsingHeader'
+import ActionDialog, { Notice } from '../components/ActionDialog'
 import CreateFab from '../components/CreateFab'
 import FileSheet from '../components/FileSheet'
 import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
 import StaggerItem from '../components/StaggerItem'
-import { fileMenuItems, folderMenuItems } from '../components/menus'
-import { getLocation, providerName } from '../data/mock'
+import { useFolder, useProviders } from '../hub/hooks'
+import { useItemActions } from '../hub/useItemActions'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
@@ -23,19 +24,25 @@ export default function FolderScreen({ navigation, route }) {
   const { theme } = useMobileTheme()
   const { width } = useWindowDimensions()
   const { providerId, folderRef = null } = route.params ?? {}
-  const location = getLocation(providerId, folderRef)
+  const { providers } = useProviders()
+  const provider = providers.find((entry) => entry.id === providerId)
+  const providerName = () => provider?.name ?? providerId
+  const connected = provider?.connected ?? true
+  const { status, error, reload, title, folders, files } = useFolder(connected ? providerId : null, folderRef)
+  const actions = useItemActions({ providerId: connected ? providerId : null, parentRef: folderRef })
+  const location = { title: title ?? provider?.name ?? 'Pasta', folders, files }
   const tileWidth = (width - 40 - 12) / 2
   const glyphWidth = Math.round(tileWidth * 0.86)
   const fileWidth = Math.round(tileWidth * 0.72)
   const sheetHeight = Math.round(fileWidth * (4 / 3))
-  const empty = !location || (location.folders.length === 0 && location.files.length === 0)
+  const empty = status === 'ready' && folders.length === 0 && files.length === 0
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <CollapsingHeader
         header={(
           <BrowseHeader
-            title={location?.title ?? 'Pasta'}
+            title={location.title}
             providerId={folderRef ? null : providerId}
             onBack={() => navigation.goBack()}
           />
@@ -44,13 +51,25 @@ export default function FolderScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-        {empty ? (
+        {!connected ? (
+          <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+            {providerName()} ainda não está conectado. Conecte em Ajustes.
+          </AppText>
+        ) : null}
+        {connected && status === 'error' ? (
+          <Pressable accessibilityRole="button" onPress={reload}>
+            <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+              {error?.message ?? 'Não foi possível carregar.'} Toque para tentar de novo.
+            </AppText>
+          </Pressable>
+        ) : null}
+        {connected && empty ? (
           <AppText style={[styles.empty, { color: theme.colors.mute }]}>
             Nenhum arquivo aqui ainda
           </AppText>
         ) : null}
 
-        {location?.folders.length ? (
+        {location.folders.length ? (
           <View style={styles.section}>
             <AppText weight="500" style={styles.sectionTitle}>Pastas</AppText>
             <View style={styles.grid}>
@@ -64,7 +83,7 @@ export default function FolderScreen({ navigation, route }) {
                   duration={400}
                   style={{ width: tileWidth }}
                 >
-                  <HoldMenu items={folderMenuItems(() => {})}>
+                  <HoldMenu items={actions.folderMenu(folder)}>
                     {({ onLongPress }) => (
                       <Pressable
                         accessibilityRole="button"
@@ -92,7 +111,7 @@ export default function FolderScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {location?.files.length ? (
+        {location.files.length ? (
           <View style={styles.section}>
             <AppText weight="500" style={styles.sectionTitle}>Arquivos</AppText>
             <View style={styles.grid}>
@@ -106,7 +125,7 @@ export default function FolderScreen({ navigation, route }) {
                   duration={400}
                   style={{ width: tileWidth }}
                 >
-                  <HoldMenu items={fileMenuItems(() => {})}>
+                  <HoldMenu items={actions.fileMenu(file)}>
                     {({ onLongPress }) => (
                       <Pressable
                         accessibilityRole="button"
@@ -135,7 +154,9 @@ export default function FolderScreen({ navigation, route }) {
         ) : null}
         </View>
       </CollapsingHeader>
-      <CreateFab />
+      <CreateFab items={actions.createMenu()} />
+      <Notice message={actions.notice} />
+      <ActionDialog dialog={actions.dialog} onClose={actions.closeDialog} />
     </View>
   )
 }

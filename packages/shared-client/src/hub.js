@@ -2,8 +2,19 @@ import { ApiClientError, apiRequest } from './apiClient.js'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
+// Hermes has no crypto.randomUUID.
+function randomKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16)
+    return (char === 'x' ? random : (random & 0x3) | 0x8).toString(16)
+  })
+}
+
 function mutationHeaders(options) {
-  return { 'Idempotency-Key': options.clientKey ?? crypto.randomUUID() }
+  return { 'Idempotency-Key': options.clientKey ?? randomKey() }
 }
 
 function providerBase(provider) {

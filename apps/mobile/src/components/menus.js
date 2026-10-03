@@ -1,43 +1,49 @@
 import {
-  ArrowLeftRight,
   Bookmark,
-  FilePen,
-  FolderInput,
   FolderPlus,
   Link,
-  PenLine,
   Pencil,
-  Stamp,
   Trash,
   Upload,
 } from 'lucide-react-native'
 
-export function fileMenuItems(onSelect) {
-  return [
-    { id: 'rename', label: 'Renomear', icon: Pencil, onSelect },
-    { id: 'move', label: 'Mover', icon: FolderInput, onSelect },
-    { id: 'mirror', label: 'Espelhar', icon: ArrowLeftRight, onSelect },
-    { id: 'link', label: 'Link público', icon: Link, onSelect },
-    { id: 'pin', label: 'Atalho', icon: Bookmark, onSelect },
-    { id: 'delete', label: 'Excluir', icon: Trash, danger: true, onSelect },
-  ]
+// Each factory only lists the actions the caller can perform, so no entry is a dead button.
+// handlers: { rename, remove, pin, link } for items; { upload, folder } for the create menu.
+const FILE_ACTIONS = [
+  { id: 'rename', key: 'rename', label: 'Renomear', icon: Pencil },
+  { id: 'link', key: 'link', label: 'Link público', icon: Link },
+  { id: 'pin', key: 'pin', label: 'Atalho', icon: Bookmark },
+  { id: 'delete', key: 'remove', label: 'Excluir', icon: Trash, danger: true },
+]
+
+const FOLDER_ACTIONS = [
+  { id: 'rename', key: 'rename', label: 'Renomear', icon: Pencil },
+  { id: 'delete', key: 'remove', label: 'Excluir', icon: Trash, danger: true },
+]
+
+const CREATE_ACTIONS = [
+  { id: 'upload', key: 'upload', label: 'Enviar', icon: Upload },
+  { id: 'folder', key: 'folder', label: 'Nova pasta', icon: FolderPlus },
+]
+
+function build(actions, handlers = {}, overrides = {}) {
+  return actions
+    .filter((action) => typeof handlers[action.key] === 'function')
+    .map(({ key, ...action }) => ({
+      ...action,
+      ...overrides[action.id],
+      onSelect: handlers[key],
+    }))
 }
 
-export function folderMenuItems(onSelect) {
-  return [
-    { id: 'rename', label: 'Renomear', icon: Pencil, onSelect },
-    { id: 'move', label: 'Mover', icon: FolderInput, onSelect },
-    { id: 'mirror', label: 'Espelhar', icon: ArrowLeftRight, onSelect },
-    { id: 'delete', label: 'Excluir', icon: Trash, danger: true, onSelect },
-  ]
+export function fileMenuItems(handlers, { pinned = false } = {}) {
+  return build(FILE_ACTIONS, handlers, { pin: { label: pinned ? 'Remover atalho' : 'Atalho' } })
 }
 
-export function createMenuItems(onSelect) {
-  return [
-    { id: 'upload', label: 'Enviar', icon: Upload, onSelect },
-    { id: 'folder', label: 'Nova pasta', icon: FolderPlus, onSelect },
-    { id: 'edit', label: 'Editar PDF', icon: FilePen, onSelect },
-    { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp, onSelect },
-    { id: 'sign', label: 'Assinar', icon: PenLine, onSelect },
-  ]
+export function folderMenuItems(handlers) {
+  return build(FOLDER_ACTIONS, handlers)
+}
+
+export function createMenuItems(handlers) {
+  return build(CREATE_ACTIONS, handlers)
 }

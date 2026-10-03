@@ -49,6 +49,7 @@ public class ProviderConnectionService {
   private final AuthenticatedUserService authenticatedUserService;
   private final Clock clock;
   private final String frontendBaseUrl;
+  private final List<String> mobileRedirectPrefixes;
   private final TransactionTemplate requiresNewTemplate;
   private final ConcurrentHashMap<UUID, CachedAccessToken> accessTokenCache = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<UUID, CompletableFuture<RefreshOutcome>> inFlightRefreshes =
@@ -64,7 +65,8 @@ public class ProviderConnectionService {
       AuthenticatedUserService authenticatedUserService,
       Clock clock,
       PlatformTransactionManager transactionManager,
-      @Value("${app.frontend-base-url}") String frontendBaseUrl
+      @Value("${app.frontend-base-url}") String frontendBaseUrl,
+      @Value("${app.mobile-redirect-prefixes:bridgit://}") String mobileRedirectPrefixes
   ) {
     this.connectionRepository = connectionRepository;
     this.oauthStateRepository = oauthStateRepository;
@@ -74,6 +76,7 @@ public class ProviderConnectionService {
     this.authenticatedUserService = authenticatedUserService;
     this.clock = clock;
     this.frontendBaseUrl = frontendBaseUrl;
+    this.mobileRedirectPrefixes = parsePrefixes(mobileRedirectPrefixes);
     this.requiresNewTemplate = new TransactionTemplate(transactionManager);
     this.requiresNewTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
@@ -110,7 +113,7 @@ public class ProviderConnectionService {
     stateEntity.setProvider(provider.id());
     stateEntity.setStateToken(stateToken);
     stateEntity.setCodeVerifier(codeVerifier);
-    stateEntity.setRedirectPath(sanitizeRedirectPath(redirectTo));
+    stateEntity.setRedirectPath(sanitizeRedirect(redirectTo));
     stateEntity.setExpiresAt(OffsetDateTime.now(clock).plusMinutes(properties.getStateMinutes()));
     oauthStateRepository.save(stateEntity);
 
@@ -123,6 +126,12 @@ public class ProviderConnectionService {
     String redirectPath = null;
 
     if (error != null && !error.isBlank()) {
+      // The state is not consumed here; it only tells us where the user started (web page or app).
+      if (state != null && !state.isBlank()) {
+        redirectPath = oauthStateRepository.findByStateToken(state)
+            .map(ProviderOAuthStateEntity::getRedirectPath)
+            .orElse(null);
+      }
       return callbackRedirect(provider, "error", "PROVEDOR_RECUSOU", redirectPath);
     }
 
@@ -430,8 +439,10 @@ public class ProviderConnectionService {
       String errorCode,
       String redirectPath
   ) {
+    // A mobile redirect sends the user back into the app. It carries only the outcome, never tokens or codes.
+    boolean toApp = isMobileRedirect(redirectPath);
     UriComponentsBuilder builder = UriComponentsBuilder
-        .fromUriString(trimTrailingSlash(frontendBaseUrl) + "/settings/providers")
+        .fromUriString(toApp ? redirectPath : trimTrailingSlash(frontendBaseUrl) + "/settings/providers")
         .queryParam("provider", "{provider}")
         .queryParam("status", "{status}");
 
@@ -443,12 +454,39 @@ public class ProviderConnectionService {
       builder.queryParam("error", "{error}");
       variables.put("error", errorCode);
     }
-    if (redirectPath != null && !redirectPath.isBlank()) {
+    if (!toApp && redirectPath != null && !redirectPath.isBlank()) {
       builder.queryParam("background", "{background}");
       variables.put("background", redirectPath);
     }
 
     return builder.encode().buildAndExpand(variables).toUri();
+  }
+
+  private static List<String> parsePrefixes(String value) {
+    if (value == null || value.isBlank()) {
+      return List.of();
+    }
+    return java.util.Arrays.stream(value.split(","))
+        .map(String::trim)
+        .filter(prefix -> prefix.contains("://"))
+        .toList();
+  }
+
+  // A web path, or a URL that starts with one of the configured mobile app prefixes.
+  String sanitizeRedirect(String redirectTo) {
+    String path = sanitizeRedirectPath(redirectTo);
+    if (path != null || redirectTo == null) {
+      return path;
+    }
+    String trimmed = redirectTo.trim();
+    if (trimmed.length() > 500 || trimmed.chars().anyMatch(ch -> Character.isWhitespace(ch) || Character.isISOControl(ch))) {
+      return null;
+    }
+    return isMobileRedirect(trimmed) ? trimmed : null;
+  }
+
+  private boolean isMobileRedirect(String value) {
+    return value != null && mobileRedirectPrefixes.stream().anyMatch(value::startsWith);
   }
 
   static String sanitizeRedirectPath(String redirectTo) {

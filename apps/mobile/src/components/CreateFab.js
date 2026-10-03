@@ -4,10 +4,9 @@ import { Plus } from 'lucide-react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { menuDismissMs } from '../theme/motion'
-import { createMenuItems } from './menus'
 import SuspendedMenu from './SuspendedMenu'
 
-export default function CreateFab() {
+export default function CreateFab({ items: createItems = [] }) {
   const insets = useSafeAreaInsets()
   const { theme } = useMobileTheme()
   const timer = useRef(null)
@@ -38,7 +37,14 @@ export default function CreateFab() {
   }
 
   const visible = open || closing
-  const items = createMenuItems(closeMenu)
+  if (createItems.length === 0) return null
+  const items = createItems.map((item) => ({
+    ...item,
+    onSelect: () => {
+      closeMenu()
+      item.onSelect?.()
+    },
+  }))
 
   return (
     <>

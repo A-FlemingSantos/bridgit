@@ -2,16 +2,22 @@ import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { LayoutGrid, LayoutList } from 'lucide-react-native'
 import CollapsingHeader from '../components/CollapsingHeader'
-import CreateFab from '../components/CreateFab'
+import ActionDialog, { Notice } from '../components/ActionDialog'
 import FileSheet from '../components/FileSheet'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
 import ProviderMark from '../components/ProviderMark'
 import StaggerItem from '../components/StaggerItem'
-import { fileMenuItems } from '../components/menus'
-import { providerName, recents, shortcuts } from '../data/mock'
+import { useHomeEntries } from '../hub/hooks'
+import { useItemActions } from '../hub/useItemActions'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
+
+const PROVIDER_LABELS = { onedrive: 'OneDrive', 'google-drive': 'Google Drive', dropbox: 'Dropbox' }
+
+function providerName(id) {
+  return PROVIDER_LABELS[id] ?? id
+}
 
 function openFile(navigation, file) {
   navigation.push('File', { providerId: file.providerId, fileRef: file.ref })
@@ -19,6 +25,8 @@ function openFile(navigation, file) {
 
 export default function HomeScreen({ navigation }) {
   const { theme } = useMobileTheme()
+  const { recents, shortcuts, status, error, reload } = useHomeEntries()
+  const actions = useItemActions()
   const { width } = useWindowDimensions()
   const [recentsView, setRecentsView] = useState('list')
   const tileWidth = (width - 36 - 12) / 2
@@ -31,11 +39,28 @@ export default function HomeScreen({ navigation }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <CollapsingHeader
-        header={<HomeHeader onOpenProvider={(providerId) => navigation.push('Folder', { providerId })} />}
+        header={(
+          <HomeHeader
+            onOpenProvider={(providerId) => navigation.push('Folder', { providerId })}
+            onOpenSettings={() => navigation.push('Settings')}
+          />
+        )}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
+        {status === 'error' ? (
+          <Pressable accessibilityRole="button" onPress={reload}>
+            <AppText style={[styles.itemSub, { color: theme.colors.mute }]}>
+              {error?.message ?? 'Não foi possível carregar.'} Toque para tentar de novo.
+            </AppText>
+          </Pressable>
+        ) : null}
+        {status === 'ready' && shortcuts.length === 0 && recents.length === 0 ? (
+          <AppText style={[styles.itemSub, { color: theme.colors.mute }]}>
+            Nada por aqui ainda. Conecte um provedor em Ajustes e abra um arquivo.
+          </AppText>
+        ) : null}
         <View style={styles.section}>
           <AppText weight="500" style={styles.sectionTitle}>Atalhos</AppText>
           <ScrollView
@@ -45,7 +70,7 @@ export default function HomeScreen({ navigation }) {
           >
             {shortcuts.map((file, index) => (
               <StaggerItem key={file.ref} index={index} base={0.08} step={0.04} style={{ width: pinWidth }}>
-                <HoldMenu items={fileMenuItems(() => {})}>
+                <HoldMenu items={actions.fileMenu(file)}>
                   {({ onLongPress }) => (
                     <Pressable
                       accessibilityRole="button"
@@ -112,7 +137,7 @@ export default function HomeScreen({ navigation }) {
             <View>
               {recents.map((file, index) => (
                 <StaggerItem key={`${file.ref}-${file.when}`} index={index} base={0.06} step={0.025}>
-                  <HoldMenu items={fileMenuItems(() => {})}>
+                  <HoldMenu items={actions.fileMenu(file)}>
                     {({ onLongPress }) => (
                       <Pressable
                         accessibilityRole="button"
@@ -153,7 +178,7 @@ export default function HomeScreen({ navigation }) {
                   step={0.025}
                   style={{ width: tileWidth }}
                 >
-                  <HoldMenu items={fileMenuItems(() => {})}>
+                  <HoldMenu items={actions.fileMenu(file)}>
                     {({ onLongPress }) => (
                       <Pressable
                         accessibilityRole="button"
@@ -181,7 +206,8 @@ export default function HomeScreen({ navigation }) {
         </View>
         </View>
       </CollapsingHeader>
-      <CreateFab />
+      <Notice message={actions.notice} />
+      <ActionDialog dialog={actions.dialog} onClose={actions.closeDialog} />
     </View>
   )
 }

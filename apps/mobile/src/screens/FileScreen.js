@@ -2,16 +2,17 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native'
 import BrowseHeader from '../components/BrowseHeader'
 import CollapsingHeader from '../components/CollapsingHeader'
 import FileSheet from '../components/FileSheet'
+import FileViewer from '../components/FileViewer'
 import Spinner from '../components/Spinner'
-import { getFile } from '../data/mock'
+import { useFile } from '../hub/hooks'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
 export default function FileScreen({ navigation, route }) {
   const { theme } = useMobileTheme()
   const { height } = useWindowDimensions()
-  const { fileRef } = route.params ?? {}
-  const file = getFile(fileRef)
+  const { providerId, fileRef } = route.params ?? {}
+  const { file, source, status, error } = useFile(providerId, fileRef)
   const title = file?.name ?? 'Arquivo'
 
   return (
@@ -22,8 +23,18 @@ export default function FileScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.stage, { minHeight: height * 0.82 }]}>
-        <FileSheet large />
-        <Spinner />
+        {status === 'ready' && file ? (
+          <FileViewer providerId={providerId} file={file} source={source} />
+        ) : (
+          <>
+            <FileSheet large />
+            {status === 'error' ? (
+              <AppText style={{ color: theme.colors.mute }}>
+                {error?.message ?? 'Não foi possível abrir o arquivo.'}
+              </AppText>
+            ) : <Spinner />}
+          </>
+        )}
         <AppText weight="500" style={styles.title}>
           {title}
         </AppText>

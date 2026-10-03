@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Eye, EyeOff } from 'lucide-react-native'
 import Svg, { Line, SvgXml } from 'react-native-svg'
 import { atSign } from '../assets/marks'
+import { useSession } from '../auth/SessionContext'
 import AppText, { fontFamilyFor } from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { easeOut, useNativeDriver } from '../theme/motion'
@@ -105,6 +106,8 @@ export default function AuthScreen({ navigation }) {
   const [remember, setRemember] = useState(false)
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const { login: signIn, register: signUp } = useSession()
   const [band, setBand] = useState({ width: 0, height: 0 })
 
   const markOpacity = useRef(new Animated.Value(0)).current
@@ -148,7 +151,8 @@ export default function AuthScreen({ navigation }) {
     setRevealed(false)
   }
 
-  function submit() {
+  async function submit() {
+    if (submitting) return
     if (!username.trim() || !password || (register && !confirm)) {
       setError('Preencha os campos obrigatórios.')
       return
@@ -157,7 +161,16 @@ export default function AuthScreen({ navigation }) {
       setError('As senhas não coincidem.')
       return
     }
-    navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
+
+    setError('')
+    setSubmitting(true)
+    try {
+      if (register) await signUp({ username: username.trim(), password })
+      else await signIn({ username: username.trim(), password, persistent: remember })
+    } catch (requestError) {
+      setError(requestError?.message || 'Não foi possível entrar. Tente novamente.')
+      setSubmitting(false)
+    }
   }
 
   return (

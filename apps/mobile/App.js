@@ -12,6 +12,8 @@ import {
 import * as NavigationBar from 'expo-navigation-bar'
 import { NavigationContainer } from '@react-navigation/native'
 import RootNavigator from './src/navigation/RootNavigator'
+import { SessionProvider } from './src/auth/SessionContext'
+import { HubProvider } from './src/hub/HubContext'
 import { theme } from './src/theme/tokens'
 import { MobileThemeProvider, useMobileTheme, useThemedStyles } from './src/theme/ThemeProvider'
 
@@ -60,7 +62,11 @@ export default function App() {
 
   return (
     <MobileThemeProvider fontsReady={Boolean(fontsLoaded) && !fontError}>
-      <ThemedAppRoot />
+      <SessionProvider>
+        <HubProvider>
+          <ThemedAppRoot />
+        </HubProvider>
+      </SessionProvider>
     </MobileThemeProvider>
   )
 }

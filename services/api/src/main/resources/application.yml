@@ -56,6 +56,8 @@ app:
     webhook-base-url: ${APP_HUB_WEBHOOK_BASE_URL:}
     upload-directory: ${APP_HUB_UPLOAD_DIRECTORY:./data/pending-uploads}
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  # Comma-separated URL prefixes the OAuth flow may return to. Expo Go needs its exp:// address added in development.
+  mobile-redirect-prefixes: ${APP_MOBILE_REDIRECT_PREFIXES:bridgit://}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:

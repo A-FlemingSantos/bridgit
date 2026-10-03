@@ -33,13 +33,15 @@ $androidClient = Set-BridgitEnvVar -Name 'BRIDGIT_ANDROID_CLIENT' -Prompt 'andro
 $androidClient = Get-BridgitAndroidClient -Value $androidClient
 Set-BridgitProcessEnvVar -Name 'BRIDGIT_ANDROID_CLIENT' -Value $androidClient
 
+# On a phone or emulator "localhost" is the device itself. Without a configured URL the app uses the
+# address of this machine as Expo reports it, so only set EXPO_PUBLIC_API_BASE_URL to override that.
 $apiBaseUrl = [Environment]::GetEnvironmentVariable('EXPO_PUBLIC_API_BASE_URL', 'Process')
 if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
-  $apiBaseUrl = 'http://localhost:8080'
+  $apiBaseUrl = 'auto (host do Expo, porta 8080)'
+} else {
+  $apiBaseUrl = Get-BridgitTrimmedUrl -Url $apiBaseUrl
+  Set-BridgitProcessEnvVar -Name 'EXPO_PUBLIC_API_BASE_URL' -Value $apiBaseUrl
 }
-
-$apiBaseUrl = Get-BridgitTrimmedUrl -Url $apiBaseUrl
-Set-BridgitProcessEnvVar -Name 'EXPO_PUBLIC_API_BASE_URL' -Value $apiBaseUrl
 
 $expoArguments = @('expo', 'start', '--port', $expoGoPort)
 switch ($androidClient) {

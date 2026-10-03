@@ -13,6 +13,8 @@ const webidlConversionsEntry = path.resolve(
   'node_modules/whatwg-url-without-unicode/node_modules/webidl-conversions/lib/index.js',
 )
 
+const sharedClientEntry = path.resolve(monorepoRoot, 'packages/shared-client/src/index.js')
+
 const config = getDefaultConfig(projectRoot)
 const defaultResolveRequest = config.resolver.resolveRequest
 
@@ -27,6 +29,14 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return {
       type: 'sourceFile',
       filePath: webidlConversionsEntry,
+    }
+  }
+
+  // shared-client only declares "exports", which Metro does not read without package-exports support.
+  if (moduleName === '@bridgit/shared-client') {
+    return {
+      type: 'sourceFile',
+      filePath: sharedClientEntry,
     }
   }
 

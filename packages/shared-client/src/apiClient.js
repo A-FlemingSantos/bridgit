@@ -27,7 +27,15 @@ export function buildApiUrl(path, query, options = {}) {
   return url.toString()
 }
 
-export async function apiRequest(path, options = {}) {
+let clientDefaults = {}
+
+// Hosts without a same-origin proxy (e.g. React Native) set baseUrl/fetchImpl once at startup.
+export function configureApiClient(defaults = {}) {
+  clientDefaults = { ...defaults }
+}
+
+export async function apiRequest(path, requestOptions = {}) {
+  const options = { ...clientDefaults, ...requestOptions }
   const {
     method = 'GET',
     body,

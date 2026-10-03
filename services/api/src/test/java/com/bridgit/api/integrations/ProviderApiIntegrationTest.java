@@ -174,6 +174,48 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
+  void connectWithMobileRedirectReturnsToTheApp() throws Exception {
+    String stateToken = startAuthorizationWithBody("{\"redirectTo\":\"bridgit://oauth\"}");
+    stubSuccessfulExchange(stateToken, "auth-code");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", stateToken)
+            .param("code", "auth-code"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.startsWith("bridgit://oauth?")))
+        .andExpect(header().string("Location", Matchers.containsString("provider=onedrive")))
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")))
+        .andExpect(header().string("Location", Matchers.not(Matchers.containsString("code="))))
+        .andExpect(header().string("Location", Matchers.not(Matchers.containsString("localhost:5173"))));
+  }
+
+  @Test
+  void connectWithMobileRedirectReportsErrorsToTheApp() throws Exception {
+    String stateToken = startAuthorizationWithBody("{\"redirectTo\":\"bridgit://oauth\"}");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", stateToken)
+            .param("error", "access_denied"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.startsWith("bridgit://oauth?")))
+        .andExpect(header().string("Location", Matchers.containsString("status=error")))
+        .andExpect(header().string("Location", Matchers.containsString("error=PROVEDOR_RECUSOU")));
+  }
+
+  @Test
+  void connectWithUnlistedAppSchemeFallsBackToTheWebFlow() throws Exception {
+    String stateToken = startAuthorizationWithBody("{\"redirectTo\":\"evilapp://steal\"}");
+    stubSuccessfulExchange(stateToken, "auth-code");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", stateToken)
+            .param("code", "auth-code"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.startsWith("http://localhost:5173/settings/providers")))
+        .andExpect(header().string("Location", Matchers.not(Matchers.containsString("evilapp"))));
+  }
+
+  @Test
   void expiredStateRedirectKeepsBackground() throws Exception {
     String stateToken = startAuthorizationWithBody("{\"redirectTo\":\"/home\"}");
 

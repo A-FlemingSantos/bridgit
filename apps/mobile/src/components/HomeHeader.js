@@ -1,33 +1,38 @@
 import { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { providers } from '../data/mock'
+import { useSession } from '../auth/SessionContext'
+import { useProviders } from '../hub/hooks'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import ProviderMark from './ProviderMark'
 
-const USER_INITIAL = 'A'
-
-export default function HomeHeader({ onOpenProvider }) {
+export default function HomeHeader({ onOpenProvider, onOpenSettings }) {
   const insets = useSafeAreaInsets()
   const { theme, isDark } = useMobileTheme()
-  const [selectedId, setSelectedId] = useState(providers[0]?.id ?? null)
+  const { user } = useSession()
+  const { providers } = useProviders()
+  const [selectedId, setSelectedId] = useState(null)
+  const activeId = selectedId ?? providers[0]?.id ?? null
+  const initial = (user?.username ?? '?').charAt(0).toUpperCase()
   const selectedFill = isDark ? '#3a3a3a' : theme.colors.paper
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + 10, backgroundColor: theme.colors.paper }]}>
-      <View
-        accessibilityRole="image"
-        accessibilityLabel="Conta"
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Ajustes"
+        onPress={onOpenSettings}
+        hitSlop={8}
         style={[styles.avatar, { backgroundColor: theme.colors.ink }]}
       >
         <AppText weight="500" style={[styles.initial, { color: theme.colors.paper }]}>
-          {USER_INITIAL}
+          {initial}
         </AppText>
-      </View>
+      </Pressable>
       <View style={[styles.track, { backgroundColor: theme.colors.wash }]}>
         {providers.map((provider) => {
-          const selected = provider.id === selectedId
+          const selected = provider.id === activeId
           return (
             <Pressable
               key={provider.id}
