@@ -34,7 +34,8 @@ public abstract class ApiIntegrationTestSupport {
                 {
                   "username": "%s",
                   "password": "%s",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(username, password, deviceKey)))
         .andExpect(status().isOk())
@@ -48,7 +49,8 @@ public abstract class ApiIntegrationTestSupport {
                 {
                   "username": "%s",
                   "password": "%s",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(username, password, deviceKey)))
         .andExpect(status().isOk())

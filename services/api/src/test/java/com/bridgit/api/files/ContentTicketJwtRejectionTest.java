@@ -20,7 +20,7 @@ class ContentTicketJwtRejectionTest {
   void authJwtServiceRejectsContentTicketIssuer() {
     Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
     ContentTicketService contentTickets = new ContentTicketService(SECRET, clock);
-    JwtService authJwt = new JwtService(SECRET, "bridgit-api", 180, clock);
+    JwtService authJwt = new JwtService(SECRET, "bridgit-api", clock);
 
     ContentTicketService.IssuedTicket issued = contentTickets.createTicket(
         UUID.randomUUID(),

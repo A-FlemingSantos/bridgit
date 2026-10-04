@@ -23,7 +23,8 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 {
                   "username": "arthur",
                   "password": "12345678",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isOk())
@@ -31,7 +32,54 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
         .andExpect(jsonPath("$.data.expiresAt").isNotEmpty())
         .andExpect(jsonPath("$.data.user.username").value("arthur"))
-        .andExpect(jsonPath("$.data.session.persistent").value(false));
+        .andExpect(jsonPath("$.data.session.persistent").value(false))
+        .andExpect(jsonPath("$.data.session.clientKind").value("web"));
+  }
+
+  @Test
+  void shouldRejectRegisterWithoutValidClientKind() throws Exception {
+    mockMvc.perform(post("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "no-kind",
+                  "password": "12345678",
+                  "deviceKey": "%s"
+                }
+                """.formatted(UUID.randomUUID())))
+        .andExpect(status().isBadRequest());
+
+    mockMvc.perform(post("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "bad-kind",
+                  "password": "12345678",
+                  "deviceKey": "%s",
+                  "clientKind": "tablet"
+                }
+                """.formatted(UUID.randomUUID())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("CLIENTE_INVALIDO"));
+  }
+
+  @Test
+  void shouldIssueNonExpiringMobileSession() throws Exception {
+    mockMvc.perform(post("/api/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "mobile-user",
+                  "password": "12345678",
+                  "deviceKey": "%s",
+                  "clientKind": "mobile",
+                  "persistent": false
+                }
+                """.formatted(UUID.randomUUID())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.expiresAt").doesNotExist())
+        .andExpect(jsonPath("$.data.session.persistent").value(true))
+        .andExpect(jsonPath("$.data.session.clientKind").value("mobile"));
   }
 
   @Test
@@ -45,7 +93,8 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 {
                   "username": "login-user",
                   "password": "12345678",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isOk())
@@ -64,7 +113,8 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 {
                   "username": "missing-user",
                   "password": "12345678",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())
@@ -76,7 +126,8 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 {
                   "username": "enum-user",
                   "password": "87654321",
-                  "deviceKey": "%s"
+                  "deviceKey": "%s",
+                  "clientKind": "web"
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())

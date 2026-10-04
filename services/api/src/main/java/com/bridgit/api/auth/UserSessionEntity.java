@@ -3,6 +3,8 @@ package com.bridgit.api.auth;
 import com.bridgit.api.common.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -28,6 +30,29 @@ public class UserSessionEntity extends BaseEntity {
 
   @Column(name = "revoked_at")
   private OffsetDateTime revokedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "client_kind", nullable = false, length = 10)
+  private ClientKind clientKind = ClientKind.WEB;
+
+  @Column(name = "window_started_at", nullable = false)
+  private OffsetDateTime windowStartedAt;
+
+  public ClientKind getClientKind() {
+    return clientKind;
+  }
+
+  public void setClientKind(ClientKind clientKind) {
+    this.clientKind = clientKind;
+  }
+
+  public OffsetDateTime getWindowStartedAt() {
+    return windowStartedAt;
+  }
+
+  public void setWindowStartedAt(OffsetDateTime windowStartedAt) {
+    this.windowStartedAt = windowStartedAt;
+  }
 
   public UUID getUserId() {
     return userId;

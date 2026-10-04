@@ -20,7 +20,6 @@ app:
   jwt:
     secret: dev-only-test-jwt-secret-change-me-00000000000000000000000000000000
     issuer: bridgit-api-test
-    access-token-minutes: 180
   integrations:
     token-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
   providers:

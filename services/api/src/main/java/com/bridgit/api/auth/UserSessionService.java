@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSessionService {
 
   private static final Duration LAST_SEEN_REFRESH_INTERVAL = Duration.ofMinutes(5);
+  private static final Duration UNREMEMBERED_WINDOW = Duration.ofHours(2);
+  private static final Duration REMEMBERED_IDLE_LIMIT = Duration.ofDays(7);
 
   private final UserSessionRepository userSessionRepository;
   private final Clock clock;
@@ -23,22 +25,33 @@ public class UserSessionService {
   }
 
   @Transactional
-  public UserSessionEntity createSession(UUID userId, UUID deviceKey, boolean persistent, String userAgent) {
+  public UserSessionEntity createSession(
+      UUID userId,
+      UUID deviceKey,
+      ClientKind clientKind,
+      boolean persistent,
+      String userAgent
+  ) {
     OffsetDateTime now = OffsetDateTime.now(clock);
     userSessionRepository.revokeActiveByDeviceKey(userId, deviceKey, now);
 
     UserSessionEntity session = new UserSessionEntity();
     session.setUserId(userId);
     session.setDeviceKey(deviceKey);
-    session.setPersistent(persistent);
+    session.setClientKind(clientKind);
+    session.setPersistent(clientKind == ClientKind.MOBILE || persistent);
     session.setUserAgent(normalizeUserAgent(userAgent));
     session.setLastSeenAt(now);
+    session.setWindowStartedAt(now);
     return userSessionRepository.save(session);
   }
 
   @Transactional(readOnly = true)
   public List<UserSessionEntity> listActive(UUID userId) {
-    return userSessionRepository.findByUserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(userId);
+    OffsetDateTime now = OffsetDateTime.now(clock);
+    return userSessionRepository.findByUserIdAndRevokedAtIsNullOrderByLastSeenAtDesc(userId).stream()
+        .filter(session -> !isExpired(session, now))
+        .toList();
   }
 
   @Transactional(readOnly = true)
@@ -50,7 +63,31 @@ public class UserSessionService {
       throw new UnauthorizedException("SESSAO_REVOGADA", "Sua sessao foi encerrada. Faca login novamente.");
     }
 
+    if (isExpired(session, OffsetDateTime.now(clock))) {
+      throw new UnauthorizedException("SESSAO_EXPIRADA", "Sua sessao expirou. Faca login novamente.");
+    }
+
     return session;
+  }
+
+  /**
+   * Server-side session lifetime. Mobile never expires; web without "remember" has an absolute
+   * window from login (or from turning "remember" off); web with "remember" expires after
+   * {@link #REMEMBERED_IDLE_LIMIT} without use. Returns null when the session does not expire.
+   */
+  public OffsetDateTime expiresAt(UserSessionEntity session) {
+    if (session.getClientKind() == ClientKind.MOBILE) {
+      return null;
+    }
+    if (session.isPersistent()) {
+      return session.getLastSeenAt().plus(REMEMBERED_IDLE_LIMIT);
+    }
+    return session.getWindowStartedAt().plus(UNREMEMBERED_WINDOW);
+  }
+
+  private boolean isExpired(UserSessionEntity session, OffsetDateTime now) {
+    OffsetDateTime expiresAt = expiresAt(session);
+    return expiresAt != null && !now.isBefore(expiresAt);
   }
 
   @Transactional
@@ -69,7 +106,17 @@ public class UserSessionService {
   @Transactional
   public UserSessionEntity updatePersistent(UUID userId, UUID sessionId, boolean persistent) {
     UserSessionEntity session = requireActiveSession(userId, sessionId);
+    if (session.getClientKind() == ClientKind.MOBILE || session.isPersistent() == persistent) {
+      return session;
+    }
+
+    OffsetDateTime now = OffsetDateTime.now(clock);
     session.setPersistent(persistent);
+    if (persistent) {
+      session.setLastSeenAt(now);
+    } else {
+      session.setWindowStartedAt(now);
+    }
     return userSessionRepository.save(session);
   }
 

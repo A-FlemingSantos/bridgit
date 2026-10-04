@@ -7,9 +7,6 @@ import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -21,19 +18,16 @@ public class JwtService {
 
   private final SecretKey secretKey;
   private final String issuer;
-  private final long accessTokenMinutes;
   private final Clock clock;
 
   public JwtService(
       @Value("${app.jwt.secret}") String secret,
       @Value("${app.jwt.issuer}") String issuer,
-      @Value("${app.jwt.access-token-minutes}") long accessTokenMinutes,
       Clock clock
   ) {
     byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
     this.secretKey = Keys.hmacShaKeyFor(keyBytes);
     this.issuer = issuer;
-    this.accessTokenMinutes = accessTokenMinutes;
     this.clock = clock;
   }
 
@@ -43,18 +37,10 @@ public class JwtService {
         .subject(userId.toString())
         .issuer(issuer)
         .issuedAt(Date.from(now))
-        .expiration(Date.from(now.plus(accessTokenMinutes, ChronoUnit.MINUTES)))
         .claim("username", username)
         .claim("sid", sessionId == null ? null : sessionId.toString())
         .signWith(secretKey, SignatureAlgorithm.HS256)
         .compact();
-  }
-
-  public OffsetDateTime accessTokenExpiresAt() {
-    return OffsetDateTime.ofInstant(
-        Instant.now(clock).plus(accessTokenMinutes, ChronoUnit.MINUTES),
-        ZoneOffset.UTC
-    );
   }
 
   public UUID extractUserId(String token) {
@@ -73,9 +59,13 @@ public class JwtService {
     return UUID.fromString(sessionId);
   }
 
+  /**
+   * Tokens carry no expiry: session lifetime is decided by the server (user_sessions).
+   * This only verifies signature and issuer.
+   */
   public boolean isValid(String token) {
-    Claims claims = parseClaims(token);
-    return claims.getExpiration().toInstant().isAfter(Instant.now(clock));
+    parseClaims(token);
+    return true;
   }
 
   private Claims parseClaims(String token) {

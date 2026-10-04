@@ -1,6 +1,7 @@
 package com.bridgit.api.auth;
 
 import com.bridgit.api.common.api.ApiEnvelope;
+import com.bridgit.api.common.error.BadRequestException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -37,6 +38,7 @@ public class AuthController {
         request.username(),
         request.password(),
         request.deviceKey(),
+        parseClientKind(request.clientKind()),
         Boolean.TRUE.equals(request.persistent()),
         httpRequest.getHeader("User-Agent")
     ));
@@ -51,6 +53,7 @@ public class AuthController {
         request.username(),
         request.password(),
         request.deviceKey(),
+        parseClientKind(request.clientKind()),
         Boolean.TRUE.equals(request.persistent()),
         httpRequest.getHeader("User-Agent")
     ));
@@ -81,6 +84,14 @@ public class AuthController {
     return ApiEnvelope.ok(authService.revokeOtherSessions());
   }
 
+  private static ClientKind parseClientKind(String value) {
+    ClientKind clientKind = ClientKind.parse(value);
+    if (clientKind == null) {
+      throw new BadRequestException("CLIENTE_INVALIDO", "O tipo de cliente deve ser web ou mobile.");
+    }
+    return clientKind;
+  }
+
   public record RegisterRequest(
       @NotBlank(message = "O usuario e obrigatorio.")
       @Size(min = 3, max = 32, message = "O usuario deve ter entre 3 e 32 caracteres.")
@@ -90,6 +101,7 @@ public class AuthController {
       @Size(min = 8, message = "A senha deve ter pelo menos 8 caracteres.")
       String password,
       @NotNull(message = "O identificador do dispositivo e obrigatorio.") UUID deviceKey,
+      @NotBlank(message = "O tipo de cliente e obrigatorio.") String clientKind,
       Boolean persistent
   ) {
   }
@@ -98,6 +110,7 @@ public class AuthController {
       @NotBlank(message = "O usuario e obrigatorio.") String username,
       @NotBlank(message = "A senha e obrigatoria.") String password,
       @NotNull(message = "O identificador do dispositivo e obrigatorio.") UUID deviceKey,
+      @NotBlank(message = "O tipo de cliente e obrigatorio.") String clientKind,
       Boolean persistent
   ) {
   }

@@ -63,7 +63,6 @@ app:
   jwt:
     secret: ${APP_JWT_SECRET:dev-only-local-jwt-secret-change-me-00000000000000000000000000000000}
     issuer: bridgit-api
-    access-token-minutes: 180
   time:
     zone-id: America/Sao_Paulo
   integrations:

@@ -45,6 +45,7 @@ public class AuthService {
       String username,
       String password,
       UUID deviceKey,
+      ClientKind clientKind,
       boolean persistent,
       String userAgent
   ) {
@@ -62,7 +63,7 @@ public class AuthService {
     user.setPasswordHash(passwordEncoder.encode(password));
     userRepository.save(user);
 
-    UserSessionEntity session = userSessionService.createSession(user.getId(), deviceKey, persistent, userAgent);
+    UserSessionEntity session = userSessionService.createSession(user.getId(), deviceKey, clientKind, persistent, userAgent);
     return buildSessionResponse(user, session);
   }
 
@@ -71,6 +72,7 @@ public class AuthService {
       String username,
       String password,
       UUID deviceKey,
+      ClientKind clientKind,
       boolean persistent,
       String userAgent
   ) {
@@ -86,7 +88,7 @@ public class AuthService {
         new UsernamePasswordAuthenticationToken(usernameKey, password)
     );
 
-    UserSessionEntity session = userSessionService.createSession(user.getId(), deviceKey, persistent, userAgent);
+    UserSessionEntity session = userSessionService.createSession(user.getId(), deviceKey, clientKind, persistent, userAgent);
     return buildSessionResponse(user, session);
   }
 
@@ -138,7 +140,7 @@ public class AuthService {
     String token = jwtService.generateAccessToken(user.getId(), user.getUsername(), session.getId());
     return new AuthDtos.SessionResponse(
         token,
-        jwtService.accessTokenExpiresAt(),
+        userSessionService.expiresAt(session),
         toUserSummary(user),
         toSessionSummary(session)
     );
@@ -160,7 +162,12 @@ public class AuthService {
   }
 
   private AuthDtos.SessionSummary toSessionSummary(UserSessionEntity session) {
-    return new AuthDtos.SessionSummary(session.getId(), session.isPersistent());
+    return new AuthDtos.SessionSummary(
+        session.getId(),
+        session.isPersistent(),
+        userSessionService.expiresAt(session),
+        session.getClientKind().name().toLowerCase(java.util.Locale.ROOT)
+    );
   }
 
   private void validatePassword(String password) {

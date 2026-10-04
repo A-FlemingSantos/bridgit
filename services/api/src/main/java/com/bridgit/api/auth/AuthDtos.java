@@ -24,7 +24,9 @@ public final class AuthDtos {
 
   public record SessionSummary(
       UUID id,
-      boolean persistent
+      boolean persistent,
+      OffsetDateTime expiresAt,
+      String clientKind
   ) {
   }
 
