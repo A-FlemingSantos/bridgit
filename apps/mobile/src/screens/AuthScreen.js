@@ -103,7 +103,6 @@ export default function AuthScreen({ navigation }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [remember, setRemember] = useState(false)
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -166,7 +165,7 @@ export default function AuthScreen({ navigation }) {
     setSubmitting(true)
     try {
       if (register) await signUp({ username: username.trim(), password })
-      else await signIn({ username: username.trim(), password, persistent: remember })
+      else await signIn({ username: username.trim(), password })
     } catch (requestError) {
       setError(requestError?.message || 'Não foi possível entrar. Tente novamente.')
       setSubmitting(false)
@@ -250,27 +249,6 @@ export default function AuthScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.meta}>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: remember }}
-                onPress={() => setRemember((current) => !current)}
-                style={styles.remember}
-              >
-                <View
-                  style={[
-                    styles.radio,
-                    {
-                      borderColor: remember ? theme.colors.ink : theme.colors.mute,
-                      backgroundColor: remember ? theme.colors.paper : 'transparent',
-                    },
-                  ]}
-                >
-                  {remember ? (
-                    <View style={[styles.radioDot, { backgroundColor: theme.colors.ink }]} />
-                  ) : null}
-                </View>
-                <AppText style={[styles.metaLabel, { color: theme.colors.mute }]}>Lembrar-me</AppText>
-              </Pressable>
               <Pressable accessibilityRole="button" hitSlop={8}>
                 <AppText style={[styles.metaLabel, { color: theme.colors.mute }]}>Esqueceu?</AppText>
               </Pressable>
@@ -373,26 +351,8 @@ const styles = StyleSheet.create({
     marginTop: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     gap: 16,
-  },
-  remember: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  radio: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
   metaLabel: {
     fontSize: 12,

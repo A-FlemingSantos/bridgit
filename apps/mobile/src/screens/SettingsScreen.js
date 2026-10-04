@@ -156,15 +156,6 @@ function SecuritySection({ settings }) {
       <Button label={saved ? 'Senha alterada' : 'Salvar senha'} variant="solid" onPress={submit} />
 
       <Divider />
-      <PrefRow title="Manter este dispositivo" hint="Continua conectado ao fechar o app.">
-        <Switch
-          label="Manter este dispositivo"
-          value={settings.keepDevice}
-          onChange={async (value) => setError(await settings.setKeepDevice(value))}
-        />
-      </PrefRow>
-
-      <Divider />
       <AppText weight="500" style={styles.rowTitle}>Sessões</AppText>
       {settings.sessions.map((session) => (
         <View key={session.id} style={styles.fact}>

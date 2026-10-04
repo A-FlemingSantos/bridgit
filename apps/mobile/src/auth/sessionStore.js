@@ -47,9 +47,3 @@ export function buildStoredSession(data) {
     session: data.session,
   }
 }
-
-export function isSessionExpired(session) {
-  if (!session?.accessToken) return true
-  const expiresAt = Date.parse(session.expiresAt)
-  return Number.isFinite(expiresAt) && expiresAt <= Date.now()
-}

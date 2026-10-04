@@ -52,7 +52,7 @@ function sessionLabel(item) {
 // Real settings backed by the account, session and provider endpoints.
 // Actions that can fail return a message in Portuguese, or '' on success.
 export function useSettings() {
-  const { token, user, session, logout, invalidate, replaceSession } = useSession()
+  const { token, user, logout, invalidate, replaceSession } = useSession()
   const { providers: statuses, reload: reloadProviders } = useProviders()
   const [notifyFail, setNotifyFailState] = useState(true)
   const [sessions, setSessions] = useState([])
@@ -137,16 +137,6 @@ export function useSettings() {
     setItem(NOTIFY_FAIL_KEY, value ? '1' : '0').catch(() => {})
   }, [])
 
-  const setKeepDevice = useCallback((value) => guard(async () => {
-    const data = await apiRequest('/api/auth/session', {
-      method: 'PATCH',
-      token,
-      body: { persistent: value },
-    })
-    // The endpoint returns just the session summary ({ id, persistent }).
-    await replaceSession({ ...session, session: { ...session.session, ...data } })
-  }), [guard, token, session, replaceSession])
-
   const revokeOtherSessions = useCallback(() => guard(async () => {
     await apiRequest('/api/auth/sessions/revoke-others', { method: 'POST', token })
     await loadSessions()
@@ -185,8 +175,6 @@ export function useSettings() {
     disconnectProvider: disconnect,
     notifyFail,
     setNotifyFail,
-    keepDevice: session?.session?.persistent ?? false,
-    setKeepDevice,
     sessions,
     revokeOtherSessions,
     changePassword,
