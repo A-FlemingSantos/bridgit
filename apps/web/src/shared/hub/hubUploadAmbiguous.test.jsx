@@ -7,7 +7,6 @@ import { HubDataProvider } from './HubDataProvider.jsx'
 import { useFolder, useHubActions } from './hooks.js'
 import { HubUploadError } from './hubErrors.js'
 import { createHubApi } from './hubApi.js'
-import { clearBrowserCookies } from '../../test/setup.js'
 
 vi.mock('./hubApi.js', () => ({
   createHubApi: vi.fn(),
@@ -23,7 +22,12 @@ vi.mock('@bridgit/shared-client', async (importOriginal) => {
           accessToken: 'test-token',
           expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
           user: { id: 'user-1', username: 'arthur' },
-          session: { id: 'session-1', persistent: true },
+          session: {
+            id: 'session-1',
+            persistent: true,
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            clientKind: 'web',
+          },
         }
       }
       throw new Error(`Unexpected apiRequest path: ${path}`)
@@ -61,7 +65,12 @@ function seedAuthenticatedSession() {
       accessToken: 'test-token',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       user: { id: 'user-1', username: 'arthur' },
-      session: { id: 'session-1', persistent: true },
+      session: {
+            id: 'session-1',
+            persistent: true,
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            clientKind: 'web',
+          },
     }),
   )
 }
@@ -79,7 +88,6 @@ function createWrapper() {
 }
 
 beforeEach(() => {
-  clearBrowserCookies()
   localStorage.clear()
   sessionStorage.clear()
   seedAuthenticatedSession()

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
+import { act, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,6 @@ import ProvidersTab from './features/settings/pages/ProvidersTab.jsx'
 import SettingsPage from './features/settings/pages/SettingsPage.jsx'
 import { SessionProvider } from './shared/auth/SessionContext.jsx'
 import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
-import { clearBrowserCookies } from './test/setup.js'
 
 vi.mock('@bridgit/shared-client', async (importOriginal) => {
   const actual = await importOriginal()
@@ -33,7 +32,12 @@ const testSessionResponse = {
   accessToken: 'test-token',
   expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   user: { id: 'user-1', username: 'arthur' },
-  session: { id: 'session-1', persistent: true },
+  session: {
+    id: 'session-1',
+    persistent: true,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    clientKind: 'web',
+  },
 }
 
 function seedAuthenticatedSession(overrides = {}) {
@@ -43,7 +47,7 @@ function seedAuthenticatedSession(overrides = {}) {
       accessToken: 'test-token',
       expiresAt: testSessionResponse.expiresAt,
       user: { id: 'user-1', username: 'arthur' },
-      session: { id: 'session-1', persistent: true },
+      session: testSessionResponse.session,
       ...overrides,
     }),
   )
@@ -379,7 +383,6 @@ function setupAuthenticatedApi() {
 }
 
 beforeEach(() => {
-  clearBrowserCookies()
   localStorage.clear()
   sessionStorage.clear()
   apiRequest.mockReset()
@@ -1038,17 +1041,41 @@ describe('App', () => {
     expect(first).toContain('test-token')
   })
 
-  it('descarta sessao nao persistente sem cookie do navegador', async () => {
-    localStorage.setItem(
-      'bridgit.session',
-      JSON.stringify({
-        accessToken: 'test-token',
-        expiresAt: testSessionResponse.expiresAt,
-        user: { id: 'user-1', username: 'arthur' },
-        session: { id: 'session-1', persistent: false },
-      }),
+  it('envia clientKind web no login', async () => {
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/login') return testSessionResponse
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter {...router} initialEntries={['/login']}>
+        <App />
+      </MemoryRouter>,
     )
-    document.cookie = ''
+
+    await screen.findByRole('heading', { name: 'Entrar' })
+    await user.type(screen.getByLabelText('Usuário'), 'arthur')
+    await user.type(screen.getByLabelText('Senha'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    await waitFor(() => {
+      expect(apiRequest).toHaveBeenCalledWith(
+        '/api/auth/login',
+        expect.objectContaining({ body: expect.objectContaining({ clientKind: 'web' }) }),
+      )
+    })
+    expect(document.cookie).not.toContain('bridgit.browser')
+  })
+
+  it('revalida a sessao no boot e limpa quando o back-end responde 401', async () => {
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh') {
+        throw new ApiClientError('Sessao expirada.', { status: 401, code: 'SESSAO_EXPIRADA' })
+      }
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+    seedAuthenticatedSession()
 
     render(
       <MemoryRouter {...router} initialEntries={['/home']}>
@@ -1060,7 +1087,102 @@ describe('App', () => {
       expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     })
     expect(localStorage.getItem('bridgit.session')).toBeNull()
-    expect(apiRequest).not.toHaveBeenCalled()
+    expect(apiRequest).toHaveBeenCalledWith('/api/auth/refresh', expect.objectContaining({ token: 'test-token' }))
+  })
+
+  it('mantem a sessao armazenada quando a revalidacao falha por rede', async () => {
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh') {
+        throw new ApiClientError('Sem conexao.', { status: 0, code: 'REDE' })
+      }
+      if (path === '/api/providers') return testProvidersResponse
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(apiRequest).toHaveBeenCalledWith('/api/auth/refresh', expect.anything())
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Entrar' })).not.toBeInTheDocument()
+    })
+    expect(localStorage.getItem('bridgit.session')).toContain('test-token')
+  })
+
+  it('encerra a sessao nao persistente localmente quando expiresAt chega', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], shouldAdvanceTime: true })
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+    const nonPersistent = {
+      ...testSessionResponse,
+      expiresAt,
+      session: { id: 'session-1', persistent: false, expiresAt, clientKind: 'web' },
+    }
+    apiRequest.mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh') return nonPersistent
+      if (path === '/api/providers') return testProvidersResponse
+      throw new Error(`Unexpected apiRequest path: ${path}`)
+    })
+    localStorage.setItem('bridgit.session', JSON.stringify(nonPersistent))
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(apiRequest).toHaveBeenCalledWith('/api/auth/refresh', expect.anything())
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Entrar' })).not.toBeInTheDocument()
+    })
+    expect(localStorage.getItem('bridgit.session')).toContain('test-token')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000 + 1000)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    })
+    expect(localStorage.getItem('bridgit.session')).toBeNull()
+  })
+
+  it('atualiza persistent e expiresAt armazenados ao alternar Manter este dispositivo', async () => {
+    const user = userEvent.setup()
+    const nextExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+    apiRequest.mockImplementation(async (path, options = {}) => {
+      if (path === '/api/auth/session' && options.method === 'PATCH') {
+        return { id: 'session-1', persistent: false, expiresAt: nextExpiresAt, clientKind: 'web' }
+      }
+      return resolveAuthenticatedApiRequest(path, options)
+    })
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/security']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('switch', { name: 'Manter este dispositivo' }))
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem('bridgit.session'))
+      expect(stored.session.persistent).toBe(false)
+      expect(stored.session.expiresAt).toBe(nextExpiresAt)
+      expect(stored.expiresAt).toBe(nextExpiresAt)
+    })
+    expect(apiRequest).toHaveBeenCalledWith(
+      '/api/auth/session',
+      expect.objectContaining({ method: 'PATCH', body: { persistent: false } }),
+    )
   })
 
   it('depois de sair, entrar abre a home', async () => {

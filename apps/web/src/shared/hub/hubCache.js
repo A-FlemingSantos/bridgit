@@ -7,7 +7,7 @@ export const RECENTS_STALE_MS = 30 * 1000
 export const RECENTS_LIMIT = 12
 export const SHORTCUTS_STALE_MS = 60 * 1000
 
-export const HUB_SESSION_FAILURE_CODES = ['TOKEN_INVALIDO', 'SESSAO_INVALIDA', 'AUTENTICACAO_OBRIGATORIA']
+export const HUB_SESSION_FAILURE_CODES = ['TOKEN_INVALIDO', 'SESSAO_INVALIDA', 'SESSAO_EXPIRADA', 'AUTENTICACAO_OBRIGATORIA']
 
 export function isRootRef(ref) {
   return ref === null || ref === undefined || ref === ''

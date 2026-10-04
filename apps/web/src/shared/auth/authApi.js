@@ -1,5 +1,7 @@
 import { apiRequest } from '@bridgit/shared-client'
-import { buildStoredSession, getDeviceKey, setBrowserCookie, writeSession } from './sessionStorage.js'
+import { buildStoredSession, getDeviceKey, writeSession } from './sessionStorage.js'
+
+const CLIENT_KIND = 'web'
 
 export async function loginRequest({ username, password, persistent }) {
   const data = await apiRequest('/api/auth/login', {
@@ -9,14 +11,12 @@ export async function loginRequest({ username, password, persistent }) {
       password,
       deviceKey: getDeviceKey(),
       persistent,
+      clientKind: CLIENT_KIND,
     },
   })
 
   const session = buildStoredSession(data)
   writeSession(session)
-  if (!persistent) {
-    setBrowserCookie()
-  }
   return session
 }
 
@@ -28,12 +28,12 @@ export async function registerRequest({ username, password }) {
       password,
       deviceKey: getDeviceKey(),
       persistent: false,
+      clientKind: CLIENT_KIND,
     },
   })
 
   const session = buildStoredSession(data)
   writeSession(session)
-  setBrowserCookie()
   return session
 }
 

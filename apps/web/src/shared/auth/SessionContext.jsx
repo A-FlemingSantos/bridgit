@@ -13,27 +13,20 @@ import {
   updateAccountRequest,
   updateSessionPersistentRequest,
 } from './authApi.js'
-import {
-  clearBrowserCookie,
-  clearSession,
-  hasBrowserCookie,
-  isValidStoredToken,
-  readSession,
-  SESSION_KEY,
-  setBrowserCookie,
-  writeSession,
-} from './sessionStorage.js'
+import { clearSession, isValidStoredToken, readSession, SESSION_KEY, writeSession } from './sessionStorage.js'
 
-const REFRESH_LEAD_MS = 5 * 60 * 1000
-const RETRY_MS = 60 * 1000
+const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
+function getSessionExpiry(storedSession) {
+  return storedSession?.session?.expiresAt ?? storedSession?.expiresAt ?? null
+}
 
 const SessionContext = createContext(null)
 
 export function SessionProvider({ children }) {
   const [status, setStatus] = useState('boot')
   const [session, setSession] = useState(null)
-  const refreshTimerRef = useRef(null)
-  const retryTimerRef = useRef(null)
+  const expiryTimerRef = useRef(null)
   const discardReturnPathRef = useRef(false)
   const activeUserRef = useRef(null)
 
@@ -59,31 +52,6 @@ export function SessionProvider({ children }) {
     setStatus('authenticated')
   }, [])
 
-  const refreshSessionRef = useRef(null)
-
-  const scheduleRefresh = useCallback((expiresAt, accessToken) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current)
-    }
-
-    if (!expiresAt || !accessToken) return
-
-    const delay = Math.max(0, new Date(expiresAt).getTime() - Date.now() - REFRESH_LEAD_MS)
-    refreshTimerRef.current = setTimeout(() => {
-      void refreshSessionRef.current?.(accessToken)
-    }, delay)
-  }, [])
-
-  const scheduleRetry = useCallback((accessToken) => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current)
-    }
-
-    retryTimerRef.current = setTimeout(() => {
-      void refreshSessionRef.current?.(accessToken)
-    }, RETRY_MS)
-  }, [])
-
   const refreshSession = useCallback(
     async (token = session?.accessToken ?? readSession()?.accessToken) => {
       if (!token) return null
@@ -91,25 +59,17 @@ export function SessionProvider({ children }) {
       try {
         const nextSession = await refreshRequest(token)
         applySession(nextSession)
-        scheduleRefresh(nextSession.expiresAt, nextSession.accessToken)
         return nextSession
       } catch (error) {
         if (error instanceof ApiClientError && error.status === 401) {
           clearAuth()
-          return null
-        }
-
-        if (error instanceof ApiClientError) {
-          scheduleRetry(token)
         }
 
         return null
       }
     },
-    [applySession, clearAuth, scheduleRefresh, scheduleRetry, session?.accessToken],
+    [applySession, clearAuth, session?.accessToken],
   )
-
-  refreshSessionRef.current = refreshSession
 
   useEffect(() => {
     let active = true
@@ -128,28 +88,15 @@ export function SessionProvider({ children }) {
         return
       }
 
-      if (!stored.session?.persistent && !hasBrowserCookie()) {
-        clearSession()
-        if (active) setStatus('anonymous')
-        return
-      }
-
       try {
         const nextSession = await refreshRequest(stored.accessToken)
         if (!active) return
         applySession(nextSession)
-        scheduleRefresh(nextSession.expiresAt, nextSession.accessToken)
       } catch (error) {
         if (!active) return
 
         if (error instanceof ApiClientError && error.status === 401) {
           clearAuth()
-          return
-        }
-
-        if (error instanceof ApiClientError && error.status === 0) {
-          applySession(stored)
-          scheduleRetry(stored.accessToken)
           return
         }
 
@@ -162,19 +109,30 @@ export function SessionProvider({ children }) {
     return () => {
       active = false
     }
-  }, [applySession, clearAuth, scheduleRefresh, scheduleRetry])
+  }, [applySession, clearAuth])
+
+  const sessionPersistent = session?.session?.persistent ?? null
+  const sessionExpiresAt = getSessionExpiry(session)
 
   useEffect(() => {
-    if (status !== 'authenticated' || !session?.expiresAt || !session?.accessToken) return undefined
+    if (status !== 'authenticated' || sessionPersistent !== false || !sessionExpiresAt) return undefined
 
-    scheduleRefresh(session.expiresAt, session.accessToken)
+    const expiresMs = Date.parse(sessionExpiresAt)
+    if (Number.isNaN(expiresMs)) return undefined
+
+    const delay = Math.min(Math.max(0, expiresMs - Date.now()), MAX_TIMEOUT_MS)
+    expiryTimerRef.current = setTimeout(() => {
+      expiryTimerRef.current = null
+      clearAuth()
+    }, delay)
 
     return () => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current)
+        expiryTimerRef.current = null
       }
     }
-  }, [scheduleRefresh, session?.accessToken, session?.expiresAt, status])
+  }, [clearAuth, sessionExpiresAt, sessionPersistent, status])
 
   useEffect(() => {
     function onStorage(event) {
@@ -201,14 +159,6 @@ export function SessionProvider({ children }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [applySession])
 
-  useEffect(
-    () => () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-    },
-    [],
-  )
-
   const handleUnauthorized = useCallback(
     (error) => {
       if (error instanceof ApiClientError && error.status === 401) {
@@ -222,20 +172,18 @@ export function SessionProvider({ children }) {
     async (credentials) => {
       const nextSession = await loginRequest(credentials)
       applySession(nextSession)
-      scheduleRefresh(nextSession.expiresAt, nextSession.accessToken)
       return nextSession
     },
-    [applySession, scheduleRefresh],
+    [applySession],
   )
 
   const register = useCallback(
     async (credentials) => {
       const nextSession = await registerRequest(credentials)
       applySession(nextSession)
-      scheduleRefresh(nextSession.expiresAt, nextSession.accessToken)
       return nextSession
     },
-    [applySession, scheduleRefresh],
+    [applySession],
   )
 
   const logout = useCallback(async () => {
@@ -260,14 +208,13 @@ export function SessionProvider({ children }) {
       try {
         const nextSession = await updateAccountRequest(token, username)
         applySession(nextSession)
-        scheduleRefresh(nextSession.expiresAt, nextSession.accessToken)
         return nextSession
       } catch (error) {
         handleUnauthorized(error)
         throw error
       }
     },
-    [applySession, handleUnauthorized, scheduleRefresh, session?.accessToken],
+    [applySession, handleUnauthorized, session?.accessToken],
   )
 
   const changePassword = useCallback(
@@ -303,12 +250,6 @@ export function SessionProvider({ children }) {
       const token = session?.accessToken
       if (!token) throw new Error('Sessao indisponivel.')
 
-      if (!persistent) {
-        setBrowserCookie()
-      } else {
-        clearBrowserCookie()
-      }
-
       try {
         const updated = await updateSessionPersistentRequest(token, persistent)
         const stored = readSession()
@@ -316,6 +257,7 @@ export function SessionProvider({ children }) {
 
         const nextSession = {
           ...stored,
+          expiresAt: updated?.expiresAt ?? stored.expiresAt,
           session: {
             ...stored.session,
             ...updated,

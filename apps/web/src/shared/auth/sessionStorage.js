@@ -1,6 +1,5 @@
 export const SESSION_KEY = 'bridgit.session'
 export const DEVICE_KEY = 'bridgit.device'
-export const BROWSER_COOKIE = 'bridgit.browser'
 
 export function getDeviceKey() {
   let deviceKey = localStorage.getItem(DEVICE_KEY)
@@ -28,25 +27,12 @@ export function writeSession(session) {
 
 export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
-  clearBrowserCookie()
 }
 
 export function isValidStoredToken(token) {
   if (!token || typeof token !== 'string') return false
   if (token.startsWith('demo-')) return false
   return token.length > 0
-}
-
-export function setBrowserCookie() {
-  document.cookie = `${BROWSER_COOKIE}=1; Path=/; SameSite=Lax`
-}
-
-export function clearBrowserCookie() {
-  document.cookie = `${BROWSER_COOKIE}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`
-}
-
-export function hasBrowserCookie() {
-  return document.cookie.split(';').some((part) => part.trim().startsWith(`${BROWSER_COOKIE}=`))
 }
 
 export function buildStoredSession(data) {
