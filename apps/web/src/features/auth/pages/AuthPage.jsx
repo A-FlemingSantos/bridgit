@@ -145,7 +145,7 @@ export default function AuthPage() {
             <div className={styles.meta}>
               <label className={styles.remember} htmlFor={rememberId}>
                 <input id={rememberId} name="remember" type="checkbox" />
-                Lembrar-me
+                Lembrar-se de mim
               </label>
               <button type="button" className={styles.forgot}>
                 Esqueceu?
