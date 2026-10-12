@@ -7,8 +7,8 @@ exec < /dev/null >> /tmp/cloud-session-start.log 2>&1
 echo "[$(date -Is)] início"
 
 # Banco: dockerd + SQL Server + bridgit_db e bridgit_test (com limite de tempo)
-if ! timeout 420 bridgit-db-up; then
-  echo "[$(date -Is)] bridgit-db-up falhou ou expirou"
+if ! timeout 420 bash "$CLAUDE_PROJECT_DIR/scripts/bridgit-db-up.sh"; then
+  echo "[$(date -Is)] bridgit-db-up.sh falhou ou expirou"
   exit 0
 fi
 echo "[$(date -Is)] banco pronto"
