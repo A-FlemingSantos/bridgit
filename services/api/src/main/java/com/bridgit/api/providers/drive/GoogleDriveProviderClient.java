@@ -100,8 +100,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   @Override
   public PreparedWrite prepareCreate(String accessToken) {
-    JsonNode json = authorizedPostJson(accessToken,
-        DRIVE_BASE + "/files/generateIds?count=1&space=drive&fields=ids", "{}");
+    // files.generateIds is a GET; a POST to it answers 404.
+    JsonNode json = authorizedGet(accessToken,
+        DRIVE_BASE + "/files/generateIds?count=1&space=drive&fields=ids");
     String id = json.path("ids").path(0).asText(null);
     if (!StringUtils.hasText(id)) {
       throw new ProviderApiException("Nao foi possivel reservar o identificador do arquivo.");

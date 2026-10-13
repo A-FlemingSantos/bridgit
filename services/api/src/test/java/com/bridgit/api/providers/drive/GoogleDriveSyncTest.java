@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -19,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -102,6 +104,7 @@ class GoogleDriveSyncTest {
   @Test
   void preparedIdsAreWrittenForFoldersAndUploads() {
     server.expect(requestTo(org.hamcrest.Matchers.containsString("/files/generateIds?")))
+        .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess("{\"ids\":[\"reserved-folder\"]}", MediaType.APPLICATION_JSON));
     server.expect(requestTo(org.hamcrest.Matchers.containsString("/files?fields=")))
         .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":\"reserved-folder\"")))

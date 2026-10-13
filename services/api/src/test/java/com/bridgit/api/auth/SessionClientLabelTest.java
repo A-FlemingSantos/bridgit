@@ -45,4 +45,20 @@ class SessionClientLabelTest {
     assertEquals("Firefox", label.browser());
     assertEquals("Linux", label.device());
   }
+
+  @Test
+  void namesTheMobileAppWhenTheAgentIsAnHttpLibrary() {
+    SessionClientLabel.Label label = SessionClientLabel.forSession(ClientKind.MOBILE, "okhttp/4.12.0");
+
+    assertEquals("App Bridgit", label.browser());
+    assertEquals("Celular", label.device());
+  }
+
+  @Test
+  void keepsTheBrowserLabelForWebSessions() {
+    SessionClientLabel.Label label = SessionClientLabel.forSession(ClientKind.WEB, "okhttp/4.12.0");
+
+    assertEquals("Navegador", label.browser());
+    assertEquals("Dispositivo", label.device());
+  }
 }

@@ -184,6 +184,13 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
     mockMvc.perform(delete("/api/hub/shortcuts/onedrive/file-1")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk());
+
+    // Each real change is announced so other devices refresh; the no-op delete is not.
+    mockMvc.perform(get("/api/hub/events").param("after", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.entry == 'shortcut' && @.payload.removed == false)]").exists())
+        .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.removed == true)]", org.hamcrest.Matchers.hasSize(1)));
   }
 
   @Test

@@ -91,6 +91,9 @@ public class PublicLinkService {
         .orElse(null);
   }
 
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.bridgit.api.catalog.HubEventStore events;
+
   @Transactional
   public OwnerPublicLinkResponse createOrGetOwnerLink(CloudProvider provider, String ref) {
     UUID userId = authenticatedUserService.requireUserId();
@@ -105,6 +108,7 @@ public class PublicLinkService {
     link.setExtension(item.extension());
     link.setSize(item.size());
     linkRepository.save(link);
+    notifyLink(userId, connection, ref, false);
 
     return toOwnerResponse(link);
   }
@@ -112,9 +116,18 @@ public class PublicLinkService {
   @Transactional
   public void deleteOwnerLink(CloudProvider provider, String ref) {
     UUID userId = authenticatedUserService.requireUserId();
-    connectionRepository.findByUserIdAndProvider(userId, provider.id())
-        .flatMap(connection -> linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref))
-        .ifPresent(linkRepository::delete);
+    connectionRepository.findByUserIdAndProvider(userId, provider.id()).ifPresent(connection ->
+        linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref).ifPresent(link -> {
+          linkRepository.delete(link);
+          notifyLink(userId, connection, ref, true);
+        }));
+  }
+
+  // Other devices refresh on hub events; without one a link toggled elsewhere stays stale there.
+  private void notifyLink(UUID userId, ProviderConnectionEntity connection, String ref, boolean removed) {
+    if (events == null) return;
+    events.append(userId, connection.getId(), connection.getGeneration(), "hub_entries",
+        Map.of("entry", "public_link", "ref", ref, "removed", removed));
   }
 
   @Transactional

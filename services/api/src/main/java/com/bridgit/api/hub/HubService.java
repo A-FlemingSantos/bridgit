@@ -28,6 +28,8 @@ public class HubService {
   private com.bridgit.api.catalog.CatalogStore catalog;
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private com.bridgit.api.catalog.LocalHubProperties localHubProperties;
+  @org.springframework.beans.factory.annotation.Autowired(required = false)
+  private com.bridgit.api.catalog.HubEventStore events;
 
   private static final int RECENT_LIMIT = 12;
 
@@ -124,6 +126,7 @@ public class HubService {
     shortcut.setMimeType(item.mimeType());
     shortcut.setExtension(item.extension());
     shortcutRepository.save(shortcut);
+    notifyShortcut(userId, connection, ref, false);
 
     return toShortcutEntry(shortcut, provider.id());
   }
@@ -131,9 +134,18 @@ public class HubService {
   @Transactional
   public void deleteShortcut(CloudProvider provider, String ref) {
     UUID userId = authenticatedUserService.requireUserId();
-    connectionRepository.findByUserIdAndProvider(userId, provider.id())
-        .flatMap(connection -> shortcutRepository.findByConnectionIdAndItemRef(connection.getId(), ref))
-        .ifPresent(shortcutRepository::delete);
+    connectionRepository.findByUserIdAndProvider(userId, provider.id()).ifPresent(connection ->
+        shortcutRepository.findByConnectionIdAndItemRef(connection.getId(), ref).ifPresent(shortcut -> {
+          shortcutRepository.delete(shortcut);
+          notifyShortcut(userId, connection, ref, true);
+        }));
+  }
+
+  // Other devices refresh on hub events; without one a shortcut made elsewhere stays invisible.
+  private void notifyShortcut(UUID userId, ProviderConnectionEntity connection, String ref, boolean removed) {
+    if (events == null) return;
+    events.append(userId, connection.getId(), connection.getGeneration(), "hub_entries",
+        java.util.Map.of("entry", "shortcut", "ref", ref, "removed", removed));
   }
 
   private CloudItem fetchFileItem(

@@ -151,7 +151,7 @@ public class AuthService {
   }
 
   private AuthDtos.SessionListItem toSessionListItem(UserSessionEntity session, UUID currentSessionId) {
-    SessionClientLabel.Label label = SessionClientLabel.fromUserAgent(session.getUserAgent());
+    SessionClientLabel.Label label = SessionClientLabel.forSession(session.getClientKind(), session.getUserAgent());
     return new AuthDtos.SessionListItem(
         session.getId(),
         session.getId().equals(currentSessionId),
