@@ -74,9 +74,15 @@ function ProvidersSection({ settings }) {
             <ProviderMark id={provider.id} size={22} />
             <View style={styles.rowBody}>
               <AppText weight="500" style={styles.rowTitle}>{provider.name}</AppText>
-              <Hint>{provider.account ?? 'Não conectado'}</Hint>
+              <Hint>{provider.needsReconnect ? 'Acesso expirado' : provider.account ?? 'Não conectado'}</Hint>
             </View>
-            {provider.account ? (
+            {provider.needsReconnect ? (
+              <Button
+                label="Reconectar"
+                variant="solid"
+                onPress={async () => setError(await settings.connectProvider(provider.id))}
+              />
+            ) : provider.account ? (
               <Button label="Desconectar" onPress={() => setAsking(provider.id)} />
             ) : (
               <Button

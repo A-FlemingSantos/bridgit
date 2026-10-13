@@ -8,7 +8,9 @@ import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
 import StaggerItem from '../components/StaggerItem'
 import { useFolder, useProviders } from '../hub/hooks'
+import { needsReconnect } from '../hub/format'
 import { useItemActions } from '../hub/useItemActions'
+import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
@@ -28,8 +30,10 @@ export default function FolderScreen({ navigation, route }) {
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = () => provider?.name ?? providerId
   const connected = provider?.connected ?? true
+  // An expired connection still lists the last synced catalog, which may be stale or incomplete.
+  const expired = needsReconnect(provider)
   const { status, error, reload, title, folders, files } = useFolder(connected ? providerId : null, folderRef)
-  const actions = useItemActions({ providerId: connected ? providerId : null, parentRef: folderRef })
+  const actions = useItemActions({ providerId: connected && !expired ? providerId : null, parentRef: folderRef })
   const location = { title: title ?? provider?.name ?? 'Pasta', folders, files }
   const tileWidth = (width - 40 - 12) / 2
   const glyphWidth = Math.round(tileWidth * 0.86)
@@ -56,14 +60,21 @@ export default function FolderScreen({ navigation, route }) {
             {providerName()} ainda não está conectado. Conecte em Ajustes.
           </AppText>
         ) : null}
-        {connected && status === 'error' ? (
-          <Pressable accessibilityRole="button" onPress={reload}>
+        {expired ? (
+          <Pressable accessibilityRole="button" onPress={() => navigation.push('Settings')}>
             <AppText style={[styles.empty, { color: theme.colors.mute }]}>
-              {error?.message ?? 'Não foi possível carregar.'} Toque para tentar de novo.
+              O acesso ao {providerName()} expirou e esta lista pode estar desatualizada. Toque para reconectar em Ajustes.
             </AppText>
           </Pressable>
         ) : null}
-        {connected && empty ? (
+        {connected && status === 'error' ? (
+          <Pressable accessibilityRole="button" onPress={reload}>
+            <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+              {errorMessage(error, 'Não foi possível carregar.')} Toque para tentar de novo.
+            </AppText>
+          </Pressable>
+        ) : null}
+        {connected && !expired && empty ? (
           <AppText style={[styles.empty, { color: theme.colors.mute }]}>
             Nenhum arquivo aqui ainda
           </AppText>

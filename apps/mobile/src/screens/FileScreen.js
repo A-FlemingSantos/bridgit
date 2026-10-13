@@ -5,6 +5,7 @@ import FileSheet from '../components/FileSheet'
 import FileViewer from '../components/FileViewer'
 import Spinner from '../components/Spinner'
 import { useFile } from '../hub/hooks'
+import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
@@ -30,7 +31,7 @@ export default function FileScreen({ navigation, route }) {
             <FileSheet large />
             {status === 'error' ? (
               <AppText style={{ color: theme.colors.mute }}>
-                {error?.message ?? 'Não foi possível abrir o arquivo.'}
+                {errorMessage(error, 'Não foi possível abrir o arquivo.')}
               </AppText>
             ) : <Spinner />}
           </>

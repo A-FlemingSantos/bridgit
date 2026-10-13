@@ -4,8 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { Button, TextField } from './SettingsParts'
+import { errorMessage } from '../api/errorMessage'
 
-// dialog: { type: 'name' | 'confirm', title, message?, initial?, confirmLabel, danger?, onSubmit(value) }
+// dialog: { type: 'name' | 'confirm', title, message?, initial?, suffix?, confirmLabel, danger?, onSubmit(value) }
+// `suffix` (a file extension) is shown after the field and is not part of the value.
 // onSubmit may return a promise; the dialog stays open and shows the error message if it rejects.
 export default function ActionDialog({ dialog, onClose }) {
   const { theme } = useMobileTheme()
@@ -32,7 +34,7 @@ export default function ActionDialog({ dialog, onClose }) {
       await dialog.onSubmit(needsName ? value.trim() : undefined)
       onClose()
     } catch (submitError) {
-      setError(submitError?.message || 'Não foi possível concluir. Tente novamente.')
+      setError(errorMessage(submitError))
       setBusy(false)
     }
   }
@@ -48,7 +50,14 @@ export default function ActionDialog({ dialog, onClose }) {
           {dialog.message ? (
             <AppText style={[styles.message, { color: theme.colors.mute }]}>{dialog.message}</AppText>
           ) : null}
-          {needsName ? (
+          {needsName && dialog.suffix ? (
+            <View style={styles.nameRow}>
+              <View style={styles.nameField}>
+                <TextField label="Nome" value={value} onChangeText={setValue} autoFocus />
+              </View>
+              <AppText style={[styles.suffix, { color: theme.colors.mute }]}>{dialog.suffix}</AppText>
+            </View>
+          ) : needsName ? (
             <TextField label="Nome" value={value} onChangeText={setValue} autoFocus />
           ) : null}
           {error ? <AppText style={[styles.message, { color: theme.colors.red }]}>{error}</AppText> : null}
@@ -83,6 +92,18 @@ export function Notice({ message }) {
 }
 
 const styles = StyleSheet.create({
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  nameField: {
+    flex: 1,
+  },
+  suffix: {
+    fontSize: 15,
+    paddingBottom: 10,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',

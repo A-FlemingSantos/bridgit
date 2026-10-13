@@ -10,6 +10,7 @@ import ProviderMark from '../components/ProviderMark'
 import StaggerItem from '../components/StaggerItem'
 import { useHomeEntries } from '../hub/hooks'
 import { useItemActions } from '../hub/useItemActions'
+import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
@@ -52,7 +53,7 @@ export default function HomeScreen({ navigation }) {
         {status === 'error' ? (
           <Pressable accessibilityRole="button" onPress={reload}>
             <AppText style={[styles.itemSub, { color: theme.colors.mute }]}>
-              {error?.message ?? 'Não foi possível carregar.'} Toque para tentar de novo.
+              {errorMessage(error, 'Não foi possível carregar.')} Toque para tentar de novo.
             </AppText>
           </Pressable>
         ) : null}

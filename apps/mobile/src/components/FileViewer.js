@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Image, Linking, ScrollView, StyleSheet, View } from 'react-native'
+import { Image, ScrollView, StyleSheet, View } from 'react-native'
 import { createContentTicket } from '@bridgit/shared-client'
 import { API_BASE_URL } from '../api/config'
 import { useSession } from '../auth/SessionContext'
@@ -7,6 +7,8 @@ import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { Button, Hint } from './SettingsParts'
 import Spinner from './Spinner'
+import { errorMessage } from '../api/errorMessage'
+import { openWith } from '../hub/openWith'
 
 const MAX_TEXT_CHARS = 200000
 
@@ -14,21 +16,26 @@ function absoluteUrl(url) {
   return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`
 }
 
-function TextBody({ url }) {
+// Very long text is cut so the phone stays responsive; the full file can still open in another app.
+function TextBody({ url, onOpenExternally, opening }) {
   const { theme } = useMobileTheme()
-  const [state, setState] = useState({ status: 'loading', text: '' })
+  const [state, setState] = useState({ status: 'loading', text: '', truncated: false })
 
   useEffect(() => {
     let active = true
-    setState({ status: 'loading', text: '' })
+    setState({ status: 'loading', text: '', truncated: false })
 
     fetch(absoluteUrl(url))
       .then((response) => {
         if (!response.ok) throw new Error('falha')
         return response.text()
       })
-      .then((text) => active && setState({ status: 'ready', text: text.slice(0, MAX_TEXT_CHARS) }))
-      .catch(() => active && setState({ status: 'error', text: '' }))
+      .then((text) => active && setState({
+        status: 'ready',
+        text: text.slice(0, MAX_TEXT_CHARS),
+        truncated: text.length > MAX_TEXT_CHARS,
+      }))
+      .catch(() => active && setState({ status: 'error', text: '', truncated: false }))
 
     return () => {
       active = false
@@ -45,9 +52,22 @@ function TextBody({ url }) {
   if (state.status === 'error') return <Hint>Não foi possível carregar o texto.</Hint>
 
   return (
-    <ScrollView style={[styles.text, { borderColor: theme.colors.line }]} nestedScrollEnabled>
-      <AppText style={styles.textBody}>{state.text}</AppText>
-    </ScrollView>
+    <View style={styles.textBlock}>
+      {state.truncated ? (
+        <View style={styles.truncated}>
+          <Hint>Mostrando só o início do arquivo. Abra em outro app para ver tudo.</Hint>
+          <Button label={opening ? 'Aguarde…' : 'Abrir em outro app'} disabled={opening} onPress={onOpenExternally} />
+        </View>
+      ) : null}
+      {/* Padding goes on the content, not the ScrollView itself, or Android clips the last line. */}
+      <ScrollView
+        style={[styles.text, { borderColor: theme.colors.line }]}
+        contentContainerStyle={styles.textContent}
+        nestedScrollEnabled
+      >
+        <AppText style={styles.textBody}>{state.text}</AppText>
+      </ScrollView>
+    </View>
   )
 }
 
@@ -80,7 +100,7 @@ function ImageBody({ url, name }) {
 }
 
 // Shows the file by read mode. Images and text render in the app; PDF, video, audio and files without
-// a preview open in the system through the same content URL, or a download ticket when there is none.
+// a preview are downloaded and handed to another app through the system "Abrir com…".
 export default function FileViewer({ providerId, file, source }) {
   const { token } = useSession()
   const [opening, setOpening] = useState(false)
@@ -92,15 +112,12 @@ export default function FileViewer({ providerId, file, source }) {
     setOpening(true)
     setError('')
     try {
-      let target = url
-      if (!target) {
-        const ticket = await createContentTicket(token, providerId, file.ref, 'attachment')
-        target = ticket?.url
-      }
-      if (!target) throw new Error('Arquivo indisponível.')
-      await Linking.openURL(absoluteUrl(target))
+      // A fresh ticket: the one in `source` may have expired (5 min) while the screen stayed open.
+      const ticket = await createContentTicket(token, providerId, file.ref, 'attachment')
+      if (!ticket?.url) throw new Error('Arquivo indisponível.')
+      await openWith({ url: absoluteUrl(ticket.url), name: file.name, mimeType: file.mimeType })
     } catch (openError) {
-      setError(openError?.message || 'Não foi possível abrir o arquivo.')
+      setError(errorMessage(openError, 'Não foi possível abrir o arquivo.'))
     } finally {
       setOpening(false)
     }
@@ -109,9 +126,16 @@ export default function FileViewer({ providerId, file, source }) {
   if (mode === 'image' && url) return <ImageBody url={url} name={file.name} />
 
 
-  if (mode === 'text' && url) return <TextBody url={url} />
+  if (mode === 'text' && url) {
+    return (
+      <>
+        <TextBody url={url} onOpenExternally={openExternally} opening={opening} />
+        {error ? <Hint>{error}</Hint> : null}
+      </>
+    )
+  }
 
-  const label = mode === 'none' ? 'Baixar' : 'Abrir'
+  const label = 'Abrir com…'
   return (
     <View style={styles.external}>
       {mode === 'none' ? <Hint>Sem pré-visualização para este tipo de arquivo.</Hint> : null}
@@ -141,11 +165,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
   },
+  textBlock: {
+    alignSelf: 'stretch',
+    gap: 12,
+  },
+  truncated: {
+    alignItems: 'flex-start',
+    gap: 8,
+  },
   text: {
     alignSelf: 'stretch',
     maxHeight: 460,
     borderWidth: 1,
     borderRadius: 8,
+  },
+  textContent: {
     padding: 12,
   },
   textBody: {

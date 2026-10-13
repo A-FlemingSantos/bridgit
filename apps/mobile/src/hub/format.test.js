@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatWhen, kindLabel, toEntry } from './format'
+import { formatWhen, kindLabel, needsReconnect, splitExtension, toEntry, withExtension } from './format'
 
 describe('kindLabel', () => {
   it('labels folders and files by extension', () => {
@@ -39,5 +39,32 @@ describe('formatWhen', () => {
     expect(formatWhen('2026-09-29T12:00:00Z', now)).toBe('Há 4 dias')
     expect(formatWhen('2026-09-19T12:00:00Z', now)).toBe('Há 2 sem')
     expect(formatWhen('not a date', now)).toBe('')
+  })
+})
+
+describe('needsReconnect', () => {
+  it('flags a connected provider whose refresh token was rejected', () => {
+    expect(needsReconnect({ connected: true, lastError: 'RECONEXAO_NECESSARIA' })).toBe(true)
+    expect(needsReconnect({ connected: true, lastError: null })).toBe(false)
+    expect(needsReconnect({ connected: false, lastError: 'RECONEXAO_NECESSARIA' })).toBe(false)
+    expect(needsReconnect(undefined)).toBe(false)
+  })
+})
+
+describe('splitExtension', () => {
+  it('separates the last extension and leaves dotfiles whole', () => {
+    expect(splitExtension('Relatório.final.docx')).toEqual({ stem: 'Relatório.final', extension: '.docx' })
+    expect(splitExtension('.env')).toEqual({ stem: '.env', extension: '' })
+    expect(splitExtension('LEIAME')).toEqual({ stem: 'LEIAME', extension: '' })
+    expect(splitExtension('nota.')).toEqual({ stem: 'nota.', extension: '' })
+  })
+})
+
+describe('withExtension', () => {
+  it('keeps the extension, even after a stem that ends with a dot segment', () => {
+    expect(withExtension('Entrega1.d', '.docx')).toBe('Entrega1.d.docx')
+    expect(withExtension('Entrega2', '.docx')).toBe('Entrega2.docx')
+    expect(withExtension('Entrega2.DOCX', '.docx')).toBe('Entrega2.DOCX')
+    expect(withExtension('Pasta', '')).toBe('Pasta')
   })
 })
