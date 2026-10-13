@@ -28,6 +28,7 @@ function mapOAuthError(code) {
 
 function providerAccountLabel(provider) {
   if (!provider.connected) return 'Não conectado'
+  if (provider.lastError === 'RECONEXAO_NECESSARIA') return 'Acesso expirado. Reconecte para atualizar os arquivos.'
   return provider.account?.email ?? provider.account?.name ?? 'Conectado'
 }
 

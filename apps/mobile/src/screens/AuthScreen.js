@@ -16,6 +16,7 @@ import AppText, { fontFamilyFor } from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { easeOut, useNativeDriver } from '../theme/motion'
 import { nextSvgPrefix, tintSvg, withSvgIds } from '../components/svgMarkup'
+import { errorMessage } from '../api/errorMessage'
 
 function AuthMark({ size }) {
   const { theme } = useMobileTheme()
@@ -156,6 +157,15 @@ export default function AuthScreen({ navigation }) {
       setError('Preencha os campos obrigatórios.')
       return
     }
+    // Same rules as the API, so the user gets them here in Portuguese instead of a server validation error.
+    if (register && !/^[A-Za-z0-9._-]{3,32}$/.test(username.trim())) {
+      setError('O usuário deve ter de 3 a 32 caracteres: letras, números, ponto, hífen ou sublinhado.')
+      return
+    }
+    if (register && password.length < 8) {
+      setError('A senha deve ter pelo menos 8 caracteres.')
+      return
+    }
     if (register && password !== confirm) {
       setError('As senhas não coincidem.')
       return
@@ -167,7 +177,7 @@ export default function AuthScreen({ navigation }) {
       if (register) await signUp({ username: username.trim(), password })
       else await signIn({ username: username.trim(), password })
     } catch (requestError) {
-      setError(requestError?.message || 'Não foi possível entrar. Tente novamente.')
+      setError(errorMessage(requestError, 'Não foi possível entrar. Tente novamente.'))
       setSubmitting(false)
     }
   }

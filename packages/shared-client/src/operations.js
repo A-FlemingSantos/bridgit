@@ -5,7 +5,8 @@ export function submitOperation(token, request) {
 }
 export function submitUploadOperation(token, request, file) {
   const body = new FormData()
-  body.append('request', new Blob([JSON.stringify(request)], { type: 'application/json' }))
+  // A plain text field: React Native's FormData cannot send a JSON Blob, and the API parses the text.
+  body.append('request', JSON.stringify(request))
   body.append('file', file)
   return apiRequest('/api/operations/uploads', { token, method: 'POST', body })
 }

@@ -6,7 +6,8 @@ import { apiRequest, connectProvider, disconnectProvider } from '@bridgit/shared
 import { getItem, setItem } from '../auth/secureStorage'
 import { useSession } from '../auth/SessionContext'
 import { useProviders } from '../hub/hooks'
-import { formatWhen } from '../hub/format'
+import { formatWhen, needsReconnect } from '../hub/format'
+import { errorMessage } from '../api/errorMessage'
 
 export const ABOUT = {
   version: '0.1',
@@ -66,7 +67,7 @@ export function useSettings() {
         invalidate()
         return ''
       }
-      return error?.message || 'Não foi possível concluir. Tente novamente.'
+      return errorMessage(error)
     }
   }, [invalidate])
 
@@ -166,10 +167,11 @@ export function useSettings() {
       name: provider.name,
       connected: provider.connected,
       configured: provider.configured,
+      needsReconnect: needsReconnect(provider),
       account: provider.connected
         ? provider.account?.email ?? provider.account?.name ?? 'Conectado'
         : null,
-      sync: provider.connected ? syncLabel(provider.syncState) : null,
+      sync: !provider.connected ? null : needsReconnect(provider) ? 'Acesso expirado. Reconecte em Provedores.' : syncLabel(provider.syncState),
     })),
     connectProvider: connect,
     disconnectProvider: disconnect,

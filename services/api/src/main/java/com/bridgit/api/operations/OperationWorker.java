@@ -85,7 +85,10 @@ public class OperationWorker {
       CloudItem base = op.base();
       if (base == null && (r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE)) {
         base = retry.withRetry(c, token -> client.get(token, r.ref()));
-        if (r.expectedVersion() != null && !r.expectedVersion().equals(base.remoteVersion())) throw new ApiException(HttpStatus.CONFLICT, "ARQUIVO_ALTERADO", "O arquivo foi alterado. Atualize antes de tentar novamente.");
+        if (r.expectedVersion() != null && !r.expectedVersion().equals(base.remoteVersion())) {
+          log.warn("Operation version mismatch id={} provider={} ref={} expected={} current={}", id, c.getProvider(), r.ref(), r.expectedVersion(), base.remoteVersion());
+          throw new ApiException(HttpStatus.CONFLICT, "ARQUIVO_ALTERADO", "O arquivo foi alterado. Atualize antes de tentar novamente.");
+        }
       }
       PreparedWrite prepared = op.prepared();
       if (prepared == null && (r.kind() == OperationDtos.Kind.CREATE_FOLDER || r.kind() == OperationDtos.Kind.UPLOAD)) prepared = retry.withRetry(c, client::prepareCreate);

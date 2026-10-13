@@ -311,7 +311,20 @@ export default function HomePage() {
                       step={0.04}
                       variants={rise}
                     >
-                      {provider.connected ? (
+                      {provider.connected && provider.lastError === 'RECONEXAO_NECESSARIA' ? (
+                        <Link
+                          to={ROUTES.settingsProviders}
+                          state={settingsNavState({ pathname: ROUTES.home })}
+                          className={styles.provider}
+                          aria-label={`${provider.name} Acesso expirado`}
+                        >
+                          <ProviderMark id={provider.id} size={22} />
+                          <span className={styles.providerMeta}>
+                            <span className={styles.providerName}>{provider.name}</span>
+                            <span className={styles.providerSub}>Acesso expirado · Reconectar</span>
+                          </span>
+                        </Link>
+                      ) : provider.connected ? (
                         <Link
                           to={providerUrl(provider.id)}
                           className={styles.provider}
@@ -556,7 +569,10 @@ function UploadAction({ onUploadError }) {
   const inputRef = useRef(null)
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
-  const connectedProviders = providers.filter((provider) => provider.connected)
+  // An expired connection cannot receive uploads until it is reconnected.
+  const connectedProviders = providers.filter(
+    (provider) => provider.connected && provider.lastError !== 'RECONEXAO_NECESSARIA',
+  )
   const providerRef = useRef(connectedProviders[0]?.id ?? null)
   const menu = useSuspendedMenu(connectedProviders.length, { menuRef })
   const items = connectedProviders.map((provider) => ({

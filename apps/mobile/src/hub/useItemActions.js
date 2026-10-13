@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Share } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import { createMenuItems, fileMenuItems, folderMenuItems } from '../components/menus'
+import { errorMessage } from '../api/errorMessage'
+import { splitExtension, withExtension } from './format'
 import { useHub } from './HubContext'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 function failureMessage(error) {
-  return error?.message || 'Não foi possível concluir. Tente novamente.'
+  return errorMessage(error)
 }
 
 // Menu handlers, dialogs and feedback for the write actions on files and folders.
@@ -30,17 +32,23 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
 
   const providerOf = (entry) => entry.providerId ?? providerId
 
-  const rename = (entry) => setDialog({
-    type: 'name',
-    title: entry.isFolder ? 'Renomear pasta' : 'Renomear arquivo',
-    initial: entry.name,
-    confirmLabel: 'Renomear',
-    onSubmit: async (name) => {
-      if (name === entry.name) return
-      await hub.rename(providerOf(entry), entry, name)
-      say('Renomeado.')
-    },
-  })
+  const rename = (entry) => {
+    // Files keep their extension: the field holds only the stem, like the web and the providers do.
+    const { stem, extension } = entry.isFolder ? { stem: entry.name, extension: '' } : splitExtension(entry.name)
+    setDialog({
+      type: 'name',
+      title: entry.isFolder ? 'Renomear pasta' : 'Renomear arquivo',
+      initial: stem,
+      suffix: extension,
+      confirmLabel: 'Renomear',
+      onSubmit: async (value) => {
+        const name = withExtension(value, extension)
+        if (name === entry.name) return
+        await hub.rename(providerOf(entry), entry, name)
+        say('Renomeado.')
+      },
+    })
+  }
 
   const remove = (entry) => setDialog({
     type: 'confirm',

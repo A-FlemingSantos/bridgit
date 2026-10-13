@@ -13,6 +13,16 @@ public final class SessionClientLabel {
     return new Label(browser(agent), device(agent));
   }
 
+  // The mobile app talks through the platform HTTP stack (e.g. okhttp), whose user agent names neither
+  // a browser nor a device, so the session's client kind names it instead.
+  public static Label forSession(ClientKind clientKind, String userAgent) {
+    Label label = fromUserAgent(userAgent);
+    if (clientKind != ClientKind.MOBILE) {
+      return label;
+    }
+    return new Label("App Bridgit", "Dispositivo".equals(label.device()) ? "Celular" : label.device());
+  }
+
   private static String browser(String agent) {
     if (contains(agent, "Edg/") || contains(agent, "EdgA/") || contains(agent, "EdgiOS")) {
       return "Edge";
