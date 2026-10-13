@@ -81,6 +81,8 @@ export default function SpaceBrowsePage() {
   }
 
   const connected = providerMeta?.connected ?? false
+  // The connection still exists but the provider rejected it; the folder shows the last synced catalog.
+  const expired = connected && providerMeta?.lastError === 'RECONEXAO_NECESSARIA'
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
   const files = folderQuery.items.filter((item) => item.kind === 'file')
   const empty = folderQuery.status === 'ready' && folders.length === 0 && files.length === 0
@@ -186,7 +188,25 @@ export default function SpaceBrowsePage() {
 
     return (
       <>
-        {empty ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
+        {expired ? (
+          <>
+            <p className={styles.empty} role="alert">
+              O acesso ao {providerMeta?.name ?? 'provedor'} expirou e esta lista pode estar desatualizada.
+            </p>
+            <button
+              type="button"
+              className={styles.loadMore}
+              onClick={() =>
+                navigate(ROUTES.settingsProviders, {
+                  state: settingsNavState({ pathname: window.location.pathname }),
+                })
+              }
+            >
+              Reconectar
+            </button>
+          </>
+        ) : null}
+        {empty && !expired ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
 
         {folders.length > 0 ? (
           <section className={styles.section}>
@@ -307,7 +327,7 @@ export default function SpaceBrowsePage() {
           <SpaceViewHeader
             items={breadcrumbItems}
             trailing={
-              connected ? (
+              connected && !expired ? (
                 <SpaceViewActions
                   onCreate={() => uploadRef.current?.click()}
                   extras={[

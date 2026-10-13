@@ -107,3 +107,21 @@ describe('ProvidersTab erros de ação', () => {
     expect(alerts[0]).toHaveTextContent('só dropbox')
   })
 })
+
+describe('ProvidersTab acesso expirado', () => {
+  it('mostra o acesso expirado e Reconectar no lugar da conta', () => {
+    useProviders.mockReturnValue({
+      status: 'ready',
+      providers: [{ ...providers[0], lastError: 'RECONEXAO_NECESSARIA' }],
+      error: null,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    })
+    renderTab()
+
+    expect(screen.getByText(/Acesso expirado/)).toBeInTheDocument()
+    expect(screen.queryByText('arthur@outlook.com')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reconectar' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Desconectar' })).not.toBeInTheDocument()
+  })
+})
