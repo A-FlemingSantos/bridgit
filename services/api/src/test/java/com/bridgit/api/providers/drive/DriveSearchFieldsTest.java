@@ -35,7 +35,7 @@ class DriveSearchFieldsTest {
   }
 
   @Test
-  void searchUsesListMaskAndReturnsUnknownParents() {
+  void searchUsesListMaskAndLeavesOutItemsWithoutParent() {
     AtomicReference<URI> requested = new AtomicReference<>();
     server.expect(request -> {
       requested.set(request.getURI());
@@ -53,7 +53,8 @@ class DriveSearchFieldsTest {
 
     Map<String, String> params = queryParams(requested.get());
     assertEquals(GoogleDriveProviderClient.LIST_FIELDS, params.get("fields"));
-    assertEquals(2, results.size());
+    // "b" has no visible parent (shared with the user, not in My Drive) and stays out, as in the catalog.
+    assertEquals(List.of("a"), results.stream().map(CloudItem::ref).toList());
     for (CloudItem item : results) {
       assertNull(item.parentRef());
       assertFalse(item.parentKnown());
