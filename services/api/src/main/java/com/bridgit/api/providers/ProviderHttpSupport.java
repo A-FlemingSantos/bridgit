@@ -90,6 +90,13 @@ public final class ProviderHttpSupport {
       );
     }
     if (code == 403) {
+      Set<String> reasons = body == null ? Set.of() : extractErrorReasons(body);
+      if (reasons.contains("exportsizelimitexceeded")) {
+        throw conversionTooLarge();
+      }
+      if (reasons.contains("storagequotaexceeded")) {
+        throw noSpace();
+      }
       if (isRateLimitBody(body)) {
         throw rateLimited(headers, body);
       }
@@ -124,11 +131,7 @@ public final class ProviderHttpSupport {
             "O arquivo é grande demais para o provedor."
         );
       }
-      throw new ProviderApiException(
-          HttpStatus.PAYLOAD_TOO_LARGE,
-          "CONVERSAO_GRANDE_DEMAIS",
-          "Arquivo grande demais para conversão."
-      );
+      throw conversionTooLarge();
     }
     if (code == 416) {
       throw new ProviderApiException(
@@ -155,6 +158,22 @@ public final class ProviderHttpSupport {
     }
   }
 
+  private static ProviderApiException conversionTooLarge() {
+    return new ProviderApiException(
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        "CONVERSAO_GRANDE_DEMAIS",
+        "Arquivo grande demais para conversão."
+    );
+  }
+
+  private static ProviderApiException noSpace() {
+    return new ProviderApiException(
+        HttpStatus.INSUFFICIENT_STORAGE,
+        "PROVEDOR_SEM_ESPACO",
+        "Não há espaço suficiente na conta do provedor."
+    );
+  }
+
   private static ProviderApiException dropboxConflict(HttpHeaders headers, String body) {
     Set<String> tags = dropboxErrorTags(body);
     if (tags.contains("not_found")) {
@@ -172,11 +191,7 @@ public final class ProviderHttpSupport {
       );
     }
     if (tags.contains("insufficient_space")) {
-      throw new ProviderApiException(
-          HttpStatus.INSUFFICIENT_STORAGE,
-          "PROVEDOR_SEM_ESPACO",
-          "Não há espaço suficiente na conta do provedor."
-      );
+      throw noSpace();
     }
     if (tags.contains("malformed_path")) {
       throw new ProviderApiException(

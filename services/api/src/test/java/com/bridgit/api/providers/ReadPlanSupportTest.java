@@ -1,9 +1,12 @@
 package com.bridgit.api.providers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ReadPlanSupportTest {
 
@@ -57,6 +60,31 @@ class ReadPlanSupportTest {
         "application/vnd.google-apps.document",
         null
     );
+    ReadPlan plan = ReadPlanSupport.readPlan(CloudProvider.GOOGLE_DRIVE, item);
+    assertEquals(ReadMode.PDF, plan.mode());
+    assertEquals(ContentVariant.READ, plan.variant());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "Atalho, application/vnd.google-apps.shortcut",
+      "Atalho.pdf, application/vnd.google-apps.shortcut",
+      "Atalho.txt, application/vnd.google-apps.shortcut",
+      "Formulário, application/vnd.google-apps.form",
+      "Formulário.pdf, application/vnd.google-apps.form",
+      "Site, application/vnd.google-apps.site",
+      "Mapa.txt, application/vnd.google-apps.map"
+  })
+  void googleNativeWithoutExportUsesNone(String name, String mime) {
+    ReadPlan plan = ReadPlanSupport.readPlan(CloudProvider.GOOGLE_DRIVE, file(name, mime, null));
+    assertEquals(ReadMode.NONE, plan.mode());
+    assertEquals(ContentVariant.ORIGINAL, plan.variant());
+    assertNull(plan.contentType());
+  }
+
+  @Test
+  void googleNativeDocNamedLikePdfStillUsesReadPdf() {
+    CloudItem item = file("Relatório.pdf", "application/vnd.google-apps.document", null);
     ReadPlan plan = ReadPlanSupport.readPlan(CloudProvider.GOOGLE_DRIVE, item);
     assertEquals(ReadMode.PDF, plan.mode());
     assertEquals(ContentVariant.READ, plan.variant());

@@ -4,6 +4,7 @@ import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -102,7 +103,9 @@ public class GoogleOAuthClient extends AbstractProviderOAuthClient {
     }
     try {
       restClient.post()
-          .uri(REVOKE_URL + "?token=" + token)
+          .uri(REVOKE_URL)
+          .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+          .body(formOf(buildMap(map -> map.put("token", token))))
           .retrieve()
           .toBodilessEntity();
     } catch (Exception ignored) {

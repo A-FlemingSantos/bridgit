@@ -119,6 +119,33 @@ class ProviderHttpSupportTest {
   }
 
   @Test
+  void driveExportSizeLimit403MapsToConversionTooLarge() {
+    String body = "{\"error\": {\"errors\": [{\"domain\": \"global\", \"reason\": \"exportSizeLimitExceeded\","
+        + " \"message\": \"This file is too large to be exported.\"}], \"code\": 403}}";
+    ProviderApiException ex = assertThrows(
+        ProviderApiException.class,
+        () -> ProviderHttpSupport.throwOnError(HttpStatus.FORBIDDEN, body, CloudProvider.GOOGLE_DRIVE)
+    );
+    assertEquals("CONVERSAO_GRANDE_DEMAIS", ex.getCode());
+    assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, ex.getStatus());
+    assertEquals("Arquivo grande demais para conversão.", ex.getMessage());
+  }
+
+  @Test
+  void driveStorageQuota403MapsToNoSpaceNotRateLimit() {
+    String body = "{\"error\": {\"errors\": [{\"domain\": \"usageLimits\", \"reason\": \"storageQuotaExceeded\","
+        + " \"message\": \"The user's Drive storage quota has been exceeded.\"}], \"code\": 403}}";
+    ProviderApiException ex = assertThrows(
+        ProviderApiException.class,
+        () -> ProviderHttpSupport.throwOnWriteError(
+            HttpStatus.FORBIDDEN, HttpHeaders.EMPTY, body, CloudProvider.GOOGLE_DRIVE)
+    );
+    assertEquals("PROVEDOR_SEM_ESPACO", ex.getCode());
+    assertEquals(HttpStatus.INSUFFICIENT_STORAGE, ex.getStatus());
+    assertEquals("Não há espaço suficiente na conta do provedor.", ex.getMessage());
+  }
+
+  @Test
   void keepsNameConflictDetectionOn400() {
     ProviderApiException ex = assertThrows(
         ProviderApiException.class,
