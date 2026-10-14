@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRecentsLists, placeRecent, RECENTS_LIMIT } from './hubCache.js'
+import { mergeFolderItems, mergeRecentsLists, placeRecent, RECENTS_LIMIT } from './hubCache.js'
 
 function recent(ref, openedAt) {
   return { provider: 'onedrive', ref, name: ref, openedAt }
@@ -33,5 +33,25 @@ describe('recents cache', () => {
     const merged = mergeRecentsLists(server, local)
     expect(merged).toHaveLength(1)
     expect(merged[0].openedAt).toBe('2026-09-26T00:00:00.000Z')
+  })
+})
+
+describe('mergeFolderItems', () => {
+  it('mantém a chave de um item já na tela quando chega a listagem do servidor', () => {
+    const shown = [{ provider: 'onedrive', ref: 'f-1', name: 'Nova', uiKey: 'operation-abc' }]
+    const server = [
+      { provider: 'onedrive', ref: 'f-1', name: 'Nova', uiKey: 'onedrive:f-1' },
+      { provider: 'onedrive', ref: 'f-2', name: 'Outra', uiKey: 'onedrive:f-2' },
+    ]
+
+    const merged = mergeFolderItems(shown, server)
+
+    expect(merged.map((item) => item.uiKey)).toEqual(['operation-abc', 'onedrive:f-2'])
+  })
+
+  it('mantém os itens provisórios que o servidor ainda não conhece', () => {
+    const shown = [{ provider: 'onedrive', ref: 'temp-1', name: 'Enviando', pending: true, uiKey: 'temp-1' }]
+
+    expect(mergeFolderItems(shown, []).map((item) => item.ref)).toEqual(['temp-1'])
   })
 })

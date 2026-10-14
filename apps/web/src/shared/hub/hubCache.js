@@ -139,7 +139,15 @@ export function mergeFolderItems(previousItems, serverItems) {
   const pending = (previousItems ?? []).filter((item) => item.pending && isTempRef(item.ref))
   const serverIds = new Set((serverItems ?? []).map((item) => itemIdentity(item.provider, item.ref)))
   const keptPending = pending.filter((item) => !serverIds.has(itemIdentity(item.provider, item.ref)))
-  return [...keptPending, ...(serverItems ?? [])]
+  // An item already on screen keeps its key. A created item carries the key of its optimistic
+  // placeholder; giving it a new one would remount the row and replay its entry animation.
+  const shownKeys = new Map((previousItems ?? []).filter((item) => item.uiKey)
+    .map((item) => [itemIdentity(item.provider, item.ref), item.uiKey]))
+  const merged = (serverItems ?? []).map((item) => {
+    const shown = shownKeys.get(itemIdentity(item.provider, item.ref))
+    return shown && shown !== item.uiKey ? { ...item, uiKey: shown } : item
+  })
+  return [...keptPending, ...merged]
 }
 
 export function isStaleEntry(entry, staleMs, now = Date.now()) {
