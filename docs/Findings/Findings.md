@@ -74,6 +74,8 @@ A mudança de código é pequena. O trabalho está em validar a reconstrução d
 
 **Peso:** médio. Decisão de produto e contrato entre API e clientes.
 
+**Status:** resolvido em `fix/catalogo-e-eventos`. O bloco `catalog` da listagem traz `freshness` (`current` ou `stale`) e `staleReason`. Uma resposta servida pelo catálogo é `stale` quando a conexão pede atenção ou a sincronização falha em rodadas seguidas. Web e mobile mostram "pode estar desatualizada" com a última sincronização, sem repetir o aviso de reconectar.
+
 Quando o acesso a um provedor expira (por exemplo, o Google recusa o refresh token), a conexão continua existindo com `lastError = RECONEXAO_NECESSARIA`. A sincronização do catálogo para, mas as pastas continuam sendo servidas a partir da última sincronização bem-sucedida, sem nenhuma marca na resposta. Para quem usa, parece que está tudo conectado e atualizado. Uma pasta vazia na última sincronização aparece como "Nenhum arquivo aqui ainda".
 
 No dia 13/10, mobile e web passaram a ler o `lastError` da lista de provedores e a mostrar "Acesso expirado" com um botão Reconectar. O backend continua sem avisar nada na resposta de listagem. Um cliente que não olhe a lista de provedores, ou um caso intermediário (sincronização falhando por outro motivo), segue mostrando dados velhos como se fossem atuais.
@@ -85,6 +87,8 @@ No dia 13/10, mobile e web passaram a ler o `lastError` da lista de provedores e
 ## 3. Eventos entre aparelhos: o que avisa e o que não avisa
 
 **Peso:** médio. Mexe no modelo de eventos e no jeito como o mobile recarrega.
+
+**Status:** resolvido em `fix/catalogo-e-eventos`. O mobile troca o contador global por invalidação por escopo (Home, pasta, item); a lista de provedores não recarrega mais a cada evento. O web também recarrega só o que o evento afeta. Recentes passam a gerar `hub_entries` (`entry: recent`), que só recarrega a Home.
 
 O mobile e o web acompanham mudanças por eventos do servidor (`cloud_events`), lidos por polling no mobile e por SSE no web. Até 13/10, só operações (criar, renomear, excluir, enviar) e mudanças vindas dos provedores geravam eventos. No dia, atalhos e links públicos passaram a gerar `hub_entries`.
 
@@ -154,6 +158,8 @@ O link público é montado com o endereço do web configurado na API, que em des
 ## 8. Web: Optimistic UI "pisca" ao criar e excluir
 
 **Peso:** médio para a percepção do produto; causa não investigada.
+
+**Status:** resolvido em `fix/catalogo-e-eventos`. A causa da piscada era a troca da chave do item: o item criado tinha a chave da operação, e a recarga da pasta depois do evento trocava pela chave do servidor. O React remontava a linha e o `StaggerItem` repetia a animação. Agora a chave de um item já na tela é preservada, e uma operação concluída não recarrega todas as pastas abertas. Os formulários de criar e excluir fecham assim que o servidor aceita; antes esperavam a operação terminar, com consultas a cada 750 ms. Uma recusa posterior do provedor aparece num aviso.
 
 Ao criar uma pasta no web, ela aparece e pisca logo depois. O formulário de criar e o de excluir também demoram a fechar depois da confirmação. O esperado de um Optimistic UI é a ação parecer instantânea: o formulário fecha na hora e o item aparece ou some na hora.
 

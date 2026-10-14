@@ -40,6 +40,8 @@ O `JwtAuthenticationFilter` engole qualquer `RuntimeException` ao validar a sess
 
 ### Tabelas que só crescem
 
+✅ **Resolvido em `fix/catalogo-e-eventos`:** o `RetentionService` apaga de hora em hora, em lotes, os eventos com mais de 7 dias, as sessões revogadas ou expiradas há mais de 30 dias e os estados OAuth usados ou expirados há mais de 24 horas (propriedades `app.hub.retention.*`, índices na V7).
+
 Nada apaga sessões revogadas (`user_sessions`), estados OAuth usados (`provider_oauth_states`) nem eventos antigos (`cloud_events`). O único job de limpeza é o de uploads temporários. Em produção, `cloud_events` cresce com cada operação e cada mudança vinda dos provedores. Faltam retenção e um job de limpeza para as três tabelas.
 
 ### OAuth: tentativa gasta antes da troca do código
@@ -144,7 +146,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | `JwtAuthenticationFilter` usa `OffsetDateTime.now()` e `BaseEntity` usa `OffsetDateTime.now(UTC)`, e não o `Clock` injetado (✅ o filtro passou a usar o `Clock` em `fix/seguranca`; `BaseEntity` continua) | `JwtAuthenticationFilter`, `BaseEntity` |
 | risco | `DatasourceSafetyGuard` só confere o nome do banco, não o host, e não roda em `@SpringBootTest` | `DatasourceSafetyGuard` |
 | morto | ✅ `app.time.zone-id` não tem consumidor | `application.yml` |
-| lacuna | Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms`, `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
+| lacuna | ✅ Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms`, `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
 
 ### Autenticação, contas e sessões
 
@@ -281,10 +283,10 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | risco | `safeCopy` remove qualquer campo cujo nome contenha "url" ou "token", e qualquer valor que comece com http(s) ou blob | `storage/catalog.js` |
 | morto | ✅ `invalidateMessage` | `hubChannel.js` |
 | morto | ✅ Parâmetro `parentRef` ignorado em `deleteItem` | `HubDataProvider.jsx` |
-| bug | Mobile: `useResource` sem cancelamento; uma resposta atrasada pode sobrescrever a mais nova | `apps/mobile/src/hub/hooks.js` |
+| bug | ✅ Mobile: `useResource` sem cancelamento; uma resposta atrasada pode sobrescrever a mais nova | `apps/mobile/src/hub/hooks.js` |
 | lacuna | Mobile: pasta limitada a 20 páginas, sem aviso | `hooks.js` |
 | lacuna | ✅ Mobile: Home e Folder sem indicador de carregamento | telas |
-| risco | Mobile: cada evento ou escrita recarrega todas as telas e os provedores | `HubContext.js`, `hooks.js` |
+| risco | ✅ Mobile: cada evento ou escrita recarrega todas as telas e os provedores | `HubContext.js`, `hooks.js` |
 | lacuna | Mobile: sem mover, sem desligar link público; atalhos e links fora da fila de operações | `useItemActions.js`, `HubContext.js` |
 | inconsistência | Mobile: Home usa `PROVIDER_LABELS` fixo; Folder usa a lista da API | `HomeScreen.js` |
 | lacuna | Mobile: "Notificar falhas" é guardado e nada o lê | `useSettings.js` |
