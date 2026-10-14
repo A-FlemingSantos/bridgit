@@ -394,7 +394,7 @@ describe('hub findings', () => {
     expect(result.current.folder.nextCursor).toBe('cursor-1')
   })
 
-  it('F06 delete com parentRef dica remove de todas as listagens', async () => {
+  it('F06 delete remove de todas as listagens', async () => {
     const rootFile = { ...sampleItem, ref: 'file-1', parentRef: 'root-id' }
     const subFile = { ...sampleItem, ref: 'file-2', name: 'Outro.pdf', parentRef: 'sub-1' }
     hubApiMock.listFolder.mockImplementation(async (providerId, folderRef) => {
@@ -426,7 +426,7 @@ describe('hub findings', () => {
     })
 
     await act(async () => {
-      await result.current.actions.deleteItem({ providerId: 'onedrive', ref: 'file-1', parentRef: 'root-id' })
+      await result.current.actions.deleteItem({ providerId: 'onedrive', ref: 'file-1' })
     })
 
     expect(result.current.root.items.some((item) => item.ref === 'file-1')).toBe(false)

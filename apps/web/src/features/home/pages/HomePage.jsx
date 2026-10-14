@@ -70,21 +70,6 @@ export default function HomePage() {
   const normalized = query.trim().toLowerCase()
   const searching = normalized.length >= 2
 
-  const visibleShortcuts = useMemo(
-    () =>
-      searching
-        ? shortcuts.filter((file) => file.name.toLowerCase().includes(normalized))
-        : shortcuts,
-    [shortcuts, normalized, searching],
-  )
-  const visibleRecents = useMemo(
-    () =>
-      searching
-        ? recents.filter((file) => file.name.toLowerCase().includes(normalized))
-        : recents,
-    [recents, normalized, searching],
-  )
-
   const searchGroups = useMemo(() => {
     if (!searching || search.status !== 'ready') return []
     const groups = new Map()
@@ -370,11 +355,11 @@ export default function HomePage() {
                 <p className={styles.empty} role="alert">
                   {hubErrorMessage(shortcutsQuery.error)}
                 </p>
-              ) : visibleShortcuts.length === 0 ? (
+              ) : shortcuts.length === 0 ? (
                 <p className={styles.empty}>Nenhum atalho.</p>
               ) : (
                 <div className={styles.pins}>
-                  {visibleShortcuts.map((file, index) => (
+                  {shortcuts.map((file, index) => (
                     <StaggerItem
                       key={`${file.provider}-${file.ref}`}
                       index={index}
@@ -451,11 +436,11 @@ export default function HomePage() {
                 <p className={styles.empty} role="alert">
                   {hubErrorMessage(recentsQuery.error)}
                 </p>
-              ) : visibleRecents.length === 0 ? (
+              ) : recents.length === 0 ? (
                 <p className={styles.empty}>Nada encontrado.</p>
               ) : recentsView === 'list' ? (
                 <div className={styles.list}>
-                  {visibleRecents.map((file, index) => (
+                  {recents.map((file, index) => (
                     <StaggerItem
                       key={`${file.provider}-${file.ref}`}
                       index={index}
@@ -506,7 +491,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className={styles.grid}>
-                  {visibleRecents.map((file, index) => (
+                  {recents.map((file, index) => (
                     <StaggerItem
                       key={`${file.provider}-${file.ref}`}
                       index={index}

@@ -1165,9 +1165,8 @@ export function HubDataProvider({ children }) {
         }
       },
 
-      async deleteItem({ providerId, ref, parentRef }) {
+      async deleteItem({ providerId, ref }) {
         if (durableEnabled(providerId)) return hubApiRef.current.deleteItem(providerId, ref)
-        void parentRef
         const sourceKeys = folderKeysContaining(folderCacheRef.current, providerId, ref)
         const removedByKey = {}
         sourceKeys.forEach((key) => {

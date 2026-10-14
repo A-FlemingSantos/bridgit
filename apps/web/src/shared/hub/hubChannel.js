@@ -31,7 +31,3 @@ export function subscribeHubEvents(handler) {
     return () => {}
   }
 }
-
-export function invalidateMessage(scope, providerId = null, keys = []) {
-  return { type: 'invalidate', scope, providerId, keys }
-}
