@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AppState } from 'react-native'
+import Constants from 'expo-constants'
 import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
 import { apiRequest, connectProvider, disconnectProvider } from '@bridgit/shared-client'
@@ -10,7 +11,7 @@ import { formatWhen, needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
 
 export const ABOUT = {
-  version: '0.1',
+  version: Constants.expoConfig?.version ?? '1.0.0',
   stores: 'Só metadados. O arquivo fica no provedor.',
   providers: 'OneDrive, Google Drive e Dropbox.',
 }

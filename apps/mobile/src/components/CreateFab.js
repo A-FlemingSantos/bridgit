@@ -22,7 +22,7 @@ export default function CreateFab({ items: createItems = [] }) {
       openRef.current = false
       setOpen(false)
       setClosing(false)
-    }, menuDismissMs(5))
+    }, menuDismissMs(createItems.length))
   }
 
   function toggleMenu() {

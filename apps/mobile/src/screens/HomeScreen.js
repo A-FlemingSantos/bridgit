@@ -7,6 +7,7 @@ import FileSheet from '../components/FileSheet'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
 import ProviderMark from '../components/ProviderMark'
+import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
 import { useHomeEntries } from '../hub/hooks'
 import { useItemActions } from '../hub/useItemActions'
@@ -56,6 +57,11 @@ export default function HomeScreen({ navigation }) {
               {errorMessage(error, 'Não foi possível carregar.')} Toque para tentar de novo.
             </AppText>
           </Pressable>
+        ) : null}
+        {status === 'loading' ? (
+          <View style={styles.loading}>
+            <Spinner />
+          </View>
         ) : null}
         {status === 'ready' && shortcuts.length === 0 && recents.length === 0 ? (
           <AppText style={[styles.itemSub, { color: theme.colors.mute }]}>
@@ -224,6 +230,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 8,
     gap: 28,
+  },
+  loading: {
+    alignItems: 'center',
+    paddingVertical: 24,
   },
   section: {
     gap: 12,

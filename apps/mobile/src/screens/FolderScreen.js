@@ -6,6 +6,7 @@ import CreateFab from '../components/CreateFab'
 import FileSheet from '../components/FileSheet'
 import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
+import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
 import { useFolder, useProviders } from '../hub/hooks'
 import { needsReconnect } from '../hub/format'
@@ -66,6 +67,11 @@ export default function FolderScreen({ navigation, route }) {
               O acesso ao {providerName()} expirou e esta lista pode estar desatualizada. Toque para reconectar em Ajustes.
             </AppText>
           </Pressable>
+        ) : null}
+        {connected && status === 'loading' ? (
+          <View style={styles.loading}>
+            <Spinner />
+          </View>
         ) : null}
         {connected && status === 'error' ? (
           <Pressable accessibilityRole="button" onPress={reload}>
@@ -183,6 +189,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     gap: 36,
+  },
+  loading: {
+    alignItems: 'center',
+    paddingVertical: 24,
   },
   section: {
     gap: 14,
