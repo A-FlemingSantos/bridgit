@@ -210,7 +210,7 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 **Decisão (14/10):** no Google Drive, só entra no catálogo o que é alcançável a partir da raiz do Meu Drive. Não haverá "Compartilhados comigo".
 - **Feed:** já não traz esses itens. O feed e a inscrição usam `restrictToMyDrive=true`, que omite arquivos compartilhados fora do Meu Drive. Nada a mudar.
 - **Inventário:** é o único caminho por onde esses itens entram, porque o `files.list` com `corpora=user` devolve tudo o que o usuário enxerga. No fim do inventário do Drive, antes de ativar o novo scan, uma consulta SQL recursiva (`WITH … UNION ALL`) parte dos itens da raiz e marca seus descendentes; o que não for marcado é apagado do scan em construção. É uma instrução no `CatalogStore`, usada só para o Drive. No OneDrive e no Dropbox tudo já está na árvore.
-- **Busca:** ainda consulta o provedor e mostra esses itens até deixar de consultá-lo.
+- **Busca:** pelo finding 18, passa a usar o catálogo e herda a regra. Até lá, ainda consulta o provedor e mostra esses itens.
 - **Limpeza do que já está gravado:** o formato do checkpoint do Drive sobe para `v=3`, o que força uma nova reconstrução e remove os 9 itens atuais.
 - **Desempenho:** a consulta roda uma vez por inventário completo (ao conectar a conta ou numa reconstrução), nunca na navegação nem na sincronização incremental. Cada item é visitado uma vez, e o número de rodadas é a profundidade das pastas. Encontrar os filhos de uma pasta usa o índice `ix_catalog_parent`, o mesmo da listagem.
 - **Caso de borda aceito:** um arquivo movido do Meu Drive para uma pasta compartilhada de fora deve chegar pelo feed como removido. Se escapar, a próxima reconstrução corrige.
@@ -218,8 +218,6 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 **Alternativas descartadas:**
 - **Filtrar o inventário com `'me' in owners`:** esconderia arquivos que outras pessoas colocaram nas pastas do usuário. Eles sumiriam da navegação.
 - **Percorrer a árvore pasta por pasta na API do Google:** correto por construção, mas exige uma chamada de rede por pasta a cada inventário e guardar a fila de pastas no checkpoint.
-
-Pelo finding 18, a busca passa a usar o catálogo. Assim, o filtro da opção 1 só precisa existir no inventário e no feed.
 
 Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam no inventário sem pai visível. O catálogo os grava com `parentKnown=false`, e eles não aparecem na raiz nem em nenhuma pasta. Foram vistos três casos no catálogo de 13/10. Falta decidir se o Bridgit mostra "Compartilhados comigo" ou ignora esses itens de forma explícita.
 
