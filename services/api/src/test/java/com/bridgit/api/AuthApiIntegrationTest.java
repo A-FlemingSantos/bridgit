@@ -236,6 +236,19 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
 
     mockMvc.perform(delete("/api/account")
             .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest());
+
+    mockMvc.perform(delete("/api/account")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"password\":\"errada-123\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("SENHA_ATUAL_INVALIDA"));
+
+    mockMvc.perform(delete("/api/account")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"password\":\"12345678\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.message").value("Conta removida com sucesso."));
 

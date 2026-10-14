@@ -36,8 +36,8 @@ public class AccountController {
   }
 
   @DeleteMapping
-  public ApiEnvelope<AuthDtos.MessageResponse> deleteAccount() {
-    return ApiEnvelope.ok(accountService.deleteAccount());
+  public ApiEnvelope<AuthDtos.MessageResponse> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
+    return ApiEnvelope.ok(accountService.deleteAccount(request.password()));
   }
 
   public record UpdateAccountRequest(
@@ -45,6 +45,11 @@ public class AccountController {
       @Size(min = 3, max = 32, message = "O usuario deve ter entre 3 e 32 caracteres.")
       @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuario deve usar apenas letras, numeros, ponto, hifen ou sublinhado.")
       String username
+  ) {
+  }
+
+  public record DeleteAccountRequest(
+      @NotBlank(message = "A senha e obrigatoria.") String password
   ) {
   }
 

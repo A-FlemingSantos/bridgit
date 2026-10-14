@@ -12,10 +12,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import static org.assertj.core.api.Assertions.*;
@@ -52,6 +54,13 @@ class AccountDeletionIntegrationTest extends ApiIntegrationTestSupport {
     var operation = operations.accept(user, connection, request, payload);
     return new Fixture(user, registered.path("accessToken").asText(), connection, operation);
   }
+  private RequestBuilder deleteAccount(String token) {
+    return delete("/api/account")
+        .header("Authorization", "Bearer " + token)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"password\":\"password123\"}");
+  }
+
   private long count(String table, UUID user) {
     return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE user_id=?", Long.class, user.toString());
   }
@@ -61,7 +70,7 @@ class AccountDeletionIntegrationTest extends ApiIntegrationTestSupport {
     var other = fixture("keep_owner");
     events.append(deleted.user(), deleted.connection().getId(), 1, "fixture", "private payload");
     assertThat(count("cloud_events", deleted.user())).isGreaterThan(0);
-    mockMvc.perform(delete("/api/account").header("Authorization", "Bearer " + deleted.token()))
+    mockMvc.perform(deleteAccount(deleted.token()))
         .andExpect(status().isOk());
     assertThat(users.existsById(deleted.user())).isFalse();
     assertThat(count("cloud_operations", deleted.user())).isZero();
@@ -125,7 +134,7 @@ class AccountDeletionIntegrationTest extends ApiIntegrationTestSupport {
     Files.createDirectory(blocked);
     Path child = Files.write(blocked.resolve("busy"), new byte[]{1});
     try {
-      mockMvc.perform(delete("/api/account").header("Authorization", "Bearer " + fixture.token()))
+      mockMvc.perform(deleteAccount(fixture.token()))
           .andExpect(status().isOk());
       assertThat(users.existsById(fixture.user())).isFalse();
       assertThat(count("cloud_operations", fixture.user())).isZero();

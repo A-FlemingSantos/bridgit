@@ -15,6 +15,7 @@ export default function SecurityTab() {
   const currentId = useId()
   const nextId = useId()
   const confirmId = useId()
+  const deletePasswordId = useId()
   const { session, changePassword, deleteAccount, listSessions, revokeOtherSessions, setPersistent } = useSession()
   const [passwordSaved, setPasswordSaved] = useState(false)
   const [sessions, setSessions] = useState([])
@@ -108,12 +109,18 @@ export default function SecurityTab() {
     }
   }
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(event) {
+    event.preventDefault()
     setError('delete')
+    const password = String(new FormData(event.currentTarget).get('password') ?? '')
+    if (!password) {
+      setError('delete', 'Informe sua senha para excluir a conta.')
+      return
+    }
     setDeleting(true)
 
     try {
-      await deleteAccount()
+      await deleteAccount(password)
       navigate(ROUTES.login, { replace: true })
     } catch (err) {
       setDeleting(false)
@@ -212,26 +219,43 @@ export default function SecurityTab() {
             <h2>Excluir conta</h2>
             <p className={styles.hint}>Os arquivos continuam nos provedores.</p>
           </div>
-          {confirmDelete ? (
-            <span className={styles.pair}>
-              <button
-                type="button"
-                className={styles.primary}
-                onClick={handleDeleteAccount}
-                disabled={deleting}
-              >
-                Confirmar exclusão
-              </button>
-              <button type="button" className={styles.secondary} onClick={() => setConfirmDelete(false)}>
-                Cancelar
-              </button>
-            </span>
-          ) : (
+          {confirmDelete ? null : (
             <button type="button" className={styles.secondary} onClick={() => setConfirmDelete(true)}>
               Excluir conta
             </button>
           )}
         </div>
+        {confirmDelete ? (
+          <form className={styles.deleteForm} onSubmit={handleDeleteAccount}>
+            <div className={styles.fields}>
+              <div className={styles.field}>
+                <label htmlFor={deletePasswordId}>Confirme com sua senha</label>
+                <input
+                  id={deletePasswordId}
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+            </div>
+            <span className={styles.pair}>
+              <button type="submit" className={styles.primary} disabled={deleting}>
+                Confirmar exclusão
+              </button>
+              <button
+                type="button"
+                className={styles.secondary}
+                onClick={() => {
+                  setConfirmDelete(false)
+                  setError('delete')
+                }}
+              >
+                Cancelar
+              </button>
+            </span>
+          </form>
+        ) : null}
         {errors.delete ? <p className={styles.hint} role="alert">{errors.delete}</p> : null}
       </div>
     </section>

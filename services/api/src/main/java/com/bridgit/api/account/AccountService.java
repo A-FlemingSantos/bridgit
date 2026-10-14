@@ -81,8 +81,12 @@ public class AccountService {
     return new AuthDtos.MessageResponse("Senha atualizada com sucesso.");
   }
 
-  public AuthDtos.MessageResponse deleteAccount() {
+  public AuthDtos.MessageResponse deleteAccount(String password) {
     UserEntity user = authenticatedUserService.requireUser();
+    // An open session alone must not be enough to erase the account.
+    if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
+      throw new BadRequestException("SENHA_ATUAL_INVALIDA", "A senha informada esta incorreta.");
+    }
     uploadCleanup.complete(accountDeletion.delete(user));
     return new AuthDtos.MessageResponse("Conta removida com sucesso.");
   }

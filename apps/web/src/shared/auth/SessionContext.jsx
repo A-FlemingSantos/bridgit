@@ -232,12 +232,12 @@ export function SessionProvider({ children }) {
     [handleUnauthorized, session?.accessToken],
   )
 
-  const deleteAccount = useCallback(async () => {
+  const deleteAccount = useCallback(async (password) => {
     const token = session?.accessToken
     if (!token) throw new Error('Sessao indisponivel.')
 
     try {
-      await deleteAccountRequest(token)
+      await deleteAccountRequest(token, password)
       endSessionWithoutReturn()
     } catch (error) {
       handleUnauthorized(error)

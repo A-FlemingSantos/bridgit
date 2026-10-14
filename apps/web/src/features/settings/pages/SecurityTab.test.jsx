@@ -96,10 +96,12 @@ describe('SecurityTab', () => {
     await screen.findAllByRole('listitem')
 
     await user.click(screen.getByRole('button', { name: 'Excluir conta' }))
+    await user.type(screen.getByLabelText('Confirme com sua senha'), 'minha-senha')
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível excluir a conta.')
     expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(sessionApi.deleteAccount).toHaveBeenCalledWith('minha-senha')
   })
 
   it('volta o rótulo de encerrar depois de um tempo', async () => {

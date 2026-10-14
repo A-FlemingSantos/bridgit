@@ -1266,9 +1266,14 @@ describe('App', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: 'Excluir conta' }))
+    await user.type(screen.getByLabelText('Confirme com sua senha'), 'minha-senha')
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(apiRequest).toHaveBeenCalledWith(
+      '/api/account',
+      expect.objectContaining({ method: 'DELETE', body: { password: 'minha-senha' } }),
+    )
     expect(screen.queryByRole('heading', { name: /Toda a nuvem/ })).not.toBeInTheDocument()
   })
 })

@@ -513,3 +513,9 @@
     align-items: flex-start;
   }
 }
+
+.deleteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
