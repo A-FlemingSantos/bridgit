@@ -6,6 +6,8 @@ import * as WebBrowser from 'expo-web-browser'
 import { apiRequest, connectProvider, disconnectProvider, isSessionFailure } from '@bridgit/shared-client'
 import { getItem, setItem } from '../auth/secureStorage'
 import { useSession } from '../auth/SessionContext'
+import { useHub } from '../hub/HubContext'
+import { filesScope, foldersScope, HOME } from '../hub/eventScopes'
 import { useProviders } from '../hub/hooks'
 import { formatWhen, needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
@@ -43,6 +45,7 @@ function sessionLabel(item) {
 export function useSettings() {
   const { token, user, logout, invalidate, replaceSession } = useSession()
   const { providers: statuses, reload: reloadProviders } = useProviders()
+  const { refreshScopes } = useHub()
   const [notifyFail, setNotifyFailState] = useState(true)
   const [sessions, setSessions] = useState([])
   // Provider whose OAuth came back with a different account and waits for the user's confirmation.
@@ -120,8 +123,9 @@ export function useSettings() {
     })
     // Refresh even when the browser was dismissed: the connection may have completed anyway.
     await reloadProviders()
+    refreshScopes([HOME, foldersScope(id), filesScope(id)])
     return message
-  }, [guard, token, reloadProviders])
+  }, [guard, token, reloadProviders, refreshScopes])
 
   // Replacing the account deletes recents, shortcuts, public links and the catalog of the old one.
   const confirmAccountChange = useCallback(() => {
@@ -135,7 +139,9 @@ export function useSettings() {
   const disconnect = useCallback((id) => guard(async () => {
     await disconnectProvider(token, id)
     await reloadProviders()
-  }), [guard, token, reloadProviders])
+    // Disconnecting drops the provider's recents, shortcuts and catalog.
+    refreshScopes([HOME, foldersScope(id), filesScope(id)])
+  }), [guard, token, reloadProviders, refreshScopes])
 
   const setNotifyFail = useCallback((value) => {
     setNotifyFailState(value)

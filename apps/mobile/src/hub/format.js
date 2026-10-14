@@ -7,6 +7,18 @@ export function needsReconnect(provider) {
   return Boolean(provider?.connected) && provider?.lastError === 'RECONEXAO_NECESSARIA'
 }
 
+// Warning for a folder listing whose catalog is out of date, or null when there is nothing to say.
+// `reconnectShown` says the screen already tells the user to reconnect, so that case is not repeated.
+export function staleCatalogNotice(catalog, { reconnectShown = false, now = Date.now() } = {}) {
+  if (catalog?.freshness !== 'stale') return null
+  if (reconnectShown && catalog.staleReason === 'RECONEXAO_NECESSARIA') return null
+
+  const since = catalog.syncedAt ? formatWhen(catalog.syncedAt, now) : ''
+  return since
+    ? `Pode estar desatualizado. Última sincronização: ${since.toLowerCase()}.`
+    : 'Pode estar desatualizado.'
+}
+
 // "Relatório.final.docx" -> { stem: "Relatório.final", extension: ".docx" }. Dotfiles and names
 // ending in a dot have no extension.
 export function splitExtension(name) {

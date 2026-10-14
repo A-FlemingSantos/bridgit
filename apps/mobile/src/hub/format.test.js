@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatWhen, kindLabel, needsReconnect, splitExtension, toEntry, withExtension } from './format'
+import { formatWhen, kindLabel, needsReconnect, splitExtension, staleCatalogNotice, toEntry, withExtension } from './format'
 
 describe('kindLabel', () => {
   it('labels folders and files by extension', () => {
@@ -66,5 +66,34 @@ describe('withExtension', () => {
     expect(withExtension('Entrega2', '.docx')).toBe('Entrega2.docx')
     expect(withExtension('Entrega2.DOCX', '.docx')).toBe('Entrega2.DOCX')
     expect(withExtension('Pasta', '')).toBe('Pasta')
+  })
+})
+
+describe('staleCatalogNotice', () => {
+  const now = Date.parse('2026-10-14T12:00:00Z')
+  const stale = { freshness: 'stale', staleReason: 'SINCRONIZACAO_FALHOU', syncedAt: '2026-10-14T09:00:00Z' }
+
+  it('says when the catalog was last synced', () => {
+    expect(staleCatalogNotice(stale, { now })).toBe('Pode estar desatualizado. Última sincronização: há 3 h.')
+    expect(staleCatalogNotice({ ...stale, syncedAt: '2026-10-13T08:00:00Z' }, { now }))
+      .toBe('Pode estar desatualizado. Última sincronização: ontem.')
+  })
+
+  it('omits the date when it is missing or invalid', () => {
+    expect(staleCatalogNotice({ ...stale, syncedAt: null }, { now })).toBe('Pode estar desatualizado.')
+    expect(staleCatalogNotice({ ...stale, syncedAt: 'x' }, { now })).toBe('Pode estar desatualizado.')
+  })
+
+  it('stays quiet for a current or absent catalog', () => {
+    expect(staleCatalogNotice({ freshness: 'current', syncedAt: stale.syncedAt }, { now })).toBeNull()
+    expect(staleCatalogNotice(null, { now })).toBeNull()
+    expect(staleCatalogNotice(undefined)).toBeNull()
+  })
+
+  it('does not repeat the reconnect warning the screen already shows', () => {
+    const expired = { ...stale, staleReason: 'RECONEXAO_NECESSARIA' }
+    expect(staleCatalogNotice(expired, { reconnectShown: true, now })).toBeNull()
+    expect(staleCatalogNotice(expired, { reconnectShown: false, now })).toContain('Pode estar desatualizado')
+    expect(staleCatalogNotice(stale, { reconnectShown: true, now })).toContain('Pode estar desatualizado')
   })
 })
