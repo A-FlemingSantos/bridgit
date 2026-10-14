@@ -67,6 +67,32 @@ describe('hub api', () => {
     })
   })
 
+  it('connectProvider sends allowAccountChange only when confirmed', async () => {
+    apiRequest.mockResolvedValue({ authorizationUrl: 'https://oauth.example/connect' })
+    await connectProvider(token, 'onedrive', '/providers/onedrive', { allowAccountChange: true })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { redirectTo: '/providers/onedrive', allowAccountChange: true },
+    })
+
+    apiRequest.mockClear()
+    await connectProvider(token, 'onedrive', undefined, { allowAccountChange: true })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { allowAccountChange: true },
+    })
+
+    apiRequest.mockClear()
+    await connectProvider(token, 'onedrive', '/x', { allowAccountChange: false })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { redirectTo: '/x' },
+    })
+  })
+
   it('disconnectProvider deletes provider', async () => {
     apiRequest.mockResolvedValue([])
     await disconnectProvider(token, 'dropbox')

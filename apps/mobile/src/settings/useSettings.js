@@ -9,6 +9,7 @@ import { useSession } from '../auth/SessionContext'
 import { useProviders } from '../hub/hooks'
 import { formatWhen, needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
+import { describeOauthReturn } from './oauthOutcome'
 
 export const ABOUT = {
   version: Constants.expoConfig?.version ?? '1.0.0',
@@ -20,20 +21,6 @@ const NOTIFY_FAIL_KEY = 'bridgit.notifyFail'
 
 // Lets the in-app browser close itself when the redirect returns to the app.
 WebBrowser.maybeCompleteAuthSession()
-
-const OAUTH_ERRORS = {
-  PROVEDOR_RECUSOU: 'A conexão foi cancelada no provedor.',
-  OAUTH_STATE_EXPIRADO: 'A tentativa expirou. Tente conectar de novo.',
-  OAUTH_STATE_INVALIDO: 'A tentativa de conexão é inválida. Tente de novo.',
-  OAUTH_CODE_AUSENTE: 'O provedor não retornou a autorização. Tente de novo.',
-  REFRESH_TOKEN_AUSENTE: 'O provedor não concedeu acesso contínuo. Tente de novo.',
-}
-
-function oauthOutcome(url) {
-  const { queryParams } = Linking.parse(url)
-  if (queryParams?.status === 'connected') return ''
-  return OAUTH_ERRORS[queryParams?.error] ?? 'Não foi possível conectar o provedor.'
-}
 
 // The API reports "scheduled" while a connection is healthy and "attention" after an error.
 const SYNC_STATES = {
@@ -58,6 +45,8 @@ export function useSettings() {
   const { providers: statuses, reload: reloadProviders } = useProviders()
   const [notifyFail, setNotifyFailState] = useState(true)
   const [sessions, setSessions] = useState([])
+  // Provider whose OAuth came back with a different account and waits for the user's confirmation.
+  const [accountChangeId, setAccountChangeId] = useState(null)
 
   const guard = useCallback(async (action) => {
     try {
@@ -114,20 +103,34 @@ export function useSettings() {
 
   // The consent happens in the system browser. The server sends the user back to the app's own URL
   // (bridgit:// in a build, exp:// in Expo Go) with the outcome in the query string.
-  const connect = useCallback(async (id) => {
+  const connect = useCallback(async (id, { allowAccountChange = false } = {}) => {
     const redirectUrl = Linking.createURL('oauth')
+    setAccountChangeId(null)
     const message = await guard(async () => {
-      const { authorizationUrl } = await connectProvider(token, id, redirectUrl)
+      const { authorizationUrl } = await connectProvider(token, id, redirectUrl, { allowAccountChange })
       const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUrl)
       if (result.type === 'success' && result.url) {
-        const outcome = oauthOutcome(result.url)
-        if (outcome) throw new Error(outcome)
+        const outcome = describeOauthReturn(Linking.parse(result.url).queryParams)
+        if (outcome.accountChange) {
+          setAccountChangeId(id)
+          return
+        }
+        if (outcome.message) throw new Error(outcome.message)
       }
     })
     // Refresh even when the browser was dismissed: the connection may have completed anyway.
     await reloadProviders()
     return message
   }, [guard, token, reloadProviders])
+
+  // Replacing the account deletes recents, shortcuts, public links and the catalog of the old one.
+  const confirmAccountChange = useCallback(() => {
+    const id = accountChangeId
+    if (!id) return Promise.resolve('')
+    return connect(id, { allowAccountChange: true })
+  }, [accountChangeId, connect])
+
+  const cancelAccountChange = useCallback(() => setAccountChangeId(null), [])
 
   const disconnect = useCallback((id) => guard(async () => {
     await disconnectProvider(token, id)
@@ -175,6 +178,9 @@ export function useSettings() {
       sync: !provider.connected ? null : needsReconnect(provider) ? 'Acesso expirado. Reconecte em Provedores.' : syncLabel(provider.syncState),
     })),
     connectProvider: connect,
+    accountChangeId,
+    confirmAccountChange,
+    cancelAccountChange,
     disconnectProvider: disconnect,
     notifyFail,
     setNotifyFail,

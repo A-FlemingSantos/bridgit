@@ -93,6 +93,14 @@ function ProvidersSection({ settings }) {
               />
             )}
           </View>
+          {settings.accountChangeId === provider.id ? (
+            <ConfirmPanel
+              prompt={`Você entrou com outra conta do ${provider.name}. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.`}
+              confirmLabel="Trocar de conta"
+              onCancel={settings.cancelAccountChange}
+              onConfirm={async () => setError(await settings.confirmAccountChange())}
+            />
+          ) : null}
           {asking === provider.id && provider.account ? (
             <ConfirmPanel
               prompt={`Desconectar ${provider.name}? Os arquivos continuam no provedor.`}

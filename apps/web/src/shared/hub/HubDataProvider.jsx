@@ -496,8 +496,8 @@ export function HubDataProvider({ children }) {
   )
 
   const connectProvider = useCallback(
-    async (providerId, redirectTo) => {
-      const { authorizationUrl } = await hubApiRef.current.connectProvider(providerId, redirectTo)
+    async (providerId, redirectTo, options) => {
+      const { authorizationUrl } = await hubApiRef.current.connectProvider(providerId, redirectTo, options)
       window.location.assign(authorizationUrl)
     },
     [],

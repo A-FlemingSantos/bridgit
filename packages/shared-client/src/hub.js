@@ -29,11 +29,13 @@ export function listProviders(token) {
   return apiRequest('/api/providers', { token })
 }
 
-export function connectProvider(token, provider, redirectTo) {
+export function connectProvider(token, provider, redirectTo, { allowAccountChange = false } = {}) {
   const options = { method: 'POST', token }
-  if (redirectTo) {
-    options.body = { redirectTo }
-  }
+  const body = {}
+  if (redirectTo) body.redirectTo = redirectTo
+  // Only sent after the user confirmed replacing the connected account.
+  if (allowAccountChange) body.allowAccountChange = true
+  if (Object.keys(body).length > 0) options.body = body
   return apiRequest(`${providerBase(provider)}/connect`, options)
 }
 

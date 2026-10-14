@@ -22,7 +22,12 @@ const OAUTH_ERROR_MESSAGES = {
   REFRESH_TOKEN_AUSENTE: 'Não foi possível manter a conexão. Reconecte o provedor.',
   OAUTH_TROCA_FALHOU: 'Não foi possível concluir a conexão.',
   OAUTH_CODE_AUSENTE: 'O provedor não devolveu a autorização. Tente conectar de novo.',
+  OAUTH_TROCA_TEMPORARIA: 'O provedor não respondeu. Tente conectar de novo.',
+  PROVEDOR_NAO_CONFIGURADO: 'Este provedor ainda não foi configurado no servidor.',
 }
+
+// The API refuses to replace the connected account without an explicit confirmation.
+const ACCOUNT_CHANGE_ERROR = 'OAUTH_CONTA_DIFERENTE'
 
 function mapOAuthError(code) {
   if (!code) return 'Não foi possível conectar o provedor.'
@@ -48,6 +53,7 @@ export default function ProvidersTab() {
   const [banner, setBanner] = useState(null)
   const [pendingId, setPendingId] = useState(null)
   const [actionError, setActionError] = useState(null)
+  const [accountChangeId, setAccountChangeId] = useState(null)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -58,6 +64,10 @@ export default function ProvidersTab() {
     if (oauthStatus === 'connected') {
       const label = PROVIDER_LABELS[providerId] ?? providerId
       setBanner({ type: 'success', message: `${label} conectado` })
+      setAccountChangeId(null)
+    } else if (params.get('error') === ACCOUNT_CHANGE_ERROR) {
+      setBanner(null)
+      setAccountChangeId(providerId)
     } else {
       setBanner({ type: 'error', message: mapOAuthError(params.get('error')) })
     }
@@ -72,13 +82,13 @@ export default function ProvidersTab() {
     return () => window.clearTimeout(timer)
   }, [banner])
 
-  async function handleConnect(providerId) {
+  async function handleConnect(providerId, options) {
     const background = resolveSettingsBackground(location)
     const redirectTo = `${background.pathname}${background.search ?? ''}${background.hash ?? ''}`
     setPendingId(providerId)
     setActionError((prev) => (prev?.providerId === providerId ? null : prev))
     try {
-      await connect(providerId, redirectTo)
+      await connect(providerId, redirectTo, options)
     } catch (err) {
       setActionError({
         providerId,
@@ -88,6 +98,12 @@ export default function ProvidersTab() {
     } finally {
       setPendingId((current) => (current === providerId ? null : current))
     }
+  }
+
+  function handleConfirmAccountChange() {
+    const providerId = accountChangeId
+    setAccountChangeId(null)
+    void handleConnect(providerId, { allowAccountChange: true })
   }
 
   async function handleDisconnect(providerId) {
@@ -120,6 +136,23 @@ export default function ProvidersTab() {
           <button type="button" className={styles.bannerClose} onClick={() => setBanner(null)}>
             Dispensar
           </button>
+        </div>
+      ) : null}
+
+      {accountChangeId ? (
+        <div className={styles.banner} role="alertdialog" aria-labelledby="account-change-text">
+          <p id="account-change-text" className={styles.hint}>
+            Você entrou com outra conta do {PROVIDER_LABELS[accountChangeId] ?? accountChangeId}. Continuar troca a
+            conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.
+          </p>
+          <span className={styles.pair}>
+            <button type="button" className={styles.secondary} onClick={() => setAccountChangeId(null)}>
+              Cancelar
+            </button>
+            <button type="button" className={styles.primary} onClick={handleConfirmAccountChange}>
+              Trocar de conta
+            </button>
+          </span>
         </div>
       ) : null}
 

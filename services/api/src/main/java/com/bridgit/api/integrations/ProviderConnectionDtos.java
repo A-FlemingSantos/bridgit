@@ -38,7 +38,8 @@ public final class ProviderConnectionDtos {
   }
 
   public record ConnectRequest(
-      String redirectTo
+      String redirectTo,
+      Boolean allowAccountChange
   ) {
   }
 }

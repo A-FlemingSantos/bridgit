@@ -360,6 +360,204 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_STATE_INVALIDO")));
   }
 
+  private ProviderOAuthStateEntity saveState(String token, String verifier, boolean allowAccountChange) {
+    ProviderOAuthStateEntity state = new ProviderOAuthStateEntity();
+    state.setUserId(userId);
+    state.setProvider(CloudProvider.ONEDRIVE.id());
+    state.setStateToken(token);
+    state.setCodeVerifier(verifier);
+    state.setAllowAccountChange(allowAccountChange);
+    state.setExpiresAt(java.time.OffsetDateTime.now().plusMinutes(10));
+    return oauthStateRepository.save(state);
+  }
+
+  private ProviderConnectionEntity saveConnection(String accountId) {
+    ProviderConnectionEntity connection = new ProviderConnectionEntity();
+    connection.setUserId(userId);
+    connection.setProvider(CloudProvider.ONEDRIVE.id());
+    connection.setAccountId(accountId);
+    connection.setAccountEmail(accountId + "@example.com");
+    connection.setEncryptedRefreshToken(tokenCipher.encrypt("old-refresh-token"));
+    connection.setConnectedAt(java.time.OffsetDateTime.now());
+    return connectionRepository.save(connection);
+  }
+
+  private void stubExchangeForAccount(String code, String verifier, String accountId) {
+    when(microsoftOAuthClient.exchangeCode(code, verifier))
+        .thenReturn(new TokenResult("access-" + accountId, "refresh-" + accountId, 3600, "scope"));
+    when(microsoftOAuthClient.fetchAccount("access-" + accountId))
+        .thenReturn(new ProviderAccount(accountId, accountId + "@example.com", "Test User"));
+  }
+
+  @Test
+  void connectStoresAllowAccountChangeOnTheState() throws Exception {
+    String withPermission = startAuthorizationWithBody("{\"allowAccountChange\":true}");
+    assertThat(oauthStateRepository.findByStateToken(withPermission).orElseThrow().isAllowAccountChange()).isTrue();
+
+    String withoutPermission = startAuthorizationWithBody("{\"redirectTo\":\"/home\"}");
+    assertThat(oauthStateRepository.findByStateToken(withoutPermission).orElseThrow().isAllowAccountChange())
+        .isFalse();
+  }
+
+  @Test
+  void differentAccountWithoutPermissionKeepsTheOldConnection() throws Exception {
+    ProviderConnectionEntity old = saveConnection("account-old");
+    saveState("state-different", "verifier-different", false);
+    stubExchangeForAccount("code-different", "verifier-different", "account-new");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-different")
+            .param("code", "code-different"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("status=error")))
+        .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_CONTA_DIFERENTE")));
+
+    ProviderConnectionEntity kept = connectionRepository
+        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
+    assertThat(kept.getId()).isEqualTo(old.getId());
+    assertThat(kept.getAccountId()).isEqualTo("account-old");
+    assertThat(tokenCipher.decrypt(kept.getEncryptedRefreshToken())).isEqualTo("old-refresh-token");
+    // The state stays consumed: the user has to start again, now with the confirmation.
+    assertThat(oauthStateRepository.findByStateToken("state-different").orElseThrow().getUsedAt()).isNotNull();
+  }
+
+  @Test
+  void differentAccountWithPermissionReplacesTheConnection() throws Exception {
+    ProviderConnectionEntity old = saveConnection("account-old");
+    saveState("state-replace", "verifier-replace", true);
+    stubExchangeForAccount("code-replace", "verifier-replace", "account-new");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-replace")
+            .param("code", "code-replace"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
+
+    ProviderConnectionEntity replaced = connectionRepository
+        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
+    assertThat(replaced.getId()).isNotEqualTo(old.getId());
+    assertThat(replaced.getAccountId()).isEqualTo("account-new");
+    assertThat(tokenCipher.decrypt(replaced.getEncryptedRefreshToken())).isEqualTo("refresh-account-new");
+  }
+
+  @Test
+  void sameAccountReconnectsWithoutPermission() throws Exception {
+    ProviderConnectionEntity old = saveConnection("account-same");
+    saveState("state-same", "verifier-same", false);
+    stubExchangeForAccount("code-same", "verifier-same", "account-same");
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-same")
+            .param("code", "code-same"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
+
+    ProviderConnectionEntity updated = connectionRepository
+        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
+    assertThat(updated.getId()).isEqualTo(old.getId());
+    assertThat(tokenCipher.decrypt(updated.getEncryptedRefreshToken())).isEqualTo("refresh-account-same");
+  }
+
+  @Test
+  void transientExchangeFailureReleasesTheState() throws Exception {
+    saveState("state-transient", "verifier-transient", false);
+    when(microsoftOAuthClient.exchangeCode("code-transient", "verifier-transient"))
+        .thenThrow(new com.bridgit.api.providers.ProviderApiException(
+            HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "indisponivel"))
+        .thenReturn(new TokenResult("access-ok", "refresh-ok", 3600, "scope"));
+    when(microsoftOAuthClient.fetchAccount("access-ok"))
+        .thenReturn(new ProviderAccount("account-1", "user@example.com", "Test User"));
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-transient")
+            .param("code", "code-transient"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_TROCA_TEMPORARIA")));
+
+    assertThat(oauthStateRepository.findByStateToken("state-transient").orElseThrow().getUsedAt()).isNull();
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-transient")
+            .param("code", "code-transient"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
+    assertThat(oauthStateRepository.findByStateToken("state-transient").orElseThrow().getUsedAt()).isNotNull();
+  }
+
+  @Test
+  void ioFailureOnExchangeIsTransient() throws Exception {
+    saveState("state-io", "verifier-io", false);
+    when(microsoftOAuthClient.exchangeCode("code-io", "verifier-io"))
+        .thenThrow(new org.springframework.web.client.ResourceAccessException("timeout"));
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-io")
+            .param("code", "code-io"))
+        .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_TROCA_TEMPORARIA")));
+    assertThat(oauthStateRepository.findByStateToken("state-io").orElseThrow().getUsedAt()).isNull();
+  }
+
+  @Test
+  void missingClientReportsProviderNotConfiguredAndKeepsTheStateUsed() throws Exception {
+    saveState("state-no-client", "verifier-no-client", false);
+    when(providerOAuthClients.get(CloudProvider.ONEDRIVE)).thenThrow(ProviderOAuthClients.notConfigured());
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-no-client")
+            .param("code", "code"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("error=PROVEDOR_NAO_CONFIGURADO")));
+    assertThat(oauthStateRepository.findByStateToken("state-no-client").orElseThrow().getUsedAt()).isNotNull();
+  }
+
+  @Test
+  void invalidClientOnExchangeReportsProviderNotConfigured() throws Exception {
+    saveState("state-invalid-client", "verifier-invalid-client", false);
+    when(microsoftOAuthClient.exchangeCode("code", "verifier-invalid-client"))
+        .thenThrow(new com.bridgit.api.providers.ProviderApiException(
+            HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_CONFIGURACAO_INVALIDA", "configuracao"));
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-invalid-client")
+            .param("code", "code"))
+        .andExpect(header().string("Location", Matchers.containsString("error=PROVEDOR_NAO_CONFIGURADO")));
+    assertThat(oauthStateRepository.findByStateToken("state-invalid-client").orElseThrow().getUsedAt()).isNotNull();
+  }
+
+  @Test
+  void otherExchangeFailuresStayGenericAndConsumeTheState() throws Exception {
+    saveState("state-generic", "verifier-generic", false);
+    when(microsoftOAuthClient.exchangeCode("code", "verifier-generic"))
+        .thenThrow(new ReconnectionRequiredException());
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-generic")
+            .param("code", "code"))
+        .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_TROCA_FALHOU")));
+    assertThat(oauthStateRepository.findByStateToken("state-generic").orElseThrow().getUsedAt()).isNotNull();
+  }
+
+  @Test
+  void connectWithoutClientAnswers503() throws Exception {
+    when(providerOAuthClients.get(CloudProvider.ONEDRIVE)).thenThrow(ProviderOAuthClients.notConfigured());
+
+    mockMvc.perform(post("/api/providers/onedrive/connect")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONFIGURADO"));
+  }
+
+  @Test
+  void clientsLookupThrowsWhenTheProviderHasNoClient() {
+    ProviderOAuthClients clients = new ProviderOAuthClients(List.of());
+
+    assertThatThrownBy(() -> clients.get(CloudProvider.DROPBOX))
+        .isInstanceOfSatisfying(com.bridgit.api.common.error.ApiException.class, ex -> {
+          assertThat(ex.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+          assertThat(ex.getCode()).isEqualTo("PROVEDOR_NAO_CONFIGURADO");
+        });
+  }
+
   @Test
   void disconnectRemovesConnection() throws Exception {
     ProviderConnectionEntity connection = new ProviderConnectionEntity();

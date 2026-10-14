@@ -128,8 +128,8 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
 
   return {
     listProviders: () => call((token) => listProvidersRequest(token)),
-    connectProvider: (provider, redirectTo) =>
-      call((token) => connectProviderRequest(token, provider, redirectTo)),
+    connectProvider: (provider, redirectTo, options) =>
+      call((token) => connectProviderRequest(token, provider, redirectTo, options)),
     disconnectProvider: (provider) => call((token) => disconnectProviderRequest(token, provider)),
     listFolder: (provider, parentRef, cursor) =>
       call((token) => listFolderRequest(token, provider, parentRef, cursor)),

@@ -172,4 +172,51 @@ describe('ProvidersTab aviso de retorno do OAuth', () => {
       'O provedor não devolveu a autorização. Tente conectar de novo.',
     )
   })
+
+  it('traduz OAUTH_TROCA_TEMPORARIA e PROVEDOR_NAO_CONFIGURADO', async () => {
+    renderReturn('?provider=dropbox&status=error&error=OAUTH_TROCA_TEMPORARIA')
+    expect(await screen.findByRole('alert')).toHaveTextContent('O provedor não respondeu. Tente conectar de novo.')
+  })
+
+  it('pede confirmação quando voltou com outra conta e reinicia a conexão com allowAccountChange', async () => {
+    const user = userEvent.setup()
+    const connect = vi.fn().mockResolvedValue(undefined)
+    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect, disconnect: vi.fn() })
+    render(
+      <MemoryRouter
+        {...router}
+        initialEntries={['/settings/providers?provider=onedrive&status=error&error=OAUTH_CONTA_DIFERENTE&background=%2Fhome']}
+      >
+        <ProvidersTab />
+      </MemoryRouter>,
+    )
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent(
+      'Você entrou com outra conta do OneDrive. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.',
+    )
+    expect(screen.queryByText('Não foi possível conectar o provedor.')).not.toBeInTheDocument()
+    expect(connect).not.toHaveBeenCalled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Trocar de conta' }))
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(1))
+    expect(connect).toHaveBeenCalledWith('onedrive', expect.any(String), { allowAccountChange: true })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('cancelar a troca de conta fecha a confirmação sem conectar', async () => {
+    const user = userEvent.setup()
+    const connect = vi.fn()
+    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect, disconnect: vi.fn() })
+    render(
+      <MemoryRouter {...router} initialEntries={['/settings/providers?provider=onedrive&status=error&error=OAUTH_CONTA_DIFERENTE']}>
+        <ProvidersTab />
+      </MemoryRouter>,
+    )
+
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(connect).not.toHaveBeenCalled()
+  })
 })
