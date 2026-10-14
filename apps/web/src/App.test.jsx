@@ -452,7 +452,10 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Enviar' }))
+    // The button renders disabled until the providers load; a click before that does nothing.
+    const send = await screen.findByRole('button', { name: 'Enviar' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
     expect(screen.getByRole('menuitem', { name: 'OneDrive' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Google Drive' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Dropbox' })).not.toBeInTheDocument()

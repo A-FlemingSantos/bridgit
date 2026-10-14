@@ -10,7 +10,7 @@ Os findings estão em ordem de peso. Os primeiros mexem em arquitetura e pedem d
 
 **Peso:** alto. Mexe no contrato de concorrência das operações, no catálogo local e no cliente do Google Drive. Afeta web e mobile.
 
-**Status:** código resolvido em `fix/google-drive`, seguindo a opção 1. `remoteVersion` passa a ser a revisão do conteúdo (ou checksum), e `modifiedTime` nos nativos. Item na lixeira responde 404, e o `OperationWorker` trata o 404 de um DELETE como feito. O checkpoint do Drive ganhou formato `v=2`, o que força uma única reconstrução do catálogo. **Falta confirmar com a conta real**, depois do deploy da branch: renomear `Livros de Matemática.docx`, excluir algo já na lixeira e ver "PDFs" sumir.
+**Status:** código resolvido em `fix/google-drive`, seguindo a opção 1. `remoteVersion` passa a ser a revisão do conteúdo (ou checksum), e `modifiedTime` nos nativos. Item na lixeira responde 404, e o `OperationWorker` trata o 404 de um DELETE como feito. O checkpoint do Drive ganhou formato `v=2`, o que força uma única reconstrução do catálogo. **Confirmado com a conta real em 14/10**, no ambiente local. A reconstrução aconteceu na primeira subida, e "PDFs" sumiu. Um arquivo de teste foi enviado, renomeado duas vezes e excluído, e todas as operações deram `SUCCEEDED`; a versão guardada não mudou com os renomes. Depois, o mesmo arquivo, já na lixeira, respondeu 404 e excluí-lo de novo também deu `SUCCEEDED`.
 
 ### O que o usuário vê
 
@@ -203,7 +203,11 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 
 **Peso:** baixo, mas é uma lacuna de produto.
 
-**Status:** resolvido em `fix/google-drive`, pela decisão de ignorar esses itens explicitamente. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos atuais saem na reconstrução do catálogo.
+**Status:** resolvido em parte em `fix/google-drive`, pela decisão de ignorar esses itens explicitamente. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
+
+⚠️ **Falta decidir, visto em 14/10:** o filtro olha só se o item tem um pai. O conteúdo de uma pasta compartilhada que não foi adicionada ao Meu Drive tem pai (a própria pasta), então entra no inventário e na busca. A pasta em si fica de fora, porque não tem pai. Na conta real são 9 itens assim. Exemplo: as fotos `DSC00716.JPG` e outras, da pasta compartilhada "Olimpíadas da Matemática". Elas não aparecem em nenhuma pasta do hub, mas aparecem na busca com `parentKnown=false`. Abrir uma delas mostra a pasta compartilhada como caminho, e dá para navegar por ela. Opções:
+1. Aceitar só itens cuja cadeia de pais chega à raiz do Meu Drive, no inventário, no feed e na busca. É o "ignorar" de fato, mas custa consultas de ancestrais na busca e um filtro no fim do inventário.
+2. Manter como está e mostrar esses itens como "Compartilhados comigo", o que é funcionalidade nova.
 
 Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam no inventário sem pai visível. O catálogo os grava com `parentKnown=false`, e eles não aparecem na raiz nem em nenhuma pasta. Foram vistos três casos no catálogo de 13/10. Falta decidir se o Bridgit mostra "Compartilhados comigo" ou ignora esses itens de forma explícita.
 
