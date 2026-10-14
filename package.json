@@ -29,6 +29,8 @@
     "mobile:android": "npm --workspace apps/mobile run android",
     "mobile:android:device": "npm --workspace apps/mobile run android:device",
     "mobile:android:dev-client": "npm --workspace apps/mobile run android:dev-client",
-    "mobile:web": "npm --workspace apps/mobile run web"
+    "mobile:web": "npm --workspace apps/mobile run web",
+    "api": "cd services/api && mvn spring-boot:run",
+    "api:test": "cd services/api && mvn test"
   }
 }

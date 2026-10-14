@@ -1,3 +1,12 @@
+# Os parametros do banco sao repassados para start-web-backend.ps1.
+[CmdletBinding()]
+param(
+  [string]$DatabaseHost = 'localhost',
+  [ValidateRange(1, 65535)]
+  [int]$DatabasePort = 1433,
+  [string]$DatabaseName = 'bridgit_db'
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -16,4 +25,4 @@ Write-BridgitConfig -Rows @(
   (New-BridgitConfigRow 'mobile_redirect' $mobilePrefixes)
 )
 
-& (Join-Path $PSScriptRoot 'start-web-backend.ps1')
+& (Join-Path $PSScriptRoot 'start-web-backend.ps1') @PSBoundParameters
