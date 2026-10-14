@@ -1,6 +1,7 @@
 package com.bridgit.api.operations;
 
 import com.bridgit.api.catalog.LocalHubProperties;
+import com.bridgit.api.common.api.UploadLimits;
 import com.bridgit.api.common.error.*;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.files.ItemNameValidator;
@@ -37,7 +38,7 @@ public class OperationService {
     ProviderConnectionEntity connection = validateConnection(user, raw);
     OperationDtos.Request request = validate(raw, connection);
     if (request.kind() != OperationDtos.Kind.UPLOAD) throw new BadRequestException("OPERACAO_INVALIDA", "Operacao de upload invalida.");
-    if (size < 0 || size > 50L * 1024 * 1024) throw new BadRequestException("ARQUIVO_GRANDE", "O arquivo excede o limite de 50 MB.");
+    if (size < 0 || size > UploadLimits.MAX_BYTES) throw new BadRequestException("ARQUIVO_GRANDE", "O arquivo excede o limite de " + UploadLimits.MAX_LABEL + ".");
     if (store.pendingBytes(null) + size > properties.getUploadGlobalBytes() || store.pendingBytes(user) + size > properties.getUploadUserBytes()) {
       throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "UPLOAD_FILA_CHEIA", "Aguarde os envios pendentes antes de enviar mais arquivos.");
     }

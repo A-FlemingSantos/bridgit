@@ -36,6 +36,10 @@ spring:
     enabled: true
 
 server:
+  tomcat:
+    # Lets Tomcat read the rest of an upload it already answered (for instance a 400 for a missing
+    # part), so the client sees the error instead of a dropped connection. Matches max-request-size.
+    max-swallow-size: 52MB
   error:
     whitelabel:
       enabled: false

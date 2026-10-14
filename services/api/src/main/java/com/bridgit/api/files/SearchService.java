@@ -1,5 +1,6 @@
 package com.bridgit.api.files;
 
+import com.bridgit.api.common.error.ApiException;
 import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
@@ -9,7 +10,6 @@ import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.CloudProviderClient;
 import com.bridgit.api.providers.CloudProviderClients;
-import com.bridgit.api.providers.ProviderApiException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -118,7 +118,8 @@ public class SearchService {
             token -> client.search(token, query, RESULTS_PER_PROVIDER)
         );
         return new ProviderSearchResult(provider.id(), true, null, items);
-      } catch (ProviderApiException ex) {
+      } catch (ApiException ex) {
+        // Includes ReconnectionRequiredException, so the client can offer to reconnect.
         return new ProviderSearchResult(provider.id(), false, ex.getCode(), List.of());
       } catch (Exception ex) {
         return new ProviderSearchResult(provider.id(), false, "PROVEDOR_FALHOU", List.of());

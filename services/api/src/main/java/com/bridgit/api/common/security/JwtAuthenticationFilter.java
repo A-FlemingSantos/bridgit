@@ -25,6 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+  private static final String LOGOUT_PATH = "/api/auth/logout";
 
   private final JwtService jwtService;
   private final UserRepository userRepository;
@@ -93,10 +94,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       }
     } catch (UnauthorizedException ex) {
       SecurityContextHolder.clearContext();
+      if (isLogout(request)) {
+        // Logging out of a session that is already over is not an error.
+        filterChain.doFilter(request, response);
+        return;
+      }
       writeUnauthorizedResponse(request, response, ex);
       return;
     } catch (JwtException | IllegalArgumentException ex) {
       SecurityContextHolder.clearContext();
+      if (isLogout(request)) {
+        filterChain.doFilter(request, response);
+        return;
+      }
       writeUnauthorizedResponse(
           request,
           response,
@@ -119,6 +129,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     filterChain.doFilter(request, response);
+  }
+
+  private static boolean isLogout(HttpServletRequest request) {
+    return "POST".equals(request.getMethod()) && LOGOUT_PATH.equals(request.getRequestURI().substring(request.getContextPath().length()));
   }
 
   private void writeUnauthorizedResponse(

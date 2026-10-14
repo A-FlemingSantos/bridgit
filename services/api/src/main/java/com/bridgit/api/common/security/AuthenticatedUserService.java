@@ -30,6 +30,14 @@ public class AuthenticatedUserService {
     return requirePrincipal().getUserId();
   }
 
+  public Optional<SecurityUser> findPrincipal() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !(authentication.getPrincipal() instanceof SecurityUser principal)) {
+      return Optional.empty();
+    }
+    return Optional.of(principal);
+  }
+
   public Optional<UUID> findUserId() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !(authentication.getPrincipal() instanceof SecurityUser principal)) {

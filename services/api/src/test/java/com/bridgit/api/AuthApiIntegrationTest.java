@@ -118,7 +118,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.error.message").value("Usuario ou senha invalidos."));
+        .andExpect(jsonPath("$.error.message").value("Usuário ou senha inválidos."));
 
     mockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
@@ -131,7 +131,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.error.message").value("Usuario ou senha invalidos."));
+        .andExpect(jsonPath("$.error.message").value("Usuário ou senha inválidos."));
   }
 
   @Test

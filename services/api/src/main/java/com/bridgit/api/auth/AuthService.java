@@ -123,11 +123,12 @@ public class AuthService {
     return buildSessionResponse(user, session);
   }
 
+  /** Idempotent: a session that is already over (revoked, expired or unknown) is simply reported as ended. */
   @Transactional
   public AuthDtos.MessageResponse logout() {
-    UUID userId = authenticatedUserService.requireUserId();
-    UUID sessionId = authenticatedUserService.requireSessionId();
-    userSessionService.revokeCurrentSession(userId, sessionId);
+    authenticatedUserService.findPrincipal()
+        .filter(principal -> principal.getSessionId() != null)
+        .ifPresent(principal -> userSessionService.revokeCurrentSession(principal.getUserId(), principal.getSessionId()));
     return new AuthDtos.MessageResponse("Sessao encerrada com sucesso.");
   }
 

@@ -1,6 +1,7 @@
 package com.bridgit.api.operations;
 
 import com.bridgit.api.catalog.LocalHubProperties;
+import com.bridgit.api.common.api.UploadLimits;
 import com.bridgit.api.common.error.ApiException;
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -18,7 +19,7 @@ public class UploadPayloadStore {
   private final Path root;
   public UploadPayloadStore(LocalHubProperties properties) { root = Path.of(properties.getUploadDirectory()).toAbsolutePath().normalize(); }
   public OperationStore.Payload receive(InputStreamSource source, long expected) {
-    if (expected < 0 || expected > 50L * 1024 * 1024) throw failure("ARQUIVO_GRANDE", "O arquivo excede o limite de 50 MB.");
+    if (expected < 0 || expected > UploadLimits.MAX_BYTES) throw failure("ARQUIVO_GRANDE", "O arquivo excede o limite de " + UploadLimits.MAX_LABEL + ".");
     Path partial = root.resolve(UUID.randomUUID() + ".partial");
     Path ready = root.resolve(UUID.randomUUID() + ".upload");
     try {

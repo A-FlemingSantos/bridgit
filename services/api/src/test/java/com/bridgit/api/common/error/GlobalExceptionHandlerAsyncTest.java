@@ -1,7 +1,9 @@
 package com.bridgit.api.common.error;
 
+import java.sql.SQLException;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +26,19 @@ class GlobalExceptionHandlerAsyncTest {
   }
 
   @Test
+  void uniqueViolationIsAConflict() throws Exception {
+    mvc.perform(get("/duplicate")).andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("CONFLITO_DADOS"));
+  }
+
+  @Test
+  void truncationKeepsTheLimitMessage() throws Exception {
+    mvc.perform(get("/truncated")).andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("DADOS_INVALIDOS"))
+        .andExpect(jsonPath("$.error.message").value("Os dados enviados excedem os limites permitidos."));
+  }
+
+  @Test
   void unrelatedFailuresStillProduceAnInternalError() throws Exception {
     mvc.perform(get("/failure")).andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.error.code").value("ERRO_INTERNO"));
@@ -33,6 +48,12 @@ class GlobalExceptionHandlerAsyncTest {
   static class DisconnectedResponseController {
     @GetMapping("/disconnected") public void disconnected() throws AsyncRequestNotUsableException {
       throw new AsyncRequestNotUsableException("Response no longer usable");
+    }
+    @GetMapping("/duplicate") public void duplicate() {
+      throw new DataIntegrityViolationException("dup", new SQLException("duplicate", "23000", 2627));
+    }
+    @GetMapping("/truncated") public void truncated() {
+      throw new DataIntegrityViolationException("long", new SQLException("truncated", "22001", 2628));
     }
     @GetMapping("/failure") public void failure() {
       throw new IllegalStateException("Database unavailable");
