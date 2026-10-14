@@ -261,6 +261,58 @@ Falta decidir se as opções atuais de Ajustes bastam ou se faltam opções de p
 
 ---
 
+## 24. Web: pasta excluída continua sendo recarregada (404 no console)
+
+**Peso:** baixo. Não aparece na tela, mas gera requisições inúteis e erros no console.
+
+Visto em 14/10: depois de excluir a "Pasta sem título" no Google Drive, o console do navegador mostra `GET /api/providers/google-drive/items?parent=<pasta excluída>` com 404. A API está certa: a pasta não existe mais.
+
+**Causa:** o web guarda em cache cada pasta aberta (`folderCache` no `HubDataProvider`). `revalidateStale` roda quando a aba ganha foco ou volta a ficar visível e recarrega toda pasta em cache com mais de 30 s. Abrir o DevTools devolve o foco à aba e dispara isso. Ao excluir uma pasta, `removeItemFromCaches` a tira da lista da pasta-mãe, mas a entrada de cache da própria pasta continua lá. Num 404, o `loadFolder` mantém a entrada e só atualiza o `fetchedAt`, então ela volta a ser pedida a cada foco até a página ser recarregada. O comportamento já existia no `main`.
+
+**Correção escolhida (a mais estável):** quando a recarga de uma pasta responder 404, descartar a entrada de cache dessa pasta e das subpastas guardadas sob ela. A regra fica num ponto só e cobre todos os jeitos de uma pasta sumir: excluída no próprio aparelho, em outro aparelho ou direto no provedor. Limpar o cache só na exclusão feita pelo Bridgit não cobriria os dois últimos casos. Se a pasta excluída estiver aberta na tela, a página deve mostrar "não encontrada" e não ficar tentando de novo.
+
+---
+
+## 25. Google Drive: arquivos do Office não têm leitura, e o aviso engana
+
+**Peso:** baixo. A limitação é aceita; só o aviso muda.
+
+Visto em 14/10 com `Math Books.docx`. O Google Drive só exporta para PDF os documentos nativos do Google (Docs, Planilhas, Apresentações e Desenhos). Um `.docx`, `.xlsx` ou `.pptx` enviado ao Drive não é nativo, então `ReadPlanSupport` devolve `none` e o web mostra "Este arquivo não tem leitura no Bridgit", com o botão de baixar. O comportamento já existia no `main`: não é bug, é limitação do provedor. No OneDrive e no Dropbox o mesmo arquivo abre, porque esses provedores geram o PDF.
+
+**Decisão:** manter sem leitura, com o aviso e o download. Não converter no servidor nem criar cópias convertidas no Drive do usuário.
+
+**O que muda:** o texto atual sugere que o Bridgit não lê esse tipo de arquivo em lugar nenhum, o que é falso. O aviso deve dizer que o provedor não oferece visualização para este arquivo e que dá para baixá-lo, por exemplo: "O Google Drive não gera visualização deste arquivo. Baixe para abrir." O modo `none` também cobre outros casos, como texto grande demais e tipos sem leitor. Para o texto acertar a causa, a resposta de leitura (`ReadResponse`) pode trazer um motivo, por exemplo `PROVEDOR_SEM_VISUALIZACAO` ou `ARQUIVO_GRANDE_DEMAIS`, e o cliente escolhe a frase. O mobile segue o mesmo texto.
+
+---
+
+## 26. Optimistic UI só cobre parte das ações
+
+**Peso:** médio. Percepção de velocidade no web e no mobile.
+
+O finding 8 deixou criar pasta e excluir instantâneos no web. As outras ações ainda esperam o servidor terminar.
+
+**Web, hoje:**
+- **Já instantâneo:** criar pasta, enviar, renomear, mover, excluir, atalhos e recentes aparecem na lista na hora. `operationProjection.js` projeta as operações pendentes sobre o cache. Os formulários de criar pasta e de excluir fecham assim que o servidor aceita (`onAccepted`).
+- **Renomear e mover:** a lista muda na hora, mas o formulário fica aberto até a operação terminar, consultando o servidor a cada 750 ms. `renameItem` e `moveItem` não repassam o `onAccepted` para o `updateItem`.
+- **Enviar vários arquivos:** `uploadFiles` envia um arquivo por vez e espera cada um terminar. O próximo arquivo só aparece como pendente depois que o anterior termina.
+
+**Mobile, hoje:** não há Optimistic UI.
+- **Criar pasta, renomear, excluir e enviar:** `useItemActions` espera `runOperation`, que consulta a operação a cada 750 ms por até 60 s. Só então recarrega as telas afetadas. O formulário fica aberto e a lista só muda depois da recarga.
+- **Atalhos:** também esperam o servidor e depois recarregam a Home, as pastas e o arquivo.
+
+**O que expandir:**
+1. **Web, renomear e mover:** fechar o formulário quando o servidor aceitar, como criar pasta e excluir.
+2. **Web, vários arquivos:** registrar a intenção de todos os arquivos de uma vez, para todos aparecerem como pendentes, e continuar enviando em sequência.
+3. **Mobile:**
+   - Projetar as operações pendentes sobre as listagens, como o `operationProjection` do web. A lógica é a mesma; vale considerar movê-la para o `shared-client`.
+   - Fechar o formulário quando o servidor aceitar.
+   - Mostrar a recusa num aviso, desfazendo a mudança na tela.
+   - Atalhos entram e saem da lista na hora, desfeitos em caso de erro, como no web.
+
+**Fica como está:** criar link público, porque o endereço vem do servidor; desconectar provedor; e alterações de conta. São ações raras, em que esperar a confirmação é o esperado.
+
+---
+
 ## Corrigido no dia
 
 Branch `mobile/adjustments`, PR #6 (aberta; a revisão automática do Copilot não rodou por limite de cota).
