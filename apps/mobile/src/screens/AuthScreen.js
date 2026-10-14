@@ -97,7 +97,7 @@ function Field({
   )
 }
 
-export default function AuthScreen({ navigation }) {
+export default function AuthScreen() {
   const { theme, isDark } = useMobileTheme()
   const insets = useSafeAreaInsets()
   const [register, setRegister] = useState(false)
