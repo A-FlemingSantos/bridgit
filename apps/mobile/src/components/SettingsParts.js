@@ -58,7 +58,6 @@ export function ConfirmPanel({ prompt, confirmLabel, onConfirm, onCancel }) {
   )
 }
 
-// Botão que se troca pelo painel de confirmação ao ser tocado.
 // Linha com título, dica e um controle à direita.
 export function PrefRow({ title, hint, children }) {
   return (
