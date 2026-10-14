@@ -7,6 +7,7 @@ const CODE_MESSAGES = {
   SENHA_OBRIGATORIA: 'Informe a senha.',
   SENHA_INVALIDA: 'A senha deve ter pelo menos 8 caracteres.',
   SENHA_ATUAL_INVALIDA: 'A senha atual está incorreta.',
+  MUITAS_TENTATIVAS: 'Muitas tentativas de login. Aguarde alguns minutos e tente de novo.',
   AUTENTICACAO_OBRIGATORIA: 'Faça login para continuar.',
   TOKEN_INVALIDO: 'Sua sessão expirou. Faça login novamente.',
   SESSAO_INVALIDA: 'Sua sessão não é mais válida. Faça login novamente.',

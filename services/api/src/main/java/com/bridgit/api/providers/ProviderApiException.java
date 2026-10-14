@@ -24,6 +24,7 @@ public class ProviderApiException extends ApiException {
     this.retryAfterSeconds = retryAfterSeconds;
   }
 
+  @Override
   public Long getRetryAfterSeconds() {
     return retryAfterSeconds;
   }

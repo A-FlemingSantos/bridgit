@@ -55,7 +55,8 @@ public class AuthController {
         request.deviceKey(),
         parseClientKind(request.clientKind()),
         Boolean.TRUE.equals(request.persistent()),
-        httpRequest.getHeader("User-Agent")
+        httpRequest.getHeader("User-Agent"),
+        httpRequest.getRemoteAddr()
     ));
   }
 

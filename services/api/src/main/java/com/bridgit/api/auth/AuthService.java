@@ -6,10 +6,12 @@ import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.common.security.JwtService;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,9 @@ public class AuthService {
   private final JwtService jwtService;
   private final AuthenticatedUserService authenticatedUserService;
   private final UserSessionService userSessionService;
+  private final LoginAttemptLimiter loginAttempts;
+  // Compared against when the user does not exist, so both paths cost one bcrypt check.
+  private final String timingHash;
 
   public AuthService(
       UserRepository userRepository,
@@ -30,7 +35,8 @@ public class AuthService {
       AuthenticationManager authenticationManager,
       JwtService jwtService,
       AuthenticatedUserService authenticatedUserService,
-      UserSessionService userSessionService
+      UserSessionService userSessionService,
+      LoginAttemptLimiter loginAttempts
   ) {
     this.userRepository = userRepository;
     this.passwordEncoder = passwordEncoder;
@@ -38,6 +44,8 @@ public class AuthService {
     this.jwtService = jwtService;
     this.authenticatedUserService = authenticatedUserService;
     this.userSessionService = userSessionService;
+    this.loginAttempts = loginAttempts;
+    this.timingHash = passwordEncoder.encode("bridgit-login-timing");
   }
 
   @Transactional
@@ -74,20 +82,34 @@ public class AuthService {
       UUID deviceKey,
       ClientKind clientKind,
       boolean persistent,
-      String userAgent
+      String userAgent,
+      String clientAddress
   ) {
     String usernameKey = username == null ? "" : username.trim().toLowerCase(java.util.Locale.ROOT);
+    loginAttempts.check(usernameKey, clientAddress);
     if (usernameKey.isBlank()) {
+      loginAttempts.failed(usernameKey, clientAddress);
       throw new BadCredentialsException("Usuario ou senha invalidos.");
     }
 
-    UserEntity user = userRepository.findByUsernameKey(usernameKey)
-        .orElseThrow(() -> new BadCredentialsException("Usuario ou senha invalidos."));
+    Optional<UserEntity> found = userRepository.findByUsernameKey(usernameKey);
+    if (found.isEmpty()) {
+      passwordEncoder.matches(password == null ? "" : password, timingHash);
+      loginAttempts.failed(usernameKey, clientAddress);
+      throw new BadCredentialsException("Usuario ou senha invalidos.");
+    }
 
-    authenticationManager.authenticate(
-        new UsernamePasswordAuthenticationToken(usernameKey, password)
-    );
+    try {
+      authenticationManager.authenticate(
+          new UsernamePasswordAuthenticationToken(usernameKey, password)
+      );
+    } catch (AuthenticationException ex) {
+      loginAttempts.failed(usernameKey, clientAddress);
+      throw ex;
+    }
+    loginAttempts.succeeded(usernameKey);
 
+    UserEntity user = found.get();
     UserSessionEntity session = userSessionService.createSession(user.getId(), deviceKey, clientKind, persistent, userAgent);
     return buildSessionResponse(user, session);
   }

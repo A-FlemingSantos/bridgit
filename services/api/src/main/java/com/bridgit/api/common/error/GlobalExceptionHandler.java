@@ -50,9 +50,9 @@ public class GlobalExceptionHandler {
         request.getRequestURI(),
         List.of()
     );
-    if (ex instanceof ProviderApiException providerEx && providerEx.getRetryAfterSeconds() != null) {
+    if (ex.getRetryAfterSeconds() != null) {
       return ResponseEntity.status(response.getStatusCode())
-          .header("Retry-After", String.valueOf(providerEx.getRetryAfterSeconds()))
+          .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
           .body(response.getBody());
     }
     return response;
