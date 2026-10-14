@@ -1,5 +1,7 @@
 // Pure helpers for files the app downloads to hand to another app.
 export function safeName(name) {
+  // Control characters are exactly what file names must not keep.
+  // eslint-disable-next-line no-control-regex
   const cleaned = String(name ?? '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim()
   return cleaned || 'arquivo'
 }
