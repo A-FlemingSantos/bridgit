@@ -90,6 +90,17 @@ class GoogleDriveSyncTest {
   }
 
   @Test
+  void checkpointFromTheOldFormatRequiresAFreshInventory() {
+    // Saved before remoteVersion became the content revision: no "v" field.
+    String old = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+        "{\"phase\":\"changes\",\"rootRef\":\"root-id\",\"pageToken\":\"changes-9\"}"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+    assertThrows(SyncResetException.class, () -> client.syncPage("token", old));
+    server.verify();
+  }
+
+  @Test
   void incompleteInventoryAndExpiredChangeTokenRequireReset() {
     server.expect(requestTo("https://www.googleapis.com/drive/v3/files/root?fields=id"))
         .andRespond(withSuccess("{\"id\":\"root-id\"}", MediaType.APPLICATION_JSON));

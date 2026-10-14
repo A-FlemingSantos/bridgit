@@ -70,6 +70,10 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   private static final String CHANGE_FIELDS =
       "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FILE_FIELDS + "))";
   private static final int PAGE_SIZE = 200;
+  // Bumped when what the catalog stores for Drive changes. An older checkpoint is refused, which makes the
+  // catalog worker reset and take a fresh inventory. 2: remoteVersion is the content revision, trashed items
+  // and items without a parent are left out.
+  private static final int CHECKPOINT_FORMAT = 2;
   private static final int SEARCH_MAX_PAGES = 5;
   private static final int MAX_ANCESTRY_DEPTH = 512;
   private static final int ROOT_ID_CACHE_SIZE = 256;
@@ -955,8 +959,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   private String encodeCheckpoint(SyncCheckpoint checkpoint) {
     try {
-      return Base64.getUrlEncoder().withoutPadding().encodeToString(
-          objectMapper.writeValueAsBytes(checkpoint));
+      ObjectNode node = objectMapper.valueToTree(checkpoint);
+      node.put("v", CHECKPOINT_FORMAT);
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(objectMapper.writeValueAsBytes(node));
     } catch (Exception ex) {
       throw new ProviderApiException("Não foi possível salvar o checkpoint do Google Drive.");
     }
@@ -965,6 +970,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   private SyncCheckpoint decodeCheckpoint(String checkpoint) {
     try {
       JsonNode node = objectMapper.readTree(Base64.getUrlDecoder().decode(checkpoint));
+      if (node.path("v").asInt(0) != CHECKPOINT_FORMAT) {
+        throw new IllegalArgumentException("checkpoint de outro formato");
+      }
       String phase = node.path("phase").asText(null);
       String rootRef = node.path("rootRef").asText(null);
       String startPageToken = node.path("startPageToken").asText(null);
