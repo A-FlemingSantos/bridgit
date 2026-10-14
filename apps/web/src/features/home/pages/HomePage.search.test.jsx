@@ -17,6 +17,10 @@ vi.mock('../../../shared/state/HubState.jsx', () => ({
   useHub: () => ({ openOverlay: vi.fn() }),
 }))
 
+vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
+  useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
+}))
+
 import {
   useHubActions,
   useProviders,

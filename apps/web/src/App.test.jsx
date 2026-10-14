@@ -706,8 +706,34 @@ describe('App', () => {
     expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
     await user.click(screen.getByRole('menuitem', { name: 'Excluir' }))
     const dialog = screen.getByRole('dialog', { name: 'Excluir pasta' })
+    expect(within(dialog).getByText('"Inovações técnicas" e tudo o que está dentro dela vão para a lixeira do provedor.')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Excluir' }))
     expect(screen.queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra a página não encontrada em rotas desconhecidas', async () => {
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/nao-existe']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ir para o início' })).toHaveAttribute('href', '/')
+  })
+
+  it('mostra o indicador de carregamento enquanto a sessão é revalidada', async () => {
+    apiRequest.mockImplementation(() => new Promise(() => {}))
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('status', { name: 'Carregando' })).toBeInTheDocument()
   })
 
   it('mostra conflitos no space', async () => {

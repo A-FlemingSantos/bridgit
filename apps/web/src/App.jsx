@@ -15,11 +15,13 @@ import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PublicLinkPage from './features/public-link/pages/PublicLinkPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
+import Spinner from './shared/components/Spinner/Spinner.jsx'
 import { isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
 import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
+import styles from './App.module.css'
 
 export default function App() {
   return (
@@ -48,7 +50,11 @@ function AppShell() {
   }
 
   if (status === 'boot') {
-    return null
+    return (
+      <div className={styles.boot}>
+        <Spinner />
+      </div>
+    )
   }
 
   if (!isPublicRoute(location.pathname) && status === 'anonymous') {
@@ -77,6 +83,7 @@ function AppShell() {
         <Route path={ROUTES.provider} element={<SpaceBrowsePage />} />
         <Route path={ROUTES.privacy} element={<PlaceholderScreen title="Privacidade" />} />
         <Route path={ROUTES.terms} element={<PlaceholderScreen title="Termos" />} />
+        <Route path="*" element={<PlaceholderScreen title="Página não encontrada" backLabel="Ir para o início" />} />
       </Routes>
       {settingsOpen ? (
         <Routes>
