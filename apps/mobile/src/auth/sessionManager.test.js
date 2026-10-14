@@ -14,7 +14,10 @@ vi.mock('./secureStorage', () => ({
 
 vi.mock('../api/config', () => ({ apiOptions: { baseUrl: 'http://api.test' } }))
 
-vi.mock('@bridgit/shared-client', () => ({ apiRequest: vi.fn() }))
+vi.mock('@bridgit/shared-client', async (importOriginal) => ({
+  ...(await importOriginal()),
+  apiRequest: vi.fn(),
+}))
 
 const { apiRequest } = await import('@bridgit/shared-client')
 const { createSessionManager } = await import('./sessionManager')

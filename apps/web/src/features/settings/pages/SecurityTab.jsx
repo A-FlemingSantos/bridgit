@@ -1,8 +1,8 @@
-import { ApiClientError } from '@bridgit/shared-client'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
+import { apiErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import Toggle from '../components/Toggle.jsx'
 import BrowserMark from './BrowserMark.jsx'
 import { formatSessionTime } from './formatSessionTime.js'
@@ -69,11 +69,7 @@ export default function SecurityTab() {
       setPasswordSaved(true)
       form.reset()
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError('password', err.message)
-      } else {
-        setError('password', 'Não foi possível alterar a senha.')
-      }
+      setError('password', apiErrorMessage(err, 'Não foi possível alterar a senha.'))
     }
   }
 
@@ -101,11 +97,7 @@ export default function SecurityTab() {
       const items = await listSessions()
       setSessions(Array.isArray(items) ? items : [])
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError('sessions', err.message)
-      } else {
-        setError('sessions', 'Não foi possível encerrar as outras sessões.')
-      }
+      setError('sessions', apiErrorMessage(err, 'Não foi possível encerrar as outras sessões.'))
     }
   }
 
@@ -124,11 +116,7 @@ export default function SecurityTab() {
       navigate(ROUTES.login, { replace: true })
     } catch (err) {
       setDeleting(false)
-      if (err instanceof ApiClientError) {
-        setError('delete', err.message)
-      } else {
-        setError('delete', 'Não foi possível excluir a conta.')
-      }
+      setError('delete', apiErrorMessage(err, 'Não foi possível excluir a conta.'))
     }
   }
 

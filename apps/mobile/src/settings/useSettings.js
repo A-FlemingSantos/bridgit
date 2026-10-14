@@ -3,7 +3,7 @@ import { AppState } from 'react-native'
 import Constants from 'expo-constants'
 import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
-import { apiRequest, connectProvider, disconnectProvider } from '@bridgit/shared-client'
+import { apiRequest, connectProvider, disconnectProvider, isSessionFailure } from '@bridgit/shared-client'
 import { getItem, setItem } from '../auth/secureStorage'
 import { useSession } from '../auth/SessionContext'
 import { useProviders } from '../hub/hooks'
@@ -53,7 +53,7 @@ export function useSettings() {
       await action()
       return ''
     } catch (error) {
-      if (error?.status === 401) {
+      if (isSessionFailure(error)) {
         invalidate()
         return ''
       }
@@ -71,7 +71,7 @@ export function useSettings() {
         current: Boolean(item.current),
       })))
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
     }
   }, [token, invalidate])
 

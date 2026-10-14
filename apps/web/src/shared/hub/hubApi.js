@@ -1,6 +1,8 @@
 import { isApiClientError, isHubSessionFailure } from './hubCache.js'
 import {
   ApiClientError,
+  exceedsUploadLimit,
+  uploadTooLargeError,
   submitOperation,
   submitUploadOperation,
   getOperation,
@@ -38,12 +40,12 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     const token = getToken()
     const identity = options.getIdentity?.()
     if (!token) {
-      throw new Error('Sessao indisponivel.')
+      throw new Error('Sessão indisponível.')
     }
 
     try {
       const result = await request(token)
-      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessao foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
+      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessão foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
       return result
     } catch (error) {
       if (isHubSessionFailure(error)) {
@@ -89,7 +91,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     options.onOperation?.(accepted)
     while (!['SUCCEEDED', 'REJECTED', 'NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(accepted.status)) {
       await new Promise((resolve) => setTimeout(resolve, 750))
-      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessao foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
+      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessão foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
       try {
         accepted = await call((token) => getOperation(token, accepted.id))
         uncertainRequests.set(signature, { request, accepted })
@@ -100,7 +102,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       }
     }
     if (accepted.status === 'REJECTED') uncertainRequests.delete(signature)
-    if (accepted.status !== 'SUCCEEDED') throw new ApiClientError(accepted.errorMessage ?? 'Nao foi possivel concluir a operacao.', {
+    if (accepted.status !== 'SUCCEEDED') throw new ApiClientError(accepted.errorMessage ?? 'Não foi possível concluir a operação.', {
       status: accepted.status === 'NEEDS_ATTENTION' ? 503 : 409, code: accepted.errorCode ?? 'OPERACAO_REJEITADA',
     })
     uncertainRequests.delete(signature)
@@ -138,7 +140,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       await operation(provider, 'CREATE_FOLDER', { parentRef, name }) ?? legacy(provider, 'CREATE_FOLDER', { parentRef, name }, null,
         (token, requestOptions) => createFolderRequest(token, provider, parentRef, name, requestOptions)),
     uploadFile: async (provider, parentRef, file) => {
-      if (file.size > 50 * 1024 * 1024) throw new ApiClientError('O arquivo excede o limite de 50 MB.', { status: 400, code: 'ARQUIVO_GRANDE' })
+      if (exceedsUploadLimit(file)) throw uploadTooLargeError()
       return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(provider, 'UPLOAD',
         { parentRef, name: file.name, contentType: file.type }, file,
         (token, requestOptions) => uploadFileRequest(token, provider, parentRef, file, requestOptions))

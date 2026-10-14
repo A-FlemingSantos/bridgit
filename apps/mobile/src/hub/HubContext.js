@@ -5,6 +5,7 @@ import {
   enablePublicLink,
   getHubEventHead,
   getHubEvents,
+  isSessionFailure,
   listProviders,
   removeShortcut,
 } from '@bridgit/shared-client'
@@ -34,7 +35,7 @@ export function HubProvider({ children }) {
       setProviders(await listProviders(tokenRef.current))
       setProvidersStatus('ready')
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
       else setProvidersStatus('error')
     }
   }, [invalidate])
@@ -82,7 +83,7 @@ export function HubProvider({ children }) {
     try {
       return await action(tokenRef.current)
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
       throw error
     } finally {
       bump()

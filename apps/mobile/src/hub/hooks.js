@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getItem, getReadSource, listFolder, listRecents, listShortcuts, recordRecent } from '@bridgit/shared-client'
+import { getItem, getReadSource, isSessionFailure, listFolder, listRecents, listShortcuts, recordRecent } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
 import { useHub } from './HubContext'
 import { toEntry } from './format'
@@ -7,7 +7,7 @@ import { toEntry } from './format'
 const MAX_PAGES = 20
 
 // Runs `load(token)` on mount, when `key` changes and whenever the hub reports a change.
-// A refetch keeps the previous data on screen. A 401 ends the session.
+// A refetch keeps the previous data on screen. A session failure (401) ends the session.
 function useResource(load, key) {
   const { token, invalidate } = useSession()
   const { revision } = useHub()
@@ -22,7 +22,7 @@ function useResource(load, key) {
       const data = await loadRef.current(token)
       setState({ status: 'ready', data, error: null })
     } catch (error) {
-      if (error?.status === 401) {
+      if (isSessionFailure(error)) {
         invalidate()
         return
       }

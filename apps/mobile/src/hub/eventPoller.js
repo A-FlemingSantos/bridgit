@@ -1,3 +1,5 @@
+import { isSessionFailure } from '@bridgit/shared-client'
+
 // Polls /api/hub/events. React Native cannot read a streaming fetch body, so the SSE endpoint is not used.
 // Starts from the current head so historic writes are never replayed, then delivers each event once.
 export function createEventPoller({
@@ -42,7 +44,7 @@ export function createEventPoller({
       // A full page means more events are waiting; fetch the next page right away.
       schedule(events.length >= 200 ? 0 : intervalMs)
     } catch (error) {
-      if (error?.status === 401) {
+      if (isSessionFailure(error)) {
         running = false
         onUnauthorized?.(error)
         return
