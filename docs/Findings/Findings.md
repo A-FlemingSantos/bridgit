@@ -100,6 +100,8 @@ A raiz é outro finding, já conhecido: no mobile, **qualquer evento recarrega t
 
 **Peso:** médio. Afeta todos os clientes e exige mexer em duas camadas juntas.
 
+**Status:** resolvido em `fix/contrato-de-erros`: os 401 e 403 saem pelo mesmo envelope do handler, em UTF-8 e com timestamp ISO; todas as mensagens da API têm acento; os mapas dos clientes ficaram só com o que é local ou aponta para a interface.
+
 Todas as mensagens do backend são escritas sem acento ("Usuario ou senha invalidos.", "Sua sessao foi encerrada."). Parece proposital: os 401 de sessão são escritos direto na resposta, pelo `JwtAuthenticationFilter` e pelo entry point da `SecurityConfiguration`, sem charset UTF-8. Com acento, esses textos chegariam corrompidos.
 
 Os mesmos 401 também trazem o `timestamp` como número, enquanto os erros tratados pelo `GlobalExceptionHandler` trazem data ISO. São dois formatos de erro para o mesmo contrato.
@@ -173,6 +175,8 @@ Ainda não se sabe se a piscada vem da troca do item, da recarga da pasta dispar
 
 **Peso:** baixo depois da correção do dia, mas o comportamento de fundo continua.
 
+**Status:** resolvido em `fix/contrato-de-erros`: parte, parâmetro ou cabeçalho ausente responde 400 `REQUISICAO_INVALIDA` dizendo o que falta, e o Tomcat lê o resto do envio (`server.tomcat.max-swallow-size`). Conferido com um envio real de 10 MB sem a parte `request`: 400, sem conexão cortada.
+
 Quando uma requisição multipart chega sem uma parte obrigatória, o Spring lança `MissingServletRequestPartException`. O `GlobalExceptionHandler` não trata esse caso e responde 500. Como o servidor responde antes de ler o corpo inteiro, a conexão é cortada no meio do envio do arquivo. O cliente vê "sem conexão" em vez de um erro de validação.
 
 Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi corrigido, mas qualquer outra parte faltando ainda cai em 500. É o mesmo finding do levantamento original sobre 405 e parâmetro ausente virando 500. A correção é tratar essas exceções no handler como 400.
@@ -182,6 +186,8 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 ## 11. Logout de uma sessão já revogada responde 401
 
 **Peso:** baixo. Chamar `/api/auth/logout` com um token de sessão já encerrada responde 401 `SESSAO_REVOGADA`, em vez de sucesso. O mobile ignora esse erro, então não afeta o usuário. Logout costuma ser idempotente.
+
+**Status:** resolvido em `fix/contrato-de-erros`: logout é idempotente e responde 200 mesmo com a sessão já encerrada.
 
 ---
 

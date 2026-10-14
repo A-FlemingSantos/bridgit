@@ -68,6 +68,8 @@ Se o usuário reconecta um provedor com outra conta, a conexão antiga é exclu�
 
 ### Erros que viram mensagens erradas
 
+✅ **Resolvido em `fix/contrato-de-erros`:** violação de unicidade vira 409 `CONFLITO_DADOS` e só o truncamento fala em limite; 405, parâmetro, parte de formulário e cabeçalho ausentes, tipo de mídia e endereço inexistente têm respostas próprias.
+
 - `DataIntegrityViolationException` sempre vira "excedem os limites permitidos" (`GlobalExceptionHandler`), inclusive numa violação de unicidade, por exemplo dois cadastros simultâneos com o mesmo nome.
 - O handler não trata 405, parâmetro ausente nem parte de multipart ausente. Tudo cai no genérico e vira 500. Isso se confirmou nos testes de 13/10.
 
@@ -123,17 +125,17 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| bug | Resposta 200 sem `data` devolve `undefined` em silêncio; `success` não é conferido | `apiClient.js` `apiRequest` |
-| lacuna | Abort e falha de rede viram o mesmo `ERRO_CONEXAO`; o erro original é descartado (sem `cause`) | `apiRequest` |
-| lacuna | No modo blob, um erro descarta a mensagem do servidor (`ERRO_DOWNLOAD`) | `apiRequest` |
-| bug | `uploadFile` lança o erro de 50 MB de forma síncrona; as outras funções rejeitam a promise | `hub.js` |
-| inconsistência | Raiz enviada de três formas: `null` em `createFolder`, `''` em `uploadFile` e `updateItem`, omitida em `listFolder` | `hub.js` |
-| lacuna | `submitUploadOperation` não confere tamanho nem envia `Idempotency-Key` | `operations.js` |
-| risco | `baseUrl` com barra no fim gera `//api` | `buildApiUrl` |
+| bug | ✅ Resposta 200 sem `data` devolve `undefined` em silêncio; `success` não é conferido | `apiClient.js` `apiRequest` |
+| lacuna | ✅ Abort e falha de rede viram o mesmo `ERRO_CONEXAO`; o erro original é descartado (sem `cause`) | `apiRequest` |
+| lacuna | ✅ No modo blob, um erro descarta a mensagem do servidor (`ERRO_DOWNLOAD`) | `apiRequest` |
+| bug | ✅ `uploadFile` lança o erro de 50 MB de forma síncrona; as outras funções rejeitam a promise | `hub.js` |
+| inconsistência | ✅ Raiz enviada de três formas: `null` em `createFolder`, `''` em `uploadFile` e `updateItem`, omitida em `listFolder` | `hub.js` |
+| lacuna | ✅ `submitUploadOperation` não confere tamanho nem envia `Idempotency-Key` | `operations.js` |
+| risco | ✅ `baseUrl` com barra no fim gera `//api` | `buildApiUrl` |
 | morto | ✅ `createApiClient` não é usado | `apiClient.js` |
-| lacuna | Sem testes para `apiClient.js` e `operations.js` | shared-client |
-| inconsistência | Dois formatos de 401: o entry point escreve JSON à mão, sem envelope | `SecurityConfiguration` |
-| inconsistência | Limite de 50 MB repetido em 8 lugares (handler, `application.yml`, `OperationService`, `UploadPayloadStore`, shared-client, `hubApi.js`, `hubErrorMessage.js`, mobile `useItemActions.js`) | vários |
+| lacuna | ✅ Sem testes para `apiClient.js` e `operations.js` | shared-client |
+| inconsistência | ✅ Dois formatos de 401: o entry point escreve JSON à mão, sem envelope | `SecurityConfiguration` |
+| inconsistência | ✅ Limite de 50 MB repetido em 8 lugares (handler, `application.yml`, `OperationService`, `UploadPayloadStore`, shared-client, `hubApi.js`, `hubErrorMessage.js`, mobile `useItemActions.js`) | vários |
 
 ### Banco de dados
 
@@ -149,19 +151,19 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | Tipo | Finding | Onde |
 |---|---|---|
 | inconsistência | Regras de nome e senha em vários lugares: records, `UsernameRules`, `validatePassword` copiado em `AuthService` e `AccountService`; a chave em minúsculas é recalculada inline em três lugares | auth, account |
-| inconsistência | `SENHA_ATUAL_INVALIDA` é 400; credencial errada no login é 401 | `AccountService` |
+| inconsistência | `SENHA_ATUAL_INVALIDA` é 400; credencial errada no login é 401 (mantido de propósito; ver "Não procedem mais") | `AccountService` |
 | lacuna | Após renomear, os tokens das outras sessões mantêm o nome antigo no claim `username`. O servidor ignora o claim; só importa se um cliente decodificar o JWT | `AccountService` |
 | lacuna | O filtro faz duas consultas e, às vezes, uma escrita por requisição | `JwtAuthenticationFilter` |
 | lacuna | Não há rota para revogar uma sessão específica (o repositório já tem `revokeOne`) | `AuthController` |
 | morto | ✅ `GET /api/account` sem uso nos clientes | `AccountController` |
-| bug | `HUB_SESSION_FAILURE_CODES` não inclui `SESSAO_REVOGADA` nem `USUARIO_INVALIDO`; uma sessão revogada não desloga pela camada de dados do web | `shared/hub/hubCache.js` |
-| risco | Web: no boot, um erro que não seja 401 usa a sessão guardada sem confirmar | `SessionContext.jsx` |
+| bug | ✅ `HUB_SESSION_FAILURE_CODES` não inclui `SESSAO_REVOGADA` nem `USUARIO_INVALIDO`; uma sessão revogada não desloga pela camada de dados do web | `shared/hub/hubCache.js` |
+| risco | Web: no boot, um erro que não seja 401 usa a sessão guardada sem confirmar (mantido de propósito; ver "Não procedem mais") | `SessionContext.jsx` |
 | lacuna | Web: sem refresh periódico; sessões com "lembrar" só percebem a expiração por 401 | `SessionContext.jsx` |
 | bug | ✅ Web: na aba Segurança, um único `error` aparece só no cartão de senha; o rótulo "Encerradas" nunca volta; a sessão atual não é destacada | `SecurityTab.jsx` |
 | bug | ✅ Web: o campo de nome não acompanha mudanças feitas em outra aba | `AccountTab.jsx` |
 | lacuna | Web: "Esqueceu?" sem ação; sem validação local de tamanho de nome e senha; usuário logado não é redirecionado ao abrir `/login` ou `/`; cadastro sempre cria sessão sem "lembrar" | `AuthPage.jsx`, `authApi.js` |
 | lacuna | Mobile: `expiresAt` guardado e nunca usado (a sessão mobile não expira por regra); sem refresh explícito ao voltar ao primeiro plano (ao voltar, recarrega os provedores e um 401 ali desloga); telas autenticadas aparecem por um instante antes de um 401 | `sessionManager.js`, `HubContext.js` |
-| inconsistência | Mobile encerra a sessão em qualquer 401; o web distingue códigos | `HubContext.js`, `hooks.js` |
+| inconsistência | ✅ Mobile encerra a sessão em qualquer 401; o web distingue códigos | `HubContext.js`, `hooks.js` |
 | risco | Mobile no navegador guarda o token em localStorage | `secureStorage.js` |
 | inconsistência | ✅ Mobile "Sobre" diz versão 0.1; `app.config.js` diz 1.0.0 | `useSettings.js` |
 | morto | ✅ Mobile: `AuthScreen` recebe `navigation` e não usa | `AuthScreen.js` |
@@ -187,9 +189,9 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | bug | JSON montado à mão com `escapeJson` que não escapa caracteres de controle; nome com quebra de linha gera JSON inválido | Graph, Drive, chamadas `rpc` do Dropbox |
 | risco | `ref` concatenado em URLs sem codificação | Graph, Drive |
-| inconsistência | Todo 413 vira `CONVERSAO_GRANDE_DEMAIS`, inclusive em upload | `ProviderHttpSupport` |
-| risco | `isNameConflict` decide por substring, inclusive "conflict" | `ProviderHttpSupport` |
-| lacuna | `parseRetryAfter` ignora `Retry-After` em formato de data | `ProviderHttpSupport` |
+| inconsistência | ✅ Todo 413 vira `CONVERSAO_GRANDE_DEMAIS`, inclusive em upload | `ProviderHttpSupport` |
+| risco | ✅ `isNameConflict` decide por substring, inclusive "conflict" | `ProviderHttpSupport` |
+| lacuna | ✅ `parseRetryAfter` ignora `Retry-After` em formato de data | `ProviderHttpSupport` |
 | risco | Respostas JSON lidas inteiras, sem limite (`readTree`) | Graph, Drive, Dropbox |
 | morto | `CursorCodec`; mecanismo de sobrescrita por `@Order` em `CloudProviderClients` usado só em testes (✅ `CursorCodec` removido; o mecanismo de `@Order` continua) | providers |
 | inconsistência | `CloudItem.provider` é string; o resto usa o enum | `CloudItem` |
@@ -206,7 +208,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | inconsistência | `PUT` simples sem `conflictBehavior` substitui arquivo de mesmo nome; pasta e sessão renomeiam | `GraphProviderClient` |
 | morto | ✅ Sobrecarga `authorizedDelete(accessToken, url)`; `DELTA_SELECT` é só um alias | `GraphProviderClient` |
 | lacuna | Validade da inscrição fixa em 2 dias (com `Instant.now()`); qualquer falha de renovação zera a inscrição e volta ao polling, sem log | `GraphProviderClient`, `ProviderWatchService` |
-| bug | Data inválida em `parseDateTime` lança `DateTimeParseException` sem mapeamento | `GraphProviderClient` |
+| bug | ✅ Data inválida em `parseDateTime` lança `DateTimeParseException` sem mapeamento | `GraphProviderClient` |
 | lacuna | Sem testes para update e move simples, createFolder e paginação da busca | testes |
 
 ### Google Drive
@@ -235,9 +237,9 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | Busca sem continuação | `DropboxProviderClient` |
 | lacuna | MIME deduzido por extensão, com 10 tipos | `DropboxProviderClient` |
 | lacuna | `get_metadata` repetido para pais e ancestrais, sem cache | `DropboxProviderClient` |
-| risco | Erros 409 classificados por substring; `insufficient_space` e `malformed_path` caem em `PROVEDOR_FALHOU` | `ProviderHttpSupport` |
-| lacuna | `Retry-After` enviado no corpo JSON não é lido | `ProviderHttpSupport` |
-| bug | `client_modified` inválido lança `DateTimeParseException` sem mapeamento | `DropboxProviderClient` |
+| risco | ✅ Erros 409 classificados por substring; `insufficient_space` e `malformed_path` caem em `PROVEDOR_FALHOU` | `ProviderHttpSupport` |
+| lacuna | ✅ `Retry-After` enviado no corpo JSON não é lido | `ProviderHttpSupport` |
+| bug | ✅ `client_modified` inválido lança `DateTimeParseException` sem mapeamento | `DropboxProviderClient` |
 | inconsistência | `mapUnknownParent` usa tamanho 0 onde os outros mapeadores usam `null` | `DropboxProviderClient` |
 | lacuna | Sem testes para update, move, delete e `updateConditional` (só `deleteConditional` e o range de `get_preview`) | testes |
 
@@ -295,8 +297,8 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | risco | `listRecents` e `listShortcuts` fazem uma consulta por item para achar o provedor (N+1) | `HubService` |
 | risco | `trimRecents` carrega todos os recentes do usuário a cada inclusão | `HubService` |
 | lacuna | Executor da busca nunca é encerrado (threads virtuais; impacto baixo) | `SearchService` |
-| inconsistência | Busca responde 200 mesmo com todos os provedores falhando | `SearchService` |
-| bug | `ReconnectionRequiredException` na busca vira `PROVEDOR_FALHOU`, e não `RECONEXAO_NECESSARIA` | `SearchService` |
+| inconsistência | Busca responde 200 mesmo com todos os provedores falhando (mantido de propósito; ver "Não procedem mais") | `SearchService` |
+| bug | ✅ `ReconnectionRequiredException` na busca vira `PROVEDOR_FALHOU`, e não `RECONEXAO_NECESSARIA` | `SearchService` |
 | lacuna | Busca não usa o catálogo | `SearchService` |
 | lacuna | `LocalSyncFlag` só funciona em thread de requisição; o header só sai nas rotas antigas de escrita | `LocalSyncFlag` |
 | morto | ✅ Web: filtro local de atalhos e recentes durante a busca nunca aparece; `features/home/data/mock.js` sem uso | `HomePage.jsx` |
@@ -362,3 +364,6 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|
 | `assets/providers/dropbox.svg` (web) tem 0 bytes | O arquivo tem 408 bytes |
 | Mobile: `atSign` sem uso | Usado na `AuthScreen` |
+| `SENHA_ATUAL_INVALIDA` é 400; credencial errada no login é 401 | Mantido de propósito em `fix/contrato-de-erros`: 401 é reservado para sessão, e os clientes deslogam com ele. Uma senha atual errada não encerra a sessão. |
+| Web: no boot, um erro que não seja 401 usa a sessão guardada sem confirmar | Comportamento intencional: com a API fora do ar ou um 500 (inclusive falha de banco, que em `fix/seguranca` deixou de virar 401), o web mantém a sessão e revalida depois. Só 401 de sessão desloga. |
+| Busca responde 200 mesmo com todos os provedores falhando | Contrato da F10: a resposta traz o status de cada provedor e o web monta a mensagem (nenhum resultado, parcial ou falha). Desde `fix/contrato-de-erros`, reconexão aparece como `RECONEXAO_NECESSARIA`. |
