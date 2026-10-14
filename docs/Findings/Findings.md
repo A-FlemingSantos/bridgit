@@ -209,6 +209,8 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 1. Aceitar só itens cuja cadeia de pais chega à raiz do Meu Drive, no inventário, no feed e na busca. É o "ignorar" de fato, mas custa consultas de ancestrais na busca e um filtro no fim do inventário.
 2. Manter como está e mostrar esses itens como "Compartilhados comigo", o que é funcionalidade nova.
 
+Pelo finding 18, a busca passa a usar o catálogo. Assim, o filtro da opção 1 só precisa existir no inventário e no feed.
+
 Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam no inventário sem pai visível. O catálogo os grava com `parentKnown=false`, e eles não aparecem na raiz nem em nenhuma pasta. Foram vistos três casos no catálogo de 13/10. Falta decidir se o Bridgit mostra "Compartilhados comigo" ou ignora esses itens de forma explícita.
 
 ---
@@ -311,6 +313,30 @@ A revisão da fase 3 propôs uma política que continua válida:
 - nunca pré-carregar a árvore inteira nem os bytes de todos os arquivos.
 
 O web já tem parte disso: busca antecipada ao passar o mouse e cache de conteúdo com limite de tamanho. O que falta é medir se ajuda.
+
+---
+
+## 18. Busca consulta os provedores em vez do catálogo
+
+**Peso:** médio. Simplifica o backend e alinha a busca com a navegação.
+
+**Decisão (14/10):** a busca passa a consultar o catálogo SQL, sem chamar os provedores e sem plano B no provedor. A busca não precisa ser exata.
+
+Hoje o `SearchService` consulta cada provedor em paralelo, com até 8 s para responder. O OneDrive usa `/root/search` do Graph, o Dropbox usa `/files/search_v2` e o Google Drive usa `files.list` com `name contains`. O catálogo não é usado. Isso tem três consequências:
+- A busca segue regras diferentes das da navegação. No Google Drive, o conteúdo de pastas compartilhadas fora do Meu Drive aparece na busca, mas não em nenhuma pasta (ver finding 12).
+- A busca depende de três chamadas de rede, da disponibilidade e da cota de cada provedor. Um provedor lento aparece como "tempo esgotado".
+- O Graph e o Dropbox demoram para indexar arquivos novos.
+
+**O que muda:**
+- A busca filtra por nome no catálogo do usuário, respeitando as mesmas regras da listagem: scan ativo, geração atual, `deleted = 0` e só itens que pertencem à árvore do hub. Com isso, a parte da busca do finding 12 se resolve junto.
+- A resposta traz, por provedor, o mesmo `coverage`/`freshness` da listagem. Assim, o cliente pode avisar "ainda sincronizando" quando o catálogo estiver incompleto, como na primeira sincronização ou numa reconstrução.
+- Saem os métodos `search` dos clientes de provedor, a execução em paralelo e o limite de tempo.
+
+**O que se aceita perder:**
+- A busca por conteúdo que o OneDrive e o Dropbox fazem hoje.
+- Arquivos criados fora do Bridgit só aparecem depois da próxima sincronização.
+
+`LIKE '%termo%'` percorre os itens do usuário. Isso basta no tamanho atual; um índice de texto completo fica para quando os catálogos crescerem.
 
 ---
 
