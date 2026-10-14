@@ -221,6 +221,46 @@ Hoje o `SearchService` consulta cada provedor em paralelo, com até 8 s para res
 
 ---
 
+## 19. Mobile: sem estado offline
+
+**Peso:** médio. Funcionalidade nova no mobile.
+
+Hoje o app só tem "carregando" e "erro". Sem rede, nada aparece. Falta tratar a falta de rede, guardar dados no aparelho para mostrar o último estado conhecido e indicar "sessão não confirmada" enquanto o servidor não responde.
+
+---
+
+## 20. Ações sem back-end nos menus
+
+**Peso:** médio. Funcionalidade nova.
+
+Mover, Espelhar, Editar PDF, Pedir assinaturas e Assinar foram tirados dos menus do mobile por não terem back-end; no web, Editar PDF e as assinaturas continuam nos menus sem fazer nada. Cada ação precisa do seu back-end antes de voltar ao menu.
+
+---
+
+## 21. Mobile: PDF abre no leitor do sistema
+
+**Peso:** baixo. Decisão de produto.
+
+Hoje o PDF sai do app e abre no leitor do sistema, como solução provisória. Falta decidir se vale embutir um leitor (por exemplo, com WebView).
+
+---
+
+## 22. Mobile: navegador do OAuth
+
+**Peso:** baixo. Decisão de produto.
+
+O login no provedor abre uma aba do navegador do sistema. WebView não serve para o Google (erro `disallowed_useragent`). Opções: manter a aba do navegador, que é o padrão no mobile; usar WebView só para Microsoft e Dropbox; ou outra ideia.
+
+---
+
+## 23. Ajustes: as opções bastam?
+
+**Peso:** baixo. Decisão de produto.
+
+Falta decidir se as opções atuais de Ajustes bastam ou se faltam opções de personalização.
+
+---
+
 ## Corrigido no dia
 
 Branch `mobile/adjustments`, PR #6 (aberta; a revisão automática do Copilot não rodou por limite de cota).
