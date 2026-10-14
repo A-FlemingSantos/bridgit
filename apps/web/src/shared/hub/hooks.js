@@ -66,6 +66,7 @@ export function useFolder(providerId, folderRef) {
     isFetchingNextPage: entry?.isFetchingNextPage ?? false,
     revalidating: entry?.revalidating ?? false,
     error: entry?.error ?? null,
+    catalog: entry?.catalog ?? null,
     loadMore() {
       if (!entry?.nextCursor || entry?.isFetchingNextPage) return Promise.resolve()
       return loadFolder(providerId, folderRef, entry.nextCursor)
