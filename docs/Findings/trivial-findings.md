@@ -18,64 +18,37 @@ Os achados dos testes manuais de 2026-10-13 estão em `Findings.md`.
 
 ### Segredo JWT de desenvolvimento como padrão
 
-✅ **Resolvido em `fix/seguranca`:** o `application.yml` não tem mais segredo padrão e a API não sobe com segredo vazio, curto ou de desenvolvimento (`dev-only-`, aceito só no perfil `test`). Os tickets de conteúdo usam uma chave derivada do segredo.
-
-O `application.yml` traz um segredo de desenvolvimento versionado, usado sempre que `APP_JWT_SECRET` não está definido. Em produção, esquecer a variável significa assinar tokens de sessão (e tickets de conteúdo, que usam o mesmo segredo) com uma chave pública no GitHub. Já está como passo no To Do ("travar APP_JWT_SECRET padrão em produção"). A correção é a API se recusar a subir fora do perfil de desenvolvimento com o valor padrão.
-
-Ligado a isso: sessões e tickets de conteúdo usam o mesmo segredo. O emissor e a audiência são diferentes, e existe teste (`ContentTicketJwtRejectionTest`) garantindo que um não vale pelo outro, mas não há separação de chave.
+> ✅ **Resolvido** (`fix/seguranca`). Não há mais segredo padrão: a API não sobe sem `APP_JWT_SECRET`, com menos de 32 bytes ou com chave `dev-only-`. Os tickets de conteúdo usam uma chave derivada.
 
 ### Login sem proteção contra força bruta
 
-✅ **Resolvido em `fix/seguranca`:** 5 falhas por usuário e 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente passa pelo mesmo bcrypt; excluir a conta exige a senha (web e mobile).
-
-⚠️ **Pendente, decidir no deploy (Azure):** os limites por endereço, do login e dos links públicos (`MUITOS_ACESSOS`), usam `request.getRemoteAddr()`. Atrás de um proxy reverso, esse é o endereço do proxy. Todos os visitantes passam a contar como um só, e 20 falhas de login de qualquer pessoa bloqueiam o login de todos por 15 minutos. O proxy ainda não foi escolhido. Quando for, configurar a API para ler o endereço real do cliente no cabeçalho que o proxy repassa (`X-Forwarded-For`), confiando só nesse proxy, por exemplo com `server.forward-headers-strategy`. Se o deploy tiver mais de uma instância, os limites, que ficam em memória, também passam a valer por instância (ver "Travas e caches que só valem dentro de uma instância").
-
-O login não tem limite de tentativas nem bloqueio. Além disso, um usuário inexistente responde mais rápido que uma senha errada: o `AuthService.login` só roda o bcrypt quando o usuário existe, o que permite descobrir nomes de usuário pelo tempo de resposta.
-
-Também na área de conta: excluir a conta não pede a senha (`DELETE /api/account` sem corpo). Quem tiver uma sessão aberta apaga a conta inteira.
+> ✅ **Resolvido** (`fix/seguranca`). 5 falhas por usuário ou 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente leva o mesmo tempo que senha errada; excluir a conta pede a senha.
+>
+> ⚠️ **Pendente no deploy:** os limites contam pelo endereço da conexão. Atrás do proxy (Caddy), todos parecem um só; configurar a API para ler `X-Forwarded-For` (`server.forward-headers-strategy`).
 
 ### Falha de banco vira "sessão inválida"
 
-✅ **Resolvido em `fix/seguranca`:** a falha vai para o log e a resposta é 500 `ERRO_INTERNO`, pelo `ApiErrorWriter` (mesmo envelope do handler, UTF-8).
-
-O `JwtAuthenticationFilter` engole qualquer `RuntimeException` ao validar a sessão, limpa o contexto e segue a requisição. Uma falha de banco vira 401, e os clientes deslogam o usuário, o mobile em qualquer 401. Um problema de infraestrutura passa a parecer "sua sessão expirou". O certo é responder 500 e deixar o cliente tentar de novo.
+> ✅ **Resolvido** (`fix/seguranca`). A falha vai para o log e a resposta é 500 `ERRO_INTERNO`, não 401.
 
 ### Tabelas que só crescem
 
-✅ **Resolvido em `fix/catalogo-e-eventos`:** o `RetentionService` apaga de hora em hora, em lotes, os eventos com mais de 7 dias, as sessões revogadas ou expiradas há mais de 30 dias e os estados OAuth usados ou expirados há mais de 24 horas (propriedades `app.hub.retention.*`, índices na V7).
-
-Nada apaga sessões revogadas (`user_sessions`), estados OAuth usados (`provider_oauth_states`) nem eventos antigos (`cloud_events`). O único job de limpeza é o de uploads temporários. Em produção, `cloud_events` cresce com cada operação e cada mudança vinda dos provedores. Faltam retenção e um job de limpeza para as três tabelas.
+> ✅ **Resolvido** (`fix/catalogo-e-eventos`). O `RetentionService` apaga de hora em hora eventos com mais de 7 dias, sessões encerradas há mais de 30 dias e estados OAuth usados há mais de 24 horas.
 
 ### OAuth: tentativa gasta antes da troca do código
 
-✅ **Resolvido em `fix/seguranca`:** o state é consumido de forma atômica e liberado em falha passageira (`OAUTH_TROCA_TEMPORARIA`); toda falha vai para o log; configuração vira `PROVEDOR_NAO_CONFIGURADO`; `ProviderOAuthClients.get` lança 503 em vez de devolver `null`.
-
-No `completeCallback`, o state OAuth é marcado como usado antes da troca do código pelo token. Se a troca falhar por um motivo passageiro, o usuário precisa recomeçar a conexão do zero. O `catch (Exception)` dessa troca não tem log e transforma tudo, inclusive limite de requisições e erro de configuração, em `OAUTH_TROCA_FALHOU`. Em produção, uma conexão que falha não deixa rastro.
-
-`ProviderOAuthClients.get` devolve `null` para provedor sem cliente, e quem chama não confere. Um provedor mal configurado vira `NullPointerException`, que esse mesmo `catch` engole.
+> ✅ **Resolvido** (`fix/seguranca`). O state é liberado em falha passageira (`OAUTH_TROCA_TEMPORARIA`), toda falha vai para o log, e provedor mal configurado vira `PROVEDOR_NAO_CONFIGURADO`.
 
 ### Reconectar com outra conta apaga dados sem aviso
 
-✅ **Resolvido em `fix/seguranca`:** conta diferente responde `OAUTH_CONTA_DIFERENTE` sem apagar nada; web e mobile pedem confirmação e reiniciam com `allowAccountChange`.
-
-Se o usuário reconecta um provedor com outra conta, a conexão antiga é excluída. Por cascata no banco, vão junto recentes, atalhos, links públicos e o catálogo daquele provedor. A API não tem passo de confirmação. Os clientes deveriam avisar antes, ou a API deveria exigir confirmação quando a conta muda.
+> ✅ **Resolvido** (`fix/seguranca`). Conta diferente responde `OAUTH_CONTA_DIFERENTE` sem apagar nada; web e mobile pedem confirmação antes de trocar.
 
 ### Links públicos revelam ou escondem mais do que deviam
 
-✅ **Resolvido em `fix/seguranca`:** toda a cadeia anônima responde 404 `LINK_NAO_ENCONTRADO` para o que o visitante não deve saber, 503 `LINK_INDISPONIVEL` para falha passageira, 429 `MUITOS_ACESSOS` acima de 60 acessos por minuto por endereço, e os metadados gravam no máximo uma vez por visita.
-
-- Um erro do provedor na etapa de abrir o conteúdo (`open`, e também `readPlan`) está fora do `catch` em `PublicLinkService.streamPublicContent`. O visitante recebe o código interno do provedor, e não `LINK_NAO_ENCONTRADO`.
-- `TOKEN_PROVEDOR_INVALIDO` volta como 502 com o código original, então um anônimo descobre que o link existe.
-- No sentido contrário, uma falha passageira do provedor (503, 429) aparece ao visitante como link inexistente (404).
-- Não há limite de acessos: cada visita chama o provedor com a cota do dono.
-- `getPublicMetadata` grava no banco duas vezes a cada GET.
+> ✅ **Resolvido** (`fix/seguranca`). O visitante recebe 404 `LINK_NAO_ENCONTRADO` para o que não deve saber, 503 `LINK_INDISPONIVEL` em falha passageira e 429 `MUITOS_ACESSOS` acima de 60 acessos por minuto.
 
 ### Erros que viram mensagens erradas
 
-✅ **Resolvido em `fix/contrato-de-erros`:** violação de unicidade vira 409 `CONFLITO_DADOS` e só o truncamento fala em limite; 405, parâmetro, parte de formulário e cabeçalho ausentes, tipo de mídia e endereço inexistente têm respostas próprias.
-
-- `DataIntegrityViolationException` sempre vira "excedem os limites permitidos" (`GlobalExceptionHandler`), inclusive numa violação de unicidade, por exemplo dois cadastros simultâneos com o mesmo nome.
-- O handler não trata 405, parâmetro ausente nem parte de multipart ausente. Tudo cai no genérico e vira 500. Isso se confirmou nos testes de 13/10.
+> ✅ **Resolvido** (`fix/contrato-de-erros`). Valor repetido vira 409 `CONFLITO_DADOS`; 405, parâmetro, parte ou cabeçalho ausente, tipo de mídia e rota inexistente têm respostas próprias.
 
 ---
 
