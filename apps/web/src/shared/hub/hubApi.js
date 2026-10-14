@@ -91,7 +91,8 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     }
     uncertainRequests.set(signature, { request, accepted })
     options.onOperation?.(accepted)
-    hooks.onAccepted?.()
+    // Work refused at submit throws below; the form must stay open to show that error.
+    if (!['REJECTED', 'NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(accepted.status)) hooks.onAccepted?.()
     while (!['SUCCEEDED', 'REJECTED', 'NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(accepted.status)) {
       await new Promise((resolve) => setTimeout(resolve, 750))
       if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessão foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })

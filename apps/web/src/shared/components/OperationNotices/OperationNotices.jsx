@@ -19,25 +19,28 @@ export function rejectionNotice(operation) {
   return `Não foi possível ${verb} ${subject}.${reason}`
 }
 
+// Operations seen pending that are now refused. An operation that is already refused the first time it
+// shows up (the history loaded with the page) is not news. A refusal at submit time is shown by the form
+// that is still open, so local intents ("client:") are left out.
+export function freshRejections(previousStatuses, operations) {
+  return operations.filter((op) => op.status === 'REJECTED'
+    && !String(op.id).startsWith('client:')
+    && previousStatuses.has(op.id)
+    && previousStatuses.get(op.id) !== 'REJECTED')
+}
+
 // Forms close as soon as the server accepts a change. When the provider later refuses it, the pending
 // item just disappears from the list; this says why.
 export default function OperationNotices() {
   const { durableOperations } = useHubDataContext()
   const [notices, setNotices] = useState([])
-  const seenRef = useRef(null)
+  const statusesRef = useRef(new Map())
 
   useEffect(() => {
     const operations = Object.values(durableOperations ?? {})
-    // What was already settled when the page opened is history, not news.
-    if (seenRef.current === null) {
-      seenRef.current = new Set(operations.filter((op) => op.status === 'REJECTED').map((op) => op.id))
-      return
-    }
-    const fresh = operations.filter((op) => op.status === 'REJECTED' && !seenRef.current.has(op.id)
-      // A refusal at submit time is shown by the form that is still open.
-      && !String(op.id).startsWith('client:'))
+    const fresh = freshRejections(statusesRef.current, operations)
+    statusesRef.current = new Map(operations.map((op) => [op.id, op.status]))
     if (fresh.length === 0) return
-    for (const op of fresh) seenRef.current.add(op.id)
     setNotices((current) => [...current, ...fresh.map((op) => ({ id: op.id, text: rejectionNotice(op) }))])
   }, [durableOperations])
 

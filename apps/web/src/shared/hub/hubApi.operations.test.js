@@ -51,6 +51,13 @@ describe('durable API operations', () => {
     await expect(result).resolves.toEqual(item)
     expect(accepted).toHaveBeenCalledTimes(1)
   })
+  it('keeps the form open when the server refuses the work at submit', async () => {
+    submitOperation.mockResolvedValue({ id: 'op', status: 'REJECTED', request, errorMessage: 'Já existe.' })
+    const accepted = vi.fn()
+    const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user' })
+    await expect(api.createFolder('onedrive', null, 'Docs', { onAccepted: accepted })).rejects.toThrow('Já existe.')
+    expect(accepted).not.toHaveBeenCalled()
+  })
   it('rejects a late result from another authenticated identity', async () => {
     let identity = 'user-a'
     let resolve
