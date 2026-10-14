@@ -13,12 +13,15 @@ const PROVIDER_LABELS = {
   dropbox: 'Dropbox',
 }
 
+const BANNER_SUCCESS_MS = 6000
+
 const OAUTH_ERROR_MESSAGES = {
   PROVEDOR_RECUSOU: 'O provedor recusou a autorização.',
   OAUTH_STATE_EXPIRADO: 'A autorização expirou. Tente conectar novamente.',
   OAUTH_STATE_INVALIDO: 'A autorização é inválida. Tente conectar novamente.',
   REFRESH_TOKEN_AUSENTE: 'Não foi possível manter a conexão. Reconecte o provedor.',
   OAUTH_TROCA_FALHOU: 'Não foi possível concluir a conexão.',
+  OAUTH_CODE_AUSENTE: 'O provedor não devolveu a autorização. Tente conectar de novo.',
 }
 
 function mapOAuthError(code) {
@@ -61,7 +64,13 @@ export default function ProvidersTab() {
 
     const background = toBackgroundLocation(sanitizeInternalAppRedirect(params.get('background')))
     navigate(ROUTES.settingsProviders, { replace: true, state: { backgroundLocation: background } })
-  }, [location.pathname, location.search, location.state, navigate])
+  }, [location.search, navigate])
+
+  useEffect(() => {
+    if (banner?.type !== 'success') return undefined
+    const timer = window.setTimeout(() => setBanner(null), BANNER_SUCCESS_MS)
+    return () => window.clearTimeout(timer)
+  }, [banner])
 
   async function handleConnect(providerId) {
     const background = resolveSettingsBackground(location)
@@ -104,9 +113,14 @@ export default function ProvidersTab() {
       <p className={styles.lead}>A conexão é global. Cada space só escolhe o que entra nele.</p>
 
       {banner ? (
-        <p className={styles.hint} role={banner.type === 'error' ? 'alert' : 'status'}>
-          {banner.message}
-        </p>
+        <div className={styles.banner}>
+          <p className={styles.hint} role={banner.type === 'error' ? 'alert' : 'status'}>
+            {banner.message}
+          </p>
+          <button type="button" className={styles.bannerClose} onClick={() => setBanner(null)}>
+            Dispensar
+          </button>
+        </div>
       ) : null}
 
       {error ? (

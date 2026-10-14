@@ -321,6 +321,33 @@
   width: 100%;
 }
 
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bannerClose {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mute);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.bannerClose:hover {
+  color: var(--ink);
+}
+
+.bannerClose:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .sessions {
   display: flex;
   flex-direction: column;
@@ -358,6 +385,16 @@
 .sessionDevice {
   color: var(--mute);
   font-size: 12px;
+}
+
+.sessionBadge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--mute);
+  font-size: 11px;
+  letter-spacing: -0.01em;
 }
 
 .sessionTime {

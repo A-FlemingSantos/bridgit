@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
@@ -8,14 +8,22 @@ export default function AccountTab() {
   const navigate = useNavigate()
   const usernameId = useId()
   const { user, logout, updateUsername } = useSession()
-  const [username, setUsername] = useState(user?.username ?? '')
+  const sessionUsername = user?.username ?? ''
+  const [username, setUsername] = useState(sessionUsername)
+  const editedRef = useRef(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const initial = username.slice(0, 1).toUpperCase()
 
+  useEffect(() => {
+    // Acompanha mudanças vindas da sessão (ex.: outra aba), sem sobrescrever edição em andamento.
+    if (!editedRef.current) setUsername(sessionUsername)
+  }, [sessionUsername])
+
   async function saveProfile(event) {
     event.preventDefault()
     setError('')
+    editedRef.current = false
 
     const data = new FormData(event.currentTarget)
     const next = String(data.get('username') ?? '').trim() || username
@@ -30,7 +38,7 @@ export default function AccountTab() {
     } catch {
       setUsername(previous)
       setSaved(false)
-      setError('Nao foi possivel salvar o usuario.')
+      setError('Não foi possível salvar o usuário.')
     }
   }
 
@@ -67,6 +75,7 @@ export default function AccountTab() {
             value={username}
             autoComplete="username"
             onChange={(event) => {
+              editedRef.current = true
               setUsername(event.target.value)
               setSaved(false)
             }}

@@ -11,7 +11,7 @@ export default function AboutTab() {
         <div className={styles.sectionHead}>
           <div>
             <h2>Bridgit</h2>
-            <p className={styles.hint}>Versão 0.1 · mock</p>
+            <p className={styles.hint}>{`Versão ${__APP_VERSION__}`}</p>
           </div>
         </div>
         <dl className={styles.facts}>

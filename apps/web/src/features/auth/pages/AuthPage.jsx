@@ -37,7 +37,7 @@ export default function AuthPage() {
       if (register) {
         const confirm = String(data.get('confirm') ?? '')
         if (password !== confirm) {
-          setError('As senhas nao coincidem.')
+          setError('As senhas não coincidem.')
           return
         }
 
@@ -52,7 +52,7 @@ export default function AuthPage() {
       if (err instanceof ApiClientError) {
         setError(err.message)
       } else {
-        setError('Nao foi possivel concluir a operacao solicitada.')
+        setError('Não foi possível concluir a operação solicitada.')
       }
     } finally {
       setSubmitting(false)

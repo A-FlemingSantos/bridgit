@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProvidersTab from './ProvidersTab.jsx'
 
@@ -123,5 +123,53 @@ describe('ProvidersTab acesso expirado', () => {
     expect(screen.queryByText('arthur@outlook.com')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reconectar' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Desconectar' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ProvidersTab aviso de retorno do OAuth', () => {
+  function renderReturn(search) {
+    let lastLocation = null
+    function LocationProbe() {
+      lastLocation = useLocation()
+      return null
+    }
+    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect: vi.fn(), disconnect: vi.fn() })
+    render(
+      <MemoryRouter {...router} initialEntries={[`/settings/providers${search}`]}>
+        <ProvidersTab />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+    return () => lastLocation
+  }
+
+  it('mostra o aviso uma vez, limpa a URL e permite dispensar', async () => {
+    const user = userEvent.setup()
+    const location = renderReturn('?provider=onedrive&status=connected&background=%2Fhome')
+
+    expect(await screen.findByText('OneDrive conectado')).toBeInTheDocument()
+    await waitFor(() => expect(location().search).toBe(''))
+    expect(location().state).toEqual({ backgroundLocation: expect.objectContaining({ pathname: '/home' }) })
+    expect(screen.getByText('OneDrive conectado')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Dispensar' }))
+    expect(screen.queryByText('OneDrive conectado')).not.toBeInTheDocument()
+  })
+
+  it('some sozinho depois de um tempo quando a conexão deu certo', async () => {
+    vi.useFakeTimers()
+    renderReturn('?provider=onedrive&status=connected')
+
+    expect(screen.getByText('OneDrive conectado')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(6500) })
+    expect(screen.queryByText('OneDrive conectado')).not.toBeInTheDocument()
+  })
+
+  it('traduz OAUTH_CODE_AUSENTE', async () => {
+    renderReturn('?provider=dropbox&status=error&error=OAUTH_CODE_AUSENTE')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O provedor não devolveu a autorização. Tente conectar de novo.',
+    )
   })
 })
