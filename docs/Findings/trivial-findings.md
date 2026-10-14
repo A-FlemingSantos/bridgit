@@ -2,6 +2,8 @@
 
 Base: `Knowledge/99-lacunas-e-bugs.md`, escrito em 2026-10-06 a partir da leitura do código, sem nada executado. Em 2026-10-13 cada item foi conferido de novo contra o código atual. Quase todos procedem. Os que procedem só em parte estão com a ressalva no texto, e os que deixaram de valer estão no fim, em "Não procedem mais".
 
+Itens marcados com ✅ foram resolvidos; a branch de cada correção está no histórico do git e na PR correspondente.
+
 O arquivo tem três partes:
 
 1. **Riscos antes do deploy:** segurança, perda de dados e erros que confundem o usuário. Explicados com mais detalhe.
@@ -116,7 +118,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | inconsistência | Raiz enviada de três formas: `null` em `createFolder`, `''` em `uploadFile` e `updateItem`, omitida em `listFolder` | `hub.js` |
 | lacuna | `submitUploadOperation` não confere tamanho nem envia `Idempotency-Key` | `operations.js` |
 | risco | `baseUrl` com barra no fim gera `//api` | `buildApiUrl` |
-| morto | `createApiClient` não é usado | `apiClient.js` |
+| morto | ✅ `createApiClient` não é usado | `apiClient.js` |
 | lacuna | Sem testes para `apiClient.js` e `operations.js` | shared-client |
 | inconsistência | Dois formatos de 401: o entry point escreve JSON à mão, sem envelope | `SecurityConfiguration` |
 | inconsistência | Limite de 50 MB repetido em 8 lugares (handler, `application.yml`, `OperationService`, `UploadPayloadStore`, shared-client, `hubApi.js`, `hubErrorMessage.js`, mobile `useItemActions.js`) | vários |
@@ -127,7 +129,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | lacuna | `JwtAuthenticationFilter` usa `OffsetDateTime.now()` e `BaseEntity` usa `OffsetDateTime.now(UTC)`, e não o `Clock` injetado | `JwtAuthenticationFilter`, `BaseEntity` |
 | risco | `DatasourceSafetyGuard` só confere o nome do banco, não o host, e não roda em `@SpringBootTest` | `DatasourceSafetyGuard` |
-| morto | `app.time.zone-id` não tem consumidor | `application.yml` |
+| morto | ✅ `app.time.zone-id` não tem consumidor | `application.yml` |
 | lacuna | Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms`, `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
 
 ### Autenticação, contas e sessões
@@ -139,18 +141,18 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | Após renomear, os tokens das outras sessões mantêm o nome antigo no claim `username`. O servidor ignora o claim; só importa se um cliente decodificar o JWT | `AccountService` |
 | lacuna | O filtro faz duas consultas e, às vezes, uma escrita por requisição | `JwtAuthenticationFilter` |
 | lacuna | Não há rota para revogar uma sessão específica (o repositório já tem `revokeOne`) | `AuthController` |
-| morto | `GET /api/account` sem uso nos clientes | `AccountController` |
+| morto | ✅ `GET /api/account` sem uso nos clientes | `AccountController` |
 | bug | `HUB_SESSION_FAILURE_CODES` não inclui `SESSAO_REVOGADA` nem `USUARIO_INVALIDO`; uma sessão revogada não desloga pela camada de dados do web | `shared/hub/hubCache.js` |
 | risco | Web: no boot, um erro que não seja 401 usa a sessão guardada sem confirmar | `SessionContext.jsx` |
 | lacuna | Web: sem refresh periódico; sessões com "lembrar" só percebem a expiração por 401 | `SessionContext.jsx` |
-| bug | Web: na aba Segurança, um único `error` aparece só no cartão de senha; o rótulo "Encerradas" nunca volta; a sessão atual não é destacada | `SecurityTab.jsx` |
-| bug | Web: o campo de nome não acompanha mudanças feitas em outra aba | `AccountTab.jsx` |
+| bug | ✅ Web: na aba Segurança, um único `error` aparece só no cartão de senha; o rótulo "Encerradas" nunca volta; a sessão atual não é destacada | `SecurityTab.jsx` |
+| bug | ✅ Web: o campo de nome não acompanha mudanças feitas em outra aba | `AccountTab.jsx` |
 | lacuna | Web: "Esqueceu?" sem ação; sem validação local de tamanho de nome e senha; usuário logado não é redirecionado ao abrir `/login` ou `/`; cadastro sempre cria sessão sem "lembrar" | `AuthPage.jsx`, `authApi.js` |
 | lacuna | Mobile: `expiresAt` guardado e nunca usado (a sessão mobile não expira por regra); sem refresh explícito ao voltar ao primeiro plano (ao voltar, recarrega os provedores e um 401 ali desloga); telas autenticadas aparecem por um instante antes de um 401 | `sessionManager.js`, `HubContext.js` |
 | inconsistência | Mobile encerra a sessão em qualquer 401; o web distingue códigos | `HubContext.js`, `hooks.js` |
 | risco | Mobile no navegador guarda o token em localStorage | `secureStorage.js` |
-| inconsistência | Mobile "Sobre" diz versão 0.1; `app.config.js` diz 1.0.0 | `useSettings.js` |
-| morto | Mobile: `AuthScreen` recebe `navigation` e não usa | `AuthScreen.js` |
+| inconsistência | ✅ Mobile "Sobre" diz versão 0.1; `app.config.js` diz 1.0.0 | `useSettings.js` |
+| morto | ✅ Mobile: `AuthScreen` recebe `navigation` e não usa | `AuthScreen.js` |
 
 ### Conexão com provedores
 
@@ -159,13 +161,13 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | OneDrive: desconectar não revoga o acesso na Microsoft | `MicrosoftOAuthClient.revoke` |
 | bug | Google: a URL de revogação concatena o token sem codificar | `GoogleOAuthClient.revoke` |
 | risco | Dropbox sem PKCE (intencional: o Dropbox recusa PKCE para apps confidenciais) | `DropboxOAuthClient` |
-| morto | `ProviderConnectionRepository.deleteByUserIdAndProvider` | repositório |
+| morto | ✅ `ProviderConnectionRepository.deleteByUserIdAndProvider` | repositório |
 | lacuna | Escopos concedidos são gravados, mas não conferidos | `ProviderConnectionService` |
 | lacuna | Só há nova tentativa após 401; sem espera e repetição para 429 e 5xx | `ProviderRetryService` |
 | risco | Prefixos de redirect do mobile comparados com `startsWith`; `bridgit://` aceita qualquer caminho | `ProviderConnectionService` |
 | risco | Expo Go: sem `exp://` em `APP_MOBILE_REDIRECT_PREFIXES`, o destino do app é descartado em silêncio | configuração |
-| lacuna | Web: `OAUTH_CODE_AUSENTE` sem mensagem própria | `ProvidersTab.OAUTH_ERROR_MESSAGES` |
-| bug | Web: o efeito do aviso de retorno roda de novo após o próprio `navigate`; o aviso não some | `ProvidersTab.jsx` |
+| lacuna | ✅ Web: `OAUTH_CODE_AUSENTE` sem mensagem própria | `ProvidersTab.OAUTH_ERROR_MESSAGES` |
+| bug | ✅ Web: o efeito do aviso de retorno roda de novo após o próprio `navigate`; o aviso não some | `ProvidersTab.jsx` |
 
 ### Camada de provedores (comum)
 
@@ -177,7 +179,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | risco | `isNameConflict` decide por substring, inclusive "conflict" | `ProviderHttpSupport` |
 | lacuna | `parseRetryAfter` ignora `Retry-After` em formato de data | `ProviderHttpSupport` |
 | risco | Respostas JSON lidas inteiras, sem limite (`readTree`) | Graph, Drive, Dropbox |
-| morto | `CursorCodec`; mecanismo de sobrescrita por `@Order` em `CloudProviderClients` usado só em testes | providers |
+| morto | `CursorCodec`; mecanismo de sobrescrita por `@Order` em `CloudProviderClients` usado só em testes (✅ `CursorCodec` removido; o mecanismo de `@Order` continua) | providers |
 | inconsistência | `CloudItem.provider` é string; o resto usa o enum | `CloudItem` |
 | lacuna | Sem testes para `CloudProviderClients`, `ContentStreamResponder` e `CloudItemSupport`; `sync/` e `CloudChange` só com cobertura indireta | testes |
 
@@ -190,7 +192,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | Busca sem paginação | `GraphProviderClient` |
 | lacuna | Upload em sessão sem retomada | `GraphProviderClient` |
 | inconsistência | `PUT` simples sem `conflictBehavior` substitui arquivo de mesmo nome; pasta e sessão renomeiam | `GraphProviderClient` |
-| morto | Sobrecarga `authorizedDelete(accessToken, url)`; `DELTA_SELECT` é só um alias | `GraphProviderClient` |
+| morto | ✅ Sobrecarga `authorizedDelete(accessToken, url)`; `DELTA_SELECT` é só um alias | `GraphProviderClient` |
 | lacuna | Validade da inscrição fixa em 2 dias (com `Instant.now()`); qualquer falha de renovação zera a inscrição e volta ao polling, sem log | `GraphProviderClient`, `ProviderWatchService` |
 | bug | Data inválida em `parseDateTime` lança `DateTimeParseException` sem mapeamento | `GraphProviderClient` |
 | lacuna | Sem testes para update e move simples, createFolder e paginação da busca | testes |
@@ -231,7 +233,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| morto | `renew` consulta `watch_expires` duas vezes; a segunda é redundante (uma linha por conexão) | `ProviderWatchService` |
+| morto | ✅ `renew` consulta `watch_expires` duas vezes; a segunda é redundante (uma linha por conexão) | `ProviderWatchService` |
 | lacuna | Sem testes para `ProviderWebhooksController`, `ProviderWatchService`, `CatalogWorker.sync` e a rota `/head`; o stream SSE só tem teste de autenticação | testes |
 
 ### Operações duráveis
@@ -246,7 +248,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | Tipo | Finding | Onde |
 |---|---|---|
 | lacuna | `createDownloadTicket` não confere se o item existe | `ProviderFileService` |
-| morto | `ContentController` valida o ticket duas vezes | `ContentController` |
+| morto | ✅ `ContentController` valida o ticket duas vezes | `ContentController` |
 | risco | Tickets não podem ser revogados; a reconexão os invalida pela generation, exceto no caminho de reserva sem generation | `ContentTicketService` |
 | lacuna | Web `PdfReader`: sem ajuste de densidade de pixels, zoom, busca ou seleção de texto; falhas além da primeira página ignoradas; sem cancelar renderização; PDF com senha dá erro genérico | `PdfReader.jsx` |
 | lacuna | `ProgressivePdfTransport` sem nova tentativa | web |
@@ -255,7 +257,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | inconsistência | `FileReader` (em `shared`) importa `FileSheet` de `features/spaces` | `FileReader.jsx` |
 | bug | IndexedDB: `onblocked` é tratado como falha e desliga a persistência até recarregar a página | `storage/idb.js` |
 | lacuna | Mobile: PDF, vídeo e áudio abrem fora do app (agora pelo "Abrir com…"; leitor de PDF embutido em decisão); texto sem nova tentativa após erro; `useFile` sem `reload` | `FileViewer.js`, `hooks.js` |
-| inconsistência | Rótulo padrão do `Spinner` compartilhado é "Carregando arquivo" | `Spinner.jsx` |
+| inconsistência | ✅ Rótulo padrão do `Spinner` compartilhado é "Carregando arquivo" | `Spinner.jsx` |
 
 ### Dados no cliente
 
@@ -263,11 +265,11 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | bug | `hubEvents.js` usa `/api/hub/events/stream` relativo com `fetch`, ignorando `baseUrl` | `hubEvents.js` |
 | risco | `safeCopy` remove qualquer campo cujo nome contenha "url" ou "token", e qualquer valor que comece com http(s) ou blob | `storage/catalog.js` |
-| morto | `invalidateMessage` | `hubChannel.js` |
-| morto | Parâmetro `parentRef` ignorado em `deleteItem` | `HubDataProvider.jsx` |
+| morto | ✅ `invalidateMessage` | `hubChannel.js` |
+| morto | ✅ Parâmetro `parentRef` ignorado em `deleteItem` | `HubDataProvider.jsx` |
 | bug | Mobile: `useResource` sem cancelamento; uma resposta atrasada pode sobrescrever a mais nova | `apps/mobile/src/hub/hooks.js` |
 | lacuna | Mobile: pasta limitada a 20 páginas, sem aviso | `hooks.js` |
-| lacuna | Mobile: Home e Folder sem indicador de carregamento | telas |
+| lacuna | ✅ Mobile: Home e Folder sem indicador de carregamento | telas |
 | risco | Mobile: cada evento ou escrita recarrega todas as telas e os provedores | `HubContext.js`, `hooks.js` |
 | lacuna | Mobile: sem mover, sem desligar link público; atalhos e links fora da fila de operações | `useItemActions.js`, `HubContext.js` |
 | inconsistência | Mobile: Home usa `PROVIDER_LABELS` fixo; Folder usa a lista da API | `HomeScreen.js` |
@@ -285,7 +287,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | bug | `ReconnectionRequiredException` na busca vira `PROVEDOR_FALHOU`, e não `RECONEXAO_NECESSARIA` | `SearchService` |
 | lacuna | Busca não usa o catálogo | `SearchService` |
 | lacuna | `LocalSyncFlag` só funciona em thread de requisição; o header só sai nas rotas antigas de escrita | `LocalSyncFlag` |
-| morto | Web: filtro local de atalhos e recentes durante a busca nunca aparece; `features/home/data/mock.js` sem uso | `HomePage.jsx` |
+| morto | ✅ Web: filtro local de atalhos e recentes durante a busca nunca aparece; `features/home/data/mock.js` sem uso | `HomePage.jsx` |
 | lacuna | Web: sem testes da exibição de recentes e atalhos na Home | testes |
 | lacuna | Mobile sem busca | mobile |
 
@@ -295,35 +297,35 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | lacuna | Sem listar todos os links, sem expiração, sem senha, sem revogar todos | `PublicLinkOwnerController` |
 | bug | Slug não muda ao renomear o arquivo; nomes só com caracteres não latinos viram "arquivo" | `LinkSlug` |
-| morto | `accessToken` em `ResolvedPublicLink` e `PublicLinkContext` não é usado no stream (e ainda pode disparar um refresh de token) | `PublicLinkService` |
-| bug | Web: ativar e desativar link sem proteção contra componente desmontado | `PublicLinkOverlay` |
+| morto | ✅ `accessToken` em `ResolvedPublicLink` e `PublicLinkContext` não é usado no stream (e ainda pode disparar um refresh de token) | `PublicLinkService` |
+| bug | ✅ Web: ativar e desativar link sem proteção contra componente desmontado | `PublicLinkOverlay` |
 
 ### Spaces e shell web
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| bug | Dado inicial com ID malformado em `providerContents['google-drive']` | `hubStore.js` |
+| bug | ✅ Dado inicial com ID malformado em `providerContents['google-drive']` | `hubStore.js` |
 | bug | Breadcrumb de reserva lê o store simulado e mostra só "Pasta", "Arquivo", "Provedor" para itens reais | `SpaceViewHeader.jsx` |
 | bug | `SpaceComposer` usa a lista simulada de provedores; "Espelhar" num arquivo passa o arquivo como origem | `SpaceComposer.jsx`, `entryActions.js` |
 | lacuna | Itens de menu sem ação: "Editar PDF", "Pedir assinaturas", "Assinar" | `SpaceBrowsePage.jsx`, `SpaceViewActions.jsx` |
 | lacuna | `NameOverlay` no modo "criar arquivo" fecha sem criar nada | `HubOverlays.jsx` |
-| lacuna | Sem rota 404; boot sem indicador (tela em branco) | `App.jsx` |
-| bug | `AppHeader` usa `'arthur'` como nome padrão; o avatar sempre mostra "A" | `AppHeader.jsx` |
+| lacuna | ✅ Sem rota 404; boot sem indicador (tela em branco) | `App.jsx` |
+| bug | ✅ `AppHeader` usa `'arthur'` como nome padrão; o avatar sempre mostra "A" | `AppHeader.jsx` |
 | lacuna | `AppOverlay` sem focus trap; menus sem navegação por setas | `AppOverlay.jsx`, menus |
 | risco | `placeOverflowMenu` estima a altura do menu; diverge se o CSS mudar | `placeOverflowMenu.js` |
-| lacuna | Privacidade e Termos são placeholders; aba Sobre diz "Versão 0.1 · mock" | `App.jsx`, `AboutTab.jsx` |
+| lacuna | Privacidade e Termos são placeholders; aba Sobre diz "Versão 0.1 · mock" (✅ a aba Sobre mostra a versão real; Privacidade e Termos continuam) | `App.jsx`, `AboutTab.jsx` |
 | lacuna | O proxy do Vite remove `Origin` sem explicação; não há definição de como produção serve `/api` | `vite.config.js` |
-| morto | `isScrollingRef` em `useCustomScrollbar` | `useCustomScrollbar.js` |
+| morto | ✅ `isScrollingRef` em `useCustomScrollbar` | `useCustomScrollbar.js` |
 
 ### App mobile e UI
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| morto | `WelcomeScreen` não está registrada na navegação; seus botões não fazem nada | `WelcomeScreen.js` |
-| morto | `CardFileSheet` e `normalizeThemePreference` | `FileSheet.js`, `tokens.js` |
+| morto | ✅ `WelcomeScreen` não está registrada na navegação; seus botões não fazem nada | `WelcomeScreen.js` |
+| morto | ✅ `CardFileSheet` e `normalizeThemePreference` | `FileSheet.js`, `tokens.js` |
 | lacuna | Tema só segue o sistema; sem escolha no app | `ThemeProvider.js` |
 | inconsistência | Cores escuras fixas fora dos tokens (`SuspendedMenu`, `FileSheet`, `HomeHeader`); tokens de tipografia sem uso | componentes |
-| bug | `CreateFab` calcula o tempo de fechamento para 5 itens | `CreateFab.js` |
+| bug | ✅ `CreateFab` calcula o tempo de fechamento para 5 itens | `CreateFab.js` |
 | bug | Provedor selecionado no `HomeHeader` fica só no estado local | `HomeHeader.js` |
 | lacuna | Sem deep linking além do retorno do OAuth | navegação |
 | risco | Build de release sem `EXPO_PUBLIC_API_BASE_URL` usa `localhost` (em dev, o app usa o IP do host do Expo) | `api/config.js` |
@@ -332,13 +334,13 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| lacuna | Scripts de desenvolvimento só para Windows/PowerShell; o único caminho com Docker é `bridgit-db-up.sh`, do ambiente de nuvem | `scripts/` |
-| lacuna | Scripts PowerShell não criam o banco; checagem com host e porta fixos | `scripts/powershell` |
-| inconsistência | `start-shared-backend.ps1` e `start-mobile-web-backend.ps1` só diferem no rótulo | `scripts/powershell` |
-| bug | `.env.example` sugere `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080`, que tem prioridade sobre o IP do Expo e quebra no Android; nenhum script lê `.env` | `.env.example` |
-| lacuna | `.husky/pre-commit` vazio; `lint-staged` instalado sem configuração | raiz |
-| lacuna | Sem script na raiz para a API; versões de Java e Maven não documentadas | raiz |
-| lacuna | Modo dev-client não tratado pelos scripts | `scripts/powershell` |
+| lacuna | ✅ Scripts de desenvolvimento só para Windows/PowerShell; o único caminho com Docker é `bridgit-db-up.sh`, do ambiente de nuvem | `scripts/` |
+| lacuna | ✅ Scripts PowerShell não criam o banco; checagem com host e porta fixos | `scripts/powershell` |
+| inconsistência | ✅ `start-shared-backend.ps1` e `start-mobile-web-backend.ps1` só diferem no rótulo | `scripts/powershell` |
+| bug | ✅ `.env.example` sugere `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080`, que tem prioridade sobre o IP do Expo e quebra no Android; nenhum script lê `.env` | `.env.example` |
+| lacuna | ✅ `.husky/pre-commit` vazio; `lint-staged` instalado sem configuração | raiz |
+| lacuna | ✅ Sem script na raiz para a API; versões de Java e Maven não documentadas | raiz |
+| lacuna | ✅ Modo dev-client não tratado pelos scripts | `scripts/powershell` |
 
 ---
 

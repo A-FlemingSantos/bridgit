@@ -165,6 +165,8 @@ Ainda não se sabe se a piscada vem da troca do item, da recarga da pasta dispar
 
 **Peso:** baixo, pontual. Ao abrir um PDF longo por um link público, só o topo do arquivo aparece; a página não tem rolagem. Está na página de link público do web (`PublicLinkPage`).
 
+**Status:** resolvido em `fix/ui-e-limpeza`: a página rola dentro da altura da tela.
+
 ---
 
 ## 10. Envio com parte ausente no formulário vira 500 e corta a conexão
@@ -195,6 +197,8 @@ Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam 
 
 **Peso:** baixo, UX.
 
+**Status:** resolvido em `fix/ui-e-limpeza`: web e mobile avisam que a pasta e o conteúdo vão para a lixeira do provedor.
+
 A confirmação de excluir pasta mostra só o nome da pasta. Em 13/10, o arquivo `Livros de Matemática.docx` "sumiu" do OneDrive porque estava dentro de "Pasta Vazia", excluída num teste. Foi para a lixeira do provedor, que é recuperável, mas o usuário não foi avisado.
 
 **Proposta:** "'Pasta Vazia' e tudo o que está dentro dela vão para a lixeira do provedor." No mobile e no web.
@@ -204,6 +208,8 @@ A confirmação de excluir pasta mostra só o nome da pasta. Em 13/10, o arquivo
 ## 14. Ambiente de desenvolvimento
 
 **Peso:** baixo. Atritos encontrados ao testar.
+
+**Status:** resolvido em `fix/ui-e-limpeza`: o mobile tem ESLint (`npm --workspace apps/mobile run lint`, também no pre-commit) e a seção "Executar localmente" de `docs/local-first-cloud-hub.md` documenta a troca de IP e a senha do banco nos testes.
 
 - **IP do PC mudou:** o app monta o endereço da API a partir do IP anunciado pelo Metro. Se o IP do PC muda (outra rede ou nova concessão do roteador), é preciso reiniciar o Metro.
 - **Testes de integração da API exigem a senha do banco:** eles leem `SPRING_DATASOURCE_PASSWORD`. Sem ela, falham no Flyway com "Falha de logon do usuário 'sa'". É preciso carregar `scripts\powershell\local.secrets.ps1` antes do Maven.
