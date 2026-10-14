@@ -61,7 +61,7 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
-    secret: ${APP_JWT_SECRET:dev-only-local-jwt-secret-change-me-00000000000000000000000000000000}
+    secret: ${APP_JWT_SECRET:}
     issuer: bridgit-api
   integrations:
     token-key-base64: ${APP_INTEGRATION_TOKEN_KEY_B64:}

@@ -2,14 +2,13 @@ package com.bridgit.api.files;
 
 import com.bridgit.api.common.error.ApiException;
 import com.bridgit.api.common.error.NotFoundException;
+import com.bridgit.api.common.security.JwtKeys;
 import com.bridgit.api.providers.ContentVariant;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -20,9 +19,11 @@ import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 
 @Service
+@DependsOn("jwtSecretGuard")
 public class ContentTicketService {
 
   public static final String ISSUER = "bridgit-content";
@@ -35,7 +36,7 @@ public class ContentTicketService {
       @Value("${app.jwt.secret}") String secret,
       Clock clock
   ) {
-    this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    this.secretKey = JwtKeys.contentTicketKey(secret);
     this.clock = clock;
   }
 

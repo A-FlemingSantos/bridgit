@@ -3,17 +3,17 @@ package com.bridgit.api.common.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 @Component
+@DependsOn("jwtSecretGuard")
 public class JwtService {
 
   private final SecretKey secretKey;
@@ -25,8 +25,7 @@ public class JwtService {
       @Value("${app.jwt.issuer}") String issuer,
       Clock clock
   ) {
-    byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-    this.secretKey = Keys.hmacShaKeyFor(keyBytes);
+    this.secretKey = JwtKeys.sessionKey(secret);
     this.issuer = issuer;
     this.clock = clock;
   }
