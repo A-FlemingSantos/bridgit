@@ -20,7 +20,7 @@ for arg in "$@"; do
   case "$arg" in
     --shared) shared=1 ;;
     --expo-go) expo_go=1 ;;
-    -h|--help) sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) bridgit_die "opção desconhecida: $arg (use --shared, --expo-go ou --help)" ;;
   esac
 done
