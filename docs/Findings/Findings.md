@@ -1,6 +1,6 @@
 # Findings
 
-Tudo o que apareceu durante os testes da tarefa "[TESTAR] Funcionalidades" e ficou para depois, porque estava fora do escopo do branch `mobile/adjustments` ou porque a correção pedia uma decisão. O que foi corrigido no mesmo dia está no fim, em "Corrigido no dia".
+Tudo o que apareceu durante os testes da tarefa "[TESTAR] Funcionalidades" e ficou para depois, porque estava fora do escopo do branch `mobile/adjustments` ou porque a correção pedia uma decisão. As seções 16 e 17 vêm da revisão da fase 3 (`Fase 3 — revisão técnica e findings.md`, de setembro) e trazem só o que continua valendo no código de hoje. O que foi corrigido no dia dos testes está no fim, em "Corrigido no dia".
 
 Os findings estão em ordem de peso. Os primeiros mexem em arquitetura e pedem decisão; os do meio dependem de configuração ou do deploy; os últimos são pontuais.
 
@@ -218,6 +218,73 @@ Hoje só arquivos podem ter link público (`LINK_APENAS_ARQUIVO`). Pastas devem 
 - a regra de quais subpastas e arquivos entram no link;
 - o comportamento quando o conteúdo muda;
 - o custo de cota do dono a cada acesso, que já é um risco com arquivos.
+
+---
+
+## 16. Leitura e edição de arquivos de código
+
+**Peso:** médio como produto; alto se a edição entrar no escopo, porque pede contrato novo no backend. Vem da revisão da fase 3 e foi conferido no código de 13/10.
+
+### O que existe
+
+O backend reconhece dezenas de extensões de código e texto como leitura textual (`ReadPlanSupport`, lista de extensões). O web baixa os bytes e mostra o texto num bloco simples (`TextReader`); o mobile faz o mesmo numa caixa com rolagem (`FileViewer`). É conteúdo real, renderizado como texto, sem executar HTML ou JavaScript do arquivo.
+
+### O que falta para ler código de verdade
+
+- **Apresentação:** não há fonte monoespaçada dedicada, números de linha, busca no arquivo, destaque de sintaxe nem opção de quebrar ou não as linhas. O painel do web é estreito para código.
+- **Codificação:** o web e o mobile decodificam tudo como UTF-8. Um arquivo em outra codificação aparece com caracteres trocados, sem explicação.
+- **Arquivos grandes:** o backend recusa leitura textual acima de 2 MB quando conhece o tamanho. Mas o web baixa o arquivo inteiro (`arrayBuffer`) e só depois corta em 2 MB, e o mobile baixa tudo e corta em 200 mil caracteres. Quando o tamanho informado pelo provedor está errado ou ausente, o corte não protege nem o tráfego nem a memória. O certo é pedir só o começo do arquivo (intervalo de bytes, que a API já suporta) ou recusar antes de baixar.
+- **Arquivos sem extensão:** a lista inclui `dockerfile`, mas a extensão é tirada do que vem depois do último ponto (`CloudItemSupport.extensionFromName`). Um arquivo chamado só `Dockerfile` (ou `Makefile`) não tem ponto e não é reconhecido como texto.
+
+### Edição
+
+Não existe contrato para salvar o conteúdo de um arquivo. As operações de escrita são criar pasta, enviar, renomear, mover e excluir; `UPDATE` mexe só em nome e pasta. Enviar um arquivo novo com o mesmo nome não equivale a salvar uma revisão: muda a identidade do item em alguns provedores e perde o vínculo com recentes, atalhos e links.
+
+Se a edição entrar no escopo, os passos sugeridos na revisão da fase 3 continuam válidos:
+1. Separar leitura de edição. A leitura continua simples e disponível também em links públicos; editar exige sessão e permissão.
+2. Criar uma operação explícita de salvar conteúdo, com tamanho, tipo e versão esperada, preservando a identidade do arquivo quando o provedor permite.
+3. Detectar conflito antes de salvar. Isso depende de cada provedor ter uma versão confiável, e o finding 1 mostra que o Google Drive ainda não tem.
+4. Modelar o estado local: alterações não salvas, confirmação ao sair, erro, tentar de novo e resultado ambíguo. "Salvo" só depois da confirmação do provedor.
+5. Escolher a biblioteca de editor depois disso. Instalar um editor não resolve versão, permissão, codificação e recuperação.
+
+**Aceitação mínima:** abrir um arquivo real nos três provedores, preservar bytes e codificação, editar e salvar mantendo a identidade, detectar uma alteração externa e não perder o texto local se o provedor falhar.
+
+---
+
+## 17. Abrir arquivos em nova aba e falta de medição de desempenho
+
+**Peso:** médio. Afeta a percepção de velocidade do web e decide onde vale investir em cache.
+
+### Abrir em nova aba repete trabalho
+
+No web, os arquivos abrem em nova aba (`target="_blank"` na pasta do provedor e na Home). Cada nova aba sobe a aplicação inteira de novo: confirma a sessão, busca provedores e atalhos, consulta o item, prepara a leitura, registra o recente, pede o ticket e só então baixa o conteúdo. Uma parte disso roda em paralelo, mas o conteúdo depende do boot e da preparação.
+
+Desde a revisão da fase 3, o sistema evoluiu: o catálogo local no backend passou a servir listagens e metadados de itens, o que reduz as idas ao provedor. A repetição dentro do navegador continua: o que a aba anterior já sabia (item, provedor, sessão) não é reaproveitado, a não ser pelo armazenamento local do web.
+
+**Decisão pendente:** abrir em nova aba é uma escolha de produto ou um efeito de usar `target="_blank"`? Se o leitor virar uma rota da mesma aba, os metadados em memória são reaproveitados de graça. Se a nova aba ficar, o caminho é passar o que já se sabe e reduzir as consultas do boot.
+
+### Não há medição
+
+Não existe instrumentação de latência. A API tem o Actuator, mas sem métricas próprias dos fluxos, e os clientes não marcam tempos. Antes de otimizar cache ou pré-carregamento, medir separadamente:
+- clique até o início da navegação;
+- boot e confirmação da sessão;
+- consultas ao banco e ao catálogo;
+- obtenção do token do provedor;
+- chamadas de metadados por provedor;
+- conversão ou exportação (Office, Google Docs);
+- primeiro byte e transferência;
+- primeira página, imagem ou texto utilizável.
+
+Comparar primeira visita, revisita, nova aba, pasta profunda, pasta paginada e rede lenta. Nunca registrar tokens, tickets completos ou URLs temporárias na telemetria.
+
+### Pré-carregamento que faz sentido
+
+A revisão da fase 3 propôs uma política que continua válida:
+- buscar metadados de destinos prováveis quando o usuário demonstra intenção (passar o mouse), com cancelamento;
+- carregar conteúdo antecipadamente só de arquivos pequenos e com intenção clara, com limite de bytes e de concorrência;
+- nunca pré-carregar a árvore inteira nem os bytes de todos os arquivos.
+
+O web já tem parte disso: busca antecipada ao passar o mouse e cache de conteúdo com limite de tamanho. O que falta é medir se ajuda.
 
 ---
 
