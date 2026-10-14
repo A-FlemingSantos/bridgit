@@ -18,17 +18,23 @@ Os achados dos testes manuais de 2026-10-13 estão em `Findings.md`.
 
 ### Segredo JWT de desenvolvimento como padrão
 
+✅ **Resolvido em `fix/seguranca`:** o `application.yml` não tem mais segredo padrão e a API não sobe com segredo vazio, curto ou de desenvolvimento (`dev-only-`, aceito só no perfil `test`). Os tickets de conteúdo usam uma chave derivada do segredo.
+
 O `application.yml` traz um segredo de desenvolvimento versionado, usado sempre que `APP_JWT_SECRET` não está definido. Em produção, esquecer a variável significa assinar tokens de sessão (e tickets de conteúdo, que usam o mesmo segredo) com uma chave pública no GitHub. Já está como passo no To Do ("travar APP_JWT_SECRET padrão em produção"). A correção é a API se recusar a subir fora do perfil de desenvolvimento com o valor padrão.
 
 Ligado a isso: sessões e tickets de conteúdo usam o mesmo segredo. O emissor e a audiência são diferentes, e existe teste (`ContentTicketJwtRejectionTest`) garantindo que um não vale pelo outro, mas não há separação de chave.
 
 ### Login sem proteção contra força bruta
 
+✅ **Resolvido em `fix/seguranca`:** 5 falhas por usuário e 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente passa pelo mesmo bcrypt; excluir a conta exige a senha (web e mobile).
+
 O login não tem limite de tentativas nem bloqueio. Além disso, um usuário inexistente responde mais rápido que uma senha errada: o `AuthService.login` só roda o bcrypt quando o usuário existe, o que permite descobrir nomes de usuário pelo tempo de resposta.
 
 Também na área de conta: excluir a conta não pede a senha (`DELETE /api/account` sem corpo). Quem tiver uma sessão aberta apaga a conta inteira.
 
 ### Falha de banco vira "sessão inválida"
+
+✅ **Resolvido em `fix/seguranca`:** a falha vai para o log e a resposta é 500 `ERRO_INTERNO`, pelo `ApiErrorWriter` (mesmo envelope do handler, UTF-8).
 
 O `JwtAuthenticationFilter` engole qualquer `RuntimeException` ao validar a sessão, limpa o contexto e segue a requisição. Uma falha de banco vira 401, e os clientes deslogam o usuário, o mobile em qualquer 401. Um problema de infraestrutura passa a parecer "sua sessão expirou". O certo é responder 500 e deixar o cliente tentar de novo.
 
@@ -38,15 +44,21 @@ Nada apaga sessões revogadas (`user_sessions`), estados OAuth usados (`provider
 
 ### OAuth: tentativa gasta antes da troca do código
 
+✅ **Resolvido em `fix/seguranca`:** o state é consumido de forma atômica e liberado em falha passageira (`OAUTH_TROCA_TEMPORARIA`); toda falha vai para o log; configuração vira `PROVEDOR_NAO_CONFIGURADO`; `ProviderOAuthClients.get` lança 503 em vez de devolver `null`.
+
 No `completeCallback`, o state OAuth é marcado como usado antes da troca do código pelo token. Se a troca falhar por um motivo passageiro, o usuário precisa recomeçar a conexão do zero. O `catch (Exception)` dessa troca não tem log e transforma tudo, inclusive limite de requisições e erro de configuração, em `OAUTH_TROCA_FALHOU`. Em produção, uma conexão que falha não deixa rastro.
 
 `ProviderOAuthClients.get` devolve `null` para provedor sem cliente, e quem chama não confere. Um provedor mal configurado vira `NullPointerException`, que esse mesmo `catch` engole.
 
 ### Reconectar com outra conta apaga dados sem aviso
 
+✅ **Resolvido em `fix/seguranca`:** conta diferente responde `OAUTH_CONTA_DIFERENTE` sem apagar nada; web e mobile pedem confirmação e reiniciam com `allowAccountChange`.
+
 Se o usuário reconecta um provedor com outra conta, a conexão antiga é excluída. Por cascata no banco, vão junto recentes, atalhos, links públicos e o catálogo daquele provedor. A API não tem passo de confirmação. Os clientes deveriam avisar antes, ou a API deveria exigir confirmação quando a conta muda.
 
 ### Links públicos revelam ou escondem mais do que deviam
+
+✅ **Resolvido em `fix/seguranca`:** toda a cadeia anônima responde 404 `LINK_NAO_ENCONTRADO` para o que o visitante não deve saber, 503 `LINK_INDISPONIVEL` para falha passageira, 429 `MUITOS_ACESSOS` acima de 60 acessos por minuto por endereço, e os metadados gravam no máximo uma vez por visita.
 
 - Um erro do provedor na etapa de abrir o conteúdo (`open`, e também `readPlan`) está fora do `catch` em `PublicLinkService.streamPublicContent`. O visitante recebe o código interno do provedor, e não `LINK_NAO_ENCONTRADO`.
 - `TOKEN_PROVEDOR_INVALIDO` volta como 502 com o código original, então um anônimo descobre que o link existe.
@@ -127,7 +139,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| lacuna | `JwtAuthenticationFilter` usa `OffsetDateTime.now()` e `BaseEntity` usa `OffsetDateTime.now(UTC)`, e não o `Clock` injetado | `JwtAuthenticationFilter`, `BaseEntity` |
+| lacuna | `JwtAuthenticationFilter` usa `OffsetDateTime.now()` e `BaseEntity` usa `OffsetDateTime.now(UTC)`, e não o `Clock` injetado (✅ o filtro passou a usar o `Clock` em `fix/seguranca`; `BaseEntity` continua) | `JwtAuthenticationFilter`, `BaseEntity` |
 | risco | `DatasourceSafetyGuard` só confere o nome do banco, não o host, e não roda em `@SpringBootTest` | `DatasourceSafetyGuard` |
 | morto | ✅ `app.time.zone-id` não tem consumidor | `application.yml` |
 | lacuna | Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms`, `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
