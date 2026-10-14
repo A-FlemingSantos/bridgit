@@ -30,9 +30,12 @@ public class CatalogStore {
     this.tx = new TransactionTemplate(transactions);
   }
 
+  // One failed round is retried within seconds; only a sync that keeps failing makes the catalog stale.
+  private static final int STALE_AFTER_FAILURES = 2;
+
   public record State(long generation, long activeScan, long buildingScan, long revision,
       boolean complete, String checkpoint, String rootRef, OffsetDateTime syncedAt,
-      String leaseOwner, OffsetDateTime activeAt, OffsetDateTime watchExpires, int failures) {}
+      String leaseOwner, OffsetDateTime activeAt, OffsetDateTime watchExpires, int failures, String lastError) {}
   public record Entry(CloudItem item, String path, String parentPath, boolean fenced, boolean deleted) {}
   public record FolderPage(List<CloudItem> items, boolean complete, State state) {}
 
@@ -67,7 +70,8 @@ public class CatalogStore {
         rs.getLong("generation"), rs.getLong("active_scan"), rs.getLong("building_scan"), rs.getLong("revision"),
         rs.getBoolean("complete"), rs.getString("checkpoint"), rs.getString("root_ref"),
         rs.getObject("synced_at", OffsetDateTime.class), rs.getString("lease_owner"),
-        rs.getObject("active_at", OffsetDateTime.class), rs.getObject("watch_expires", OffsetDateTime.class), rs.getInt("failures")), id.toString());
+        rs.getObject("active_at", OffsetDateTime.class), rs.getObject("watch_expires", OffsetDateTime.class), rs.getInt("failures"),
+        rs.getString("last_error")), id.toString());
   }
 
   public void touch(ProviderConnectionEntity c) {
@@ -332,8 +336,19 @@ public class CatalogStore {
     jdbc.update("UPDATE cloud_catalog_state SET revision=revision+1 WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
     events.append(c.getUserId(), c.getId(), c.getGeneration(), event, payload);
   }
-  public FilesDtos.CatalogMetadata metadata(ProviderConnectionEntity c, State state, boolean complete) {
-    return new FilesDtos.CatalogMetadata(c.getId(), c.getGeneration(), state.revision(), complete ? "complete" : "partial", state.syncedAt());
+  /**
+   * servedFromCatalog says whether the response came from the stored catalog (which can be behind) or straight
+   * from the provider (current by definition). A catalog answer is stale when the connection needs attention
+   * (for instance RECONEXAO_NECESSARIA) or the sync keeps failing; the client decides what to show.
+   */
+  public FilesDtos.CatalogMetadata metadata(ProviderConnectionEntity c, State state, boolean complete, boolean servedFromCatalog) {
+    String reason = null;
+    if (servedFromCatalog) {
+      if (c.getLastError() != null) reason = c.getLastError();
+      else if (state.lastError() != null && state.failures() >= STALE_AFTER_FAILURES) reason = state.lastError();
+    }
+    return new FilesDtos.CatalogMetadata(c.getId(), c.getGeneration(), state.revision(), complete ? "complete" : "partial",
+        state.syncedAt(), reason == null ? "current" : "stale", reason);
   }
   private OffsetDateTime now() { return OffsetDateTime.now(clock); }
   private static String safeName(CloudItem item) { return item.name() == null ? item.ref() : item.name(); }

@@ -17,8 +17,12 @@ public final class FilesDtos {
   public record FolderContext(String ref, String name, List<FolderRef> ancestry) {
   }
 
+  /**
+   * freshness is "current" or "stale"; staleReason carries the error code behind a stale answer
+   * (for instance RECONEXAO_NECESSARIA) and syncedAt says since when the data is known to be right.
+   */
   public record CatalogMetadata(java.util.UUID connectionId, long generation, long revision,
-      String coverage, OffsetDateTime syncedAt) {}
+      String coverage, OffsetDateTime syncedAt, String freshness, String staleReason) {}
 
   public record ListItemsResponse(FolderContext folder, List<CloudItem> items, String nextCursor,
       CatalogMetadata catalog) {
