@@ -89,6 +89,13 @@ function NameOverlay({ overlay }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
+  // The form may close as soon as the server accepts the change; it must close only once.
+  const closedRef = useRef(false)
+  const closeOnce = () => {
+    if (closedRef.current) return
+    closedRef.current = true
+    closeOverlay()
+  }
 
   useEffect(() => {
     activeRef.current = true
@@ -132,9 +139,10 @@ function NameOverlay({ overlay }) {
           providerId,
           parentRef: overlay.folderRef ?? null,
           name,
+          onAccepted: closeOnce,
         })
       }
-      closeOverlay()
+      closeOnce()
     } catch (submitError) {
       if (activeRef.current) setError(hubErrorMessage(submitError))
     } finally {
@@ -288,6 +296,13 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
+  // The form may close as soon as the server accepts the change; it must close only once.
+  const closedRef = useRef(false)
+  const closeOnce = () => {
+    if (closedRef.current) return
+    closedRef.current = true
+    closeOverlay()
+  }
 
   useEffect(() => {
     activeRef.current = true
@@ -308,8 +323,9 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
       await actions.deleteItem({
         providerId: overlay.providerId,
         ref: overlay.ref,
+        onAccepted: closeOnce,
       })
-      closeOverlay()
+      closeOnce()
     } catch (deleteError) {
       if (activeRef.current) setError(hubErrorMessage(deleteError))
     } finally {

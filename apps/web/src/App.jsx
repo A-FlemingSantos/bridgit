@@ -20,6 +20,7 @@ import { isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
 import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
+import OperationNotices from './shared/components/OperationNotices/OperationNotices.jsx'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
 import styles from './App.module.css'
 
@@ -97,6 +98,7 @@ function AppShell() {
         </Routes>
       ) : null}
       <HubOverlays />
+      <OperationNotices />
     </HubProvider>
     </HubDataProvider>
   )

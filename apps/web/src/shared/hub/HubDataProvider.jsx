@@ -701,8 +701,8 @@ export function HubDataProvider({ children }) {
         }).sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
         return errors[0]?.errorMessage ?? null
       },
-      async createFolder({ providerId, parentRef, name }) {
-        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name)
+      async createFolder({ providerId, parentRef, name, onAccepted }) {
+        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name, { onAccepted })
         const folderKey = folderCacheKey(providerId, parentRef)
         keyMetaRef.current[folderKey] = { providerId, folderRef: parentRef ?? null }
         const opId = nextOpId()
@@ -1166,8 +1166,8 @@ export function HubDataProvider({ children }) {
         }
       },
 
-      async deleteItem({ providerId, ref }) {
-        if (durableEnabled(providerId)) return hubApiRef.current.deleteItem(providerId, ref)
+      async deleteItem({ providerId, ref, onAccepted }) {
+        if (durableEnabled(providerId)) return hubApiRef.current.deleteItem(providerId, ref, { onAccepted })
         const sourceKeys = folderKeysContaining(folderCacheRef.current, providerId, ref)
         const removedByKey = {}
         sourceKeys.forEach((key) => {

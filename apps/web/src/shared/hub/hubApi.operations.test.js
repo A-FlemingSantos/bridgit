@@ -37,6 +37,20 @@ describe('durable API operations', () => {
     expect(submitOperation).toHaveBeenCalledTimes(1)
     expect(events).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'SUCCEEDED' }))
   })
+  it('tells the caller as soon as the server accepts, before the work is done', async () => {
+    submitOperation.mockResolvedValue({ id: 'op', status: 'QUEUED', request })
+    getOperation.mockResolvedValueOnce({ id: 'op', status: 'SUCCEEDED', request, item })
+    const accepted = vi.fn()
+    const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user' })
+    let finished = false
+    const result = api.createFolder('onedrive', null, 'Docs', { onAccepted: accepted }).then((value) => { finished = true; return value })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(accepted).toHaveBeenCalledTimes(1)
+    expect(finished).toBe(false)
+    await vi.advanceTimersByTimeAsync(750)
+    await expect(result).resolves.toEqual(item)
+    expect(accepted).toHaveBeenCalledTimes(1)
+  })
   it('rejects a late result from another authenticated identity', async () => {
     let identity = 'user-a'
     let resolve
