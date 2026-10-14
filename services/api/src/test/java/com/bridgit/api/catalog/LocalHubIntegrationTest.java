@@ -82,6 +82,18 @@ class LocalHubIntegrationTest extends ApiIntegrationTestSupport {
     assertThatThrownBy(() -> queries.list(connection, remote, null, first.nextCursor())).hasMessageContaining("atualizada");
   }
 
+  @Test void providerListingOfAnIncompleteFolderAnnouncesNothing() {
+    // A listing fetched from the provider only fills the cache; announcing it made clients reload the
+    // folder, fetch it from the provider again and announce again, without end.
+    when(remote.list(anyString(), isNull(), isNull())).thenReturn(new ItemPage(List.of(item("file-1", "Example.txt", null)), "next-page"));
+    long revision = catalog.ensure(connection).revision();
+
+    queries.list(connection, remote, null, null);
+
+    assertThat(catalog.state(connection.getId()).revision()).isGreaterThan(revision);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cloud_events WHERE connection_id=?", Long.class, connection.getId().toString())).isZero();
+  }
+
   @Test void resetKeepsPreviousInventoryUntilReplacementRoundCompletes() {
     publish(List.of(item("old", "Old.txt", null)));
     assertThat(catalog.claim(connection, "reset")).isTrue();

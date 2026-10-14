@@ -152,7 +152,10 @@ public class CatalogStore {
           c.getId().toString(), c.getGeneration(), s.activeScan(), parentKey(parent));
       jdbc.update("INSERT INTO cloud_catalog_folders(connection_id,generation,scan_id,parent_key,complete) VALUES(?,?,?,?,?)",
           c.getId().toString(), c.getGeneration(), s.activeScan(), parentKey(parent), complete);
-      advance(c, "catalog", Map.of("parentRef", parentKey(parent)));
+      // A listing fetched from the provider is a read-through fill, not a change: it moves the revision (local
+      // cursors over the old rows must restart) but announces nothing. An event here made clients reload the
+      // folder, which for an incomplete folder fetched from the provider again and announced again, forever.
+      bumpRevision(c);
     });
   }
 
@@ -333,8 +336,11 @@ public class CatalogStore {
   }
 
   private void advance(ProviderConnectionEntity c, String event, Object payload) {
-    jdbc.update("UPDATE cloud_catalog_state SET revision=revision+1 WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
+    bumpRevision(c);
     events.append(c.getUserId(), c.getId(), c.getGeneration(), event, payload);
+  }
+  private void bumpRevision(ProviderConnectionEntity c) {
+    jdbc.update("UPDATE cloud_catalog_state SET revision=revision+1 WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
   }
   /**
    * servedFromCatalog says whether the response came from the stored catalog (which can be behind) or straight
