@@ -106,11 +106,3 @@ export async function apiRequest(path, requestOptions = {}) {
 
   return payload?.data
 }
-
-export function createApiClient(options = {}) {
-  return {
-    request(path, requestOptions = {}) {
-      return apiRequest(path, { ...options, ...requestOptions })
-    },
-  }
-}
