@@ -117,7 +117,8 @@ public class OperationWorker {
       if ("VERIFYING".equals(op.status())) next = status == 403 ? "NEEDS_ATTENTION" : "VERIFYING";
       else if (status == 401 || "PROVEDOR_RECONECTAR".equals(code)) next = "WAITING_RECONNECT";
       else if (status == 429) next = op.attempts() >= 4 ? "NEEDS_ATTENTION" : "QUEUED";
-      else if (status >= 400 && status < 500) next = "REJECTED";
+      // 507 (PROVEDOR_SEM_ESPACO) is a definite refusal from the provider, like a 4xx.
+      else if (status >= 400 && status < 500 || status == 507) next = "REJECTED";
       else next = dispatched || "VERIFYING".equals(op.status()) ? "VERIFYING" : op.attempts() >= 4 ? "NEEDS_ATTENTION" : "QUEUED";
       long delay = ex instanceof ProviderApiException api && api.getRetryAfterSeconds() != null ? Math.max(1, api.getRetryAfterSeconds()) : Math.min(300, (1L << Math.min(8, op.attempts())) * 2) + ThreadLocalRandom.current().nextLong(3);
       try { store.defer(id, owner, next, delay, code, message); }

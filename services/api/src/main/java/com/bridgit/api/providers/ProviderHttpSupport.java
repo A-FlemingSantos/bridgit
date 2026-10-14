@@ -140,6 +140,10 @@ public final class ProviderHttpSupport {
     if (code == 429) {
       throw rateLimited(headers, body);
     }
+    if (code == 507) {
+      // OneDrive answers a full account with 507 Insufficient Storage.
+      throw insufficientSpace();
+    }
     if (code >= 500) {
       throw new ProviderApiException(
           HttpStatus.SERVICE_UNAVAILABLE,
@@ -172,11 +176,7 @@ public final class ProviderHttpSupport {
       );
     }
     if (tags.contains("insufficient_space")) {
-      throw new ProviderApiException(
-          HttpStatus.INSUFFICIENT_STORAGE,
-          "PROVEDOR_SEM_ESPACO",
-          "Não há espaço suficiente na conta do provedor."
-      );
+      throw insufficientSpace();
     }
     if (tags.contains("malformed_path")) {
       throw new ProviderApiException(
@@ -247,6 +247,14 @@ public final class ProviderHttpSupport {
     } catch (Exception ex) {
       return null;
     }
+  }
+
+  private static ProviderApiException insufficientSpace() {
+    return new ProviderApiException(
+        HttpStatus.INSUFFICIENT_STORAGE,
+        "PROVEDOR_SEM_ESPACO",
+        "Não há espaço suficiente na conta do provedor."
+    );
   }
 
   private static ProviderApiException rateLimited(HttpHeaders headers, String body) {

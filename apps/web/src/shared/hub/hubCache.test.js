@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRecentsLists, placeRecent, RECENTS_LIMIT } from './hubCache.js'
+import { ApiClientError } from '@bridgit/shared-client'
+import { isAmbiguousError, mergeRecentsLists, placeRecent, RECENTS_LIMIT } from './hubCache.js'
 
 function recent(ref, openedAt) {
   return { provider: 'onedrive', ref, name: ref, openedAt }
@@ -33,5 +34,18 @@ describe('recents cache', () => {
     const merged = mergeRecentsLists(server, local)
     expect(merged).toHaveLength(1)
     expect(merged[0].openedAt).toBe('2026-09-26T00:00:00.000Z')
+  })
+})
+
+describe('isAmbiguousError', () => {
+  it('trata 4xx e falta de espaço no provedor como recusa definitiva', () => {
+    expect(isAmbiguousError(new ApiClientError('x', { status: 409, code: 'ITEM_CONFLITO' }))).toBe(false)
+    expect(isAmbiguousError(new ApiClientError('x', { status: 507, code: 'PROVEDOR_SEM_ESPACO' }))).toBe(false)
+  })
+
+  it('trata rede e 5xx como resultado incerto', () => {
+    expect(isAmbiguousError(new ApiClientError('x', { status: 0, code: 'ERRO_CONEXAO' }))).toBe(true)
+    expect(isAmbiguousError(new ApiClientError('x', { status: 503, code: 'PROVEDOR_INDISPONIVEL' }))).toBe(true)
+    expect(isAmbiguousError(new Error('x'))).toBe(true)
   })
 })
