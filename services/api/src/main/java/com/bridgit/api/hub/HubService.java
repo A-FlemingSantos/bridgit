@@ -95,6 +95,7 @@ public class HubService {
     recentRepository.save(recent);
 
     trimRecents(userId);
+    notifyEntry(userId, connection, "recent", ref, false);
     return toRecentEntry(recent, provider.id());
   }
 
@@ -141,11 +142,16 @@ public class HubService {
         }));
   }
 
-  // Other devices refresh on hub events; without one a shortcut made elsewhere stays invisible.
   private void notifyShortcut(UUID userId, ProviderConnectionEntity connection, String ref, boolean removed) {
+    notifyEntry(userId, connection, "shortcut", ref, removed);
+  }
+
+  // Other devices refresh on hub events; without one a shortcut or recent made elsewhere stays invisible.
+  // Clients reload only their home lists on these, so a recent does not reload the file being read.
+  private void notifyEntry(UUID userId, ProviderConnectionEntity connection, String entry, String ref, boolean removed) {
     if (events == null) return;
     events.append(userId, connection.getId(), connection.getGeneration(), "hub_entries",
-        java.util.Map.of("entry", "shortcut", "ref", ref, "removed", removed));
+        java.util.Map.of("entry", entry, "ref", ref, "removed", removed));
   }
 
   private CloudItem fetchFileItem(
