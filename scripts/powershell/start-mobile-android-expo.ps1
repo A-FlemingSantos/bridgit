@@ -1,3 +1,10 @@
+# -DevClient usa o development build (expo start --dev-client) em vez do Expo Go.
+# Equivale a BRIDGIT_ANDROID_CLIENT=dev-build e dispensa essa variavel.
+[CmdletBinding()]
+param(
+  [switch]$DevClient
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -29,8 +36,12 @@ Start-BridgitScript -Name 'start-mobile-android-expo' -Target 'expo android'
 Assert-BridgitCommand -Name 'npx'
 
 $expoGoPort = Set-BridgitEnvVar -Name 'BRIDGIT_EXPO_GO_PORT' -Prompt 'expo_go_port' -Default '8082' -UseDefaultIfMissing
-$androidClient = Set-BridgitEnvVar -Name 'BRIDGIT_ANDROID_CLIENT' -Prompt 'android_client' -Default 'expo-go' -UseDefaultIfMissing
-$androidClient = Get-BridgitAndroidClient -Value $androidClient
+if ($DevClient) {
+  $androidClient = 'dev-build'
+} else {
+  $androidClient = Set-BridgitEnvVar -Name 'BRIDGIT_ANDROID_CLIENT' -Prompt 'android_client' -Default 'expo-go' -UseDefaultIfMissing
+  $androidClient = Get-BridgitAndroidClient -Value $androidClient
+}
 Set-BridgitProcessEnvVar -Name 'BRIDGIT_ANDROID_CLIENT' -Value $androidClient
 
 # On a phone or emulator "localhost" is the device itself. Without a configured URL the app uses the

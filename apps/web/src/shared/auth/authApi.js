@@ -82,10 +82,11 @@ export async function changePasswordRequest(token, currentPassword, newPassword)
   })
 }
 
-export async function deleteAccountRequest(token) {
+export async function deleteAccountRequest(token, password) {
   return apiRequest('/api/account', {
     method: 'DELETE',
     token,
+    body: { password },
   })
 }
 

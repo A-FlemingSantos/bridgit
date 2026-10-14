@@ -72,7 +72,7 @@ public class FakeOneDriveClient implements CloudProviderClient {
       throw new com.bridgit.api.providers.ProviderApiException(
           org.springframework.http.HttpStatus.NOT_FOUND,
           "ITEM_NAO_ENCONTRADO",
-          "Item nao encontrado."
+          "Item não encontrado."
       );
     }
     return item;
@@ -107,7 +107,7 @@ public class FakeOneDriveClient implements CloudProviderClient {
       throw new com.bridgit.api.providers.ProviderApiException(
           org.springframework.http.HttpStatus.NOT_FOUND,
           "ITEM_NAO_ENCONTRADO",
-          "Item nao encontrado."
+          "Item não encontrado."
       );
     }
     CloudItem updated = new CloudItem(

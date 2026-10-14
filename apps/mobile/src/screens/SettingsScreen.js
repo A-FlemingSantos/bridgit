@@ -5,7 +5,6 @@ import BrowseHeader from '../components/BrowseHeader'
 import ProviderMark from '../components/ProviderMark'
 import {
   Button,
-  ConfirmButton,
   ConfirmPanel,
   Divider,
   Hint,
@@ -93,6 +92,14 @@ function ProvidersSection({ settings }) {
               />
             )}
           </View>
+          {settings.accountChangeId === provider.id ? (
+            <ConfirmPanel
+              prompt={`Você entrou com outra conta do ${provider.name}. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.`}
+              confirmLabel="Trocar de conta"
+              onCancel={settings.cancelAccountChange}
+              onConfirm={async () => setError(await settings.confirmAccountChange())}
+            />
+          ) : null}
           {asking === provider.id && provider.account ? (
             <ConfirmPanel
               prompt={`Desconectar ${provider.name}? Os arquivos continuam no provedor.`}
@@ -178,14 +185,36 @@ function SecuritySection({ settings }) {
       <Divider />
       <AppText weight="500" style={styles.rowTitle}>Excluir conta</AppText>
       <Hint>Apaga seus dados do hub. Os arquivos continuam nos provedores.</Hint>
-      <ConfirmButton
-        label="Excluir conta"
+      <DeleteAccount onDelete={async (password) => setError(await settings.deleteAccount(password))} />
+    </Section>
+  )
+}
+
+// Excluir a conta pede a senha: uma sessão aberta sozinha não basta.
+function DeleteAccount({ onDelete }) {
+  const [asking, setAsking] = useState(false)
+  const [password, setPassword] = useState('')
+
+  if (!asking) return <Button label="Excluir conta" variant="danger" onPress={() => setAsking(true)} />
+
+  return (
+    <>
+      <TextField label="Sua senha" value={password} onChangeText={setPassword} secure autoComplete="password" autoFocus />
+      <ConfirmPanel
         prompt="Excluir a conta de vez? Isso não pode ser desfeito."
         confirmLabel="Excluir"
-        variant="danger"
-        onConfirm={async () => setError(await settings.deleteAccount())}
+        onCancel={() => {
+          setAsking(false)
+          setPassword('')
+        }}
+        onConfirm={() => {
+          const typed = password
+          setAsking(false)
+          setPassword('')
+          onDelete(typed)
+        }}
       />
-    </Section>
+    </>
   )
 }
 

@@ -30,9 +30,12 @@ public class CatalogStore {
     this.tx = new TransactionTemplate(transactions);
   }
 
+  // One failed round is retried within seconds; only a sync that keeps failing makes the catalog stale.
+  private static final int STALE_AFTER_FAILURES = 2;
+
   public record State(long generation, long activeScan, long buildingScan, long revision,
       boolean complete, String checkpoint, String rootRef, OffsetDateTime syncedAt,
-      String leaseOwner, OffsetDateTime activeAt, OffsetDateTime watchExpires, int failures) {}
+      String leaseOwner, OffsetDateTime activeAt, OffsetDateTime watchExpires, int failures, String lastError) {}
   public record Entry(CloudItem item, String path, String parentPath, boolean fenced, boolean deleted) {}
   public record FolderPage(List<CloudItem> items, boolean complete, State state) {}
 
@@ -67,7 +70,8 @@ public class CatalogStore {
         rs.getLong("generation"), rs.getLong("active_scan"), rs.getLong("building_scan"), rs.getLong("revision"),
         rs.getBoolean("complete"), rs.getString("checkpoint"), rs.getString("root_ref"),
         rs.getObject("synced_at", OffsetDateTime.class), rs.getString("lease_owner"),
-        rs.getObject("active_at", OffsetDateTime.class), rs.getObject("watch_expires", OffsetDateTime.class), rs.getInt("failures")), id.toString());
+        rs.getObject("active_at", OffsetDateTime.class), rs.getObject("watch_expires", OffsetDateTime.class), rs.getInt("failures"),
+        rs.getString("last_error")), id.toString());
   }
 
   public void touch(ProviderConnectionEntity c) {
@@ -148,7 +152,10 @@ public class CatalogStore {
           c.getId().toString(), c.getGeneration(), s.activeScan(), parentKey(parent));
       jdbc.update("INSERT INTO cloud_catalog_folders(connection_id,generation,scan_id,parent_key,complete) VALUES(?,?,?,?,?)",
           c.getId().toString(), c.getGeneration(), s.activeScan(), parentKey(parent), complete);
-      advance(c, "catalog", Map.of("parentRef", parentKey(parent)));
+      // A listing fetched from the provider is a read-through fill, not a change: it moves the revision (local
+      // cursors over the old rows must restart) but announces nothing. An event here made clients reload the
+      // folder, which for an incomplete folder fetched from the provider again and announced again, forever.
+      bumpRevision(c);
     });
   }
 
@@ -329,15 +336,29 @@ public class CatalogStore {
   }
 
   private void advance(ProviderConnectionEntity c, String event, Object payload) {
-    jdbc.update("UPDATE cloud_catalog_state SET revision=revision+1 WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
+    bumpRevision(c);
     events.append(c.getUserId(), c.getId(), c.getGeneration(), event, payload);
   }
-  public FilesDtos.CatalogMetadata metadata(ProviderConnectionEntity c, State state, boolean complete) {
-    return new FilesDtos.CatalogMetadata(c.getId(), c.getGeneration(), state.revision(), complete ? "complete" : "partial", state.syncedAt());
+  private void bumpRevision(ProviderConnectionEntity c) {
+    jdbc.update("UPDATE cloud_catalog_state SET revision=revision+1 WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
+  }
+  /**
+   * servedFromCatalog says whether the response came from the stored catalog (which can be behind) or straight
+   * from the provider (current by definition). A catalog answer is stale when the connection needs attention
+   * (for instance RECONEXAO_NECESSARIA) or the sync keeps failing; the client decides what to show.
+   */
+  public FilesDtos.CatalogMetadata metadata(ProviderConnectionEntity c, State state, boolean complete, boolean servedFromCatalog) {
+    String reason = null;
+    if (servedFromCatalog) {
+      if (c.getLastError() != null) reason = c.getLastError();
+      else if (state.lastError() != null && state.failures() >= STALE_AFTER_FAILURES) reason = state.lastError();
+    }
+    return new FilesDtos.CatalogMetadata(c.getId(), c.getGeneration(), state.revision(), complete ? "complete" : "partial",
+        state.syncedAt(), reason == null ? "current" : "stale", reason);
   }
   private OffsetDateTime now() { return OffsetDateTime.now(clock); }
   private static String safeName(CloudItem item) { return item.name() == null ? item.ref() : item.name(); }
   private static String parentKey(String parent) { return parent == null ? "" : parent; }
   private static String pathHash(String path) { return path == null ? null : HubJson.hash(path.toLowerCase(Locale.ROOT)); }
-  private static ConflictException staleConnection() { return new ConflictException("CONEXAO_ALTERADA", "A conexao foi alterada. Atualize e tente novamente."); }
+  private static ConflictException staleConnection() { return new ConflictException("CONEXAO_ALTERADA", "A conexão foi alterada. Atualize e tente novamente."); }
 }

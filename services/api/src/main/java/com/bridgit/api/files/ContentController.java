@@ -34,7 +34,7 @@ public class ContentController {
       HttpServletResponse response
   ) throws Exception {
     ContentTicketService.ContentTicket parsed = contentTicketService.parseTicket(ticket);
-    ContentStream stream = providerFileService.openTicketContent(ticket, range);
+    ContentStream stream = providerFileService.openTicketContent(parsed, range);
     try (stream) {
       contentStreamResponder.write(stream, response, parsed.attachment());
     }

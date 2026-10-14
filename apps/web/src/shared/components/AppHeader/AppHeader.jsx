@@ -1,5 +1,6 @@
 import { House, Layers, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import { useSession } from '../../auth/SessionContext.jsx'
 import { ROUTES } from '../../config/routes.js'
 import {
   isSettingsPath,
@@ -19,13 +20,9 @@ function isSpacesNavActive(pathname) {
     || pathname.startsWith('/s/')
 }
 
-/**
- * @typedef {Object} AppHeaderProps
- * @property {string} [userName]
- */
-
-export default function AppHeader({ userName = 'arthur' }) {
+export default function AppHeader() {
   const location = useLocation()
+  const { user } = useSession()
   const settingsActive = isSettingsPath(location.pathname)
   const pagePathname = settingsActive
     ? resolveSettingsBackground(location).pathname
@@ -33,7 +30,7 @@ export default function AppHeader({ userName = 'arthur' }) {
   const homeActive = isHomeNavActive(pagePathname)
   const spacesActive = isSpacesNavActive(pagePathname)
   const settingsState = settingsNavState(location)
-  const initials = userName
+  const initials = (user?.username ?? '')
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)

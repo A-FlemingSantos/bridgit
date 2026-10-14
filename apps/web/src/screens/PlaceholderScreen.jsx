@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '../shared/config/routes.js'
 import styles from './PlaceholderScreen.module.css'
 
-export default function PlaceholderScreen({ title }) {
+export default function PlaceholderScreen({ title, backLabel = 'Voltar' }) {
   return (
     <main className={styles.shell}>
       <div className={styles.inner}>
@@ -11,7 +11,7 @@ export default function PlaceholderScreen({ title }) {
         </Link>
         <h1 className={styles.title}>{title}</h1>
         <Link to={ROUTES.landing} className={styles.back}>
-          Voltar
+          {backLabel}
         </Link>
       </div>
     </main>

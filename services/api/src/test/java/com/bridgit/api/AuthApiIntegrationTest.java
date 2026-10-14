@@ -118,7 +118,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.error.message").value("Usuario ou senha invalidos."));
+        .andExpect(jsonPath("$.error.message").value("Usuário ou senha inválidos."));
 
     mockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
@@ -131,7 +131,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
                 }
                 """.formatted(deviceKey)))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.error.message").value("Usuario ou senha invalidos."));
+        .andExpect(jsonPath("$.error.message").value("Usuário ou senha inválidos."));
   }
 
   @Test
@@ -156,7 +156,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
     mockMvc.perform(post("/api/auth/logout")
             .header("Authorization", "Bearer " + token))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.message").value("Sessao encerrada com sucesso."));
+        .andExpect(jsonPath("$.data.message").value("Sessão encerrada com sucesso."));
 
     mockMvc.perform(post("/api/auth/refresh")
             .header("Authorization", "Bearer " + token))
@@ -236,10 +236,23 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
 
     mockMvc.perform(delete("/api/account")
             .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest());
+
+    mockMvc.perform(delete("/api/account")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"password\":\"errada-123\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("SENHA_ATUAL_INVALIDA"));
+
+    mockMvc.perform(delete("/api/account")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"password\":\"12345678\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.message").value("Conta removida com sucesso."));
 
-    mockMvc.perform(get("/api/account")
+    mockMvc.perform(get("/api/auth/sessions")
             .header("Authorization", "Bearer " + token))
         .andExpect(status().isUnauthorized());
   }

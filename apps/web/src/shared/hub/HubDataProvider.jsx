@@ -3,6 +3,7 @@ import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
 import { loadCatalog, saveCatalog, clearConnectionStorage, putContent } from './storage/index.js'
 import { projectOperations } from './operationProjection.js'
+import { mergeRefreshPlans, planEventRefresh } from './hubEventPlan.js'
 import { subscribeServerEvents } from './hubEvents.js'
 import { prefetchContent } from './content/index.js'
 import { HubUploadError, buildUploadErrorMessage } from './hubErrors.js'
@@ -496,8 +497,8 @@ export function HubDataProvider({ children }) {
   )
 
   const connectProvider = useCallback(
-    async (providerId, redirectTo) => {
-      const { authorizationUrl } = await hubApiRef.current.connectProvider(providerId, redirectTo)
+    async (providerId, redirectTo, options) => {
+      const { authorizationUrl } = await hubApiRef.current.connectProvider(providerId, redirectTo, options)
       window.location.assign(authorizationUrl)
     },
     [],
@@ -700,8 +701,8 @@ export function HubDataProvider({ children }) {
         }).sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
         return errors[0]?.errorMessage ?? null
       },
-      async createFolder({ providerId, parentRef, name }) {
-        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name)
+      async createFolder({ providerId, parentRef, name, onAccepted }) {
+        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name, { onAccepted })
         const folderKey = folderCacheKey(providerId, parentRef)
         keyMetaRef.current[folderKey] = { providerId, folderRef: parentRef ?? null }
         const opId = nextOpId()
@@ -1165,9 +1166,8 @@ export function HubDataProvider({ children }) {
         }
       },
 
-      async deleteItem({ providerId, ref, parentRef }) {
-        if (durableEnabled(providerId)) return hubApiRef.current.deleteItem(providerId, ref)
-        void parentRef
+      async deleteItem({ providerId, ref, onAccepted }) {
+        if (durableEnabled(providerId)) return hubApiRef.current.deleteItem(providerId, ref, { onAccepted })
         const sourceKeys = folderKeysContaining(folderCacheRef.current, providerId, ref)
         const removedByKey = {}
         sourceKeys.forEach((key) => {
@@ -1444,6 +1444,38 @@ export function HubDataProvider({ children }) {
     void loadShortcuts().catch(() => {})
   }, [loadRecents, loadShortcuts])
 
+  // Applies a refresh plan to one provider: only the folders it names (if they are open) and the home lists.
+  const applyRefreshPlan = useCallback((providerId, plan) => {
+    if (plan.all) {
+      refreshProvider(providerId)
+      return
+    }
+    const keys = new Set()
+    for (const folderRef of plan.folders) keys.add(folderCacheKey(providerId, folderRef))
+    for (const ref of plan.containing) for (const key of folderKeysContaining(folderCacheRef.current, providerId, ref)) keys.add(key)
+    for (const key of keys) {
+      if (!folderCacheRef.current[key]?.loaded) continue
+      const meta = keyMetaRef.current[key] ?? splitFolderKey(key)
+      void loadFolderRef.current(providerId, meta.folderRef, null, { force: true }).catch(() => {})
+    }
+    if (plan.containing.size > 0) {
+      setItemCache((previous) => {
+        let next = previous
+        for (const ref of plan.containing) {
+          const key = itemCacheKey(providerId, ref)
+          if (!previous[key]) continue
+          if (next === previous) next = { ...previous }
+          next[key] = { ...previous[key], fetchedAt: 0 }
+        }
+        return next
+      })
+    }
+    if (plan.home) {
+      void loadRecents().catch(() => {})
+      void loadShortcuts().catch(() => {})
+    }
+  }, [refreshProvider, loadRecents, loadShortcuts])
+
   operationCallbackRef.current = (operation) => {
     if (!operation?.id || !operation.request) return
     const request = operation.request
@@ -1501,7 +1533,14 @@ export function HubDataProvider({ children }) {
         })))
       }
     }
-    if (['SUCCEEDED', 'REJECTED'].includes(operation.status) && previous?.status !== operation.status) refreshProvider(request.provider)
+    // A success is already applied above, and the server follows it with a catalog event. A rejection
+    // puts back what the server has for the folders involved.
+    if (operation.status === 'REJECTED' && previous?.status !== operation.status) {
+      applyRefreshPlan(request.provider, mergeRefreshPlans(null, {
+        folders: request.parentRef !== undefined && request.parentRef !== null ? [request.parentRef || null] : [],
+        containing: request.ref ? [request.ref] : [],
+      }))
+    }
   }
 
   const connectionsSignature = providersState.providers.filter((provider) => provider.connected && provider.connectionId)
@@ -1510,7 +1549,7 @@ export function HubDataProvider({ children }) {
     if (!hydrated || !userId || !connectionsSignature || !hubApiRef.current.listOperations) return undefined
     let active = true
     let refreshTimer
-    const pendingProviders = new Set()
+    const pendingPlans = new Map()
     void hubApiRef.current.listOperations().then((operations) => {
       if (active) {
         for (const operation of operations ?? []) {
@@ -1532,16 +1571,16 @@ export function HubDataProvider({ children }) {
       if (!connection || String(connection.generation) !== String(event.generation)) return
       if (event.type === 'operation') operationCallbackRef.current?.(event.payload)
       else {
-        pendingProviders.add(connection.id)
+        pendingPlans.set(connection.id, mergeRefreshPlans(pendingPlans.get(connection.id), planEventRefresh(event)))
         clearTimeout(refreshTimer)
         refreshTimer = setTimeout(() => {
-          for (const id of pendingProviders) refreshProvider(id)
-          pendingProviders.clear()
+          for (const [id, plan] of pendingPlans) applyRefreshPlan(id, plan)
+          pendingPlans.clear()
         }, 200)
       }
     })
     return () => { active = false; clearTimeout(refreshTimer); stop() }
-  }, [hydrated, userId, connectionsSignature, refreshProvider])
+  }, [hydrated, userId, connectionsSignature, refreshProvider, applyRefreshPlan])
 
   useEffect(() => {
     if (!hydrated || !userId || !connectionsSignature) return undefined

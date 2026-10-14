@@ -452,7 +452,10 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Enviar' }))
+    // The button renders disabled until the providers load; a click before that does nothing.
+    const send = await screen.findByRole('button', { name: 'Enviar' })
+    await waitFor(() => expect(send).toBeEnabled())
+    await user.click(send)
     expect(screen.getByRole('menuitem', { name: 'OneDrive' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Google Drive' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Dropbox' })).not.toBeInTheDocument()
@@ -706,8 +709,34 @@ describe('App', () => {
     expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
     await user.click(screen.getByRole('menuitem', { name: 'Excluir' }))
     const dialog = screen.getByRole('dialog', { name: 'Excluir pasta' })
+    expect(within(dialog).getByText('"Inovações técnicas" e tudo o que está dentro dela vão para a lixeira do provedor.')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Excluir' }))
     expect(screen.queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
+  })
+
+  it('mostra a página não encontrada em rotas desconhecidas', async () => {
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/nao-existe']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ir para o início' })).toHaveAttribute('href', '/')
+  })
+
+  it('mostra o indicador de carregamento enquanto a sessão é revalidada', async () => {
+    apiRequest.mockImplementation(() => new Promise(() => {}))
+    seedAuthenticatedSession()
+
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('status', { name: 'Carregando' })).toBeInTheDocument()
   })
 
   it('mostra conflitos no space', async () => {
@@ -1240,9 +1269,14 @@ describe('App', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: 'Excluir conta' }))
+    await user.type(screen.getByLabelText('Confirme com sua senha'), 'minha-senha')
     await user.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
 
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(apiRequest).toHaveBeenCalledWith(
+      '/api/account',
+      expect.objectContaining({ method: 'DELETE', body: { password: 'minha-senha' } }),
+    )
     expect(screen.queryByRole('heading', { name: /Toda a nuvem/ })).not.toBeInTheDocument()
   })
 })

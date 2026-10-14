@@ -5,6 +5,6 @@ import com.bridgit.api.common.error.ConflictException;
 public class ReconnectionRequiredException extends ConflictException {
 
   public ReconnectionRequiredException() {
-    super("RECONEXAO_NECESSARIA", "E necessario reconectar este provedor de nuvem.");
+    super("RECONEXAO_NECESSARIA", "É necessário reconectar este provedor de nuvem.");
   }
 }

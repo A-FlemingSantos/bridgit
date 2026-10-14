@@ -32,6 +32,9 @@ public class ProviderOAuthStateEntity extends BaseEntity {
   @Column(name = "used_at")
   private OffsetDateTime usedAt;
 
+  @Column(name = "allow_account_change", nullable = false)
+  private boolean allowAccountChange;
+
   public UUID getUserId() {
     return userId;
   }
@@ -86,5 +89,13 @@ public class ProviderOAuthStateEntity extends BaseEntity {
 
   public void setUsedAt(OffsetDateTime usedAt) {
     this.usedAt = usedAt;
+  }
+
+  public boolean isAllowAccountChange() {
+    return allowAccountChange;
+  }
+
+  public void setAllowAccountChange(boolean allowAccountChange) {
+    this.allowAccountChange = allowAccountChange;
   }
 }

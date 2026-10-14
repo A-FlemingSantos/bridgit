@@ -58,25 +58,6 @@ export function ConfirmPanel({ prompt, confirmLabel, onConfirm, onCancel }) {
   )
 }
 
-// Botão que se troca pelo painel de confirmação ao ser tocado.
-export function ConfirmButton({ label, prompt, confirmLabel, onConfirm, variant = 'outline' }) {
-  const [asking, setAsking] = useState(false)
-
-  if (!asking) return <Button label={label} variant={variant} onPress={() => setAsking(true)} />
-
-  return (
-    <ConfirmPanel
-      prompt={prompt}
-      confirmLabel={confirmLabel}
-      onCancel={() => setAsking(false)}
-      onConfirm={() => {
-        setAsking(false)
-        onConfirm()
-      }}
-    />
-  )
-}
-
 // Linha com título, dica e um controle à direita.
 export function PrefRow({ title, hint, children }) {
   return (

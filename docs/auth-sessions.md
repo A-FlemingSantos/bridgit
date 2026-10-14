@@ -7,7 +7,7 @@ A validade da sessão é controlada **no servidor** (tabela `user_sessions`). N�
 - JWT HS256 assinado com `APP_JWT_SECRET`, com `sub`, `username`, `sid` (id da sessão) e `iss`.
 - O JWT **não tem `exp`**. Quem decide se a sessão vale é a linha em `user_sessions`: revogada, expirada ou inexistente resulta em 401.
 - Códigos de 401 de sessão: `SESSAO_INVALIDA`, `SESSAO_REVOGADA`, `SESSAO_EXPIRADA`.
-- Tickets de conteúdo (`/api/content/<ticket>`) são outros JWTs (emissor `bridgit-content`, 5 min) assinados com o mesmo segredo; não dependem da sessão.
+- Tickets de conteúdo (`/api/content/<ticket>`) são outros JWTs (emissor `bridgit-content`, 5 min), assinados com uma chave derivada de `APP_JWT_SECRET` (HMAC-SHA256 do segredo com o rótulo `bridgit-content-ticket`). Um token de sessão não vale como ticket, nem o contrário. Não dependem da sessão.
 
 ## Tipo de cliente
 
@@ -38,6 +38,6 @@ Sessões expiradas ficam fora de `GET /api/auth/sessions`; um novo login no mesm
 
 ## Configuração
 
-- `APP_JWT_SECRET`: obrigatório em produção (o valor padrão do `application.yml` é só para desenvolvimento).
+- `APP_JWT_SECRET`: obrigatório, com pelo menos 32 bytes. Não há valor padrão: a API não sobe sem ele, nem com uma chave de desenvolvimento versionada (prefixo `dev-only-`), que só vale no perfil `test`. Gere com `openssl rand -base64 48`.
 - `app.jwt.issuer`: emissor do JWT de sessão.
 - O antigo `app.jwt.access-token-minutes` foi removido.

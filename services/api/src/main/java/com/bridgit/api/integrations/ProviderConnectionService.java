@@ -21,17 +21,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class ProviderConnectionService {
+  private static final Logger log = LoggerFactory.getLogger(ProviderConnectionService.class);
+
   @org.springframework.beans.factory.annotation.Autowired(required = false)
   private com.bridgit.api.catalog.LocalHubProperties localHubProperties;
 
@@ -93,16 +98,13 @@ public class ProviderConnectionService {
   }
 
   @Transactional
-  public String startAuthorization(CloudProvider provider, String redirectTo) {
+  public String startAuthorization(CloudProvider provider, String redirectTo, boolean allowAccountChange) {
     UUID userId = authenticatedUserService.requireUserId();
 
     if (!properties.forProvider(provider).configured()) {
-      throw new ApiException(
-          HttpStatus.SERVICE_UNAVAILABLE,
-          "PROVEDOR_NAO_CONFIGURADO",
-          "Este provedor ainda nao foi configurado no servidor."
-      );
+      throw ProviderOAuthClients.notConfigured();
     }
+    ProviderOAuthClient client = oauthClients.get(provider);
 
     String stateToken = OAuthSupport.randomBase64Url(32);
     String codeVerifier = OAuthSupport.generateCodeVerifier();
@@ -114,10 +116,10 @@ public class ProviderConnectionService {
     stateEntity.setStateToken(stateToken);
     stateEntity.setCodeVerifier(codeVerifier);
     stateEntity.setRedirectPath(sanitizeRedirect(redirectTo));
+    stateEntity.setAllowAccountChange(allowAccountChange);
     stateEntity.setExpiresAt(OffsetDateTime.now(clock).plusMinutes(properties.getStateMinutes()));
     oauthStateRepository.save(stateEntity);
 
-    ProviderOAuthClient client = oauthClients.get(provider);
     return client.authorizationUrl(stateToken, codeChallenge);
   }
 
@@ -156,8 +158,13 @@ public class ProviderConnectionService {
       return callbackRedirect(provider, "error", "OAUTH_STATE_EXPIRADO", redirectPath);
     }
 
-    stateEntity.setUsedAt(now);
-    oauthStateRepository.save(stateEntity);
+    // Marked before the exchange so a concurrent callback cannot reuse the same state. It is committed on its own
+    // (the exchange runs inside the outer transaction) and only released again for transient failures.
+    Integer marked = requiresNewTemplate.execute(
+        status -> oauthStateRepository.markUsed(stateEntity.getId(), now));
+    if (marked == null || marked == 0) {
+      return callbackRedirect(provider, "error", "OAUTH_STATE_EXPIRADO", redirectPath);
+    }
 
     if (code == null || code.isBlank()) {
       return callbackRedirect(provider, "error", "OAUTH_CODE_AUSENTE", redirectPath);
@@ -178,7 +185,14 @@ public class ProviderConnectionService {
           .findByUserIdAndProvider(stateEntity.getUserId(), provider.id())
           .orElseGet(ProviderConnectionEntity::new);
 
-      if (connection.getId() != null && !account.accountId().equals(connection.getAccountId())) {
+      boolean accountChanged = connection.getId() != null
+          && !account.accountId().equals(connection.getAccountId());
+      if (accountChanged && !stateEntity.isAllowAccountChange()) {
+        // Replacing the account cascades to recents, shortcuts, public links and the catalog: ask first.
+        return callbackRedirect(provider, "error", "OAUTH_CONTA_DIFERENTE", redirectPath);
+      }
+
+      if (accountChanged) {
         // A different remote account must never inherit snapshots, tickets or pending writes.
         connectionRepository.delete(connection);
         connectionRepository.flush();
@@ -202,8 +216,51 @@ public class ProviderConnectionService {
 
       return callbackRedirect(provider, "connected", null, redirectPath);
     } catch (Exception ex) {
-      return callbackRedirect(provider, "error", "OAUTH_TROCA_FALHOU", redirectPath);
+      ExchangeFailure failure = classifyExchangeFailure(ex);
+      // Only the provider, the exception class and the API code: never tokens, the code or the state.
+      log.warn("Falha ao concluir o OAuth provider={} tipo={} codigo={} classe={}",
+          provider.id(), failure.name(), ex instanceof ApiException api ? api.getCode() : "-",
+          ex.getClass().getSimpleName());
+      if (failure == ExchangeFailure.TRANSIENT) {
+        requiresNewTemplate.executeWithoutResult(
+            status -> oauthStateRepository.release(stateEntity.getId()));
+      }
+      return callbackRedirect(provider, "error", failure.errorCode, redirectPath);
     }
+  }
+
+  private enum ExchangeFailure {
+    CONFIGURATION("PROVEDOR_NAO_CONFIGURADO"),
+    TRANSIENT("OAUTH_TROCA_TEMPORARIA"),
+    FAILED("OAUTH_TROCA_FALHOU");
+
+    private final String errorCode;
+
+    ExchangeFailure(String errorCode) {
+      this.errorCode = errorCode;
+    }
+  }
+
+  private static ExchangeFailure classifyExchangeFailure(Throwable ex) {
+    if (ex instanceof ApiException api) {
+      String apiCode = api.getCode();
+      if ("PROVEDOR_NAO_CONFIGURADO".equals(apiCode) || "PROVEDOR_CONFIGURACAO_INVALIDA".equals(apiCode)) {
+        return ExchangeFailure.CONFIGURATION;
+      }
+      if ("PROVEDOR_INDISPONIVEL".equals(apiCode)) {
+        return ExchangeFailure.TRANSIENT;
+      }
+      return ExchangeFailure.FAILED;
+    }
+    if (ex instanceof RestClientResponseException response) {
+      int statusCode = response.getStatusCode().value();
+      return statusCode == 429 || statusCode >= 500 ? ExchangeFailure.TRANSIENT : ExchangeFailure.FAILED;
+    }
+    if (ex instanceof ResourceAccessException || ex instanceof java.io.IOException
+        || ex.getCause() instanceof java.io.IOException) {
+      return ExchangeFailure.TRANSIENT;
+    }
+    return ExchangeFailure.FAILED;
   }
 
   @Transactional

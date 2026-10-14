@@ -36,6 +36,10 @@ spring:
     enabled: true
 
 server:
+  tomcat:
+    # Lets Tomcat read the rest of an upload it already answered (for instance a 400 for a missing
+    # part), so the client sees the error instead of a dropped connection. Matches max-request-size.
+    max-swallow-size: 52MB
   error:
     whitelabel:
       enabled: false
@@ -55,16 +59,38 @@ app:
     content-cache-enabled: ${APP_HUB_CONTENT_CACHE_ENABLED:true}
     webhook-base-url: ${APP_HUB_WEBHOOK_BASE_URL:}
     upload-directory: ${APP_HUB_UPLOAD_DIRECTORY:./data/pending-uploads}
+    # Total / per-user bytes of uploads waiting to be sent to the provider (5 GiB / 500 MiB).
+    upload-global-bytes: ${APP_HUB_UPLOAD_GLOBAL_BYTES:5368709120}
+    upload-user-bytes: ${APP_HUB_UPLOAD_USER_BYTES:524288000}
+    # Comma-separated provider ids (onedrive, google-drive, dropbox) to turn off.
+    disabled-providers: ${APP_HUB_DISABLED_PROVIDERS:}
+    # Poll intervals (ms) of the background jobs.
+    worker-poll-ms: ${APP_HUB_WORKER_POLL_MS:2000}
+    watch-poll-ms: ${APP_HUB_WATCH_POLL_MS:60000}
+    operation-poll-ms: ${APP_HUB_OPERATION_POLL_MS:500}
+    upload-cleanup-poll-ms: ${APP_HUB_UPLOAD_CLEANUP_POLL_MS:5000}
+    # Periodic deletion of rows that only accumulate (cloud_events, user_sessions, provider_oauth_states).
+    retention:
+      enabled: ${APP_HUB_RETENTION_ENABLED:true}
+      poll-ms: ${APP_HUB_RETENTION_POLL_MS:3600000}
+      initial-delay-ms: ${APP_HUB_RETENTION_INITIAL_DELAY_MS:60000}
+      # Event log rows older than this are removed; clients only ask for recent events.
+      events-days: ${APP_HUB_RETENTION_EVENTS_DAYS:7}
+      # Sessions revoked, or expired, for longer than this are removed.
+      sessions-days: ${APP_HUB_RETENTION_SESSIONS_DAYS:30}
+      # OAuth states used, or expired, for longer than this are removed.
+      oauth-states-hours: ${APP_HUB_RETENTION_OAUTH_STATES_HOURS:24}
+  search:
+    # Time budget (ms) for one cross-provider search.
+    budget-ms: ${APP_SEARCH_BUDGET_MS:8000}
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
   # Comma-separated URL prefixes the OAuth flow may return to. Expo Go needs its exp:// address added in development.
   mobile-redirect-prefixes: ${APP_MOBILE_REDIRECT_PREFIXES:bridgit://}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
-    secret: ${APP_JWT_SECRET:dev-only-local-jwt-secret-change-me-00000000000000000000000000000000}
+    secret: ${APP_JWT_SECRET:}
     issuer: bridgit-api
-  time:
-    zone-id: America/Sao_Paulo
   integrations:
     token-key-base64: ${APP_INTEGRATION_TOKEN_KEY_B64:}
   providers:

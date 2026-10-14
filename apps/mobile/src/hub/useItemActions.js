@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Share } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@bridgit/shared-client'
 import { createMenuItems, fileMenuItems, folderMenuItems } from '../components/menus'
 import { errorMessage } from '../api/errorMessage'
 import { splitExtension, withExtension } from './format'
 import { useHub } from './HubContext'
-
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 function failureMessage(error) {
   return errorMessage(error)
@@ -53,7 +52,9 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   const remove = (entry) => setDialog({
     type: 'confirm',
     title: entry.isFolder ? 'Excluir pasta' : 'Excluir arquivo',
-    message: `"${entry.name}" será excluído do provedor.`,
+    message: entry.isFolder
+      ? `"${entry.name}" e tudo o que está dentro dela vão para a lixeira do provedor.`
+      : `"${entry.name}" vai para a lixeira do provedor.`,
     confirmLabel: 'Excluir',
     danger: true,
     onSubmit: async () => {
@@ -98,7 +99,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
       const asset = result.assets[0]
 
       if ((asset.size ?? 0) > MAX_UPLOAD_BYTES) {
-        say('O arquivo excede o limite de 50 MB.')
+        say(`O arquivo excede o limite de ${MAX_UPLOAD_LABEL}.`)
         return
       }
 

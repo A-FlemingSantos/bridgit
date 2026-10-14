@@ -10,6 +10,4 @@ public interface ProviderConnectionRepository extends JpaRepository<ProviderConn
   List<ProviderConnectionEntity> findByUserId(UUID userId);
 
   Optional<ProviderConnectionEntity> findByUserIdAndProvider(UUID userId, String provider);
-
-  void deleteByUserIdAndProvider(UUID userId, String provider);
 }

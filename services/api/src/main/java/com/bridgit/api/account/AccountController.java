@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,11 +25,6 @@ public class AccountController {
     this.accountService = accountService;
   }
 
-  @GetMapping
-  public ApiEnvelope<AuthDtos.AccountResponse> getAccount() {
-    return ApiEnvelope.ok(accountService.getAccount());
-  }
-
   @PatchMapping
   public ApiEnvelope<AuthDtos.SessionResponse> updateAccount(@Valid @RequestBody UpdateAccountRequest request) {
     return ApiEnvelope.ok(accountService.updateUsername(request.username()));
@@ -42,21 +36,26 @@ public class AccountController {
   }
 
   @DeleteMapping
-  public ApiEnvelope<AuthDtos.MessageResponse> deleteAccount() {
-    return ApiEnvelope.ok(accountService.deleteAccount());
+  public ApiEnvelope<AuthDtos.MessageResponse> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
+    return ApiEnvelope.ok(accountService.deleteAccount(request.password()));
   }
 
   public record UpdateAccountRequest(
-      @NotBlank(message = "O usuario e obrigatorio.")
-      @Size(min = 3, max = 32, message = "O usuario deve ter entre 3 e 32 caracteres.")
-      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuario deve usar apenas letras, numeros, ponto, hifen ou sublinhado.")
+      @NotBlank(message = "O usuário é obrigatório.")
+      @Size(min = 3, max = 32, message = "O usuário deve ter entre 3 e 32 caracteres.")
+      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuário deve usar apenas letras, números, ponto, hífen ou sublinhado.")
       String username
   ) {
   }
 
+  public record DeleteAccountRequest(
+      @NotBlank(message = "A senha é obrigatória.") String password
+  ) {
+  }
+
   public record ChangePasswordRequest(
-      @NotBlank(message = "A senha atual e obrigatoria.") String currentPassword,
-      @NotBlank(message = "A nova senha e obrigatoria.")
+      @NotBlank(message = "A senha atual é obrigatória.") String currentPassword,
+      @NotBlank(message = "A nova senha é obrigatória.")
       @Size(min = 8, message = "A senha deve ter pelo menos 8 caracteres.")
       String newPassword
   ) {

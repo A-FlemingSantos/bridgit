@@ -1,6 +1,8 @@
 import { isApiClientError, isHubSessionFailure } from './hubCache.js'
 import {
   ApiClientError,
+  exceedsUploadLimit,
+  uploadTooLargeError,
   submitOperation,
   submitUploadOperation,
   getOperation,
@@ -38,12 +40,12 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     const token = getToken()
     const identity = options.getIdentity?.()
     if (!token) {
-      throw new Error('Sessao indisponivel.')
+      throw new Error('Sessão indisponível.')
     }
 
     try {
       const result = await request(token)
-      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessao foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
+      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessão foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
       return result
     } catch (error) {
       if (isHubSessionFailure(error)) {
@@ -53,7 +55,9 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     }
   }
 
-  async function operation(provider, kind, fields, file) {
+  // hooks.onAccepted runs once the server has queued the work, before it is done: a form can close there,
+  // since the change already shows as pending and a later rejection is reported on its own.
+  async function operation(provider, kind, fields, file, hooks = {}) {
     const connection = options.getConnection?.(provider)
     if (!connection?.connectionId || connection.operationsEnabled === false) return null
     const identity = options.getIdentity?.()
@@ -87,9 +91,11 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     }
     uncertainRequests.set(signature, { request, accepted })
     options.onOperation?.(accepted)
+    // Work refused at submit throws below; the form must stay open to show that error.
+    if (!['REJECTED', 'NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(accepted.status)) hooks.onAccepted?.()
     while (!['SUCCEEDED', 'REJECTED', 'NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(accepted.status)) {
       await new Promise((resolve) => setTimeout(resolve, 750))
-      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessao foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
+      if (identity !== options.getIdentity?.()) throw new ApiClientError('A sessão foi alterada.', { status: 409, code: 'RESPOSTA_OBSOLETA' })
       try {
         accepted = await call((token) => getOperation(token, accepted.id))
         uncertainRequests.set(signature, { request, accepted })
@@ -100,7 +106,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       }
     }
     if (accepted.status === 'REJECTED') uncertainRequests.delete(signature)
-    if (accepted.status !== 'SUCCEEDED') throw new ApiClientError(accepted.errorMessage ?? 'Nao foi possivel concluir a operacao.', {
+    if (accepted.status !== 'SUCCEEDED') throw new ApiClientError(accepted.errorMessage ?? 'Não foi possível concluir a operação.', {
       status: accepted.status === 'NEEDS_ATTENTION' ? 503 : 409, code: accepted.errorCode ?? 'OPERACAO_REJEITADA',
     })
     uncertainRequests.delete(signature)
@@ -128,17 +134,17 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
 
   return {
     listProviders: () => call((token) => listProvidersRequest(token)),
-    connectProvider: (provider, redirectTo) =>
-      call((token) => connectProviderRequest(token, provider, redirectTo)),
+    connectProvider: (provider, redirectTo, options) =>
+      call((token) => connectProviderRequest(token, provider, redirectTo, options)),
     disconnectProvider: (provider) => call((token) => disconnectProviderRequest(token, provider)),
     listFolder: (provider, parentRef, cursor) =>
       call((token) => listFolderRequest(token, provider, parentRef, cursor)),
     getItem: (provider, ref) => call((token) => getItemRequest(token, provider, ref)),
-    createFolder: async (provider, parentRef, name) =>
-      await operation(provider, 'CREATE_FOLDER', { parentRef, name }) ?? legacy(provider, 'CREATE_FOLDER', { parentRef, name }, null,
+    createFolder: async (provider, parentRef, name, hooks) =>
+      await operation(provider, 'CREATE_FOLDER', { parentRef, name }, null, hooks) ?? legacy(provider, 'CREATE_FOLDER', { parentRef, name }, null,
         (token, requestOptions) => createFolderRequest(token, provider, parentRef, name, requestOptions)),
     uploadFile: async (provider, parentRef, file) => {
-      if (file.size > 50 * 1024 * 1024) throw new ApiClientError('O arquivo excede o limite de 50 MB.', { status: 400, code: 'ARQUIVO_GRANDE' })
+      if (exceedsUploadLimit(file)) throw uploadTooLargeError()
       return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(provider, 'UPLOAD',
         { parentRef, name: file.name, contentType: file.type }, file,
         (token, requestOptions) => uploadFileRequest(token, provider, parentRef, file, requestOptions))
@@ -147,7 +153,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       ...(patch.parentRef !== undefined ? { parentRef: patch.parentRef || '' } : {}),
     }) ?? legacy(provider, 'UPDATE', { ref, ...patch }, null,
       (token, requestOptions) => updateItemRequest(token, provider, ref, patch, requestOptions)),
-    deleteItem: async (provider, ref) => await operation(provider, 'DELETE', { ref }) ?? legacy(provider, 'DELETE', { ref }, null,
+    deleteItem: async (provider, ref, hooks) => await operation(provider, 'DELETE', { ref }, null, hooks) ?? legacy(provider, 'DELETE', { ref }, null,
       (token, requestOptions) => deleteItemRequest(token, provider, ref, requestOptions)),
     getReadSource: (provider, ref, refresh = false) => call((token) => getReadSourceRequest(token, provider, ref, refresh)),
     listOperations: () => call(listOperations),

@@ -89,6 +89,13 @@ function NameOverlay({ overlay }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
+  // The form may close as soon as the server accepts the change; it must close only once.
+  const closedRef = useRef(false)
+  const closeOnce = () => {
+    if (closedRef.current) return
+    closedRef.current = true
+    closeOverlay()
+  }
 
   useEffect(() => {
     activeRef.current = true
@@ -132,9 +139,10 @@ function NameOverlay({ overlay }) {
           providerId,
           parentRef: overlay.folderRef ?? null,
           name,
+          onAccepted: closeOnce,
         })
       }
-      closeOverlay()
+      closeOnce()
     } catch (submitError) {
       if (activeRef.current) setError(hubErrorMessage(submitError))
     } finally {
@@ -288,16 +296,23 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
+  // The form may close as soon as the server accepts the change; it must close only once.
+  const closedRef = useRef(false)
+  const closeOnce = () => {
+    if (closedRef.current) return
+    closedRef.current = true
+    closeOverlay()
+  }
 
   useEffect(() => {
     activeRef.current = true
     return () => { activeRef.current = false }
   }, [])
-  const name = overlay.name ?? 'este item'
+  const name = overlay.name ? `"${overlay.name}"` : 'este item'
   const deleteLead =
     overlay.kind === 'folder'
-      ? `${name} será excluída do provedor e deixará de existir neste hub.`
-      : `${name} será excluído do provedor e deixará de existir neste hub.`
+      ? `${name} e tudo o que está dentro dela vão para a lixeira do provedor.`
+      : `${name} vai para a lixeira do provedor.`
 
   async function confirmDelete() {
     if (pending) return
@@ -308,9 +323,9 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
       await actions.deleteItem({
         providerId: overlay.providerId,
         ref: overlay.ref,
-        parentRef: overlay.parentRef ?? undefined,
+        onAccepted: closeOnce,
       })
-      closeOverlay()
+      closeOnce()
     } catch (deleteError) {
       if (activeRef.current) setError(hubErrorMessage(deleteError))
     } finally {
@@ -352,6 +367,12 @@ function PublicLinkOverlay({ overlay }) {
   const [error, setError] = useState(null)
   const [enabled, setEnabled] = useState(false)
   const [url, setUrl] = useState('')
+  const activeRef = useRef(true)
+
+  useEffect(() => {
+    activeRef.current = true
+    return () => { activeRef.current = false }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -383,12 +404,13 @@ function PublicLinkOverlay({ overlay }) {
     setError(null)
     try {
       const data = await actions.enablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
+      if (!activeRef.current) return
       setEnabled(true)
       setUrl(data?.url ?? '')
     } catch (enableError) {
-      setError(hubErrorMessage(enableError))
+      if (activeRef.current) setError(hubErrorMessage(enableError))
     } finally {
-      setPending(false)
+      if (activeRef.current) setPending(false)
     }
   }
 
@@ -397,12 +419,13 @@ function PublicLinkOverlay({ overlay }) {
     setError(null)
     try {
       await actions.disablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
+      if (!activeRef.current) return
       setEnabled(false)
       setUrl('')
     } catch (disableError) {
-      setError(hubErrorMessage(disableError))
+      if (activeRef.current) setError(hubErrorMessage(disableError))
     } finally {
-      setPending(false)
+      if (activeRef.current) setPending(false)
     }
   }
 

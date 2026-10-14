@@ -1,40 +1,5 @@
-import { useState } from 'react'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
 import { useMobileTheme } from '../theme/ThemeProvider'
-
-function sheetSizeWithin(width, height) {
-  const maxWidth = width * 0.62
-  const maxHeight = height * 0.74
-  const nextHeight = Math.min(maxHeight, (maxWidth * 4) / 3)
-  const nextWidth = (nextHeight * 3) / 4
-  return {
-    width: Math.max(0, nextWidth),
-    height: Math.max(0, nextHeight),
-  }
-}
-
-export function CardFileSheet() {
-  const [fitted, setFitted] = useState(null)
-
-  return (
-    <View
-      style={styles.measure}
-      onLayout={(event) => {
-        const { width, height } = event.nativeEvent.layout
-        if (width < 8 || height < 8) return
-        const next = sheetSizeWithin(width, height)
-        setFitted((current) => {
-          if (current && Math.abs(current.width - next.width) < 1 && Math.abs(current.height - next.height) < 1) {
-            return current
-          }
-          return next
-        })
-      }}
-    >
-      {fitted ? <FileSheet fitted={fitted} /> : null}
-    </View>
-  )
-}
 
 export default function FileSheet({ large = false, compact = false, fitted = null }) {
   const { theme, isDark } = useMobileTheme()
@@ -70,12 +35,6 @@ export default function FileSheet({ large = false, compact = false, fitted = nul
 }
 
 const styles = StyleSheet.create({
-  measure: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
   sheet: {
     borderWidth: 1,
     justifyContent: 'flex-start',

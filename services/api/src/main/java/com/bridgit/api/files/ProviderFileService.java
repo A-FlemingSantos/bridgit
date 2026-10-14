@@ -255,22 +255,17 @@ public class ProviderFileService {
     return new FilesDtos.TicketResponse("/api/content/" + issued.ticket(), issued.expiresAt());
   }
 
-  public ContentStream openTicketContent(String ticket) {
-    return openTicketContent(ticket, null);
-  }
-
-  public ContentStream openTicketContent(String ticket, String rangeHeader) {
-    ContentTicketService.ContentTicket parsed = contentTicketService.parseTicket(ticket);
+  public ContentStream openTicketContent(ContentTicketService.ContentTicket parsed, String rangeHeader) {
     ProviderConnectionEntity connection = connectionService.findById(parsed.connectionId())
         .orElseThrow(() -> new com.bridgit.api.common.error.NotFoundException(
             "CONTEUDO_NAO_ENCONTRADO",
-            "Conteudo nao encontrado ou expirado."
+            "Conteúdo não encontrado ou expirado."
         ));
 
     if (!parsed.userId().equals(connection.getUserId())) {
       throw new com.bridgit.api.common.error.NotFoundException(
           "CONTEUDO_NAO_ENCONTRADO",
-          "Conteudo nao encontrado ou expirado."
+          "Conteúdo não encontrado ou expirado."
       );
     }
 

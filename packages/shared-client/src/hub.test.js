@@ -67,6 +67,32 @@ describe('hub api', () => {
     })
   })
 
+  it('connectProvider sends allowAccountChange only when confirmed', async () => {
+    apiRequest.mockResolvedValue({ authorizationUrl: 'https://oauth.example/connect' })
+    await connectProvider(token, 'onedrive', '/providers/onedrive', { allowAccountChange: true })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { redirectTo: '/providers/onedrive', allowAccountChange: true },
+    })
+
+    apiRequest.mockClear()
+    await connectProvider(token, 'onedrive', undefined, { allowAccountChange: true })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { allowAccountChange: true },
+    })
+
+    apiRequest.mockClear()
+    await connectProvider(token, 'onedrive', '/x', { allowAccountChange: false })
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
+      method: 'POST',
+      token,
+      body: { redirectTo: '/x' },
+    })
+  })
+
   it('disconnectProvider deletes provider', async () => {
     apiRequest.mockResolvedValue([])
     await disconnectProvider(token, 'dropbox')
@@ -111,15 +137,28 @@ describe('hub api', () => {
     })
   })
 
-  it('uploadFile rejects files over 50 MB', () => {
+  it('uploadFile rejects the promise for files over 50 MB', async () => {
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
     Object.defineProperty(file, 'size', { value: 51 * 1024 * 1024 })
-    expect(() => uploadFile(token, 'onedrive', null, file)).toThrow(/50 MB/)
-    try {
-      uploadFile(token, 'onedrive', null, file)
-    } catch (error) {
-      expect(error.code).toBe('ARQUIVO_GRANDE')
+    const pending = uploadFile(token, 'onedrive', null, file)
+    await expect(pending).rejects.toMatchObject({ code: 'ARQUIVO_GRANDE', status: 400 })
+    await expect(pending).rejects.toThrow(/50 MB/)
+    expect(apiRequest).not.toHaveBeenCalled()
+  })
+
+  it('uploadFile omits parentRef at the root', async () => {
+    apiRequest.mockResolvedValue({ ref: 'file-2' })
+    await uploadFile(token, 'onedrive', null, new File(['x'], 'x.txt'))
+    await uploadFile(token, 'onedrive', '', new File(['x'], 'x.txt'))
+    for (const [, options] of apiRequest.mock.calls) {
+      expect(options.body.has('parentRef')).toBe(false)
     }
+  })
+
+  it('createFolder sends null for an empty root', async () => {
+    apiRequest.mockResolvedValue({ ref: 'new-folder' })
+    await createFolder(token, 'onedrive', '', 'Docs', { clientKey: 'k' })
+    expect(apiRequest.mock.calls[0][1].body).toEqual({ parentRef: null, name: 'Docs' })
   })
 
   it('uploadFile sends multipart body', async () => {

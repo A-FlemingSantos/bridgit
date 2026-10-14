@@ -33,6 +33,8 @@ public final class ReadPlanSupport {
       "application/vnd.google-apps.drawing"
   );
 
+  private static final String GOOGLE_APPS_PREFIX = "application/vnd.google-apps.";
+
   private static final Set<String> DROPBOX_PREVIEW_EXTENSIONS = Set.of(
       "ai", "doc", "docm", "docx", "eps", "gdoc", "gslides", "odp", "odt",
       "pps", "ppsm", "ppsx", "ppt", "pptm", "pptx", "rtf"
@@ -48,6 +50,12 @@ public final class ReadPlanSupport {
 
     String mime = normalizeMime(item.mimeType());
     String ext = item.extension();
+
+    // Google-native items have no bytes of their own, so the name's extension says nothing about
+    // them (a shortcut or form named "x.pdf" is not a PDF): only exportable types are readable.
+    if (mime.startsWith(GOOGLE_APPS_PREFIX)) {
+      return googleNative(mime);
+    }
 
     if (mime.startsWith("image/")) {
       return new ReadPlan(ReadMode.IMAGE, ContentVariant.ORIGINAL, mime);
@@ -71,7 +79,7 @@ public final class ReadPlanSupport {
 
     return switch (provider) {
       case ONEDRIVE -> onedriveOffice(ext, mime);
-      case GOOGLE_DRIVE -> googleNative(mime);
+      case GOOGLE_DRIVE -> none();
       case DROPBOX -> dropboxPreview(ext);
     };
   }
@@ -91,6 +99,7 @@ public final class ReadPlanSupport {
     if (GOOGLE_NATIVE_MIMES.contains(mime)) {
       return new ReadPlan(ReadMode.PDF, ContentVariant.READ, "application/pdf");
     }
+    // shortcut, form, site, map, folder and the like: no exportable content, so no reading
     return none();
   }
 

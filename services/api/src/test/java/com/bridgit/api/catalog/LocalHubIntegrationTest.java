@@ -82,6 +82,18 @@ class LocalHubIntegrationTest extends ApiIntegrationTestSupport {
     assertThatThrownBy(() -> queries.list(connection, remote, null, first.nextCursor())).hasMessageContaining("atualizada");
   }
 
+  @Test void providerListingOfAnIncompleteFolderAnnouncesNothing() {
+    // A listing fetched from the provider only fills the cache; announcing it made clients reload the
+    // folder, fetch it from the provider again and announce again, without end.
+    when(remote.list(anyString(), isNull(), isNull())).thenReturn(new ItemPage(List.of(item("file-1", "Example.txt", null)), "next-page"));
+    long revision = catalog.ensure(connection).revision();
+
+    queries.list(connection, remote, null, null);
+
+    assertThat(catalog.state(connection.getId()).revision()).isGreaterThan(revision);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cloud_events WHERE connection_id=?", Long.class, connection.getId().toString())).isZero();
+  }
+
   @Test void resetKeepsPreviousInventoryUntilReplacementRoundCompletes() {
     publish(List.of(item("old", "Old.txt", null)));
     assertThat(catalog.claim(connection, "reset")).isTrue();
@@ -137,6 +149,17 @@ class LocalHubIntegrationTest extends ApiIntegrationTestSupport {
     executor.execute(accepted.id());
     verify(remote, times(1)).createFolderPrepared(anyString(), any(), anyString(), any());
     assertThat(operations.get(accepted.id()).status()).isEqualTo("VERIFYING");
+  }
+
+  @Test void fullProviderAccountRejectsInsteadOfVerifying() {
+    var accepted = operations.accept(user, connection, request("no-space", OperationDtos.Kind.CREATE_FOLDER, null, "Folder"), null);
+    when(remote.prepareCreate(anyString())).thenReturn(new PreparedWrite(null, null));
+    when(remote.createFolderPrepared(anyString(), any(), anyString(), any())).thenThrow(new ProviderApiException(
+        org.springframework.http.HttpStatus.INSUFFICIENT_STORAGE, "PROVEDOR_SEM_ESPACO", "Não há espaço suficiente na conta do provedor."));
+    executor.execute(accepted.id());
+    var stored = operations.get(accepted.id());
+    assertThat(stored.status()).isEqualTo("REJECTED");
+    assertThat(stored.errorCode()).isEqualTo("PROVEDOR_SEM_ESPACO");
   }
 
   @Test void disconnectedIdentityFencesPendingWork() {

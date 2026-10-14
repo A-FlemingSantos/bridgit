@@ -144,6 +144,12 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.length()").value(12))
         .andExpect(jsonPath("$.data[0].ref").value("file-12"));
+
+    // Opening a file is announced to the other devices' home lists.
+    mockMvc.perform(get("/api/hub/events").param("after", "0")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.entry == 'recent' && @.payload.ref == 'file-12')]").exists());
   }
 
   @Test
@@ -190,7 +196,9 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.entry == 'shortcut' && @.payload.removed == false)]").exists())
-        .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.removed == true)]", org.hamcrest.Matchers.hasSize(1)));
+        .andExpect(jsonPath("$.data[?(@.type == 'hub_entries' && @.payload.removed == true)]", org.hamcrest.Matchers.hasSize(1)))
+        // The same id the provider list carries; SQL Server alone would return it in upper case.
+        .andExpect(jsonPath("$.data[0].connectionId").value(connection.getId().toString()));
   }
 
   @Test

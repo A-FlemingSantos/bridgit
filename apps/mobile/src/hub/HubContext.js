@@ -5,28 +5,29 @@ import {
   enablePublicLink,
   getHubEventHead,
   getHubEvents,
+  isSessionFailure,
   listProviders,
   removeShortcut,
 } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
 import { createEventPoller } from './eventPoller'
+import { fileScope, folderScope, foldersScope, HOME, itemWriteScopes, PROVIDERS, scopesForEvents } from './eventScopes'
+import { createInvalidationBus } from './invalidation'
 import { runOperation } from './operations'
 
 const HubContext = createContext(null)
 
-// Shares the provider list, a change counter that screens use to refetch, the event poller
-// and the write actions, so every screen sees the result of an operation or a remote change.
+// Shares the provider list, the invalidation scopes that tell each screen when to refetch, the
+// event poller and the write actions, so a screen refetches only when something it shows changed.
 export function HubProvider({ children }) {
   const { token, invalidate } = useSession()
   const [providers, setProviders] = useState([])
   const [providersStatus, setProvidersStatus] = useState('loading')
-  const [revision, setRevision] = useState(0)
+  const [bus] = useState(createInvalidationBus)
   const tokenRef = useRef(token)
   tokenRef.current = token
   const providersRef = useRef(providers)
   providersRef.current = providers
-
-  const bump = useCallback(() => setRevision((current) => current + 1), [])
 
   const reloadProviders = useCallback(async () => {
     if (!tokenRef.current) return
@@ -34,10 +35,16 @@ export function HubProvider({ children }) {
       setProviders(await listProviders(tokenRef.current))
       setProvidersStatus('ready')
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
       else setProvidersStatus('error')
     }
   }, [invalidate])
+
+  // Refetches what the scopes cover. `providers` is held here; the other scopes belong to screens.
+  const refreshScopes = useCallback((scopes) => {
+    if (scopes.includes(PROVIDERS)) reloadProviders()
+    bus.invalidate(scopes)
+  }, [bus, reloadProviders])
 
   useEffect(() => {
     setProviders([])
@@ -52,10 +59,7 @@ export function HubProvider({ children }) {
       getToken: () => tokenRef.current,
       fetchHead: (accessToken) => getHubEventHead(accessToken),
       fetchEvents: (accessToken, after) => getHubEvents(accessToken, after),
-      onEvents: () => {
-        reloadProviders()
-        bump()
-      },
+      onEvents: (events) => refreshScopes(scopesForEvents(events, providersRef.current)),
       onUnauthorized: invalidate,
     })
 
@@ -65,7 +69,7 @@ export function HubProvider({ children }) {
       if (state === 'active') {
         poller.start()
         reloadProviders()
-        bump()
+        bus.invalidateAll()
       } else {
         poller.stop()
       }
@@ -75,46 +79,48 @@ export function HubProvider({ children }) {
       subscription.remove()
       poller.stop()
     }
-  }, [token, reloadProviders, bump, invalidate])
+  }, [token, reloadProviders, refreshScopes, bus, invalidate])
 
-  // Runs a write and refreshes every screen when it finishes, whether it succeeded or not.
-  const write = useCallback(async (action) => {
+  // Runs a write and refetches only the scopes it touched when it finishes, whether it succeeded or not.
+  const write = useCallback(async (action, scopes = []) => {
     try {
       return await action(tokenRef.current)
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
       throw error
     } finally {
-      bump()
+      refreshScopes(scopes)
     }
-  }, [bump, invalidate])
+  }, [refreshScopes, invalidate])
 
-  const operate = useCallback((providerId, operation) => write((accessToken) => {
+  const operate = useCallback((providerId, operation, scopes) => write((accessToken) => {
     const connection = providersRef.current.find((provider) => provider.id === providerId)
     if (!connection?.connected) {
       throw Object.assign(new Error('Conecte este provedor em Ajustes.'), { status: 409 })
     }
     return runOperation(accessToken, connection, operation)
-  }), [write])
+  }, scopes), [write])
 
   const actions = useMemo(() => ({
     createFolder: (providerId, parentRef, name) =>
-      operate(providerId, { kind: 'CREATE_FOLDER', parentRef: parentRef ?? '', name }),
+      operate(providerId, { kind: 'CREATE_FOLDER', parentRef: parentRef ?? '', name }, [folderScope(providerId, parentRef)]),
     rename: (providerId, entry, name) =>
-      operate(providerId, { kind: 'UPDATE', ref: entry.ref, name, version: entry.version }),
+      operate(providerId, { kind: 'UPDATE', ref: entry.ref, name, version: entry.version }, itemWriteScopes(providerId, entry.ref)),
     remove: (providerId, entry) =>
-      operate(providerId, { kind: 'DELETE', ref: entry.ref, version: entry.version }),
+      operate(providerId, { kind: 'DELETE', ref: entry.ref, version: entry.version }, itemWriteScopes(providerId, entry.ref)),
     upload: (providerId, parentRef, file) =>
-      operate(providerId, { kind: 'UPLOAD', parentRef: parentRef ?? '', file }),
+      operate(providerId, { kind: 'UPLOAD', parentRef: parentRef ?? '', file }, [folderScope(providerId, parentRef)]),
+    // Folder listings carry the pinned flag, so they refetch along with the Home.
     setShortcut: (providerId, ref, pinned) => write((accessToken) => (
       pinned ? addShortcut(accessToken, providerId, ref) : removeShortcut(accessToken, providerId, ref)
-    )),
+    ), [HOME, foldersScope(providerId), fileScope(providerId, ref)]),
+    // A public link changes nothing the screens show; the server event refreshes the Home.
     publicLink: (providerId, ref) => write((accessToken) => enablePublicLink(accessToken, providerId, ref)),
   }), [operate, write])
 
   const value = useMemo(
-    () => ({ providers, providersStatus, revision, reloadProviders, refresh: bump, ...actions }),
-    [providers, providersStatus, revision, reloadProviders, bump, actions],
+    () => ({ providers, providersStatus, bus, reloadProviders, refreshScopes, ...actions }),
+    [providers, providersStatus, bus, reloadProviders, refreshScopes, actions],
   )
 
   return <HubContext.Provider value={value}>{children}</HubContext.Provider>

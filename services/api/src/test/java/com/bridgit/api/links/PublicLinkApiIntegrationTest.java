@@ -1,7 +1,9 @@
 package com.bridgit.api.links;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -21,6 +23,7 @@ import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ReconnectionRequiredException;
 import com.bridgit.api.integrations.TokenResult;
+import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ContentVariant;
 import com.bridgit.api.providers.ProviderApiException;
@@ -39,11 +42,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @Import(HubTestCloudProviderConfig.class)
 class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
 
-  @Autowired
+  @MockitoSpyBean
   private FakeOneDriveClient fakeOneDriveClient;
 
   @Autowired
@@ -84,6 +88,7 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
     connectionRepository.save(connection);
 
     fakeOneDriveClient.putItem(FakeOneDriveClient.file("file-1", "Relatorio.pdf", "application/pdf", "pdf", 16));
+    fakeOneDriveClient.putItem(FakeOneDriveClient.file("file-2", "Outro.pdf", "application/pdf", "pdf", 16));
     fakeOneDriveClient.putItem(FakeOneDriveClient.folder("folder-1", "Projects"));
     fakeOneDriveClient.setReadPlan(new ReadPlan(ReadMode.PDF, ContentVariant.READ, "application/pdf"));
     fakeOneDriveClient.setGetFailure(null);
@@ -161,7 +166,11 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   private String createLinkSuffix() throws Exception {
-    JsonNode created = readJson(mockMvc.perform(put("/api/providers/onedrive/items/file-1/public-link")
+    return createLinkSuffixFor("file-1");
+  }
+
+  private String createLinkSuffixFor(String ref) throws Exception {
+    JsonNode created = readJson(mockMvc.perform(put("/api/providers/onedrive/items/" + ref + "/public-link")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
         .andReturn());
@@ -261,14 +270,16 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
-  void provider401TwiceIsNotHub401() throws Exception {
+  void provider401TwiceLooksLikeMissingLinkToVisitor() throws Exception {
     String suffix = createLinkSuffix();
     fakeOneDriveClient.setGetFailure(new ProviderApiException(
         HttpStatus.UNAUTHORIZED, "TOKEN_PROVEDOR_INVALIDO", "Token do provedor expirou."));
 
     mockMvc.perform(get("/api/public/links/" + suffix))
-        .andExpect(status().isBadGateway())
-        .andExpect(jsonPath("$.error.code").value("TOKEN_PROVEDOR_INVALIDO"));
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+
+    assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
   }
 
   @Test
@@ -281,7 +292,7 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   void provider404DeletesLinkInCommittedTransaction() throws Exception {
     String suffix = createLinkSuffix();
     fakeOneDriveClient.setGetFailure(new ProviderApiException(
-        HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Item nao encontrado."));
+        HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Item não encontrado."));
 
     mockMvc.perform(get("/api/public/links/" + suffix))
         .andExpect(status().isNotFound())
@@ -309,8 +320,8 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
         HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "Indisponivel."));
 
     mockMvc.perform(get("/api/public/links/" + suffix))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.error.code").value("LINK_INDISPONIVEL"));
 
     assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
   }
@@ -325,5 +336,171 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
 
     assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
+  }
+
+  @Test
+  void providerFailureOpeningContentLooksLikeMissingLink() throws Exception {
+    String suffix = createLinkSuffix();
+    doThrow(new ProviderApiException("Não foi possível abrir o conteúdo."))
+        .when(fakeOneDriveClient).open(anyString(), any(CloudItem.class), any(ContentVariant.class));
+
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+
+    assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
+  }
+
+  @Test
+  void providerFailureInReadPlanLooksLikeMissingLink() throws Exception {
+    String suffix = createLinkSuffix();
+    doThrow(new ProviderApiException("Falha."))
+        .when(fakeOneDriveClient).readPlan(any(CloudItem.class));
+
+    mockMvc.perform(get("/api/public/links/" + suffix))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content?variant=read"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+  }
+
+  @Test
+  void invalidProviderTokenWhileOpeningContentIsNot502() throws Exception {
+    String suffix = createLinkSuffix();
+    doThrow(new ProviderApiException(HttpStatus.UNAUTHORIZED, "TOKEN_PROVEDOR_INVALIDO", "Token expirou."))
+        .when(fakeOneDriveClient).open(anyString(), any(CloudItem.class), any(ContentVariant.class));
+
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+  }
+
+  @Test
+  void noPermissionAtProviderLooksLikeMissingLink() throws Exception {
+    String suffix = createLinkSuffix();
+    fakeOneDriveClient.setGetFailure(new ProviderApiException(
+        HttpStatus.FORBIDDEN, "SEM_PERMISSAO", "Sem permissao."));
+
+    mockMvc.perform(get("/api/public/links/" + suffix))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
+
+    assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
+  }
+
+  @Test
+  void providerRateLimitOnMetadataIsTemporaryWithRetryAfter() throws Exception {
+    String suffix = createLinkSuffix();
+    fakeOneDriveClient.setGetFailure(new ProviderApiException(
+        HttpStatus.TOO_MANY_REQUESTS, "PROVEDOR_LIMITADO", "Limitado.", 30L));
+
+    mockMvc.perform(get("/api/public/links/" + suffix))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(header().string("Retry-After", "30"))
+        .andExpect(jsonPath("$.error.code").value("LINK_INDISPONIVEL"));
+
+    assertThat(publicLinkRepository.findBySuffix(suffix)).isPresent();
+  }
+
+  @Test
+  void provider503WhileOpeningContentIsTemporaryWithoutRetryAfter() throws Exception {
+    String suffix = createLinkSuffix();
+    doThrow(new ProviderApiException(
+        HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "Indisponivel."))
+        .when(fakeOneDriveClient).open(anyString(), any(CloudItem.class), any(ContentVariant.class));
+
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(header().doesNotExist("Retry-After"))
+        .andExpect(jsonPath("$.error.code").value("LINK_INDISPONIVEL"));
+  }
+
+  @Test
+  void providerRateLimitWhileOpeningContentIsTemporaryWithRetryAfter() throws Exception {
+    String suffix = createLinkSuffix();
+    doThrow(new ProviderApiException(
+        HttpStatus.TOO_MANY_REQUESTS, "PROVEDOR_LIMITADO", "Limitado.", 12L))
+        .when(fakeOneDriveClient).open(anyString(), any(CloudItem.class), any(ContentVariant.class));
+
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content"))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(header().string("Retry-After", "12"))
+        .andExpect(jsonPath("$.error.code").value("LINK_INDISPONIVEL"));
+  }
+
+  @Test
+  void accessesAboveTheLimitGet429WithRetryAfter() throws Exception {
+    String suffix = createLinkSuffix();
+    String other = createLinkSuffixFor("file-2");
+
+    for (int i = 0; i < 60; i++) {
+      mockMvc.perform(get("/api/public/links/" + suffix)).andExpect(status().isOk());
+    }
+
+    mockMvc.perform(get("/api/public/links/" + suffix))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(header().exists("Retry-After"))
+        .andExpect(jsonPath("$.error.code").value("MUITOS_ACESSOS"));
+    // content shares the same budget
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content"))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(jsonPath("$.error.code").value("MUITOS_ACESSOS"));
+    // another link, or another visitor, is not affected
+    mockMvc.perform(get("/api/public/links/" + other)).andExpect(status().isOk());
+    mockMvc.perform(get("/api/public/links/" + suffix).with(request -> {
+      request.setRemoteAddr("203.0.113.9");
+      return request;
+    })).andExpect(status().isOk());
+  }
+
+  @Test
+  void metadataDoesNotRewriteTheLinkOnEveryVisit() throws Exception {
+    String suffix = createLinkSuffix();
+
+    mockMvc.perform(get("/api/public/links/" + suffix)).andExpect(status().isOk());
+    PublicLinkEntity first = publicLinkRepository.findBySuffix(suffix).orElseThrow();
+    assertThat(first.getLastAccessedAt()).isNotNull();
+
+    mockMvc.perform(get("/api/public/links/" + suffix)).andExpect(status().isOk());
+    mockMvc.perform(get("/api/public/links/" + suffix + "/content")).andExpect(status().isOk());
+    PublicLinkEntity second = publicLinkRepository.findBySuffix(suffix).orElseThrow();
+
+    assertThat(second.getLastAccessedAt()).isEqualTo(first.getLastAccessedAt());
+    assertThat(second.getUpdatedAt()).isEqualTo(first.getUpdatedAt());
+  }
+
+  @Test
+  void staleLastAccessAndChangedSnapshotAreWrittenTogether() throws Exception {
+    String suffix = createLinkSuffix();
+    PublicLinkEntity link = publicLinkRepository.findBySuffix(suffix).orElseThrow();
+    OffsetDateTime stale = OffsetDateTime.now().minusMinutes(5);
+    link.setLastAccessedAt(stale);
+    publicLinkRepository.save(link);
+    fakeOneDriveClient.putItem(FakeOneDriveClient.file("file-1", "Novo nome.pdf", "application/pdf", "pdf", 32));
+
+    mockMvc.perform(get("/api/public/links/" + suffix))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("Novo nome.pdf"));
+
+    PublicLinkEntity after = publicLinkRepository.findBySuffix(suffix).orElseThrow();
+    assertThat(after.getName()).isEqualTo("Novo nome.pdf");
+    assertThat(after.getSize()).isEqualTo(32L);
+    assertThat(after.getLastAccessedAt()).isAfter(stale.plusMinutes(3));
+  }
+
+  @Test
+  void changedSnapshotAloneIsStoredWithoutTouchingRecentLastAccess() throws Exception {
+    String suffix = createLinkSuffix();
+    mockMvc.perform(get("/api/public/links/" + suffix)).andExpect(status().isOk());
+    OffsetDateTime lastAccess = publicLinkRepository.findBySuffix(suffix).orElseThrow().getLastAccessedAt();
+    fakeOneDriveClient.putItem(FakeOneDriveClient.file("file-1", "Outro.pdf", "application/pdf", "pdf", 16));
+
+    mockMvc.perform(get("/api/public/links/" + suffix)).andExpect(status().isOk());
+
+    PublicLinkEntity after = publicLinkRepository.findBySuffix(suffix).orElseThrow();
+    assertThat(after.getName()).isEqualTo("Outro.pdf");
+    assertThat(after.getLastAccessedAt()).isEqualTo(lastAccess);
   }
 }

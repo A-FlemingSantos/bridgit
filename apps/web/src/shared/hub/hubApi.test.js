@@ -5,7 +5,8 @@ const requestFns = {
   listProvidersRequest: vi.fn(),
 }
 
-vi.mock('@bridgit/shared-client', () => ({
+vi.mock('@bridgit/shared-client', async (importOriginal) => ({
+  ...(await importOriginal()),
   ApiClientError: class ApiClientError extends Error {
     constructor(message, options = {}) {
       super(message)
@@ -70,6 +71,14 @@ describe('hubApi autorizacao', () => {
     requestFns.listProvidersRequest.mockRejectedValue(await sessionErrorApi('ERRO_API', 401))
     await expect(api.listProviders()).rejects.toMatchObject({ code: 'ERRO_API' })
     expect(onUnauthorized).toHaveBeenCalledTimes(4)
+
+    requestFns.listProvidersRequest.mockRejectedValue(await sessionErrorApi('SESSAO_REVOGADA', 401))
+    await expect(api.listProviders()).rejects.toMatchObject({ code: 'SESSAO_REVOGADA' })
+    expect(onUnauthorized).toHaveBeenCalledTimes(5)
+
+    requestFns.listProvidersRequest.mockRejectedValue(await sessionErrorApi('USUARIO_INVALIDO', 401))
+    await expect(api.listProviders()).rejects.toMatchObject({ code: 'USUARIO_INVALIDO' })
+    expect(onUnauthorized).toHaveBeenCalledTimes(6)
   })
 
   it('F18 nunca desloga em erro de provedor', async () => {

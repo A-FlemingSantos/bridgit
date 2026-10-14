@@ -1,6 +1,7 @@
 package com.bridgit.api.config;
 
 import com.bridgit.api.auth.UserRepository;
+import com.bridgit.api.common.api.ApiErrorWriter;
 import com.bridgit.api.common.security.JwtAuthenticationFilter;
 import com.bridgit.api.common.security.SecurityUser;
 import java.net.URI;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -38,7 +40,8 @@ public class SecurityConfiguration {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       JwtAuthenticationFilter jwtAuthenticationFilter,
-      AuthenticationProvider authenticationProvider
+      AuthenticationProvider authenticationProvider,
+      ApiErrorWriter errorWriter
   ) throws Exception {
     http
         .csrf(AbstractHttpConfigurer::disable)
@@ -46,7 +49,7 @@ public class SecurityConfiguration {
         .sessionManagement(configurer -> configurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register")
+            .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register", "/api/auth/logout")
             .permitAll()
             .requestMatchers(HttpMethod.GET, "/api/providers/*/callback").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/content/**").permitAll()
@@ -56,13 +59,20 @@ public class SecurityConfiguration {
             .authenticated()
         )
         .exceptionHandling(exceptions -> exceptions
-            .authenticationEntryPoint((request, response, ex) -> {
-              response.setStatus(401);
-              response.setContentType("application/json");
-              response.getWriter().write(
-                  "{\"error\":{\"code\":\"AUTENTICACAO_OBRIGATORIA\",\"message\":\"Voce precisa estar autenticado para continuar.\"}}"
-              );
-            })
+            .authenticationEntryPoint((request, response, ex) -> errorWriter.write(
+                request,
+                response,
+                HttpStatus.UNAUTHORIZED,
+                "AUTENTICACAO_OBRIGATORIA",
+                "Você precisa estar autenticado para continuar."
+            ))
+            .accessDeniedHandler((request, response, ex) -> errorWriter.write(
+                request,
+                response,
+                HttpStatus.FORBIDDEN,
+                "ACESSO_NEGADO",
+                "Você não tem permissão para executar esta ação."
+            ))
         )
         .authenticationProvider(authenticationProvider)
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

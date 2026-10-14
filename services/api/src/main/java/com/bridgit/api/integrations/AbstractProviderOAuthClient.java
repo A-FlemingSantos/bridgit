@@ -66,7 +66,7 @@ abstract class AbstractProviderOAuthClient implements ProviderOAuthClient {
       return new ProviderApiException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "PROVEDOR_CONFIGURACAO_INVALIDA",
-          "O provedor de nuvem nao esta configurado corretamente."
+          "O provedor de nuvem não está configurado corretamente."
       );
     }
     if (status.value() == 429 || status.value() >= 500) {
@@ -139,14 +139,14 @@ abstract class AbstractProviderOAuthClient implements ProviderOAuthClient {
   }
 
   protected static ProviderApiException tokenExchangeFailure(String body) {
-    return new ProviderApiException("Nao foi possivel concluir a autenticacao com o provedor.");
+    return new ProviderApiException("Não foi possível concluir a autenticação com o provedor.");
   }
 
   private static ProviderApiException transientFailure() {
     return new ProviderApiException(
         HttpStatus.SERVICE_UNAVAILABLE,
         "PROVEDOR_INDISPONIVEL",
-        "O provedor de nuvem esta indisponivel. Tente novamente em instantes."
+        "O provedor de nuvem está indisponível. Tente novamente em instantes."
     );
   }
 

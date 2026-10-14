@@ -21,7 +21,9 @@ public class HubEventStore {
   }
   public List<Event> since(UUID user, long sequence) {
     return jdbc.query("SELECT TOP (200) * FROM cloud_events WHERE user_id=? AND sequence>? ORDER BY sequence",
-        (rs, row) -> new Event(rs.getLong("sequence"), rs.getString("connection_id"), rs.getLong("generation"),
+        // SQL Server returns uniqueidentifier in upper case; clients compare it with the lower-case id of the
+        // provider list.
+        (rs, row) -> new Event(rs.getLong("sequence"), UUID.fromString(rs.getString("connection_id")).toString(), rs.getLong("generation"),
             rs.getString("event_type"), json.read(rs.getString("payload"), Object.class)), user.toString(), sequence);
   }
   public long latest(UUID user) {

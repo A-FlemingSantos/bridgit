@@ -202,7 +202,7 @@ export default function FileReader({
             {!contentReady ? (
               <>
                 <FileSheet large />
-                <Spinner />
+                <Spinner label="Carregando arquivo" />
               </>
             ) : null}
             <div className={contentReady ? styles.pdfVisible : styles.pdfHidden} aria-hidden={!contentReady}>
@@ -248,7 +248,7 @@ export default function FileReader({
               </AnimatePresence>
             </motion.div>
 
-            {showLoader ? <Spinner /> : null}
+            {showLoader ? <Spinner label="Carregando arquivo" /> : null}
           </>
         )}
       </div>

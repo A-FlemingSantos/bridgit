@@ -6,10 +6,14 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import com.bridgit.api.providers.CloudItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Random;
+import com.bridgit.api.providers.ProviderApiException;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -70,6 +74,47 @@ class DropboxUploadTest {
 
     client.upload("token", null, "café\u007f.bin", "application/octet-stream", data.length,
         new ByteArrayResource(data));
+    server.verify();
+  }
+
+  @Test
+  void upload413MapsToFileTooLarge() {
+    server.expect(requestTo("https://content.dropboxapi.com/2/files/upload"))
+        .andRespond(withStatus(HttpStatus.PAYLOAD_TOO_LARGE).body(""));
+
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> client.upload(
+        "token", null, "big.bin", "application/octet-stream", 1, new ByteArrayResource(new byte[] {1})));
+
+    assertEquals("ARQUIVO_GRANDE_DEMAIS", ex.getCode());
+    assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, ex.getStatus());
+    server.verify();
+  }
+
+  @Test
+  void uploadInsufficientSpaceMapsToNoSpaceCode() {
+    server.expect(requestTo("https://content.dropboxapi.com/2/files/upload"))
+        .andRespond(withStatus(HttpStatus.CONFLICT).body(
+            "{\"error_summary\":\"path/insufficient_space/..\",\"error\":{\".tag\":\"path\","
+                + "\"path\":{\".tag\":\"insufficient_space\"}}}"));
+
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> client.upload(
+        "token", null, "a.bin", "application/octet-stream", 1, new ByteArrayResource(new byte[] {1})));
+
+    assertEquals("PROVEDOR_SEM_ESPACO", ex.getCode());
+    assertEquals(HttpStatus.INSUFFICIENT_STORAGE, ex.getStatus());
+    server.verify();
+  }
+
+  @Test
+  void uploadMalformedPathMapsToInvalidName() {
+    server.expect(requestTo("https://content.dropboxapi.com/2/files/upload"))
+        .andRespond(withStatus(HttpStatus.CONFLICT).body("{\"error_summary\":\"path/malformed_path/..\"}"));
+
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> client.upload(
+        "token", null, "a.bin", "application/octet-stream", 1, new ByteArrayResource(new byte[] {1})));
+
+    assertEquals("NOME_INVALIDO", ex.getCode());
+    assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
     server.verify();
   }
 

@@ -15,6 +15,10 @@ vi.mock('../../../shared/state/HubState.jsx', () => ({
   useHub: () => ({ openOverlay: vi.fn() }),
 }))
 
+vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
+  useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
+}))
+
 import { useHubActions, useItem, useProviders, useShortcuts } from '../../../shared/hub/index.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }

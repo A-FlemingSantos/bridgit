@@ -1,10 +1,14 @@
-import { ApiClientError } from '@bridgit/shared-client'
+import { ApiClientError, MAX_UPLOAD_LABEL } from '@bridgit/shared-client'
 
+// The API sends its messages in Portuguese, so they are shown as they come. This map only holds what
+// the web app says differently: errors raised in the browser and messages that point to its own screens.
 const CODE_MESSAGES = {
+  ERRO_CONEXAO: 'Sem conexão com o servidor. Verifique a rede e tente de novo.',
+  CANCELADO: 'A operação foi cancelada.',
+  RESPOSTA_INVALIDA: 'O servidor enviou uma resposta inesperada. Tente novamente.',
+  ARQUIVO_GRANDE: `O arquivo excede o limite de ${MAX_UPLOAD_LABEL}.`,
   RECONEXAO_NECESSARIA: 'Reconecte o provedor em Configurações.',
   PROVEDOR_NAO_CONECTADO: 'Conecte o provedor em Configurações.',
-  NAO_ENCONTRADO: 'Item não encontrado.',
-  ARQUIVO_GRANDE: 'O arquivo excede o limite de 50 MB.',
 }
 
 export function hubErrorMessage(error, fallback = 'Algo deu errado. Tente novamente.') {
@@ -40,5 +44,12 @@ export function hubErrorMessage(error, fallback = 'Algo deu errado. Tente novame
   if (typeof error.message === 'string' && error.message.trim()) {
     return error.message
   }
+  return fallback
+}
+
+// For screens that only expect API failures (login, security): an ApiClientError gets the same text as
+// anywhere else, and anything unexpected gets the screen's own fallback instead of a raw JS message.
+export function apiErrorMessage(error, fallback) {
+  if (error instanceof ApiClientError || error?.name === 'ApiClientError') return hubErrorMessage(error, fallback)
   return fallback
 }

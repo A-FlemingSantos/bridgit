@@ -38,6 +38,41 @@ Para Dropbox, cadastrar `/api/webhooks/dropbox` no console do aplicativo. Micros
 - Até 50 MiB por arquivo em cache, com orçamento local de até 512 MiB ou 20% da quota. Prefetch é limitado a 5 MiB por arquivo e 10 MiB por minuto de uso ativo.
 - Arquivos grandes e formatos sem revisão/tamanho confiáveis continuam pelo transporte existente. Exportações sem tamanho conhecido não entram no cache completo.
 
+## Executar localmente
+
+Requisitos:
+
+- Node 24 ou mais novo e npm 11 ou mais novo (`engines` do `package.json` da raiz). Depois de clonar, `npm install` na raiz.
+- Java 21 (`java.version` do `services/api/pom.xml`) e Maven 3.9 ou mais novo, ambos no `PATH`.
+- SQL Server com o banco `bridgit_db`. No Windows, uma instância local em `localhost:1433`. No Linux e no macOS, Docker: o `db-up.sh` sobe o contêiner.
+- `SPRING_DATASOURCE_PASSWORD` (senha do `sa`) e `APP_JWT_SECRET` (chave HMAC de pelo menos 32 bytes) sempre definidas. Para conectar provedores, também `APP_INTEGRATION_TOKEN_KEY_B64` e as credenciais OAuth de cada um. O modelo está em `.env.example`.
+
+Scripts bash (Linux e macOS), em `scripts/dev/`. Eles leem o `.env` da raiz (copie de `.env.example`); variáveis já definidas no processo têm prioridade. Maven, Vite e Expo chamados direto, como em `npm run api`, não leem o `.env`: exporte as variáveis no terminal.
+
+| Script | O que faz |
+|---|---|
+| `bash scripts/dev/db-up.sh` | Sobe o SQL Server em Docker (contêiner `mssql`, porta 1433) e cria `bridgit_db` e `bridgit_test`. Se o contêiner já existe parado, só o religa. |
+| `bash scripts/dev/api.sh [--shared] [--expo-go]` | Confere as variáveis e o banco (cria `bridgit_db` se faltar) e roda `mvn spring-boot:run`. `--shared` libera no CORS o Expo web (porta 8081); `--expo-go` acrescenta `exp://` aos redirecionamentos móveis. |
+| `bash scripts/dev/web.sh` | Vite dev server do web (`npm run dev`). |
+| `bash scripts/dev/mobile.sh [--dev-client] [--android] [--web] [--port N]` | Metro do app mobile. Por padrão usa o Expo Go na porta 8082; `--dev-client` usa o development build; `--web` roda no navegador (porta 8081). |
+
+Scripts PowerShell (Windows), em `scripts/powershell/`. Copie `local.secrets.example.ps1` para `local.secrets.ps1` e preencha os segredos. Os scripts do backend conferem o SQL Server e criam o banco se ele não existir; `-DatabaseHost`, `-DatabasePort` e `-DatabaseName` mudam o destino (padrão `localhost`, `1433`, `bridgit_db`).
+
+| Script | O que faz |
+|---|---|
+| `start-web-backend.ps1` | API para o web (CORS do `localhost:5173`). |
+| `start-shared-backend.ps1` | API para o web e para o mobile no navegador (CORS também da porta 8081). |
+| `start-mobile-android-backend.ps1` | API para o Android no Expo Go (aceita `exp://` nos redirecionamentos). |
+| `start-web-frontend.ps1` | Web (`npm run dev`). |
+| `start-mobile-android-expo.ps1 [-DevClient]` | Metro para Android; `-DevClient` usa o development build em vez do Expo Go. |
+| `start-mobile-web-expo.ps1` | Mobile no navegador (`npm run mobile:web`). |
+
+Atalhos na raiz: `npm run api` (`mvn spring-boot:run` em `services/api`) e `npm run api:test` (`mvn test`). Eles não conferem variáveis nem criam o banco.
+
+No celular ou no emulador, o app monta o endereço da API a partir do IP que o Metro anuncia. Se o IP do PC mudar (outra rede, nova concessão do roteador), reinicie o Metro. Defina `EXPO_PUBLIC_API_BASE_URL` só em build de release ou quando a API não roda no PC do Metro: a variável tem prioridade sobre o IP do Expo, e `http://localhost:8080` quebra no Android.
+
+Os testes de integração da API leem `SPRING_DATASOURCE_PASSWORD`. Sem ela, falham no Flyway com "Falha de logon do usuário 'sa'". No Windows, carregue `scripts/powershell/local.secrets.ps1` antes do Maven (`. .\scripts\powershell\local.secrets.ps1`). No Linux e no macOS, use `export SPRING_DATASOURCE_PASSWORD=...` no terminal.
+
 ## Verificação automatizada
 
 ```powershell

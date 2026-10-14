@@ -236,7 +236,7 @@ export default function SpaceFilePage() {
           {itemQuery.status === 'loading' || itemQuery.status === 'idle' ? (
             <>
               <FileSheet large />
-              <Spinner />
+              <Spinner label="Carregando arquivo" />
             </>
           ) : itemQuery.status === 'error' ? (
             <>

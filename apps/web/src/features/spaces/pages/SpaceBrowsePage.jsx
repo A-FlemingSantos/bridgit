@@ -22,6 +22,7 @@ import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProvider
 import folderMark from '../assets/folder.svg'
 import { fileMenuItems, folderMenuItems } from '../components/entryActions.js'
 import styles from './SpaceBrowsePage.module.css'
+import { staleCatalogNotice } from './staleCatalogNotice.js'
 
 const rise = {
   hidden: { opacity: 0, y: 10 },
@@ -85,6 +86,7 @@ export default function SpaceBrowsePage() {
   const expired = connected && providerMeta?.lastError === 'RECONEXAO_NECESSARIA'
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
   const files = folderQuery.items.filter((item) => item.kind === 'file')
+  const staleNotice = staleCatalogNotice(folderQuery.catalog, { reconnectShown: expired })
   const empty = folderQuery.status === 'ready' && folders.length === 0 && files.length === 0
   const pendingFolder = folderRef
     ? {
@@ -206,7 +208,8 @@ export default function SpaceBrowsePage() {
             </button>
           </>
         ) : null}
-        {empty && !expired ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
+        {staleNotice ? <p className={styles.empty} role="status">{staleNotice}</p> : null}
+        {empty && !expired && !staleNotice ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
 
         {folders.length > 0 ? (
           <section className={styles.section}>

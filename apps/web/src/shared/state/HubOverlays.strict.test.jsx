@@ -59,4 +59,14 @@ describe('operation errors in StrictMode overlays', () => {
     expect(screen.getByRole('button', { name: 'Excluir', exact: true })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Cancelar', exact: true })).toBeEnabled()
   })
+
+  it('explica que a exclusão envia o arquivo para a lixeira do provedor', () => {
+    show({ type: 'confirm-delete-entry' })
+    expect(screen.getByText('"Example.jpg" vai para a lixeira do provedor.')).toBeInTheDocument()
+  })
+
+  it('explica que a exclusão envia a pasta e o conteúdo para a lixeira do provedor', () => {
+    show({ type: 'confirm-delete-entry', kind: 'folder', name: 'Relatórios' })
+    expect(screen.getByText('"Relatórios" e tudo o que está dentro dela vão para a lixeira do provedor.')).toBeInTheDocument()
+  })
 })

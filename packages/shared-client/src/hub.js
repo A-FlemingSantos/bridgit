@@ -1,21 +1,6 @@
-import { ApiClientError, apiRequest } from './apiClient.js'
-
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-
-// Hermes has no crypto.randomUUID.
-function randomKey() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16)
-    return (char === 'x' ? random : (random & 0x3) | 0x8).toString(16)
-  })
-}
-
-function mutationHeaders(options) {
-  return { 'Idempotency-Key': options.clientKey ?? randomKey() }
-}
+import { apiRequest } from './apiClient.js'
+import { mutationHeaders } from './idempotency.js'
+import { exceedsUploadLimit, uploadTooLargeError } from './limits.js'
 
 function providerBase(provider) {
   return `/api/providers/${encodeURIComponent(provider)}`
@@ -29,11 +14,13 @@ export function listProviders(token) {
   return apiRequest('/api/providers', { token })
 }
 
-export function connectProvider(token, provider, redirectTo) {
+export function connectProvider(token, provider, redirectTo, { allowAccountChange = false } = {}) {
   const options = { method: 'POST', token }
-  if (redirectTo) {
-    options.body = { redirectTo }
-  }
+  const body = {}
+  if (redirectTo) body.redirectTo = redirectTo
+  // Only sent after the user confirmed replacing the connected account.
+  if (allowAccountChange) body.allowAccountChange = true
+  if (Object.keys(body).length > 0) options.body = body
   return apiRequest(`${providerBase(provider)}/connect`, options)
 }
 
@@ -66,21 +53,18 @@ export function createFolder(token, provider, parentRef, name, options = {}) {
   return apiRequest(`${providerBase(provider)}/folders`, {
     method: 'POST',
     token,
-    body: { parentRef, name },
+    // JSON bodies send the root as null; the API treats null and '' alike here.
+    body: { parentRef: parentRef || null, name },
     headers: mutationHeaders(options),
   })
 }
 
-export function uploadFile(token, provider, parentRef, file, options = {}) {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new ApiClientError('O arquivo excede o limite de 50 MB.', {
-      code: 'ARQUIVO_GRANDE',
-      status: 0,
-    })
-  }
+export async function uploadFile(token, provider, parentRef, file, options = {}) {
+  if (exceedsUploadLimit(file)) throw uploadTooLargeError()
 
   const body = new FormData()
-  body.append('parentRef', parentRef ?? '')
+  // Multipart sends the root by leaving the field out.
+  if (parentRef) body.append('parentRef', parentRef)
   body.append('file', file)
 
   return apiRequest(`${providerBase(provider)}/files`, {
@@ -99,6 +83,7 @@ export function updateItem(token, provider, ref, { name, parentRef } = {}, optio
   }
 
   if (parentRef !== undefined) {
+    // Unlike the other routes, null/omitted here means "do not move"; the root is the empty string.
     body.parentRef = parentRef === null || parentRef === '' ? '' : parentRef
   }
 

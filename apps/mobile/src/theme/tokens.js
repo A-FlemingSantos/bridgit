@@ -120,7 +120,3 @@ export function applyTheme(nextTheme) {
   theme.spacing = nextTheme.spacing
   theme.type = nextTheme.type
 }
-
-export function normalizeThemePreference(value) {
-  return value === 'dark' || value === 'light' || value === 'system' ? value : 'system'
-}

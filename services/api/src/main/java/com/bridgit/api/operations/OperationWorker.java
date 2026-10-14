@@ -64,7 +64,7 @@ public class OperationWorker {
       op = store.get(id);
       ProviderConnectionEntity c = connections.findById(op.connectionId()).orElse(null);
       if (c == null || !c.getUserId().equals(op.userId())) {
-        store.defer(id, owner, "REJECTED", 0, "CONEXAO_ALTERADA", "A conexao mudou. Esta operacao nao foi aplicada a outra conta."); return;
+        store.defer(id, owner, "REJECTED", 0, "CONEXAO_ALTERADA", "A conexão mudou. Esta operação não foi aplicada a outra conta."); return;
       }
       if (c.getGeneration() != op.generation()) op = store.reconnect(op, owner, c);
       CloudProviderClient client = clients.get(CloudProvider.fromId(c.getProvider()));
@@ -74,17 +74,24 @@ public class OperationWorker {
       if (r.dependencyId() != null) {
         OperationStore.Stored dependency = store.require(op.userId(), r.dependencyId());
         if ("REJECTED".equals(dependency.status()) || "NEEDS_ATTENTION".equals(dependency.status())) {
-          store.defer(id, owner, "NEEDS_ATTENTION", 0, "DESTINO_PENDENTE", "Resolva a criacao do destino antes de continuar."); return;
+          store.defer(id, owner, "NEEDS_ATTENTION", 0, "DESTINO_PENDENTE", "Resolva a criação do destino antes de continuar."); return;
         }
         if (!"SUCCEEDED".equals(dependency.status())) { store.defer(id, owner, "QUEUED", 1, null, null); return; }
-        if (dependency.result() == null || dependency.result().kind() != ItemKind.FOLDER) throw new ApiException(HttpStatus.CONFLICT, "DESTINO_INVALIDO", "O destino nao e uma pasta.");
+        if (dependency.result() == null || dependency.result().kind() != ItemKind.FOLDER) throw new ApiException(HttpStatus.CONFLICT, "DESTINO_INVALIDO", "O destino não é uma pasta.");
         parent = dependency.result().ref();
       }
       if (r.kind() != OperationDtos.Kind.UPDATE && parent != null && parent.isBlank()) parent = null;
       store.beginAttempt(id, owner);
       CloudItem base = op.base();
       if (base == null && (r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE)) {
-        base = retry.withRetry(c, token -> client.get(token, r.ref()));
+        try {
+          base = retry.withRetry(c, token -> client.get(token, r.ref()));
+        } catch (ApiException ex) {
+          // Deleting something that is already gone (for instance already in the provider's trash) is done.
+          if (r.kind() != OperationDtos.Kind.DELETE || ex.getStatus() != HttpStatus.NOT_FOUND) throw ex;
+          store.success(op, owner, c, null, r.ref());
+          return;
+        }
         if (r.expectedVersion() != null && !r.expectedVersion().equals(base.remoteVersion())) {
           log.warn("Operation version mismatch id={} provider={} ref={} expected={} current={}", id, c.getProvider(), r.ref(), r.expectedVersion(), base.remoteVersion());
           throw new ApiException(HttpStatus.CONFLICT, "ARQUIVO_ALTERADO", "O arquivo foi alterado. Atualize antes de tentar novamente.");
@@ -111,13 +118,14 @@ public class OperationWorker {
     } catch (Exception ex) {
       if (!claimed) return;
       String code = ex instanceof ApiException api ? api.getCode() : "OPERACAO_FALHOU";
-      String message = ex instanceof ApiException api ? api.getMessage() : "Nao foi possivel confirmar a operacao. O resultado sera verificado.";
+      String message = ex instanceof ApiException api ? api.getMessage() : "Não foi possível confirmar a operação. O resultado será verificado.";
       int status = ex instanceof ApiException api ? api.getStatus().value() : 0;
       String next;
       if ("VERIFYING".equals(op.status())) next = status == 403 ? "NEEDS_ATTENTION" : "VERIFYING";
       else if (status == 401 || "PROVEDOR_RECONECTAR".equals(code)) next = "WAITING_RECONNECT";
       else if (status == 429) next = op.attempts() >= 4 ? "NEEDS_ATTENTION" : "QUEUED";
-      else if (status >= 400 && status < 500) next = "REJECTED";
+      // 507 (PROVEDOR_SEM_ESPACO) is a definite refusal from the provider, like a 4xx.
+      else if (status >= 400 && status < 500 || status == 507) next = "REJECTED";
       else next = dispatched || "VERIFYING".equals(op.status()) ? "VERIFYING" : op.attempts() >= 4 ? "NEEDS_ATTENTION" : "QUEUED";
       long delay = ex instanceof ProviderApiException api && api.getRetryAfterSeconds() != null ? Math.max(1, api.getRetryAfterSeconds()) : Math.min(300, (1L << Math.min(8, op.attempts())) * 2) + ThreadLocalRandom.current().nextLong(3);
       try { store.defer(id, owner, next, delay, code, message); }
@@ -149,7 +157,7 @@ public class OperationWorker {
     }
     boolean expired = op.createdAt().isBefore(OffsetDateTime.now(clock).minusMinutes(15));
     store.defer(op.id(), owner, expired ? "NEEDS_ATTENTION" : "VERIFYING", 30,
-        "RESULTADO_NAO_CONFIRMADO", "Nao foi possivel confirmar o resultado. Atualize antes de repetir a operacao.");
+        "RESULTADO_NAO_CONFIRMADO", "Não foi possível confirmar o resultado. Atualize antes de repetir a operação.");
   }
   static String keepExtension(String name, CloudItem current) {
     if (name == null || current == null || current.kind() != ItemKind.FILE || current.extension() == null || current.extension().isBlank()) return name;

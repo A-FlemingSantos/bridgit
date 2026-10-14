@@ -29,10 +29,10 @@ public class OperationsController {
   static OperationDtos.Request readRequest(ObjectMapper json, String body) {
     try {
       OperationDtos.Request request = json.readValue(body, OperationDtos.Request.class);
-      if (request == null) throw new BadRequestException("OPERACAO_INVALIDA", "Informe a operacao de upload.");
+      if (request == null) throw new BadRequestException("OPERACAO_INVALIDA", "Informe a operação de upload.");
       return request;
     } catch (JsonProcessingException ex) {
-      throw new BadRequestException("OPERACAO_INVALIDA", "Operacao de upload invalida.");
+      throw new BadRequestException("OPERACAO_INVALIDA", "Operação de upload inválida.");
     }
   }
   @GetMapping public ApiEnvelope<List<OperationDtos.View>> pending() { return ApiEnvelope.ok(operations.pending()); }

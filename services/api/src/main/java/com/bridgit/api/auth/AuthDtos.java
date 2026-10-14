@@ -41,10 +41,4 @@ public final class AuthDtos {
       OffsetDateTime lastSeenAt
   ) {
   }
-
-  public record AccountResponse(
-      UUID id,
-      String username
-  ) {
-  }
 }

@@ -135,7 +135,7 @@ const seedProviderContents = {
     folderRefs: ['b17d93e0-2c4a-4e88-9f01-6a5d3c8e12b9'],
     fileRefs: [
       '7b2f0c18-4e9a-4d66-a813-0f5c1b9e3d24',
-      '18f0a6c3-4b2e-a5c1-7e3d8b90f412',
+      '18f0a6c3-9d47-4b2e-a5c1-7e3d8b90f412',
       '91a2f0e8-3b57-4c19-8d64-2e7f1a0c9b45',
     ],
   },

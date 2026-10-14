@@ -203,7 +203,7 @@ export function SessionProvider({ children }) {
   const updateUsername = useCallback(
     async (username) => {
       const token = session?.accessToken
-      if (!token) throw new Error('Sessao indisponivel.')
+      if (!token) throw new Error('Sessão indisponível.')
 
       try {
         const nextSession = await updateAccountRequest(token, username)
@@ -220,7 +220,7 @@ export function SessionProvider({ children }) {
   const changePassword = useCallback(
     async (currentPassword, newPassword) => {
       const token = session?.accessToken
-      if (!token) throw new Error('Sessao indisponivel.')
+      if (!token) throw new Error('Sessão indisponível.')
 
       try {
         return await changePasswordRequest(token, currentPassword, newPassword)
@@ -232,12 +232,12 @@ export function SessionProvider({ children }) {
     [handleUnauthorized, session?.accessToken],
   )
 
-  const deleteAccount = useCallback(async () => {
+  const deleteAccount = useCallback(async (password) => {
     const token = session?.accessToken
-    if (!token) throw new Error('Sessao indisponivel.')
+    if (!token) throw new Error('Sessão indisponível.')
 
     try {
-      await deleteAccountRequest(token)
+      await deleteAccountRequest(token, password)
       endSessionWithoutReturn()
     } catch (error) {
       handleUnauthorized(error)
@@ -248,7 +248,7 @@ export function SessionProvider({ children }) {
   const setPersistent = useCallback(
     async (persistent) => {
       const token = session?.accessToken
-      if (!token) throw new Error('Sessao indisponivel.')
+      if (!token) throw new Error('Sessão indisponível.')
 
       try {
         const updated = await updateSessionPersistentRequest(token, persistent)
@@ -282,7 +282,7 @@ export function SessionProvider({ children }) {
 
   const revokeOtherSessions = useCallback(async () => {
     const token = session?.accessToken
-    if (!token) throw new Error('Sessao indisponivel.')
+    if (!token) throw new Error('Sessão indisponível.')
 
     try {
       return await revokeOtherSessionsRequest(token)

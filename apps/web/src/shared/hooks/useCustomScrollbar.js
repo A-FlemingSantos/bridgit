@@ -49,7 +49,6 @@ export default function useCustomScrollbar({
   const viewportRef = useRef(null)
   const thumbRef = useRef(null)
   const thumbMetricsRef = useRef(HIDDEN_THUMB_STATE)
-  const isScrollingRef = useRef(false)
   const scrollIdleTimeoutRef = useRef(null)
   const layoutTimeoutRef = useRef(null)
   const [thumbVisible, setThumbVisible] = useState(false)
@@ -163,8 +162,6 @@ export default function useCustomScrollbar({
     }
 
     function markScrolling() {
-      isScrollingRef.current = true
-
       if (layoutTimeoutRef.current !== null) {
         window.clearTimeout(layoutTimeoutRef.current)
         layoutTimeoutRef.current = null
@@ -178,7 +175,6 @@ export default function useCustomScrollbar({
 
       scrollIdleTimeoutRef.current = window.setTimeout(() => {
         scrollIdleTimeoutRef.current = null
-        isScrollingRef.current = false
         updateThumbLayout()
       }, SCROLL_IDLE_MS)
     }
@@ -254,7 +250,6 @@ export default function useCustomScrollbar({
         layoutTimeoutRef.current = null
       }
 
-      isScrollingRef.current = false
       stopDragging()
     }
   }, [enabled, insetPx, minThumbPx, refreshKey, stopDragging])

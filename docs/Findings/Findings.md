@@ -2,116 +2,31 @@
 
 Tudo o que apareceu durante os testes da tarefa "[TESTAR] Funcionalidades" e ficou para depois, porque estava fora do escopo do branch `mobile/adjustments` ou porque a correção pedia uma decisão. As seções 16 e 17 vêm da revisão da fase 3 (`Fase 3 — revisão técnica e findings.md`, de setembro) e trazem só o que continua valendo no código de hoje. O que foi corrigido no dia dos testes está no fim, em "Corrigido no dia".
 
-Os findings estão em ordem de peso. Os primeiros mexem em arquitetura e pedem decisão; os do meio dependem de configuração ou do deploy; os últimos são pontuais.
+Os itens resolvidos ficam só com o título e um resumo. Os findings estão em ordem de peso. Os primeiros mexem em arquitetura e pedem decisão; os do meio dependem de configuração ou do deploy; os últimos são pontuais.
 
 ---
 
 ## 1. Google Drive: a "versão" do arquivo não serve para detectar conflito
 
-**Peso:** alto. Mexe no contrato de concorrência das operações, no catálogo local e no cliente do Google Drive. Afeta web e mobile.
-
-### O que o usuário vê
-
-Renomear ou excluir certos arquivos do Google Drive falha com "O arquivo foi alterado. Atualize e tente de novo.", sem que ninguém tenha mexido no arquivo. Atualizar a tela não resolve. O caso visto foi `Livros de Matemática.docx`, parado desde o upload. Outros arquivos, como o `package.json`, renomeiam normalmente.
-
-Um caso parecido, com outra causa direta: excluir algo que já está na lixeira do Google Drive também dá "O arquivo foi alterado". E uma pasta excluída pelo site do Drive (a pasta "PDFs") continua aparecendo no app e no web.
-
-### Como a checagem de conflito funciona hoje
-
-Toda escrita (renomear, mover, excluir) leva a versão do item que o cliente conhece (`expectedVersion`). Antes de escrever, o `OperationWorker` consulta o item no provedor e compara essa versão com a atual. Se forem diferentes, recusa com `ARQUIVO_ALTERADO`. A ideia é não sobrescrever uma mudança feita em outro lugar.
-
-O valor que o cliente conhece vem do catálogo local, alimentado pelo inventário e pelo feed de alterações de cada provedor.
-
-- **OneDrive:** a versão é o `eTag`, e a própria Microsoft recusa a escrita se ele mudou. É uma trava real e atômica.
-- **Dropbox:** a versão é o `rev`. A escrita condicional do Bridgit confere e depois escreve, sem atomicidade, mas o valor é confiável.
-- **Google Drive:** a versão é o campo `version` do arquivo. A API v3 do Drive não tem escrita condicional, então só existe a checagem do `OperationWorker`.
-
-### A causa
-
-A referência da API do Drive descreve `version` como um número que sobe a cada mudança no servidor, inclusive as que o usuário não vê: "This reflects every change made to the file on the server, even those not visible to the user." ([Drive API v3, recurso `files`](https://developers.google.com/drive/api/reference/rest/v3/files), campo `version`).
-
-A parte seguinte é inferência nossa, não está documentada: essas mudanças internas nem sempre aparecem no feed de alterações (`changes`). O catálogo fica com o número antigo, o app manda esse número, a consulta direta devolve um número maior, e a operação é recusada.
-
-Evidências de 13/10:
-- O log de diagnóstico, adicionado no dia, registrou `provider=google-drive ref=1vsnJA4DGCqtZIE99BPQpk_DuLkyEWHgZ expected=2 current=3`.
-- O catálogo estava sincronizando normalmente, sem falhas, e continuava com `remoteVersion = 2` para esse arquivo.
-- No mesmo período, o `package.json` teve a versão acompanhada a cada renomeação (3, 4, 5), porque ali as mudanças vieram do próprio Bridgit.
-
-### A variante da lixeira
-
-No OneDrive e no Dropbox, um item excluído responde 404. No Google Drive, um item na lixeira continua respondendo à consulta, com o campo `trashed` verdadeiro ("Whether the file has been trashed", mesma referência), e o cliente do Bridgit não olha esse campo. Isso causa dois sintomas:
-
-- **Excluir algo que já está na lixeira:** a consulta encontra o item com versão nova e a operação é recusada como "alterado". O certo seria tratar como já excluído.
-- **Item excluído reaparece no catálogo:** quando o feed avisa que um item foi removido, e esse item tinha sido mexido pelo próprio Bridgit (marcação `mutation_fence`), o `CatalogWorker` não confia no aviso e consulta o provedor para confirmar. No Drive, a consulta devolve o item da lixeira e o catálogo o marca como existente de novo. Foi o que aconteceu com a pasta "PDFs".
-
-### Opções avaliadas
-
-1. **Usar a revisão do conteúdo como versão no Google Drive (recomendada).** `headRevisionId` ("The ID of the file's head revision") ou `md5Checksum` ("The MD5 checksum for the content of the file"), da mesma referência. Os dois mudam quando o conteúdo muda e não acompanham as mudanças internas. A documentação não recomenda esses campos para detectar conflito; a escolha é nossa, com base na descrição deles. Segundo a referência, `headRevisionId` só existe para arquivos com conteúdo binário; nos documentos nativos do Google, que não têm revisão nem checksum, usar `modifiedTime` ("The last time the file was modified by anyone"). Uma edição do conteúdo feita por outra pessoa continua sendo detectada. Renomear e mover passam a seguir "a última escrita vale", que é como o próprio Google Drive se comporta.
-2. **Não checar conflito no Google Drive.** É a mais simples e honesta, porque o Drive não oferece trava. Mas uma edição feita em outro lugar pode ser sobrescrita ou o arquivo pode ser excluído sem aviso.
-3. **Montar uma versão própria** com revisão + nome + pasta. Detecta mais casos, mas é uma trava inventada pelo Bridgit, não pelo provedor. Foi descartada por isso.
-
-### Plano para a opção 1
-
-1. **`GoogleDriveProviderClient.remoteVersion`:** passar a devolver `headRevisionId` ou checksum, e `modifiedTime` nos nativos.
-2. **`GoogleDriveProviderClient.get` (e onde mais o item é mapeado):** tratar `trashed=true` como não encontrado (404). Isso corrige a variante da lixeira e o reaparecimento no catálogo.
-3. **Reconstruir o catálogo do Google Drive uma vez:** as versões guardadas hoje estão no formato antigo e, sem reconstrução, quase toda escrita no Drive daria "alterado" logo depois da mudança. O `CatalogWorker` já trata `SyncResetException` chamando `store.reset`. O caminho provável é mudar o formato do checkpoint do Drive para que o checkpoint antigo force um novo inventário; precisa ser confirmado antes.
-4. **Limpar a linha antiga de "PDFs"**, se a reconstrução não resolver sozinha.
-5. **Testes:** versão a partir de revisão e de `modifiedTime`, item na lixeira como 404, e reconciliação do `CatalogWorker` com item na lixeira.
-
-A mudança de código é pequena. O trabalho está em validar a reconstrução do catálogo, que mexe na sincronização às vésperas do deploy.
-
-### Arquivos envolvidos
-
-- `services/api/.../providers/drive/GoogleDriveProviderClient.java` (`remoteVersion`, `get`, mapeamento de itens, checkpoint)
-- `services/api/.../operations/OperationWorker.java` (checagem de `expectedVersion`)
-- `services/api/.../catalog/CatalogWorker.java` (reconciliação de itens com `mutation_fence`)
+> ✅ **Resolvido** (`fix/google-drive`, confirmado com a conta real em 14/10). A versão comparada nas escritas passou a ser a revisão do conteúdo (ou checksum), e `modifiedTime` nos documentos nativos; o campo `version` do Drive mudava sozinho e fazia escritas parecerem conflito. Item na lixeira conta como inexistente (404), e excluí-lo de novo dá certo. O checkpoint `v=2` forçou uma reconstrução do catálogo, que tirou a pasta "PDFs".
 
 ---
 
 ## 2. O catálogo local esconde que o provedor precisa reconectar
 
-**Peso:** médio. Decisão de produto e contrato entre API e clientes.
-
-Quando o acesso a um provedor expira (por exemplo, o Google recusa o refresh token), a conexão continua existindo com `lastError = RECONEXAO_NECESSARIA`. A sincronização do catálogo para, mas as pastas continuam sendo servidas a partir da última sincronização bem-sucedida, sem nenhuma marca na resposta. Para quem usa, parece que está tudo conectado e atualizado. Uma pasta vazia na última sincronização aparece como "Nenhum arquivo aqui ainda".
-
-No dia 13/10, mobile e web passaram a ler o `lastError` da lista de provedores e a mostrar "Acesso expirado" com um botão Reconectar. O backend continua sem avisar nada na resposta de listagem. Um cliente que não olhe a lista de provedores, ou um caso intermediário (sincronização falhando por outro motivo), segue mostrando dados velhos como se fossem atuais.
-
-**Decisão pendente:** a resposta de listagem deveria trazer o estado do catálogo (atualizado, desatualizado, desde quando), e quem decide o que mostrar é o cliente. A estrutura `store.metadata(...)` já devolve metadados do catálogo em cada listagem e pode ser o lugar natural para isso.
+> ✅ **Resolvido** (`fix/catalogo-e-eventos`). A listagem traz `freshness` e `staleReason`: fica `stale` quando a conexão pede reconexão ou a sincronização falha em rodadas seguidas. Web e mobile mostram "pode estar desatualizada" com a última sincronização. Só há testes automáticos; falta ver o aviso na tela.
 
 ---
 
 ## 3. Eventos entre aparelhos: o que avisa e o que não avisa
 
-**Peso:** médio. Mexe no modelo de eventos e no jeito como o mobile recarrega.
-
-O mobile e o web acompanham mudanças por eventos do servidor (`cloud_events`), lidos por polling no mobile e por SSE no web. Até 13/10, só operações (criar, renomear, excluir, enviar) e mudanças vindas dos provedores geravam eventos. No dia, atalhos e links públicos passaram a gerar `hub_entries`.
-
-**Recentes ficaram de fora de propósito.** Abrir um arquivo registra um recente. Se isso gerasse evento, o próprio celular que abriu o arquivo receberia o evento e recarregaria todas as telas, inclusive a do arquivo aberto. A imagem ou o texto seriam baixados de novo.
-
-A raiz é outro finding, já conhecido: no mobile, **qualquer evento recarrega todas as telas e a lista de provedores** (`HubContext` incrementa um contador global e cada tela refaz a busca). Enquanto for assim, cada evento novo aumenta o tráfego e o risco de piscar a tela.
-
-**Caminho sugerido:**
-- Fazer o mobile recarregar só o que o evento afeta, usando o tipo do evento e o provedor (`hub_entries` → Home; operação ou mudança de provedor → a pasta afetada).
-- Só então passar a emitir eventos de Recentes.
+> ✅ **Resolvido** (`fix/catalogo-e-eventos`). Web e mobile recarregam só o que o evento afeta (Home, pasta, item); o mobile deixou de recarregar tudo a cada evento. Recentes passaram a gerar `hub_entries`. No teste de 14/10, o web ignorava eventos de outros aparelhos porque a API mandava o `connectionId` em maiúsculas; corrigido.
 
 ---
 
 ## 4. Mensagens de erro da API sem acento e respostas 401 sem UTF-8
 
-**Peso:** médio. Afeta todos os clientes e exige mexer em duas camadas juntas.
-
-Todas as mensagens do backend são escritas sem acento ("Usuario ou senha invalidos.", "Sua sessao foi encerrada."). Parece proposital: os 401 de sessão são escritos direto na resposta, pelo `JwtAuthenticationFilter` e pelo entry point da `SecurityConfiguration`, sem charset UTF-8. Com acento, esses textos chegariam corrompidos.
-
-Os mesmos 401 também trazem o `timestamp` como número, enquanto os erros tratados pelo `GlobalExceptionHandler` trazem data ISO. São dois formatos de erro para o mesmo contrato.
-
-O mobile contorna desde 13/10 com um mapa de código → mensagem em português (`apps/mobile/src/api/errorMessage.js`). O web tem um mapa menor (`hubErrorMessage.js`) e mostra o texto cru nos outros casos, como o login.
-
-**Correção completa:**
-- Escrever os 401 pelo mesmo caminho do `GlobalExceptionHandler`, com UTF-8 e o mesmo formato de `timestamp`.
-- Acentuar as mensagens do backend.
-- Simplificar os mapas dos clientes.
-
-São cerca de 90 mensagens em mais de 20 arquivos, e alguns testes conferem textos.
+> ✅ **Resolvido** (`fix/contrato-de-erros`). 401 e 403 saem pelo mesmo envelope dos outros erros, em UTF-8 e com data ISO. Todas as mensagens da API têm acento, e os mapas de mensagens dos clientes encolheram.
 
 ---
 
@@ -149,37 +64,25 @@ O link público é montado com o endereço do web configurado na API, que em des
 
 ## 8. Web: Optimistic UI "pisca" ao criar e excluir
 
-**Peso:** médio para a percepção do produto; causa não investigada.
-
-Ao criar uma pasta no web, ela aparece e pisca logo depois. O formulário de criar e o de excluir também demoram a fechar depois da confirmação. O esperado de um Optimistic UI é a ação parecer instantânea: o formulário fecha na hora e o item aparece ou some na hora.
-
-O mecanismo existe:
-- O `HubDataProvider` coloca um item temporário na lista e depois o troca pelo item real.
-- A lista usa uma chave estável (`uiKey`) justamente para essa troca não refazer o item na tela.
-
-Ainda não se sabe se a piscada vem da troca do item, da recarga da pasta disparada pelo evento da operação ou da animação de entrada (`StaggerItem`). O próximo passo é reproduzir e observar qual dos três acontece.
+> ✅ **Resolvido** (`fix/catalogo-e-eventos`, conferido em 14/10). A piscada vinha da troca da chave do item quando a pasta era recarregada; agora a chave é preservada. Os formulários de criar e excluir fecham assim que o servidor aceita, e uma recusa posterior aparece num aviso.
 
 ---
 
 ## 9. Web: a página do link público não rola
 
-**Peso:** baixo, pontual. Ao abrir um PDF longo por um link público, só o topo do arquivo aparece; a página não tem rolagem. Está na página de link público do web (`PublicLinkPage`).
+> ✅ **Resolvido** (`fix/ui-e-limpeza`). A página do link público rola dentro da altura da tela.
 
 ---
 
 ## 10. Envio com parte ausente no formulário vira 500 e corta a conexão
 
-**Peso:** baixo depois da correção do dia, mas o comportamento de fundo continua.
-
-Quando uma requisição multipart chega sem uma parte obrigatória, o Spring lança `MissingServletRequestPartException`. O `GlobalExceptionHandler` não trata esse caso e responde 500. Como o servidor responde antes de ler o corpo inteiro, a conexão é cortada no meio do envio do arquivo. O cliente vê "sem conexão" em vez de um erro de validação.
-
-Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi corrigido, mas qualquer outra parte faltando ainda cai em 500. É o mesmo finding do levantamento original sobre 405 e parâmetro ausente virando 500. A correção é tratar essas exceções no handler como 400.
+> ✅ **Resolvido** (`fix/contrato-de-erros`). Parte, parâmetro ou cabeçalho ausente responde 400 `REQUISICAO_INVALIDA`, e o servidor lê o resto do envio antes de responder, sem cortar a conexão.
 
 ---
 
 ## 11. Logout de uma sessão já revogada responde 401
 
-**Peso:** baixo. Chamar `/api/auth/logout` com um token de sessão já encerrada responde 401 `SESSAO_REVOGADA`, em vez de sucesso. O mobile ignora esse erro, então não afeta o usuário. Logout costuma ser idempotente.
+> ✅ **Resolvido** (`fix/contrato-de-erros`). Logout responde 200 mesmo com a sessão já encerrada.
 
 ---
 
@@ -187,27 +90,33 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 
 **Peso:** baixo, mas é uma lacuna de produto.
 
-Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam no inventário sem pai visível. O catálogo os grava com `parentKnown=false`, e eles não aparecem na raiz nem em nenhuma pasta. Foram vistos três casos no catálogo de 13/10. Falta decidir se o Bridgit mostra "Compartilhados comigo" ou ignora esses itens de forma explícita.
+**Status:** resolvido em parte em `fix/google-drive`; falta implementar a decisão de 14/10, abaixo. A decisão foi ignorar esses itens de forma explícita. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
+
+⚠️ **Visto em 14/10:** o filtro olha só se o item tem um pai. O conteúdo de uma pasta compartilhada que não foi adicionada ao Meu Drive tem pai (a própria pasta), então entra no inventário e na busca. A pasta em si fica de fora, porque não tem pai. Na conta real são 9 itens assim. Exemplo: as fotos `DSC00716.JPG` e outras, da pasta compartilhada "Olimpíadas da Matemática". Elas não aparecem em nenhuma pasta do hub, mas ficam gravadas no catálogo e aparecem na busca com `parentKnown=false`. Abrir uma delas mostra a pasta compartilhada como caminho, e dá para navegar por ela.
+
+**Decisão (14/10):** no Google Drive, só entra no catálogo o que é alcançável a partir da raiz do Meu Drive. Não haverá "Compartilhados comigo".
+- **Feed:** já não traz esses itens. O feed e a inscrição usam `restrictToMyDrive=true`, que omite arquivos compartilhados fora do Meu Drive. Nada a mudar.
+- **Inventário:** é o único caminho por onde esses itens entram, porque o `files.list` com `corpora=user` devolve tudo o que o usuário enxerga. No fim do inventário do Drive, antes de ativar o novo scan, uma consulta SQL recursiva (`WITH … UNION ALL`) parte dos itens da raiz e marca seus descendentes; o que não for marcado é apagado do scan em construção. É uma instrução no `CatalogStore`, usada só para o Drive. No OneDrive e no Dropbox tudo já está na árvore.
+- **Busca:** pelo finding 18, passa a usar o catálogo e herda a regra. Até lá, ainda consulta o provedor e mostra esses itens.
+- **Limpeza do que já está gravado:** o formato do checkpoint do Drive sobe para `v=3`, o que força uma nova reconstrução e remove os 9 itens atuais.
+- **Desempenho:** a consulta roda uma vez por inventário completo (ao conectar a conta ou numa reconstrução), nunca na navegação nem na sincronização incremental. Cada item é visitado uma vez, e o número de rodadas é a profundidade das pastas. Encontrar os filhos de uma pasta usa o índice `ix_catalog_parent`, o mesmo da listagem.
+- **Caso de borda aceito:** um arquivo movido do Meu Drive para uma pasta compartilhada de fora deve chegar pelo feed como removido. Se escapar, a próxima reconstrução corrige.
+
+**Alternativas descartadas:**
+- **Filtrar o inventário com `'me' in owners`:** esconderia arquivos que outras pessoas colocaram nas pastas do usuário. Eles sumiriam da navegação.
+- **Percorrer a árvore pasta por pasta na API do Google:** correto por construção, mas exige uma chamada de rede por pasta a cada inventário e guardar a fila de pastas no checkpoint.
 
 ---
 
 ## 13. Excluir pasta não avisa que o conteúdo vai junto
 
-**Peso:** baixo, UX.
-
-A confirmação de excluir pasta mostra só o nome da pasta. Em 13/10, o arquivo `Livros de Matemática.docx` "sumiu" do OneDrive porque estava dentro de "Pasta Vazia", excluída num teste. Foi para a lixeira do provedor, que é recuperável, mas o usuário não foi avisado.
-
-**Proposta:** "'Pasta Vazia' e tudo o que está dentro dela vão para a lixeira do provedor." No mobile e no web.
+> ✅ **Resolvido** (`fix/ui-e-limpeza`). Web e mobile avisam que a pasta e o conteúdo vão para a lixeira do provedor.
 
 ---
 
 ## 14. Ambiente de desenvolvimento
 
-**Peso:** baixo. Atritos encontrados ao testar.
-
-- **IP do PC mudou:** o app monta o endereço da API a partir do IP anunciado pelo Metro. Se o IP do PC muda (outra rede ou nova concessão do roteador), é preciso reiniciar o Metro.
-- **Testes de integração da API exigem a senha do banco:** eles leem `SPRING_DATASOURCE_PASSWORD`. Sem ela, falham no Flyway com "Falha de logon do usuário 'sa'". É preciso carregar `scripts\powershell\local.secrets.ps1` antes do Maven.
-- **O mobile não tem configuração de ESLint:** o `npx eslint` falha por falta de `eslint.config.*`.
+> ✅ **Resolvido** (`fix/ui-e-limpeza`). ESLint no mobile (também no pre-commit) e seção "Executar localmente" em `docs/local-first-cloud-hub.md`, com a troca de IP do Metro e a senha do banco nos testes.
 
 ---
 
@@ -285,6 +194,122 @@ A revisão da fase 3 propôs uma política que continua válida:
 - nunca pré-carregar a árvore inteira nem os bytes de todos os arquivos.
 
 O web já tem parte disso: busca antecipada ao passar o mouse e cache de conteúdo com limite de tamanho. O que falta é medir se ajuda.
+
+---
+
+## 18. Busca consulta os provedores em vez do catálogo
+
+**Peso:** médio. Simplifica o backend e alinha a busca com a navegação.
+
+**Decisão (14/10):** a busca passa a consultar o catálogo SQL, sem chamar os provedores e sem plano B no provedor. A busca não precisa ser exata.
+
+Hoje o `SearchService` consulta cada provedor em paralelo, com até 8 s para responder. O OneDrive usa `/root/search` do Graph, o Dropbox usa `/files/search_v2` e o Google Drive usa `files.list` com `name contains`. O catálogo não é usado. Isso tem três consequências:
+- A busca segue regras diferentes das da navegação. No Google Drive, o conteúdo de pastas compartilhadas fora do Meu Drive aparece na busca, mas não em nenhuma pasta (ver finding 12).
+- A busca depende de três chamadas de rede, da disponibilidade e da cota de cada provedor. Um provedor lento aparece como "tempo esgotado".
+- O Graph e o Dropbox demoram para indexar arquivos novos.
+
+**O que muda:**
+- A busca filtra por nome no catálogo do usuário, respeitando as mesmas regras da listagem: scan ativo, geração atual, `deleted = 0` e só itens que pertencem à árvore do hub. Com isso, a parte da busca do finding 12 se resolve junto.
+- A resposta traz, por provedor, o mesmo `coverage`/`freshness` da listagem. Assim, o cliente pode avisar "ainda sincronizando" quando o catálogo estiver incompleto, como na primeira sincronização ou numa reconstrução.
+- Saem os métodos `search` dos clientes de provedor, a execução em paralelo e o limite de tempo.
+
+**O que se aceita perder:**
+- A busca por conteúdo que o OneDrive e o Dropbox fazem hoje.
+- Arquivos criados fora do Bridgit só aparecem depois da próxima sincronização.
+
+`LIKE '%termo%'` percorre os itens do usuário. Isso basta no tamanho atual; um índice de texto completo fica para quando os catálogos crescerem.
+
+---
+
+## 19. Mobile: sem estado offline
+
+**Peso:** médio. Funcionalidade nova no mobile.
+
+Hoje o app só tem "carregando" e "erro". Sem rede, nada aparece. Falta tratar a falta de rede, guardar dados no aparelho para mostrar o último estado conhecido e indicar "sessão não confirmada" enquanto o servidor não responde.
+
+---
+
+## 20. Ações sem back-end nos menus
+
+**Peso:** médio. Funcionalidade nova.
+
+Mover, Espelhar, Editar PDF, Pedir assinaturas e Assinar foram tirados dos menus do mobile por não terem back-end; no web, Editar PDF e as assinaturas continuam nos menus sem fazer nada. Cada ação precisa do seu back-end antes de voltar ao menu.
+
+---
+
+## 21. Mobile: PDF abre no leitor do sistema
+
+**Peso:** baixo. Decisão de produto.
+
+Hoje o PDF sai do app e abre no leitor do sistema, como solução provisória. Falta decidir se vale embutir um leitor (por exemplo, com WebView).
+
+---
+
+## 22. Mobile: navegador do OAuth
+
+**Peso:** baixo. Decisão de produto.
+
+O login no provedor abre uma aba do navegador do sistema. WebView não serve para o Google (erro `disallowed_useragent`). Opções: manter a aba do navegador, que é o padrão no mobile; usar WebView só para Microsoft e Dropbox; ou outra ideia.
+
+---
+
+## 23. Ajustes: as opções bastam?
+
+**Peso:** baixo. Decisão de produto.
+
+Falta decidir se as opções atuais de Ajustes bastam ou se faltam opções de personalização.
+
+---
+
+## 24. Web: pasta excluída continua sendo recarregada (404 no console)
+
+**Peso:** baixo. Não aparece na tela, mas gera requisições inúteis e erros no console.
+
+Visto em 14/10: depois de excluir a "Pasta sem título" no Google Drive, o console do navegador mostra `GET /api/providers/google-drive/items?parent=<pasta excluída>` com 404. A API está certa: a pasta não existe mais.
+
+**Causa:** o web guarda em cache cada pasta aberta (`folderCache` no `HubDataProvider`). `revalidateStale` roda quando a aba ganha foco ou volta a ficar visível e recarrega toda pasta em cache com mais de 30 s. Abrir o DevTools devolve o foco à aba e dispara isso. Ao excluir uma pasta, `removeItemFromCaches` a tira da lista da pasta-mãe, mas a entrada de cache da própria pasta continua lá. Num 404, o `loadFolder` mantém a entrada e só atualiza o `fetchedAt`, então ela volta a ser pedida a cada foco até a página ser recarregada. O comportamento já existia no `main`.
+
+**Correção escolhida (a mais estável):** quando a recarga de uma pasta responder 404, descartar a entrada de cache dessa pasta e das subpastas guardadas sob ela. A regra fica num ponto só e cobre todos os jeitos de uma pasta sumir: excluída no próprio aparelho, em outro aparelho ou direto no provedor. Limpar o cache só na exclusão feita pelo Bridgit não cobriria os dois últimos casos. Se a pasta excluída estiver aberta na tela, a página deve mostrar "não encontrada" e não ficar tentando de novo.
+
+---
+
+## 25. Google Drive: arquivos do Office não têm leitura, e o aviso engana
+
+**Peso:** baixo. A limitação é aceita; só o aviso muda.
+
+Visto em 14/10 com `Math Books.docx`. O Google Drive só exporta para PDF os documentos nativos do Google (Docs, Planilhas, Apresentações e Desenhos). Um `.docx`, `.xlsx` ou `.pptx` enviado ao Drive não é nativo, então `ReadPlanSupport` devolve `none` e o web mostra "Este arquivo não tem leitura no Bridgit", com o botão de baixar. O comportamento já existia no `main`: não é bug, é limitação do provedor. No OneDrive e no Dropbox o mesmo arquivo abre, porque esses provedores geram o PDF.
+
+**Decisão:** manter sem leitura, com o aviso e o download. Não converter no servidor nem criar cópias convertidas no Drive do usuário.
+
+**O que muda:** o texto atual sugere que o Bridgit não lê esse tipo de arquivo em lugar nenhum, o que é falso. O aviso deve dizer que o provedor não oferece visualização para este arquivo e que dá para baixá-lo, por exemplo: "O Google Drive não gera visualização deste arquivo. Baixe para abrir." O modo `none` também cobre outros casos, como texto grande demais e tipos sem leitor. Para o texto acertar a causa, a resposta de leitura (`ReadResponse`) pode trazer um motivo, por exemplo `PROVEDOR_SEM_VISUALIZACAO` ou `ARQUIVO_GRANDE_DEMAIS`, e o cliente escolhe a frase. O mobile segue o mesmo texto.
+
+---
+
+## 26. Optimistic UI só cobre parte das ações
+
+**Peso:** médio. Percepção de velocidade no web e no mobile.
+
+O finding 8 deixou criar pasta e excluir instantâneos no web. As outras ações ainda esperam o servidor terminar.
+
+**Web, hoje:**
+- **Já instantâneo:** criar pasta, enviar, renomear, mover, excluir, atalhos e recentes aparecem na lista na hora. `operationProjection.js` projeta as operações pendentes sobre o cache. Os formulários de criar pasta e de excluir fecham assim que o servidor aceita (`onAccepted`).
+- **Renomear e mover:** a lista muda na hora, mas o formulário fica aberto até a operação terminar, consultando o servidor a cada 750 ms. `renameItem` e `moveItem` não repassam o `onAccepted` para o `updateItem`.
+- **Enviar vários arquivos:** `uploadFiles` envia um arquivo por vez e espera cada um terminar. O próximo arquivo só aparece como pendente depois que o anterior termina.
+
+**Mobile, hoje:** não há Optimistic UI.
+- **Criar pasta, renomear, excluir e enviar:** `useItemActions` espera `runOperation`, que consulta a operação a cada 750 ms por até 60 s. Só então recarrega as telas afetadas. O formulário fica aberto e a lista só muda depois da recarga.
+- **Atalhos:** também esperam o servidor e depois recarregam a Home, as pastas e o arquivo.
+
+**O que expandir:**
+1. **Web, renomear e mover:** fechar o formulário quando o servidor aceitar, como criar pasta e excluir.
+2. **Web, vários arquivos:** registrar a intenção de todos os arquivos de uma vez, para todos aparecerem como pendentes, e continuar enviando em sequência.
+3. **Mobile:**
+   - Projetar as operações pendentes sobre as listagens, como o `operationProjection` do web. A lógica é a mesma; vale considerar movê-la para o `shared-client`.
+   - Fechar o formulário quando o servidor aceitar.
+   - Mostrar a recusa num aviso, desfazendo a mudança na tela.
+   - Atalhos entram e saem da lista na hora, desfeitos em caso de erro, como no web.
+
+**Fica como está:** criar link público, porque o endereço vem do servidor; desconectar provedor; e alterações de conta. São ações raras, em que esperar a confirmação é o esperado.
 
 ---
 

@@ -1,6 +1,7 @@
 package com.bridgit.api.operations;
 
 import com.bridgit.api.catalog.LocalHubProperties;
+import com.bridgit.api.common.api.UploadLimits;
 import com.bridgit.api.common.error.ApiException;
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -18,7 +19,7 @@ public class UploadPayloadStore {
   private final Path root;
   public UploadPayloadStore(LocalHubProperties properties) { root = Path.of(properties.getUploadDirectory()).toAbsolutePath().normalize(); }
   public OperationStore.Payload receive(InputStreamSource source, long expected) {
-    if (expected < 0 || expected > 50L * 1024 * 1024) throw failure("ARQUIVO_GRANDE", "O arquivo excede o limite de 50 MB.");
+    if (expected < 0 || expected > UploadLimits.MAX_BYTES) throw failure("ARQUIVO_GRANDE", "O arquivo excede o limite de " + UploadLimits.MAX_LABEL + ".");
     Path partial = root.resolve(UUID.randomUUID() + ".partial");
     Path ready = root.resolve(UUID.randomUUID() + ".upload");
     try {
@@ -35,13 +36,13 @@ public class UploadPayloadStore {
           ByteBuffer buffer = ByteBuffer.wrap(bytes, 0, count);
           while (buffer.hasRemaining()) out.write(buffer);
         }
-        if (size != expected) throw failure("UPLOAD_INCOMPLETO", "O arquivo nao foi recebido completamente.");
+        if (size != expected) throw failure("UPLOAD_INCOMPLETO", "O arquivo não foi recebido completamente.");
         out.force(true);
       }
       Files.move(partial, ready, StandardCopyOption.ATOMIC_MOVE);
       return new OperationStore.Payload(ready.getFileName().toString(), size, HexFormat.of().formatHex(digest.digest()));
     } catch (ApiException ex) { throw ex; }
-    catch (Exception ex) { throw failure("UPLOAD_ARMAZENAMENTO", "Nao foi possivel guardar o arquivo para envio. Tente novamente."); }
+    catch (Exception ex) { throw failure("UPLOAD_ARMAZENAMENTO", "Não foi possível guardar o arquivo para envio. Tente novamente."); }
     finally { try { Files.deleteIfExists(partial); } catch (IOException ignored) {} }
   }
   public InputStreamSource verified(OperationStore.Payload payload) {
@@ -55,7 +56,7 @@ public class UploadPayloadStore {
       }
       if (Files.size(file) != payload.size() || !HexFormat.of().formatHex(digest.digest()).equals(payload.hash())) throw new IOException("Payload integrity mismatch");
       return () -> Files.newInputStream(file);
-    } catch (Exception ex) { throw failure("UPLOAD_AUSENTE", "O arquivo temporario nao esta disponivel. Selecione-o novamente."); }
+    } catch (Exception ex) { throw failure("UPLOAD_AUSENTE", "O arquivo temporário não está disponível. Selecione-o novamente."); }
   }
   public void remove(OperationStore.Payload payload) {
     if (payload == null) return;

@@ -1,10 +1,10 @@
-import { ApiClientError } from '@bridgit/shared-client'
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
 import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES, sanitizeInternalAppRedirect } from '../../../shared/config/routes.js'
+import { apiErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import atSign from '../assets/at-sign.svg'
 import styles from './AuthPage.module.css'
 
@@ -37,7 +37,7 @@ export default function AuthPage() {
       if (register) {
         const confirm = String(data.get('confirm') ?? '')
         if (password !== confirm) {
-          setError('As senhas nao coincidem.')
+          setError('As senhas não coincidem.')
           return
         }
 
@@ -49,11 +49,7 @@ export default function AuthPage() {
 
       navigate(redirectTo, { replace: true })
     } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message)
-      } else {
-        setError('Nao foi possivel concluir a operacao solicitada.')
-      }
+      setError(apiErrorMessage(err, 'Não foi possível concluir a operação solicitada.'))
     } finally {
       setSubmitting(false)
     }

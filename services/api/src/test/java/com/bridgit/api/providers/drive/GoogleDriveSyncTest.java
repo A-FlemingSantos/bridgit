@@ -72,7 +72,8 @@ class GoogleDriveSyncTest {
     assertFalse(first.caughtUp());
     assertEquals("root-id", first.rootRef());
     CloudItem item = first.changes().getFirst().item();
-    assertEquals("7", item.remoteVersion());
+    // Drive's own version moves on hidden server changes; the content revision is what the hub compares.
+    assertEquals("hash", item.remoteVersion());
     assertEquals("hash", item.contentRevision());
 
     SyncPage afterInventory = client.syncPage("token", first.checkpoint());
@@ -85,6 +86,17 @@ class GoogleDriveSyncTest {
     assertEquals("partial.txt", caughtUp.changes().get(1).item().name());
     assertEquals(java.util.Set.of("name", "extension"), caughtUp.changes().get(1).knownFields());
     assertTrue(caughtUp.changes().get(2).deleted());
+    server.verify();
+  }
+
+  @Test
+  void checkpointFromTheOldFormatRequiresAFreshInventory() {
+    // Saved before remoteVersion became the content revision: no "v" field.
+    String old = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+        "{\"phase\":\"changes\",\"rootRef\":\"root-id\",\"pageToken\":\"changes-9\"}"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+    assertThrows(SyncResetException.class, () -> client.syncPage("token", old));
     server.verify();
   }
 
@@ -110,14 +122,14 @@ class GoogleDriveSyncTest {
         .andExpect(content().string(org.hamcrest.Matchers.containsString("\"id\":\"reserved-folder\"")))
         .andRespond(withSuccess("""
             {"id":"reserved-folder","name":"Folder","mimeType":"application/vnd.google-apps.folder",
-             "version":"10"}
+             "version":"10","modifiedTime":"2026-01-01T10:00:00Z"}
             """, MediaType.APPLICATION_JSON));
 
     PreparedWrite prepared = client.prepareCreate("token");
     CloudItem folder = client.createFolderPrepared("token", "parent", "Folder", prepared);
 
     assertEquals("reserved-folder", folder.ref());
-    assertEquals("10", folder.remoteVersion());
+    assertEquals("2026-01-01T10:00:00Z", folder.remoteVersion());
     server.verify();
   }
 

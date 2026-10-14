@@ -34,14 +34,14 @@ public class CatalogService {
           throw new ConflictException("CATALOGO_ALTERADO", "A pasta foi atualizada. Recarregue a listagem.");
         }
         try { offset = Integer.parseInt(fields[3]); }
-        catch (NumberFormatException ex) { throw new ConflictException("CURSOR_INVALIDO", "Paginacao invalida."); }
-        if (offset < 0) throw new ConflictException("CURSOR_INVALIDO", "Paginacao invalida.");
+        catch (NumberFormatException ex) { throw new ConflictException("CURSOR_INVALIDO", "Paginação inválida."); }
+        if (offset < 0) throw new ConflictException("CURSOR_INVALIDO", "Paginação inválida.");
       }
       CatalogStore.FolderPage window = offset == 0 ? known : store.folder(c, parent, offset, PAGE_SIZE + 1);
       if (window.state().revision() != known.state().revision()) throw new ConflictException("CATALOGO_ALTERADO", "A pasta foi atualizada. Recarregue a listagem.");
       int count = Math.min(PAGE_SIZE, window.items().size());
       String next = window.items().size() > PAGE_SIZE ? cursors.seal(c.getId(), parent, "local:" + c.getGeneration() + ":" + known.state().revision() + ":" + (offset + count)) : null;
-      return new FilesDtos.ListItemsResponse(folderContext(c, client, parent), window.items().subList(0, count), next, store.metadata(c, known.state(), true));
+      return new FilesDtos.ListItemsResponse(folderContext(c, client, parent), window.items().subList(0, count), next, store.metadata(c, known.state(), true, true));
     }
     String continuation = null;
     if (raw != null) {
@@ -55,7 +55,7 @@ public class CatalogService {
     CatalogStore.State s = store.ensure(c);
     return new FilesDtos.ListItemsResponse(folderContext(c, client, parent), page.items(),
         page.nextCursor() == null ? null : cursors.seal(c.getId(), parent, "remote:" + c.getGeneration() + ":" + page.nextCursor()),
-        store.metadata(c, s, page.nextCursor() == null));
+        store.metadata(c, s, page.nextCursor() == null, false));
   }
 
   public FilesDtos.ItemWithAncestry get(ProviderConnectionEntity c, CloudProviderClient client, String ref) {
@@ -64,14 +64,14 @@ public class CatalogService {
     if (cached != null && !cached.deleted() && cached.item().parentKnown()) {
       List<FilesDtos.FolderRef> ancestry = store.ancestry(c, cached.item());
       if (cached.item().parentRef() == null || !ancestry.isEmpty()) {
-        return new FilesDtos.ItemWithAncestry(cached.item(), ancestry, store.metadata(c, store.ensure(c), true));
+        return new FilesDtos.ItemWithAncestry(cached.item(), ancestry, store.metadata(c, store.ensure(c), true, true));
       }
     }
     CloudItem item = retry.withRetry(c, token -> client.get(token, ref));
     List<CloudItem> parents = retry.withRetry(c, token -> client.ancestry(token, ref));
     for (CloudItem folder : parents) store.rememberItem(c, folder);
     store.rememberItem(c, item);
-    return new FilesDtos.ItemWithAncestry(item, parents.stream().map(p -> new FilesDtos.FolderRef(p.ref(), p.name())).toList(), store.metadata(c, store.ensure(c), true));
+    return new FilesDtos.ItemWithAncestry(item, parents.stream().map(p -> new FilesDtos.FolderRef(p.ref(), p.name())).toList(), store.metadata(c, store.ensure(c), true, false));
   }
 
   private FilesDtos.FolderContext folderContext(ProviderConnectionEntity c, CloudProviderClient client, String parent) {

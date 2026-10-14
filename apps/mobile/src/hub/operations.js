@@ -24,7 +24,9 @@ export function createClientKey() {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// A full provider account (507) will not clear up by trying again.
 function retryable(error) {
+  if (error?.code === 'PROVEDOR_SEM_ESPACO') return false
   return error?.status === 0 || error?.status >= 500
 }
 

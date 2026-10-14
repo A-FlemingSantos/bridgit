@@ -1,27 +1,49 @@
+# Parametros do banco: o padrao e o SQL Server local em localhost:1433, banco bridgit_db.
+# Se mudar host ou porta e SPRING_DATASOURCE_URL nao estiver definida, a URL JDBC e montada com eles.
+[CmdletBinding()]
+param(
+  [string]$DatabaseHost = 'localhost',
+  [ValidateRange(1, 65535)]
+  [int]$DatabasePort = 1433,
+  [string]$DatabaseName = 'bridgit_db'
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'Bridgit.Windows.Common.ps1')
 
-function Assert-BridgitDatabaseExists {
+# Confirma que o SQL Server responde e cria o banco se ele ainda nao existir.
+function Confirm-BridgitDatabase {
   param(
     [Parameter(Mandatory = $true)]
     [string]$Username,
     [Parameter(Mandatory = $true)]
     [string]$Password,
-    [string]$Server = 'localhost,1433',
-    [string]$DatabaseName = 'bridgit_db'
+    [Parameter(Mandatory = $true)]
+    [string]$DatabaseHost,
+    [Parameter(Mandatory = $true)]
+    [int]$DatabasePort,
+    [Parameter(Mandatory = $true)]
+    [string]$DatabaseName
   )
 
   Add-Type -AssemblyName 'System.Data' -ErrorAction SilentlyContinue
 
-  $connectionString = "Server=$Server;Database=master;User Id=$Username;Password=$Password;Encrypt=False;TrustServerCertificate=True;Connection Timeout=5"
-  $connection = New-Object System.Data.SqlClient.SqlConnection $connectionString
+  $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+  $builder['Data Source'] = "$DatabaseHost,$DatabasePort"
+  $builder['Initial Catalog'] = 'master'
+  $builder['User ID'] = $Username
+  $builder['Password'] = $Password
+  $builder['Encrypt'] = $false
+  $builder['TrustServerCertificate'] = $true
+  $builder['Connect Timeout'] = 5
+  $connection = New-Object System.Data.SqlClient.SqlConnection $builder.ConnectionString
 
   try {
     $connection.Open()
   } catch {
-    throw 'O SQL Server deve estar escutando em localhost:1433 antes de iniciar o backend. Verifique se o servidor esta em execucao.'
+    throw "Nao foi possivel conectar ao SQL Server em ${DatabaseHost}:${DatabasePort} com o usuario '$Username'. Verifique se o servidor esta em execucao e se SPRING_DATASOURCE_USERNAME e SPRING_DATASOURCE_PASSWORD estao corretos. Detalhe: $($_.Exception.Message)"
   }
 
   try {
@@ -31,7 +53,17 @@ function Assert-BridgitDatabaseExists {
     $count = [int]$command.ExecuteScalar()
 
     if ($count -eq 0) {
-      throw "O banco de dados '$DatabaseName' nao existe. Crie o banco '$DatabaseName' em localhost:1433 antes de continuar."
+      Write-Host "  Banco '$DatabaseName' nao existe em ${DatabaseHost}:${DatabasePort}. Criando..."
+      $create = $connection.CreateCommand()
+      # O nome de banco nao pode ser parametro de CREATE DATABASE; QUOTENAME evita injecao.
+      $create.CommandText = 'DECLARE @sql nvarchar(400) = N''CREATE DATABASE '' + QUOTENAME(@dbName); EXEC (@sql);'
+      $null = $create.Parameters.AddWithValue('@dbName', $DatabaseName)
+      try {
+        $null = $create.ExecuteNonQuery()
+      } catch {
+        throw "Nao foi possivel criar o banco '$DatabaseName' em ${DatabaseHost}:${DatabasePort}. Crie-o manualmente ou use um usuario com permissao CREATE DATABASE. Detalhe: $($_.Exception.Message)"
+      }
+      Write-Host "  Banco '$DatabaseName' criado."
     }
   } finally {
     $connection.Close()
@@ -109,6 +141,7 @@ function Get-ProviderConfigStatus {
 
 Write-BridgitConfig -Rows @(
   (New-BridgitConfigRow 'web_url' (Get-BridgitTrimmedUrl -Url $frontendBaseUrl)),
+  (New-BridgitConfigRow 'database' "${DatabaseHost}:${DatabasePort}/${DatabaseName}"),
   (New-BridgitConfigRow 'spring_db_password' 'loaded'),
   (New-BridgitConfigRow 'jwt' 'loaded'),
   (New-BridgitConfigRow 'integration_token_key' 'loaded'),
@@ -117,7 +150,12 @@ Write-BridgitConfig -Rows @(
   (New-BridgitConfigRow 'dropbox_oauth' (Get-ProviderConfigStatus -ClientIdVar 'APP_DROPBOX_CLIENT_ID' -ClientSecretVar 'APP_DROPBOX_CLIENT_SECRET'))
 )
 
-Assert-BridgitDatabaseExists -Username $datasourceUsername -Password $datasourcePassword
+if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('SPRING_DATASOURCE_URL', 'Process')) -and
+    ($DatabaseHost -ne 'localhost' -or $DatabasePort -ne 1433 -or $DatabaseName -ne 'bridgit_db')) {
+  Set-BridgitProcessEnvVar -Name 'SPRING_DATASOURCE_URL' -Value "jdbc:sqlserver://${DatabaseHost}:${DatabasePort};databaseName=${DatabaseName};encrypt=false;trustServerCertificate=true"
+}
+
+Confirm-BridgitDatabase -Username $datasourceUsername -Password $datasourcePassword -DatabaseHost $DatabaseHost -DatabasePort $DatabasePort -DatabaseName $DatabaseName
 
 Write-BridgitRun -Command 'mvn spring-boot:run'
 Invoke-BridgitCommand -WorkingDirectory $apiRoot -FilePath 'mvn' -Arguments @('spring-boot:run')

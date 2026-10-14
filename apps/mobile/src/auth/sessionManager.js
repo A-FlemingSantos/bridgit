@@ -1,4 +1,4 @@
-import { apiRequest } from '@bridgit/shared-client'
+import { apiRequest, isSessionFailure } from '@bridgit/shared-client'
 import { apiOptions } from '../api/config'
 import {
   buildStoredSession,
@@ -57,7 +57,7 @@ export function createSessionManager({ onChange }) {
       if (current?.accessToken !== checked.accessToken) return
       await store(buildStoredSession(data))
     } catch (error) {
-      if (error?.status === 401 && current?.accessToken === checked.accessToken) end()
+      if (isSessionFailure(error) && current?.accessToken === checked.accessToken) end()
     }
   }
 

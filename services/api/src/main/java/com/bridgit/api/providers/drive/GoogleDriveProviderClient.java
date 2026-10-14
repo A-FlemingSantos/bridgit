@@ -23,6 +23,7 @@ import com.bridgit.api.providers.sync.SyncResetException;
 import com.bridgit.api.providers.sync.WatchRegistration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,12 +35,18 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.core.io.InputStreamSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
@@ -47,23 +54,42 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriUtils;
 
 @Component
 public class GoogleDriveProviderClient implements CloudProviderClient, CloudSyncClient, CloudWatchClient {
 
+  private static final Logger log = LoggerFactory.getLogger(GoogleDriveProviderClient.class);
+
   private static final String DRIVE_BASE = "https://www.googleapis.com/drive/v3";
   private static final String UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
   private static final String FILE_FIELDS =
-      "id,name,mimeType,size,modifiedTime,parents,version,headRevisionId,md5Checksum,sha1Checksum,sha256Checksum,trashed";
+      "id,name,mimeType,size,modifiedTime,parents,headRevisionId,md5Checksum,sha1Checksum,sha256Checksum,trashed";
   static final String LIST_FIELDS = "nextPageToken,incompleteSearch,files(" + FILE_FIELDS + ")";
   static final String ITEM_FIELDS = FILE_FIELDS;
   private static final String CHANGE_FIELDS =
       "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FILE_FIELDS + "))";
   private static final int PAGE_SIZE = 200;
+  // Bumped when what the catalog stores for Drive changes. An older checkpoint is refused, which makes the
+  // catalog worker reset and take a fresh inventory. 2: remoteVersion is the content revision, trashed items
+  // and items without a parent are left out.
+  private static final int CHECKPOINT_FORMAT = 2;
+  private static final int SEARCH_MAX_PAGES = 5;
+  private static final int MAX_ANCESTRY_DEPTH = 512;
+  private static final int ROOT_ID_CACHE_SIZE = 256;
   static final long MULTIPART_MAX = 5L * 1024L * 1024L;
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
+  // The root folder id never changes for an account; keyed by access token so each connection asks once
+  // per token instead of on every get, ancestry and update.
+  private final Map<String, String> rootIds = Collections.synchronizedMap(
+      new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+          return size() > ROOT_ID_CACHE_SIZE;
+        }
+      });
 
   @Autowired
   public GoogleDriveProviderClient(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
@@ -105,7 +131,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         DRIVE_BASE + "/files/generateIds?count=1&space=drive&fields=ids");
     String id = json.path("ids").path(0).asText(null);
     if (!StringUtils.hasText(id)) {
-      throw new ProviderApiException("Nao foi possivel reservar o identificador do arquivo.");
+      throw new ProviderApiException("Não foi possível reservar o identificador do arquivo.");
     }
     return new PreparedWrite(id, null);
   }
@@ -115,9 +141,8 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       PreparedWrite prepared) {
     String parent = resolveParent(accessToken, parentRef);
     String id = prepared == null ? null : prepared.remoteRef();
-    String body = """
-        {%s"name":"%s","mimeType":"application/vnd.google-apps.folder","parents":["%s"]}
-        """.formatted(idProperty(id), escapeJson(name), escapeJson(parent));
+    ObjectNode body = fileMetadata(id, name, parent);
+    body.put("mimeType", "application/vnd.google-apps.folder");
     JsonNode json = authorizedPostJson(accessToken,
         DRIVE_BASE + "/files?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true", body);
     return mapCreated(json, parentRef);
@@ -139,22 +164,29 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       WatchRegistration previous) {
     String channelId = UUID.randomUUID().toString();
     String pageToken = fetchStartPageToken(accessToken);
-    String body = """
-        {"id":"%s","type":"web_hook","address":"%s","token":%s}
-        """.formatted(escapeJson(channelId), escapeJson(callbackUrl), jsonValue(clientState));
+    ObjectNode body = objectMapper.createObjectNode();
+    body.put("id", channelId);
+    body.put("type", "web_hook");
+    body.put("address", callbackUrl);
+    if (StringUtils.hasText(clientState)) {
+      body.put("token", clientState);
+    } else {
+      body.putNull("token");
+    }
     JsonNode response = authorizedPostJson(accessToken,
         DRIVE_BASE + "/changes/watch?pageToken=" + urlEncode(pageToken)
-            + "&supportsAllDrives=true&restrictToMyDrive=false",
+            + "&supportsAllDrives=true&restrictToMyDrive=true",
         body);
     WatchRegistration current = new WatchRegistration(channelId,
         response.path("resourceId").asText(null), parseExpiration(response.path("expiration").asText(null)));
     if (!StringUtils.hasText(current.resourceId())) {
-      throw new ProviderApiException("Nao foi possivel criar a inscricao do Google Drive.");
+      throw new ProviderApiException("Não foi possível criar a inscrição do Google Drive.");
     }
     if (previous != null && StringUtils.hasText(previous.id()) && StringUtils.hasText(previous.resourceId())) {
-      authorizedPostJson(accessToken, DRIVE_BASE + "/channels/stop", """
-          {"id":"%s","resourceId":"%s"}
-          """.formatted(escapeJson(previous.id()), escapeJson(previous.resourceId())));
+      ObjectNode stop = objectMapper.createObjectNode();
+      stop.put("id", previous.id());
+      stop.put("resourceId", previous.resourceId());
+      authorizedPostJson(accessToken, DRIVE_BASE + "/channels/stop", stop);
     }
     return current;
   }
@@ -173,7 +205,13 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     List<CloudChange> changes = new ArrayList<>();
     JsonNode files = json.path("files");
     if (files.isArray()) {
-      files.forEach(file -> changes.add(changeForFile(file, state.rootRef())));
+      files.forEach(file -> {
+        // Items shared with the user but not added to My Drive have no visible parent and no place in the
+        // hub's tree; they are left out on purpose.
+        if (hasParent(file)) {
+          changes.add(changeForFile(file, state.rootRef()));
+        }
+      });
     }
     String next = json.path("nextPageToken").asText(null);
     if (StringUtils.hasText(next)) {
@@ -190,7 +228,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     }
     String url = DRIVE_BASE + "/changes?pageToken=" + urlEncode(state.pageToken())
         + "&fields=" + urlEncode(CHANGE_FIELDS) + "&pageSize=" + PAGE_SIZE
-        + "&includeRemoved=true&restrictToMyDrive=false&supportsAllDrives=true";
+        + "&includeRemoved=true&restrictToMyDrive=true&supportsAllDrives=true";
     JsonNode json = authorizedSyncGet(accessToken, url);
     List<CloudChange> changes = new ArrayList<>();
     JsonNode entries = json.path("changes");
@@ -215,7 +253,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         DRIVE_BASE + "/changes/startPageToken?fields=startPageToken&supportsAllDrives=true");
     String token = json.path("startPageToken").asText(null);
     if (!StringUtils.hasText(token)) {
-      throw new ProviderApiException("Nao foi possivel iniciar a sincronizacao do Google Drive.");
+      throw new ProviderApiException("Não foi possível iniciar a sincronização do Google Drive.");
     }
     return token;
   }
@@ -228,6 +266,12 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     }
     if (!file.isObject()) {
       return new CloudChange(ref, null, false, null, null, Set.of());
+    }
+    // Lost its last visible parent (for instance unshared): out of the hub's tree, like in the inventory.
+    // Drive omits "parents" when there is none, so a full object (it always carries mimeType) without
+    // parents counts; a partial change that only names some fields does not.
+    if ((file.has("parents") || file.has("mimeType")) && !hasParent(file)) {
+      return CloudChange.removed(ref);
     }
     return new CloudChange(ref, mapFile(file, rootRef), false, null, null, knownFields(file));
   }
@@ -259,7 +303,8 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     if (file.has("parents")) {
       fields.add("parentRef");
     }
-    if (file.has("version")) {
+    if (file.has("headRevisionId") || file.has("md5Checksum") || file.has("sha1Checksum")
+        || file.has("sha256Checksum") || file.has("modifiedTime")) {
       fields.add("remoteVersion");
     }
     if (file.has("headRevisionId") || file.has("md5Checksum") || file.has("sha1Checksum")
@@ -293,8 +338,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   public CloudItem get(String accessToken, String ref) {
     JsonNode json = authorizedGet(
         accessToken,
-        DRIVE_BASE + "/files/" + ref + "?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true"
+        DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true"
     );
+    requireNotTrashed(json);
     return mapFile(json, fetchRootId(accessToken));
   }
 
@@ -303,7 +349,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     String rootId = fetchRootId(accessToken);
     JsonNode item = authorizedGet(
         accessToken,
-        DRIVE_BASE + "/files/" + ref + "?fields=" + urlEncode("id,name,parents") + "&supportsAllDrives=true"
+        DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields=" + urlEncode("id,name,parents") + "&supportsAllDrives=true"
     );
     String parentId = firstParent(item);
     if (!StringUtils.hasText(parentId) || rootId.equals(parentId)) {
@@ -311,11 +357,14 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     }
 
     List<CloudItem> path = new ArrayList<>();
+    Set<String> visited = new HashSet<>();
     String current = parentId;
-    while (StringUtils.hasText(current) && !rootId.equals(current)) {
+    // Bounded like the catalog's ancestry, and a folder seen twice ends the walk instead of looping.
+    while (StringUtils.hasText(current) && !rootId.equals(current)
+        && visited.add(current) && path.size() < MAX_ANCESTRY_DEPTH) {
       JsonNode node = authorizedGet(
           accessToken,
-          DRIVE_BASE + "/files/" + current + "?fields=" + urlEncode("id,name,parents") + "&supportsAllDrives=true"
+          DRIVE_BASE + "/files/" + pathSegment(current) + "?fields=" + urlEncode("id,name,parents") + "&supportsAllDrives=true"
       );
       String nodeParent = firstParent(node);
       path.add(new CloudItem(
@@ -360,19 +409,31 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
-    String url = DRIVE_BASE + "/files/" + ref + "?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true";
-    String targetParent = null;
+    String url = DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true";
     if (newParentRef != null) {
-      CloudItem current = get(accessToken, ref);
-      targetParent = newParentRef.isBlank() ? fetchRootId(accessToken) : newParentRef;
-      String removeParents = current.parentRef() == null ? "" : current.parentRef();
+      String targetParent = newParentRef.isBlank() ? fetchRootId(accessToken) : newParentRef;
+      // Every current parent goes, the root included: its id is a real parent in Drive even though the
+      // hub calls it null.
+      JsonNode current = authorizedGet(accessToken,
+          DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields=" + urlEncode("parents,trashed") + "&supportsAllDrives=true");
+      requireNotTrashed(current);
+      List<String> removeParents = new ArrayList<>();
+      current.path("parents").forEach(parent -> {
+        String id = parent.asText(null);
+        if (StringUtils.hasText(id) && !id.equals(targetParent)) {
+          removeParents.add(id);
+        }
+      });
       url += "&addParents=" + urlEncode(targetParent);
-      if (StringUtils.hasText(removeParents)) {
-        url += "&removeParents=" + urlEncode(removeParents);
+      if (!removeParents.isEmpty()) {
+        url += "&removeParents=" + urlEncode(String.join(",", removeParents));
       }
     }
 
-    String body = newName == null ? "{}" : "{\"name\":\"" + escapeJson(newName) + "\"}";
+    ObjectNode body = objectMapper.createObjectNode();
+    if (newName != null) {
+      body.put("name", newName);
+    }
     JsonNode json = authorizedPatchJson(accessToken, url, body);
     if (newParentRef != null) {
       return mapCreated(json, newParentRef.isBlank() ? null : newParentRef);
@@ -382,7 +443,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   @Override
   public void delete(String accessToken, String ref) {
-    authorizedPatchJson(accessToken, DRIVE_BASE + "/files/" + ref + "?supportsAllDrives=true", "{\"trashed\":true}");
+    ObjectNode body = objectMapper.createObjectNode();
+    body.put("trashed", true);
+    authorizedPatchJson(accessToken, DRIVE_BASE + "/files/" + pathSegment(ref) + "?supportsAllDrives=true", body);
   }
 
   @Override
@@ -401,7 +464,18 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       return exportStream(accessToken, item.ref(), target.mimeType(), target.fileName(), target.mimeType(), null);
     }
 
+    requireDownloadable(item);
     return mediaStream(accessToken, item.ref(), item.name(), item.mimeType(), null);
+  }
+
+  // Shortcuts, forms and the other Google types without an export have no bytes; Drive answers 403
+  // fileNotDownloadable, which would read as a permission problem.
+  private static void requireDownloadable(CloudItem item) {
+    String mime = item.mimeType();
+    if (mime != null && mime.startsWith("application/vnd.google-apps.") && !ReadPlanSupport.isGoogleNative(mime)) {
+      throw new ProviderApiException(HttpStatus.UNPROCESSABLE_ENTITY, "ITEM_SEM_CONTEUDO",
+          "Este item do Google Drive não tem conteúdo para baixar.");
+    }
   }
 
   @Override
@@ -412,6 +486,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     if (ReadPlanSupport.isGoogleNative(item.mimeType())) {
       return open(accessToken, item, variant);
     }
+    requireDownloadable(item);
     ContentStream unsatisfiable = unsatisfiableRange(item, range);
     if (unsatisfiable != null) {
       return unsatisfiable;
@@ -437,16 +512,31 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   @Override
   public List<CloudItem> search(String accessToken, String query, int limit) {
-    String q = "name contains '" + escapeQuery(query) + "' and trashed=false";
-    String url = DRIVE_BASE + "/files?q=" + urlEncode(q)
-        + "&fields=" + urlEncode(LIST_FIELDS)
+    if (!StringUtils.hasText(query) || limit <= 0) {
+      return List.of();
+    }
+    String q = "name contains '" + escapeQuery(query.trim()) + "' and trashed=false";
+    String base = DRIVE_BASE + "/files?q=" + urlEncode(q)
+        + "&corpora=user&fields=" + urlEncode(LIST_FIELDS)
         + "&pageSize=" + Math.min(limit, PAGE_SIZE)
-        + "&supportsAllDrives=true&includeItemsFromAllDrives=true";
-    JsonNode json = authorizedGet(accessToken, url);
+        + "&supportsAllDrives=true";
     List<CloudItem> results = new ArrayList<>();
-    JsonNode files = json.path("files");
-    if (files.isArray()) {
-      files.forEach(node -> results.add(mapUnknownParent(node)));
+    String pageToken = null;
+    for (int page = 0; page < SEARCH_MAX_PAGES && results.size() < limit; page++) {
+      String url = pageToken == null ? base : base + "&pageToken=" + urlEncode(pageToken);
+      JsonNode json = authorizedGet(accessToken, url);
+      if (json.path("incompleteSearch").asBoolean(false)) {
+        log.debug("Google Drive search returned incomplete results");
+      }
+      json.path("files").forEach(node -> {
+        if (hasParent(node)) {
+          results.add(mapUnknownParent(node));
+        }
+      });
+      pageToken = json.path("nextPageToken").asText(null);
+      if (!StringUtils.hasText(pageToken)) {
+        break;
+      }
     }
     return results.stream().limit(limit).toList();
   }
@@ -461,9 +551,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       InputStreamSource content,
       String remoteRef
   ) {
-    String metadata = """
-        {%s"name":"%s","parents":["%s"]}
-        """.formatted(idProperty(remoteRef), escapeJson(name), escapeJson(parent));
+    String metadata = fileMetadata(remoteRef, name, parent).toString();
     String boundary = "bridgit-" + System.nanoTime();
     MediaType mediaType = StringUtils.hasText(contentType)
         ? MediaType.parseMediaType(contentType)
@@ -485,11 +573,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           out.write(tail);
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
+            throw new ProviderApiException("Não foi possível enviar o arquivo.");
           }
         });
     return mapCreated(json, parentRef);
@@ -514,9 +602,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       InputStreamSource content,
       String remoteRef
   ) {
-    String metadata = """
-        {%s"name":"%s","parents":["%s"]}
-        """.formatted(idProperty(remoteRef), escapeJson(name), escapeJson(parent));
+    String metadata = fileMetadata(remoteRef, name, parent).toString();
 
     String uploadUrl = restClient.post()
         .uri(URI.create(UPLOAD_BASE + "/files?uploadType=resumable&fields=" + urlEncode(ITEM_FIELDS)))
@@ -524,11 +610,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         .contentType(MediaType.APPLICATION_JSON)
         .body(metadata)
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
           response.close();
           if (!StringUtils.hasText(location)) {
-            throw new ProviderApiException("Nao foi possivel iniciar o envio do arquivo.");
+            throw new ProviderApiException("Não foi possível iniciar o envio do arquivo.");
           }
           return location;
         });
@@ -547,11 +633,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           }
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel concluir o envio do arquivo.");
+            throw new ProviderApiException("Não foi possível concluir o envio do arquivo.");
           }
         });
     return mapCreated(json, parentRef);
@@ -565,7 +651,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       String contentType,
       String rangeHeader
   ) {
-    String url = DRIVE_BASE + "/files/" + ref + "/export?mimeType=" + urlEncode(exportMime);
+    String url = DRIVE_BASE + "/files/" + pathSegment(ref) + "/export?mimeType=" + urlEncode(exportMime);
     ClientHttpResponse response = restClient.get()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
@@ -588,7 +674,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       String contentType,
       String rangeHeader
   ) {
-    String url = DRIVE_BASE + "/files/" + ref + "?alt=media&supportsAllDrives=true";
+    String url = DRIVE_BASE + "/files/" + pathSegment(ref) + "?alt=media&supportsAllDrives=true";
     ClientHttpResponse response = restClient.get()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
@@ -614,7 +700,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -632,45 +718,45 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           } catch (SyncResetException ex) {
             throw ex;
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel sincronizar o Google Drive.");
+            throw new ProviderApiException("Não foi possível sincronizar o Google Drive.");
           }
           ensureSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
 
-  private JsonNode authorizedPostJson(String accessToken, String url, String body) {
+  private JsonNode authorizedPostJson(String accessToken, String url, JsonNode body) {
     return restClient.post()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
         .contentType(MediaType.APPLICATION_JSON)
-        .body(body)
+        .body(body.toString())
         .exchange((request, response) -> {
           ensureSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
 
-  private JsonNode authorizedPatchJson(String accessToken, String url, String body) {
+  private JsonNode authorizedPatchJson(String accessToken, String url, JsonNode body) {
     return restClient.patch()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
         .contentType(MediaType.APPLICATION_JSON)
-        .body(body)
+        .body(body.toString())
         .exchange((request, response) -> {
           ensureSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -683,8 +769,37 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   }
 
   private String fetchRootId(String accessToken) {
+    String cached = rootIds.get(accessToken);
+    if (cached != null) {
+      return cached;
+    }
     JsonNode json = authorizedGet(accessToken, DRIVE_BASE + "/files/root?fields=id");
-    return json.path("id").asText();
+    String id = json.path("id").asText();
+    if (StringUtils.hasText(id)) {
+      rootIds.put(accessToken, id);
+    }
+    return id;
+  }
+
+  private static boolean hasParent(JsonNode node) {
+    return StringUtils.hasText(firstParent(node));
+  }
+
+  // Drive keeps answering for an item in its trash; for the hub it no longer exists, as on the other providers.
+  private static void requireNotTrashed(JsonNode node) {
+    if (node.path("trashed").asBoolean(false)) {
+      throw new ProviderApiException(HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Item não encontrado.");
+    }
+  }
+
+  private ObjectNode fileMetadata(String id, String name, String parent) {
+    ObjectNode metadata = objectMapper.createObjectNode();
+    if (StringUtils.hasText(id)) {
+      metadata.put("id", id);
+    }
+    metadata.put("name", name);
+    metadata.putArray("parents").add(parent);
+    return metadata;
   }
 
   private static String firstParent(JsonNode node) {
@@ -816,8 +931,15 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     return sizeNode.asLong();
   }
 
+  /**
+   * The value an operation compares before writing. Drive's own {@code version} also moves on server-side
+   * changes the changes feed never reports, so a cataloged value soon looks stale. The content revision
+   * (or checksum) only moves when the content does; native Google files have neither, so they use the
+   * modification time. Renames and moves follow last-write-wins, as in Drive itself.
+   */
   private static String remoteVersion(JsonNode node) {
-    return node.path("version").asText(null);
+    String revision = contentRevision(node);
+    return revision != null ? revision : node.path("modifiedTime").asText(null);
   }
 
   private static String contentRevision(JsonNode node) {
@@ -839,16 +961,20 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
 
   private String encodeCheckpoint(SyncCheckpoint checkpoint) {
     try {
-      return Base64.getUrlEncoder().withoutPadding().encodeToString(
-          objectMapper.writeValueAsBytes(checkpoint));
+      ObjectNode node = objectMapper.valueToTree(checkpoint);
+      node.put("v", CHECKPOINT_FORMAT);
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(objectMapper.writeValueAsBytes(node));
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel salvar o checkpoint do Google Drive.");
+      throw new ProviderApiException("Não foi possível salvar o checkpoint do Google Drive.");
     }
   }
 
   private SyncCheckpoint decodeCheckpoint(String checkpoint) {
     try {
       JsonNode node = objectMapper.readTree(Base64.getUrlDecoder().decode(checkpoint));
+      if (node.path("v").asInt(0) != CHECKPOINT_FORMAT) {
+        throw new IllegalArgumentException("checkpoint de outro formato");
+      }
       String phase = node.path("phase").asText(null);
       String rootRef = node.path("rootRef").asText(null);
       String startPageToken = node.path("startPageToken").asText(null);
@@ -869,16 +995,8 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     try {
       return Instant.ofEpochMilli(Long.parseLong(value));
     } catch (NumberFormatException ex) {
-      throw new ProviderApiException("Expiracao da inscricao do Google Drive invalida.");
+      throw new ProviderApiException("Expiração da inscrição do Google Drive inválida.");
     }
-  }
-
-  private static String idProperty(String remoteRef) {
-    return StringUtils.hasText(remoteRef) ? "\"id\":\"" + escapeJson(remoteRef) + "\",": "";
-  }
-
-  private static String jsonValue(String value) {
-    return StringUtils.hasText(value) ? "\"" + escapeJson(value) + "\"" : "null";
   }
 
   private static ExportTarget officeExportTarget(String mimeType, String name) {
@@ -946,7 +1064,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel abrir o conteudo.");
+      throw new ProviderApiException("Não foi possível abrir o conteúdo.");
     }
   }
 
@@ -964,6 +1082,14 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   }
 
   private static void ensureSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, false);
+  }
+
+  private static void ensureWriteSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, true);
+  }
+
+  private static void ensureSuccess(ClientHttpResponse response, boolean write) {
     try {
       HttpStatusCode status = response.getStatusCode();
       if (!status.isError()) {
@@ -972,11 +1098,15 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
       response.close();
-      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      if (write) {
+        ProviderHttpSupport.throwOnWriteError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      } else {
+        ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      }
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
   }
 
@@ -986,7 +1116,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         return;
       }
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
     ensureSuccess(response);
   }
@@ -1003,16 +1133,16 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     return value.replace("\\", "\\\\").replace("'", "\\'");
   }
 
+  private static String pathSegment(String ref) {
+    return UriUtils.encodePathSegment(ref, StandardCharsets.UTF_8);
+  }
+
   static String urlEncode(String value) {
     return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
   }
 
   private static String bearer(String accessToken) {
     return "Bearer " + accessToken;
-  }
-
-  private static String escapeJson(String value) {
-    return value.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   private record ExportTarget(String mimeType, String fileName) {

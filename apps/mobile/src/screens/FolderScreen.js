@@ -6,9 +6,10 @@ import CreateFab from '../components/CreateFab'
 import FileSheet from '../components/FileSheet'
 import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
+import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
 import { useFolder, useProviders } from '../hub/hooks'
-import { needsReconnect } from '../hub/format'
+import { needsReconnect, staleCatalogNotice } from '../hub/format'
 import { useItemActions } from '../hub/useItemActions'
 import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
@@ -32,7 +33,9 @@ export default function FolderScreen({ navigation, route }) {
   const connected = provider?.connected ?? true
   // An expired connection still lists the last synced catalog, which may be stale or incomplete.
   const expired = needsReconnect(provider)
-  const { status, error, reload, title, folders, files } = useFolder(connected ? providerId : null, folderRef)
+  const { status, error, reload, title, catalog, folders, files } = useFolder(connected ? providerId : null, folderRef)
+  // The listing says its catalog is old (e.g. sync failing); the reconnect warning already covers an expired login.
+  const staleNotice = connected ? staleCatalogNotice(catalog, { reconnectShown: expired }) : null
   const actions = useItemActions({ providerId: connected && !expired ? providerId : null, parentRef: folderRef })
   const location = { title: title ?? provider?.name ?? 'Pasta', folders, files }
   const tileWidth = (width - 40 - 12) / 2
@@ -67,6 +70,14 @@ export default function FolderScreen({ navigation, route }) {
             </AppText>
           </Pressable>
         ) : null}
+        {staleNotice ? (
+          <AppText style={[styles.empty, { color: theme.colors.mute }]}>{staleNotice}</AppText>
+        ) : null}
+        {connected && status === 'loading' ? (
+          <View style={styles.loading}>
+            <Spinner />
+          </View>
+        ) : null}
         {connected && status === 'error' ? (
           <Pressable accessibilityRole="button" onPress={reload}>
             <AppText style={[styles.empty, { color: theme.colors.mute }]}>
@@ -74,7 +85,7 @@ export default function FolderScreen({ navigation, route }) {
             </AppText>
           </Pressable>
         ) : null}
-        {connected && !expired && empty ? (
+        {connected && !expired && !staleNotice && empty ? (
           <AppText style={[styles.empty, { color: theme.colors.mute }]}>
             Nenhum arquivo aqui ainda
           </AppText>
@@ -183,6 +194,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     gap: 36,
+  },
+  loading: {
+    alignItems: 'center',
+    paddingVertical: 24,
   },
   section: {
     gap: 14,

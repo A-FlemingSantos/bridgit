@@ -21,13 +21,21 @@ public class AuthenticatedUserService {
   public SecurityUser requirePrincipal() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !(authentication.getPrincipal() instanceof SecurityUser principal)) {
-      throw new UnauthorizedException("AUTENTICACAO_OBRIGATORIA", "Voce precisa estar autenticado para continuar.");
+      throw new UnauthorizedException("AUTENTICACAO_OBRIGATORIA", "Você precisa estar autenticado para continuar.");
     }
     return principal;
   }
 
   public UUID requireUserId() {
     return requirePrincipal().getUserId();
+  }
+
+  public Optional<SecurityUser> findPrincipal() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !(authentication.getPrincipal() instanceof SecurityUser principal)) {
+      return Optional.empty();
+    }
+    return Optional.of(principal);
   }
 
   public Optional<UUID> findUserId() {
@@ -41,7 +49,7 @@ public class AuthenticatedUserService {
   public UUID requireSessionId() {
     UUID sessionId = requirePrincipal().getSessionId();
     if (sessionId == null) {
-      throw new UnauthorizedException("SESSAO_INVALIDA", "Nao foi possivel identificar a sessao autenticada.");
+      throw new UnauthorizedException("SESSAO_INVALIDA", "Não foi possível identificar a sessão autenticada.");
     }
     return sessionId;
   }
@@ -49,6 +57,6 @@ public class AuthenticatedUserService {
   public UserEntity requireUser() {
     UUID userId = requireUserId();
     return userRepository.findById(userId)
-        .orElseThrow(() -> new UnauthorizedException("USUARIO_INVALIDO", "Nao foi possivel identificar o usuario autenticado."));
+        .orElseThrow(() -> new UnauthorizedException("USUARIO_INVALIDO", "Não foi possível identificar o usuário autenticado."));
   }
 }

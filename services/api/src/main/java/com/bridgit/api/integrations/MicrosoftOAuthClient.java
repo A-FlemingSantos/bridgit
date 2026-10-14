@@ -93,7 +93,7 @@ public class MicrosoftOAuthClient extends AbstractProviderOAuthClient {
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel obter os dados da conta Microsoft.");
+      throw new ProviderApiException("Não foi possível obter os dados da conta Microsoft.");
     }
   }
 

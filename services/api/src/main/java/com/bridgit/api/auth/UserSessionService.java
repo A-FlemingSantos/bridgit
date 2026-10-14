@@ -57,14 +57,14 @@ public class UserSessionService {
   @Transactional(readOnly = true)
   public UserSessionEntity requireActiveSession(UUID userId, UUID sessionId) {
     UserSessionEntity session = userSessionRepository.findByIdAndUserId(sessionId, userId)
-        .orElseThrow(() -> new UnauthorizedException("SESSAO_INVALIDA", "Sua sessao nao e mais valida."));
+        .orElseThrow(() -> new UnauthorizedException("SESSAO_INVALIDA", "Sua sessão não é mais válida."));
 
     if (session.getRevokedAt() != null) {
-      throw new UnauthorizedException("SESSAO_REVOGADA", "Sua sessao foi encerrada. Faca login novamente.");
+      throw new UnauthorizedException("SESSAO_REVOGADA", "Sua sessão foi encerrada. Faça login novamente.");
     }
 
     if (isExpired(session, OffsetDateTime.now(clock))) {
-      throw new UnauthorizedException("SESSAO_EXPIRADA", "Sua sessao expirou. Faca login novamente.");
+      throw new UnauthorizedException("SESSAO_EXPIRADA", "Sua sessão expirou. Faça login novamente.");
     }
 
     return session;

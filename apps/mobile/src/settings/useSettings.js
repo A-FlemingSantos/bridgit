@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AppState } from 'react-native'
+import Constants from 'expo-constants'
 import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
-import { apiRequest, connectProvider, disconnectProvider } from '@bridgit/shared-client'
+import { apiRequest, connectProvider, disconnectProvider, isSessionFailure } from '@bridgit/shared-client'
 import { getItem, setItem } from '../auth/secureStorage'
 import { useSession } from '../auth/SessionContext'
+import { useHub } from '../hub/HubContext'
+import { filesScope, foldersScope, HOME } from '../hub/eventScopes'
 import { useProviders } from '../hub/hooks'
 import { formatWhen, needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
+import { describeOauthReturn } from './oauthOutcome'
 
 export const ABOUT = {
-  version: '0.1',
+  version: Constants.expoConfig?.version ?? '1.0.0',
   stores: 'Só metadados. O arquivo fica no provedor.',
   providers: 'OneDrive, Google Drive e Dropbox.',
 }
@@ -19,20 +23,6 @@ const NOTIFY_FAIL_KEY = 'bridgit.notifyFail'
 
 // Lets the in-app browser close itself when the redirect returns to the app.
 WebBrowser.maybeCompleteAuthSession()
-
-const OAUTH_ERRORS = {
-  PROVEDOR_RECUSOU: 'A conexão foi cancelada no provedor.',
-  OAUTH_STATE_EXPIRADO: 'A tentativa expirou. Tente conectar de novo.',
-  OAUTH_STATE_INVALIDO: 'A tentativa de conexão é inválida. Tente de novo.',
-  OAUTH_CODE_AUSENTE: 'O provedor não retornou a autorização. Tente de novo.',
-  REFRESH_TOKEN_AUSENTE: 'O provedor não concedeu acesso contínuo. Tente de novo.',
-}
-
-function oauthOutcome(url) {
-  const { queryParams } = Linking.parse(url)
-  if (queryParams?.status === 'connected') return ''
-  return OAUTH_ERRORS[queryParams?.error] ?? 'Não foi possível conectar o provedor.'
-}
 
 // The API reports "scheduled" while a connection is healthy and "attention" after an error.
 const SYNC_STATES = {
@@ -55,15 +45,18 @@ function sessionLabel(item) {
 export function useSettings() {
   const { token, user, logout, invalidate, replaceSession } = useSession()
   const { providers: statuses, reload: reloadProviders } = useProviders()
+  const { refreshScopes } = useHub()
   const [notifyFail, setNotifyFailState] = useState(true)
   const [sessions, setSessions] = useState([])
+  // Provider whose OAuth came back with a different account and waits for the user's confirmation.
+  const [accountChangeId, setAccountChangeId] = useState(null)
 
   const guard = useCallback(async (action) => {
     try {
       await action()
       return ''
     } catch (error) {
-      if (error?.status === 401) {
+      if (isSessionFailure(error)) {
         invalidate()
         return ''
       }
@@ -81,7 +74,7 @@ export function useSettings() {
         current: Boolean(item.current),
       })))
     } catch (error) {
-      if (error?.status === 401) invalidate()
+      if (isSessionFailure(error)) invalidate()
     }
   }, [token, invalidate])
 
@@ -113,25 +106,42 @@ export function useSettings() {
 
   // The consent happens in the system browser. The server sends the user back to the app's own URL
   // (bridgit:// in a build, exp:// in Expo Go) with the outcome in the query string.
-  const connect = useCallback(async (id) => {
+  const connect = useCallback(async (id, { allowAccountChange = false } = {}) => {
     const redirectUrl = Linking.createURL('oauth')
+    setAccountChangeId(null)
     const message = await guard(async () => {
-      const { authorizationUrl } = await connectProvider(token, id, redirectUrl)
+      const { authorizationUrl } = await connectProvider(token, id, redirectUrl, { allowAccountChange })
       const result = await WebBrowser.openAuthSessionAsync(authorizationUrl, redirectUrl)
       if (result.type === 'success' && result.url) {
-        const outcome = oauthOutcome(result.url)
-        if (outcome) throw new Error(outcome)
+        const outcome = describeOauthReturn(Linking.parse(result.url).queryParams)
+        if (outcome.accountChange) {
+          setAccountChangeId(id)
+          return
+        }
+        if (outcome.message) throw new Error(outcome.message)
       }
     })
     // Refresh even when the browser was dismissed: the connection may have completed anyway.
     await reloadProviders()
+    refreshScopes([HOME, foldersScope(id), filesScope(id)])
     return message
-  }, [guard, token, reloadProviders])
+  }, [guard, token, reloadProviders, refreshScopes])
+
+  // Replacing the account deletes recents, shortcuts, public links and the catalog of the old one.
+  const confirmAccountChange = useCallback(() => {
+    const id = accountChangeId
+    if (!id) return Promise.resolve('')
+    return connect(id, { allowAccountChange: true })
+  }, [accountChangeId, connect])
+
+  const cancelAccountChange = useCallback(() => setAccountChangeId(null), [])
 
   const disconnect = useCallback((id) => guard(async () => {
     await disconnectProvider(token, id)
     await reloadProviders()
-  }), [guard, token, reloadProviders])
+    // Disconnecting drops the provider's recents, shortcuts and catalog.
+    refreshScopes([HOME, foldersScope(id), filesScope(id)])
+  }), [guard, token, reloadProviders, refreshScopes])
 
   const setNotifyFail = useCallback((value) => {
     setNotifyFailState(value)
@@ -153,8 +163,9 @@ export function useSettings() {
     }))
   }, [guard, token])
 
-  const deleteAccount = useCallback(async () => {
-    const message = await guard(() => apiRequest('/api/account', { method: 'DELETE', token }))
+  const deleteAccount = useCallback(async (password) => {
+    if (!password) return 'Informe sua senha para excluir a conta.'
+    const message = await guard(() => apiRequest('/api/account', { method: 'DELETE', token, body: { password } }))
     if (!message) await logout()
     return message
   }, [guard, token, logout])
@@ -174,6 +185,9 @@ export function useSettings() {
       sync: !provider.connected ? null : needsReconnect(provider) ? 'Acesso expirado. Reconecte em Provedores.' : syncLabel(provider.syncState),
     })),
     connectProvider: connect,
+    accountChangeId,
+    confirmAccountChange,
+    cancelAccountChange,
     disconnectProvider: disconnect,
     notifyFail,
     setNotifyFail,

@@ -20,4 +20,9 @@ public class ApiException extends RuntimeException {
   public String getCode() {
     return code;
   }
+
+  /** Seconds the client should wait before retrying, sent as Retry-After; null when not applicable. */
+  public Long getRetryAfterSeconds() {
+    return null;
+  }
 }

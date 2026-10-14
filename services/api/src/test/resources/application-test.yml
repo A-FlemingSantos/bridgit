@@ -11,6 +11,8 @@ app:
   hub:
     worker-enabled: false
     upload-cleanup-poll-ms: 3600000
+    retention:
+      enabled: false
     catalog-enabled: false
     operations-enabled: false
     direct-read-enabled: false
