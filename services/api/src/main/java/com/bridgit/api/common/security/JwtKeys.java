@@ -28,7 +28,7 @@ public final class JwtKeys {
       byte[] derived = mac.doFinal(CONTENT_TICKET_LABEL.getBytes(StandardCharsets.UTF_8));
       return Keys.hmacShaKeyFor(derived);
     } catch (GeneralSecurityException ex) {
-      throw new IllegalStateException("HmacSHA256 indisponivel", ex);
+      throw new IllegalStateException("HmacSHA256 indisponível", ex);
     }
   }
 }

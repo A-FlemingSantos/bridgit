@@ -28,7 +28,7 @@ public class IntegrationTokenCipher {
       throw new ApiException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "INTEGRACAO_TOKEN_KEY_AUSENTE",
-          "A chave de criptografia de integracao nao esta configurada."
+          "A chave de criptografia de integração não está configurada."
       );
     }
 
@@ -39,7 +39,7 @@ public class IntegrationTokenCipher {
       throw new ApiException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "INTEGRACAO_TOKEN_KEY_AUSENTE",
-          "A chave de criptografia de integracao nao esta configurada."
+          "A chave de criptografia de integração não está configurada."
       );
     }
 
@@ -47,7 +47,7 @@ public class IntegrationTokenCipher {
       throw new ApiException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           "INTEGRACAO_TOKEN_KEY_AUSENTE",
-          "A chave de criptografia de integracao nao esta configurada."
+          "A chave de criptografia de integração não está configurada."
       );
     }
 
@@ -75,13 +75,13 @@ public class IntegrationTokenCipher {
   public String decrypt(String stored) {
     try {
       if (stored == null || !stored.startsWith(VERSION_PREFIX)) {
-        throw new IllegalArgumentException("Formato invalido.");
+        throw new IllegalArgumentException("Formato inválido.");
       }
 
       String payload = stored.substring(VERSION_PREFIX.length());
       int separator = payload.indexOf(':');
       if (separator < 0) {
-        throw new IllegalArgumentException("Formato invalido.");
+        throw new IllegalArgumentException("Formato inválido.");
       }
 
       byte[] iv = base64UrlNoPadDecode(payload.substring(0, separator));
@@ -108,7 +108,7 @@ public class IntegrationTokenCipher {
     return new ApiException(
         HttpStatus.INTERNAL_SERVER_ERROR,
         "INTEGRACAO_TOKEN_CRIPTO_FALHOU",
-        "Nao foi possivel proteger o token de integracao."
+        "Não foi possível proteger o token de integração."
     );
   }
 }

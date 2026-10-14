@@ -48,8 +48,8 @@ import org.springframework.util.StringUtils;
 public class PublicLinkService {
 
   private static final String LINK_NOT_FOUND_CODE = "LINK_NAO_ENCONTRADO";
-  private static final String LINK_NOT_FOUND_MESSAGE = "Este link publico nao esta disponivel.";
-  private static final String LINK_UNAVAILABLE_MESSAGE = "O arquivo nao esta disponivel agora. Tente de novo em instantes.";
+  private static final String LINK_NOT_FOUND_MESSAGE = "Este link público não está disponível.";
+  private static final String LINK_UNAVAILABLE_MESSAGE = "O arquivo não está disponível agora. Tente de novo em instantes.";
   private static final String TOO_MANY_ACCESSES_CODE = "MUITOS_ACESSOS";
   private static final String TOO_MANY_ACCESSES_MESSAGE = "Muitos acessos a este link. Tente de novo em instantes.";
   private static final int SUFFIX_COLLISION_RETRIES = 8;
@@ -280,7 +280,7 @@ public class PublicLinkService {
         return suffix;
       }
     }
-    throw new IllegalStateException("Nao foi possivel gerar um sufixo unico para o link publico.");
+    throw new IllegalStateException("Não foi possível gerar um sufixo único para o link público.");
   }
 
   private ResolvedPublicLink resolvePublicLink(String suffix, String clientIp) {
@@ -371,7 +371,7 @@ public class PublicLinkService {
         token -> providerClients.get(provider).get(token, ref)
     );
     if (item.kind() == ItemKind.FOLDER) {
-      throw new BadRequestException("LINK_APENAS_ARQUIVO", "Somente arquivos podem receber link publico.");
+      throw new BadRequestException("LINK_APENAS_ARQUIVO", "Somente arquivos podem receber link público.");
     }
     return item;
   }

@@ -339,5 +339,5 @@ public class CatalogStore {
   private static String safeName(CloudItem item) { return item.name() == null ? item.ref() : item.name(); }
   private static String parentKey(String parent) { return parent == null ? "" : parent; }
   private static String pathHash(String path) { return path == null ? null : HubJson.hash(path.toLowerCase(Locale.ROOT)); }
-  private static ConflictException staleConnection() { return new ConflictException("CONEXAO_ALTERADA", "A conexao foi alterada. Atualize e tente novamente."); }
+  private static ConflictException staleConnection() { return new ConflictException("CONEXAO_ALTERADA", "A conexão foi alterada. Atualize e tente novamente."); }
 }

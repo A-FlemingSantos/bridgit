@@ -41,12 +41,12 @@ public class OperationStore {
     String hash = HubJson.hash(encoded + (payload == null ? "" : ":" + payload.size() + ":" + payload.hash()));
     return tx.execute(status -> {
       if (jdbc.queryForList("SELECT id FROM users WITH(UPDLOCK,ROWLOCK) WHERE id=?", user.toString()).isEmpty()) {
-        throw new UnauthorizedException("USUARIO_INVALIDO", "Nao foi possivel identificar o usuario autenticado.");
+        throw new UnauthorizedException("USUARIO_INVALIDO", "Não foi possível identificar o usuário autenticado.");
       }
       List<String> existing = jdbc.query("SELECT request_hash FROM cloud_operations WHERE user_id=? AND client_key=?",
           (rs, row) -> rs.getString(1), user.toString(), request.clientKey());
       if (!existing.isEmpty()) {
-        if (!existing.getFirst().equals(hash)) throw new ConflictException("OPERACAO_DIFERENTE", "Esta operacao ja foi recebida com outros dados.");
+        if (!existing.getFirst().equals(hash)) throw new ConflictException("OPERACAO_DIFERENTE", "Esta operação já foi recebida com outros dados.");
         return byClientKey(user, request.clientKey());
       }
       UUID id = UUID.randomUUID();
@@ -76,7 +76,7 @@ public class OperationStore {
   }
   public Stored require(UUID user, UUID id) {
     Stored stored = get(id);
-    if (stored == null || !stored.userId().equals(user)) throw new NotFoundException("OPERACAO_NAO_ENCONTRADA", "Operacao nao encontrada.");
+    if (stored == null || !stored.userId().equals(user)) throw new NotFoundException("OPERACAO_NAO_ENCONTRADA", "Operação não encontrada.");
     return stored;
   }
   public List<OperationDtos.View> pending(UUID user) {

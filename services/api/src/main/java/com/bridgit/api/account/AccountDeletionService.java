@@ -23,7 +23,7 @@ public class AccountDeletionService {
   public List<String> delete(UserEntity user) {
     String id = user.getId().toString();
     if (jdbc.queryForList("SELECT id FROM users WITH(UPDLOCK,ROWLOCK) WHERE id=?", id).isEmpty()) {
-      throw new UnauthorizedException("USUARIO_INVALIDO", "Nao foi possivel identificar o usuario autenticado.");
+      throw new UnauthorizedException("USUARIO_INVALIDO", "Não foi possível identificar o usuário autenticado.");
     }
     List<String> paths = jdbc.query("SELECT DISTINCT payload_path FROM cloud_operations WITH(UPDLOCK) WHERE user_id=? AND payload_path IS NOT NULL",
         (rs, row) -> rs.getString(1), id);

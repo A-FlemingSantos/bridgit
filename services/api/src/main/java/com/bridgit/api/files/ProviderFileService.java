@@ -267,13 +267,13 @@ public class ProviderFileService {
     ProviderConnectionEntity connection = connectionService.findById(parsed.connectionId())
         .orElseThrow(() -> new com.bridgit.api.common.error.NotFoundException(
             "CONTEUDO_NAO_ENCONTRADO",
-            "Conteudo nao encontrado ou expirado."
+            "Conteúdo não encontrado ou expirado."
         ));
 
     if (!parsed.userId().equals(connection.getUserId())) {
       throw new com.bridgit.api.common.error.NotFoundException(
           "CONTEUDO_NAO_ENCONTRADO",
-          "Conteudo nao encontrado ou expirado."
+          "Conteúdo não encontrado ou expirado."
       );
     }
 

@@ -94,30 +94,30 @@ public class AuthController {
   }
 
   public record RegisterRequest(
-      @NotBlank(message = "O usuario e obrigatorio.")
-      @Size(min = 3, max = 32, message = "O usuario deve ter entre 3 e 32 caracteres.")
-      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuario deve usar apenas letras, numeros, ponto, hifen ou sublinhado.")
+      @NotBlank(message = "O usuário é obrigatório.")
+      @Size(min = 3, max = 32, message = "O usuário deve ter entre 3 e 32 caracteres.")
+      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuário deve usar apenas letras, números, ponto, hífen ou sublinhado.")
       String username,
-      @NotBlank(message = "A senha e obrigatoria.")
+      @NotBlank(message = "A senha é obrigatória.")
       @Size(min = 8, message = "A senha deve ter pelo menos 8 caracteres.")
       String password,
-      @NotNull(message = "O identificador do dispositivo e obrigatorio.") UUID deviceKey,
-      @NotBlank(message = "O tipo de cliente e obrigatorio.") String clientKind,
+      @NotNull(message = "O identificador do dispositivo é obrigatório.") UUID deviceKey,
+      @NotBlank(message = "O tipo de cliente é obrigatório.") String clientKind,
       Boolean persistent
   ) {
   }
 
   public record LoginRequest(
-      @NotBlank(message = "O usuario e obrigatorio.") String username,
-      @NotBlank(message = "A senha e obrigatoria.") String password,
-      @NotNull(message = "O identificador do dispositivo e obrigatorio.") UUID deviceKey,
-      @NotBlank(message = "O tipo de cliente e obrigatorio.") String clientKind,
+      @NotBlank(message = "O usuário é obrigatório.") String username,
+      @NotBlank(message = "A senha é obrigatória.") String password,
+      @NotNull(message = "O identificador do dispositivo é obrigatório.") UUID deviceKey,
+      @NotBlank(message = "O tipo de cliente é obrigatório.") String clientKind,
       Boolean persistent
   ) {
   }
 
   public record UpdateSessionRequest(
-      @NotNull(message = "O campo persistent e obrigatorio.") Boolean persistent
+      @NotNull(message = "O campo persistent é obrigatório.") Boolean persistent
   ) {
   }
 }

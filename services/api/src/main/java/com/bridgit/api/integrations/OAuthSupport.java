@@ -25,7 +25,7 @@ final class OAuthSupport {
       byte[] hash = digest.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
       return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
     } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException("SHA-256 indisponivel.", ex);
+      throw new IllegalStateException("SHA-256 indisponível.", ex);
     }
   }
 

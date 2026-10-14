@@ -24,8 +24,8 @@ public final class HubDtos {
   }
 
   public record AddRecentRequest(
-      @NotNull(message = "O provedor e obrigatorio.") CloudProvider provider,
-      @NotBlank(message = "A referencia do item e obrigatoria.") String ref
+      @NotNull(message = "O provedor é obrigatório.") CloudProvider provider,
+      @NotBlank(message = "A referência do item é obrigatória.") String ref
   ) {
   }
 }

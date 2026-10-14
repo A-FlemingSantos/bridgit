@@ -64,7 +64,7 @@ public class OperationWorker {
       op = store.get(id);
       ProviderConnectionEntity c = connections.findById(op.connectionId()).orElse(null);
       if (c == null || !c.getUserId().equals(op.userId())) {
-        store.defer(id, owner, "REJECTED", 0, "CONEXAO_ALTERADA", "A conexao mudou. Esta operacao nao foi aplicada a outra conta."); return;
+        store.defer(id, owner, "REJECTED", 0, "CONEXAO_ALTERADA", "A conexão mudou. Esta operação não foi aplicada a outra conta."); return;
       }
       if (c.getGeneration() != op.generation()) op = store.reconnect(op, owner, c);
       CloudProviderClient client = clients.get(CloudProvider.fromId(c.getProvider()));
@@ -74,10 +74,10 @@ public class OperationWorker {
       if (r.dependencyId() != null) {
         OperationStore.Stored dependency = store.require(op.userId(), r.dependencyId());
         if ("REJECTED".equals(dependency.status()) || "NEEDS_ATTENTION".equals(dependency.status())) {
-          store.defer(id, owner, "NEEDS_ATTENTION", 0, "DESTINO_PENDENTE", "Resolva a criacao do destino antes de continuar."); return;
+          store.defer(id, owner, "NEEDS_ATTENTION", 0, "DESTINO_PENDENTE", "Resolva a criação do destino antes de continuar."); return;
         }
         if (!"SUCCEEDED".equals(dependency.status())) { store.defer(id, owner, "QUEUED", 1, null, null); return; }
-        if (dependency.result() == null || dependency.result().kind() != ItemKind.FOLDER) throw new ApiException(HttpStatus.CONFLICT, "DESTINO_INVALIDO", "O destino nao e uma pasta.");
+        if (dependency.result() == null || dependency.result().kind() != ItemKind.FOLDER) throw new ApiException(HttpStatus.CONFLICT, "DESTINO_INVALIDO", "O destino não é uma pasta.");
         parent = dependency.result().ref();
       }
       if (r.kind() != OperationDtos.Kind.UPDATE && parent != null && parent.isBlank()) parent = null;
@@ -111,7 +111,7 @@ public class OperationWorker {
     } catch (Exception ex) {
       if (!claimed) return;
       String code = ex instanceof ApiException api ? api.getCode() : "OPERACAO_FALHOU";
-      String message = ex instanceof ApiException api ? api.getMessage() : "Nao foi possivel confirmar a operacao. O resultado sera verificado.";
+      String message = ex instanceof ApiException api ? api.getMessage() : "Não foi possível confirmar a operação. O resultado será verificado.";
       int status = ex instanceof ApiException api ? api.getStatus().value() : 0;
       String next;
       if ("VERIFYING".equals(op.status())) next = status == 403 ? "NEEDS_ATTENTION" : "VERIFYING";
@@ -149,7 +149,7 @@ public class OperationWorker {
     }
     boolean expired = op.createdAt().isBefore(OffsetDateTime.now(clock).minusMinutes(15));
     store.defer(op.id(), owner, expired ? "NEEDS_ATTENTION" : "VERIFYING", 30,
-        "RESULTADO_NAO_CONFIRMADO", "Nao foi possivel confirmar o resultado. Atualize antes de repetir a operacao.");
+        "RESULTADO_NAO_CONFIRMADO", "Não foi possível confirmar o resultado. Atualize antes de repetir a operação.");
   }
   static String keepExtension(String name, CloudItem current) {
     if (name == null || current == null || current.kind() != ItemKind.FILE || current.extension() == null || current.extension().isBlank()) return name;

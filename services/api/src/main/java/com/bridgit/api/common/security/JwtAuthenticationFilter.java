@@ -68,19 +68,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     try {
       if (!jwtService.isValid(token)) {
-        throw new UnauthorizedException("TOKEN_INVALIDO", "Sua sessao expirou. Faca login novamente.");
+        throw new UnauthorizedException("TOKEN_INVALIDO", "Sua sessão expirou. Faça login novamente.");
       }
 
       java.util.UUID userId = jwtService.extractUserId(token);
       java.util.UUID sessionId = jwtService.extractSessionId(token);
       if (sessionId == null) {
-        throw new UnauthorizedException("SESSAO_INVALIDA", "Sua sessao nao e mais valida.");
+        throw new UnauthorizedException("SESSAO_INVALIDA", "Sua sessão não é mais válida.");
       }
 
       if (SecurityContextHolder.getContext().getAuthentication() == null) {
         UserSessionEntity session = userSessionService.requireActiveSession(userId, sessionId);
         UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new UnauthorizedException("USUARIO_INVALIDO", "Nao foi possivel identificar o usuario autenticado."));
+            .orElseThrow(() -> new UnauthorizedException("USUARIO_INVALIDO", "Não foi possível identificar o usuário autenticado."));
 
         SecurityUser principal = new SecurityUser(user.getId(), session.getId(), user.getUsername(), user.getPasswordHash());
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -110,7 +110,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       writeUnauthorizedResponse(
           request,
           response,
-          new UnauthorizedException("TOKEN_INVALIDO", "Sua sessao expirou. Faca login novamente.")
+          new UnauthorizedException("TOKEN_INVALIDO", "Sua sessão expirou. Faça login novamente.")
       );
       return;
     } catch (RuntimeException ex) {
@@ -123,7 +123,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
           response,
           HttpStatus.INTERNAL_SERVER_ERROR,
           "ERRO_INTERNO",
-          "Ocorreu um erro inesperado ao processar a solicitacao."
+          "Ocorreu um erro inesperado ao processar a solicitação."
       );
       return;
     }

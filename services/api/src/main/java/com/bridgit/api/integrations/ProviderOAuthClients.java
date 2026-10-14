@@ -19,7 +19,7 @@ public class ProviderOAuthClients {
     return new ApiException(
         HttpStatus.SERVICE_UNAVAILABLE,
         "PROVEDOR_NAO_CONFIGURADO",
-        "Este provedor ainda nao foi configurado no servidor."
+        "Este provedor ainda não foi configurado no servidor."
     );
   }
 

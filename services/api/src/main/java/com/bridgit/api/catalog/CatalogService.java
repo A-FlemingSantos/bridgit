@@ -34,8 +34,8 @@ public class CatalogService {
           throw new ConflictException("CATALOGO_ALTERADO", "A pasta foi atualizada. Recarregue a listagem.");
         }
         try { offset = Integer.parseInt(fields[3]); }
-        catch (NumberFormatException ex) { throw new ConflictException("CURSOR_INVALIDO", "Paginacao invalida."); }
-        if (offset < 0) throw new ConflictException("CURSOR_INVALIDO", "Paginacao invalida.");
+        catch (NumberFormatException ex) { throw new ConflictException("CURSOR_INVALIDO", "Paginação inválida."); }
+        if (offset < 0) throw new ConflictException("CURSOR_INVALIDO", "Paginação inválida.");
       }
       CatalogStore.FolderPage window = offset == 0 ? known : store.folder(c, parent, offset, PAGE_SIZE + 1);
       if (window.state().revision() != known.state().revision()) throw new ConflictException("CATALOGO_ALTERADO", "A pasta foi atualizada. Recarregue a listagem.");

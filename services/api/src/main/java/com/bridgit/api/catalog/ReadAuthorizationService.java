@@ -43,9 +43,9 @@ public class ReadAuthorizationService {
     cache.keySet().removeIf(key -> key.connection().equals(connection) && key.ref().equals(ref));
   }
   public ContentStream open(ProviderConnectionEntity c, CloudProviderClient client, ContentTicketService.ContentTicket ticket, String rangeHeader) {
-    if (!Objects.equals(ticket.generation(), c.getGeneration())) throw new ApiException(HttpStatus.GONE, "CONTEUDO_EXPIRADO", "A conexao foi alterada. Abra o arquivo novamente.");
+    if (!Objects.equals(ticket.generation(), c.getGeneration())) throw new ApiException(HttpStatus.GONE, "CONTEUDO_EXPIRADO", "A conexão foi alterada. Abra o arquivo novamente.");
     CloudItem item = validate(c, client, ticket.ref()).item();
-    if (ticket.revision() != null && !Objects.equals(ticket.revision(), item.contentRevision())) throw new ApiException(HttpStatus.CONFLICT, "CONTEUDO_ALTERADO", "O conteudo foi atualizado. Abra o arquivo novamente.");
+    if (ticket.revision() != null && !Objects.equals(ticket.revision(), item.contentRevision())) throw new ApiException(HttpStatus.CONFLICT, "CONTEUDO_ALTERADO", "O conteúdo foi atualizado. Abra o arquivo novamente.");
     ContentRange range = ticket.variant() == ContentVariant.ORIGINAL && rangeHeader != null ? ContentRange.parseSingle(rangeHeader, item.size()) : null;
     return retry.withRetry(c, token -> range == null ? client.open(token, item, ticket.variant()) : client.open(token, item, ticket.variant(), range));
   }

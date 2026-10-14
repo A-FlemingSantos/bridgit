@@ -62,7 +62,7 @@ public class AuthService {
     validatePassword(password);
 
     if (userRepository.existsByUsernameKey(usernameKey)) {
-      throw new ConflictException("USUARIO_EM_USO", "Ja existe uma conta cadastrada com este usuario.");
+      throw new ConflictException("USUARIO_EM_USO", "Já existe uma conta cadastrada com este usuário.");
     }
 
     UserEntity user = new UserEntity();
@@ -89,14 +89,14 @@ public class AuthService {
     loginAttempts.check(usernameKey, clientAddress);
     if (usernameKey.isBlank()) {
       loginAttempts.failed(usernameKey, clientAddress);
-      throw new BadCredentialsException("Usuario ou senha invalidos.");
+      throw new BadCredentialsException("Usuário ou senha inválidos.");
     }
 
     Optional<UserEntity> found = userRepository.findByUsernameKey(usernameKey);
     if (found.isEmpty()) {
       passwordEncoder.matches(password == null ? "" : password, timingHash);
       loginAttempts.failed(usernameKey, clientAddress);
-      throw new BadCredentialsException("Usuario ou senha invalidos.");
+      throw new BadCredentialsException("Usuário ou senha inválidos.");
     }
 
     try {
@@ -129,7 +129,7 @@ public class AuthService {
     authenticatedUserService.findPrincipal()
         .filter(principal -> principal.getSessionId() != null)
         .ifPresent(principal -> userSessionService.revokeCurrentSession(principal.getUserId(), principal.getSessionId()));
-    return new AuthDtos.MessageResponse("Sessao encerrada com sucesso.");
+    return new AuthDtos.MessageResponse("Sessão encerrada com sucesso.");
   }
 
   @Transactional
@@ -156,7 +156,7 @@ public class AuthService {
         authenticatedUserService.requireUserId(),
         authenticatedUserService.requireSessionId()
     );
-    return new AuthDtos.MessageResponse("As outras sessoes foram encerradas.");
+    return new AuthDtos.MessageResponse("As outras sessões foram encerradas.");
   }
 
   public AuthDtos.SessionResponse buildSessionResponse(UserEntity user, UserSessionEntity session) {
@@ -195,7 +195,7 @@ public class AuthService {
 
   private void validatePassword(String password) {
     if (password == null || password.isBlank()) {
-      throw new BadRequestException("SENHA_OBRIGATORIA", "A senha e obrigatoria.");
+      throw new BadRequestException("SENHA_OBRIGATORIA", "A senha é obrigatória.");
     }
     if (password.length() < 8) {
       throw new BadRequestException("SENHA_INVALIDA", "A senha deve ter pelo menos 8 caracteres.");

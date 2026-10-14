@@ -95,7 +95,7 @@ public class ContentTicketService {
       throw new ApiException(
           HttpStatus.GONE,
           "CONTEUDO_EXPIRADO",
-          "Este conteudo expirou. Gere um novo link para continuar."
+          "Este conteúdo expirou. Gere um novo link para continuar."
       );
     } catch (JwtException | IllegalArgumentException ex) {
       throw invalidTicket();
@@ -103,7 +103,7 @@ public class ContentTicketService {
   }
 
   private static NotFoundException invalidTicket() {
-    return new NotFoundException("CONTEUDO_NAO_ENCONTRADO", "Conteudo nao encontrado ou expirado.");
+    return new NotFoundException("CONTEUDO_NAO_ENCONTRADO", "Conteúdo não encontrado ou expirado.");
   }
 
   public record IssuedTicket(String ticket, OffsetDateTime expiresAt) {

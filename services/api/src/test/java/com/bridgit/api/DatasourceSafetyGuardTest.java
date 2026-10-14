@@ -27,7 +27,7 @@ class DatasourceSafetyGuardTest {
         () -> DatasourceSafetyGuard.validate(environment));
 
     assertEquals(
-        "Inicializacao bloqueada: o backend deve usar exclusivamente a base 'bridgit_db' no profile ativo. Base recebida: 'plan_things_db'.",
+        "Inicialização bloqueada: o backend deve usar exclusivamente a base 'bridgit_db' no profile ativo. Base recebida: 'plan_things_db'.",
         exception.getMessage()
     );
   }
@@ -41,7 +41,7 @@ class DatasourceSafetyGuardTest {
         () -> DatasourceSafetyGuard.validate(environment));
 
     assertEquals(
-        "Inicializacao bloqueada: o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base permitida para o profile ativo.",
+        "Inicialização bloqueada: o datasource deve informar o parâmetro 'databaseName' e usar exclusivamente a base permitida para o profile ativo.",
         exception.getMessage()
     );
   }
@@ -65,7 +65,7 @@ class DatasourceSafetyGuardTest {
         () -> DatasourceSafetyGuard.validate(environment));
 
     assertEquals(
-        "Inicializacao bloqueada: o backend deve usar exclusivamente a base 'bridgit_test' no profile ativo. Base recebida: 'bridgit_db'.",
+        "Inicialização bloqueada: o backend deve usar exclusivamente a base 'bridgit_test' no profile ativo. Base recebida: 'bridgit_db'.",
         exception.getMessage()
     );
   }

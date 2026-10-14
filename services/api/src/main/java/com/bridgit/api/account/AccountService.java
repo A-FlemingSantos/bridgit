@@ -53,7 +53,7 @@ public class AccountService {
     String usernameKey = normalizedUsername.toLowerCase(Locale.ROOT);
 
     if (!usernameKey.equals(user.getUsernameKey()) && userRepository.existsByUsernameKey(usernameKey)) {
-      throw new ConflictException("USUARIO_EM_USO", "Ja existe uma conta cadastrada com este usuario.");
+      throw new ConflictException("USUARIO_EM_USO", "Já existe uma conta cadastrada com este usuário.");
     }
 
     user.setUsername(normalizedUsername);
@@ -70,7 +70,7 @@ public class AccountService {
     UserEntity user = authenticatedUserService.requireUser();
 
     if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-      throw new BadRequestException("SENHA_ATUAL_INVALIDA", "A senha atual informada esta incorreta.");
+      throw new BadRequestException("SENHA_ATUAL_INVALIDA", "A senha atual informada está incorreta.");
     }
 
     validatePassword(newPassword);
@@ -85,7 +85,7 @@ public class AccountService {
     UserEntity user = authenticatedUserService.requireUser();
     // An open session alone must not be enough to erase the account.
     if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
-      throw new BadRequestException("SENHA_ATUAL_INVALIDA", "A senha informada esta incorreta.");
+      throw new BadRequestException("SENHA_ATUAL_INVALIDA", "A senha informada está incorreta.");
     }
     uploadCleanup.complete(accountDeletion.delete(user));
     return new AuthDtos.MessageResponse("Conta removida com sucesso.");
@@ -93,7 +93,7 @@ public class AccountService {
 
   private void validatePassword(String password) {
     if (password == null || password.isBlank()) {
-      throw new BadRequestException("SENHA_OBRIGATORIA", "A senha e obrigatoria.");
+      throw new BadRequestException("SENHA_OBRIGATORIA", "A senha é obrigatória.");
     }
     if (password.length() < 8) {
       throw new BadRequestException("SENHA_INVALIDA", "A senha deve ter pelo menos 8 caracteres.");

@@ -21,7 +21,7 @@ public final class DatasourceSafetyGuard {
 
     if (databaseName == null || databaseName.isBlank()) {
       throw new IllegalStateException(
-          "Inicializacao bloqueada: o datasource deve informar o parametro 'databaseName' e usar exclusivamente a base permitida para o profile ativo."
+          "Inicialização bloqueada: o datasource deve informar o parâmetro 'databaseName' e usar exclusivamente a base permitida para o profile ativo."
       );
     }
 
@@ -33,7 +33,7 @@ public final class DatasourceSafetyGuard {
     }
 
     throw new IllegalStateException(
-        "Inicializacao bloqueada: o backend deve usar exclusivamente a base '"
+        "Inicialização bloqueada: o backend deve usar exclusivamente a base '"
             + expectedDatabase
             + "' no profile ativo. Base recebida: '"
             + databaseName

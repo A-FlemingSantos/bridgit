@@ -14,12 +14,12 @@ public final class UsernameRules {
   public static String normalizeUsername(String username) {
     String normalized = username == null ? "" : username.trim();
     if (normalized.isBlank()) {
-      throw new BadRequestException("USUARIO_OBRIGATORIO", "O usuario e obrigatorio.");
+      throw new BadRequestException("USUARIO_OBRIGATORIO", "O usuário é obrigatório.");
     }
     if (!USERNAME_PATTERN.matcher(normalized).matches()) {
       throw new BadRequestException(
           "USUARIO_INVALIDO",
-          "O usuario deve ter entre 3 e 32 caracteres e usar apenas letras, numeros, ponto, hifen ou sublinhado."
+          "O usuário deve ter entre 3 e 32 caracteres e usar apenas letras, números, ponto, hífen ou sublinhado."
       );
     }
     return normalized;

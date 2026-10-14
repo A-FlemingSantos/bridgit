@@ -41,21 +41,21 @@ public class AccountController {
   }
 
   public record UpdateAccountRequest(
-      @NotBlank(message = "O usuario e obrigatorio.")
-      @Size(min = 3, max = 32, message = "O usuario deve ter entre 3 e 32 caracteres.")
-      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuario deve usar apenas letras, numeros, ponto, hifen ou sublinhado.")
+      @NotBlank(message = "O usuário é obrigatório.")
+      @Size(min = 3, max = 32, message = "O usuário deve ter entre 3 e 32 caracteres.")
+      @Pattern(regexp = "^[A-Za-z0-9._-]+$", message = "O usuário deve usar apenas letras, números, ponto, hífen ou sublinhado.")
       String username
   ) {
   }
 
   public record DeleteAccountRequest(
-      @NotBlank(message = "A senha e obrigatoria.") String password
+      @NotBlank(message = "A senha é obrigatória.") String password
   ) {
   }
 
   public record ChangePasswordRequest(
-      @NotBlank(message = "A senha atual e obrigatoria.") String currentPassword,
-      @NotBlank(message = "A nova senha e obrigatoria.")
+      @NotBlank(message = "A senha atual é obrigatória.") String currentPassword,
+      @NotBlank(message = "A nova senha é obrigatória.")
       @Size(min = 8, message = "A senha deve ter pelo menos 8 caracteres.")
       String newPassword
   ) {

@@ -23,13 +23,13 @@ public class JwtSecretGuard {
 
   static void check(String secret, boolean testProfile) {
     if (secret == null || secret.isBlank()) {
-      throw new IllegalStateException("APP_JWT_SECRET nao esta definida. Gere uma chave com: openssl rand -base64 48");
+      throw new IllegalStateException("APP_JWT_SECRET não está definida. Gere uma chave com: openssl rand -base64 48");
     }
     if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_BYTES) {
       throw new IllegalStateException("APP_JWT_SECRET precisa ter pelo menos " + MIN_BYTES + " bytes.");
     }
     if (!testProfile && secret.startsWith(DEVELOPMENT_PREFIX)) {
-      throw new IllegalStateException("APP_JWT_SECRET usa uma chave de desenvolvimento versionada. Defina uma chave propria.");
+      throw new IllegalStateException("APP_JWT_SECRET usa uma chave de desenvolvimento versionada. Defina uma chave própria.");
     }
   }
 }

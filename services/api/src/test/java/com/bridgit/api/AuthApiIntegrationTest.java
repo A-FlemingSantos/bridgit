@@ -156,7 +156,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
     mockMvc.perform(post("/api/auth/logout")
             .header("Authorization", "Bearer " + token))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.message").value("Sessao encerrada com sucesso."));
+        .andExpect(jsonPath("$.data.message").value("Sessão encerrada com sucesso."));
 
     mockMvc.perform(post("/api/auth/refresh")
             .header("Authorization", "Bearer " + token))
