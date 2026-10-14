@@ -139,6 +139,17 @@ class LocalHubIntegrationTest extends ApiIntegrationTestSupport {
     assertThat(operations.get(accepted.id()).status()).isEqualTo("VERIFYING");
   }
 
+  @Test void fullProviderAccountRejectsInsteadOfVerifying() {
+    var accepted = operations.accept(user, connection, request("no-space", OperationDtos.Kind.CREATE_FOLDER, null, "Folder"), null);
+    when(remote.prepareCreate(anyString())).thenReturn(new PreparedWrite(null, null));
+    when(remote.createFolderPrepared(anyString(), any(), anyString(), any())).thenThrow(new ProviderApiException(
+        org.springframework.http.HttpStatus.INSUFFICIENT_STORAGE, "PROVEDOR_SEM_ESPACO", "Não há espaço suficiente na conta do provedor."));
+    executor.execute(accepted.id());
+    var stored = operations.get(accepted.id());
+    assertThat(stored.status()).isEqualTo("REJECTED");
+    assertThat(stored.errorCode()).isEqualTo("PROVEDOR_SEM_ESPACO");
+  }
+
   @Test void disconnectedIdentityFencesPendingWork() {
     var accepted = operations.accept(user, connection, request("old-generation", OperationDtos.Kind.CREATE_FOLDER, null, "Folder"), null);
     connections.deleteById(connection.getId()); connections.flush();

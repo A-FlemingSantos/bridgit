@@ -252,7 +252,7 @@ class AuthApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.message").value("Conta removida com sucesso."));
 
-    mockMvc.perform(get("/api/account")
+    mockMvc.perform(get("/api/auth/sessions")
             .header("Authorization", "Bearer " + token))
         .andExpect(status().isUnauthorized());
   }

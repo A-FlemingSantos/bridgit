@@ -95,7 +95,7 @@ public final class ProviderHttpSupport {
         throw conversionTooLarge();
       }
       if (reasons.contains("storagequotaexceeded")) {
-        throw noSpace();
+        throw insufficientSpace();
       }
       if (isRateLimitBody(body)) {
         throw rateLimited(headers, body);
@@ -143,6 +143,10 @@ public final class ProviderHttpSupport {
     if (code == 429) {
       throw rateLimited(headers, body);
     }
+    if (code == 507) {
+      // OneDrive answers a full account with 507 Insufficient Storage.
+      throw insufficientSpace();
+    }
     if (code >= 500) {
       throw new ProviderApiException(
           HttpStatus.SERVICE_UNAVAILABLE,
@@ -166,14 +170,6 @@ public final class ProviderHttpSupport {
     );
   }
 
-  private static ProviderApiException noSpace() {
-    return new ProviderApiException(
-        HttpStatus.INSUFFICIENT_STORAGE,
-        "PROVEDOR_SEM_ESPACO",
-        "Não há espaço suficiente na conta do provedor."
-    );
-  }
-
   private static ProviderApiException dropboxConflict(HttpHeaders headers, String body) {
     Set<String> tags = dropboxErrorTags(body);
     if (tags.contains("not_found")) {
@@ -191,7 +187,7 @@ public final class ProviderHttpSupport {
       );
     }
     if (tags.contains("insufficient_space")) {
-      throw noSpace();
+      throw insufficientSpace();
     }
     if (tags.contains("malformed_path")) {
       throw new ProviderApiException(
@@ -262,6 +258,14 @@ public final class ProviderHttpSupport {
     } catch (Exception ex) {
       return null;
     }
+  }
+
+  private static ProviderApiException insufficientSpace() {
+    return new ProviderApiException(
+        HttpStatus.INSUFFICIENT_STORAGE,
+        "PROVEDOR_SEM_ESPACO",
+        "Não há espaço suficiente na conta do provedor."
+    );
   }
 
   private static ProviderApiException rateLimited(HttpHeaders headers, String body) {
