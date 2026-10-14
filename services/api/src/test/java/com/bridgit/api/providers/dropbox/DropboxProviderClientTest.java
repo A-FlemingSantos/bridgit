@@ -3,6 +3,8 @@ package com.bridgit.api.providers.dropbox;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
@@ -61,6 +63,29 @@ class DropboxProviderClientTest {
     assertEquals("015f", page.items().get(1).remoteVersion());
     assertEquals("2a9b", page.items().get(1).contentRevision());
     assertEquals("cursor-1", page.nextCursor());
+    server.verify();
+  }
+
+  @Test
+  void listTreatsInvalidClientModifiedAsMissing() {
+    server.expect(requestTo("https://api.dropboxapi.com/2/files/list_folder"))
+        .andRespond(withSuccess("""
+            {
+              "entries": [
+                {".tag": "file", "id": "id:f1", "name": "bad.txt", "size": 1,
+                 "path_display": "/bad.txt", "client_modified": "not-a-date"},
+                {".tag": "file", "id": "id:f2", "name": "ok.txt", "size": 1,
+                 "path_display": "/ok.txt", "client_modified": "2026-01-01T00:00:00Z"}
+              ],
+              "has_more": false
+            }
+            """, MediaType.APPLICATION_JSON));
+
+    ItemPage page = client.list("token", null, null);
+
+    assertEquals(2, page.items().size());
+    assertNull(page.items().get(0).modifiedAt());
+    assertNotNull(page.items().get(1).modifiedAt());
     server.verify();
   }
 

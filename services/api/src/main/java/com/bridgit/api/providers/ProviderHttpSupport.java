@@ -1,5 +1,12 @@
 package com.bridgit.api.providers;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -10,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 public final class ProviderHttpSupport {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final Pattern ERROR_REASON_PATTERN =
       Pattern.compile("\"reason\"\\s*:\\s*\"([^\"]+)\"");
@@ -45,12 +54,32 @@ public final class ProviderHttpSupport {
       String body,
       CloudProvider provider
   ) {
+    throwOnError(status, headers, body, provider, false);
+  }
+
+  /** Same as {@link #throwOnError(HttpStatusCode, HttpHeaders, String, CloudProvider)} for uploads and other writes. */
+  public static void throwOnWriteError(
+      HttpStatusCode status,
+      HttpHeaders headers,
+      String body,
+      CloudProvider provider
+  ) {
+    throwOnError(status, headers, body, provider, true);
+  }
+
+  private static void throwOnError(
+      HttpStatusCode status,
+      HttpHeaders headers,
+      String body,
+      CloudProvider provider,
+      boolean write
+  ) {
     int code = status.value();
     if (code == 404) {
       throw new ProviderApiException(
           HttpStatus.NOT_FOUND,
           "ITEM_NAO_ENCONTRADO",
-          "Item nao encontrado."
+          "Item não encontrado."
       );
     }
     if (code == 401) {
@@ -62,105 +91,183 @@ public final class ProviderHttpSupport {
     }
     if (code == 403) {
       if (isRateLimitBody(body)) {
-        throw rateLimited(headers);
+        throw rateLimited(headers, body);
       }
       throw new ProviderApiException(
           HttpStatus.FORBIDDEN,
           "SEM_PERMISSAO",
-          "Sem permissao para esta operacao no provedor."
+          "Sem permissão para esta operação no provedor."
       );
     }
     if (code == 409) {
       if (provider == CloudProvider.DROPBOX) {
-        throw dropboxConflict(body);
+        throw dropboxConflict(headers, body);
       }
       throw new ProviderApiException(
           HttpStatus.CONFLICT,
           "ITEM_CONFLITO",
-          "Ja existe um item com este nome."
+          "Já existe um item com este nome."
       );
     }
-    if (isNameConflict(code, body)) {
+    if (isNameConflict(code, body, provider)) {
       throw new ProviderApiException(
           HttpStatus.CONFLICT,
           "ITEM_CONFLITO",
-          "Ja existe um item com este nome."
+          "Já existe um item com este nome."
       );
     }
     if (code == 413) {
+      if (write) {
+        throw new ProviderApiException(
+            HttpStatus.PAYLOAD_TOO_LARGE,
+            "ARQUIVO_GRANDE_DEMAIS",
+            "O arquivo é grande demais para o provedor."
+        );
+      }
       throw new ProviderApiException(
           HttpStatus.PAYLOAD_TOO_LARGE,
           "CONVERSAO_GRANDE_DEMAIS",
-          "Arquivo grande demais para conversao."
+          "Arquivo grande demais para conversão."
       );
     }
     if (code == 416) {
       throw new ProviderApiException(
           HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
           "INTERVALO_INVALIDO",
-          "Intervalo solicitado nao pode ser atendido."
+          "Intervalo solicitado não pode ser atendido."
       );
     }
     if (code == 429) {
-      throw rateLimited(headers);
+      throw rateLimited(headers, body);
     }
     if (code >= 500) {
       throw new ProviderApiException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "PROVEDOR_INDISPONIVEL",
-          "O provedor de nuvem esta indisponivel. Tente novamente em instantes."
+          "O provedor de nuvem está indisponível. Tente novamente em instantes."
       );
     }
     if (code >= 400) {
       throw new ProviderApiException(
           "PROVEDOR_FALHOU",
-          "O provedor de nuvem falhou ao processar a solicitacao."
+          "O provedor de nuvem falhou ao processar a solicitação."
       );
     }
   }
 
-  private static ProviderApiException dropboxConflict(String body) {
-    String lower = body == null ? "" : body.toLowerCase();
-    if (lower.contains("not_found")) {
+  private static ProviderApiException dropboxConflict(HttpHeaders headers, String body) {
+    Set<String> tags = dropboxErrorTags(body);
+    if (tags.contains("not_found")) {
       throw new ProviderApiException(
           HttpStatus.NOT_FOUND,
           "ITEM_NAO_ENCONTRADO",
-          "Item nao encontrado."
+          "Item não encontrado."
       );
     }
-    if (lower.contains("insufficient_permissions") || lower.contains("no_write_permission")) {
+    if (tags.contains("insufficient_permissions") || tags.contains("no_write_permission")) {
       throw new ProviderApiException(
           HttpStatus.FORBIDDEN,
           "SEM_PERMISSAO",
-          "Sem permissao para esta operacao no provedor."
+          "Sem permissão para esta operação no provedor."
       );
     }
-    if (lower.contains("too_many_write_operations")) {
-      throw rateLimited(HttpHeaders.EMPTY);
+    if (tags.contains("insufficient_space")) {
+      throw new ProviderApiException(
+          HttpStatus.INSUFFICIENT_STORAGE,
+          "PROVEDOR_SEM_ESPACO",
+          "Não há espaço suficiente na conta do provedor."
+      );
     }
-    if (lower.contains("conflict")) {
+    if (tags.contains("malformed_path")) {
+      throw new ProviderApiException(
+          HttpStatus.BAD_REQUEST,
+          "NOME_INVALIDO",
+          "O nome ou o caminho informado é inválido para o provedor."
+      );
+    }
+    if (tags.contains("too_many_write_operations") || tags.contains("too_many_requests")) {
+      throw rateLimited(headers, body);
+    }
+    if (tags.contains("conflict")) {
       throw new ProviderApiException(
           HttpStatus.CONFLICT,
           "ITEM_CONFLITO",
-          "Ja existe um item com este nome."
+          "Já existe um item com este nome."
       );
     }
     throw new ProviderApiException(
         "PROVEDOR_FALHOU",
-        "O provedor de nuvem falhou ao processar a solicitacao."
+        "O provedor de nuvem falhou ao processar a solicitação."
     );
   }
 
-  private static ProviderApiException rateLimited(HttpHeaders headers) {
+  /**
+   * Collects the error identifiers of a Dropbox error body: the segments of {@code error_summary}
+   * and every {@code .tag} value of the {@code error} tree. Falls back to the lowercase word tokens
+   * of the body when it is not JSON.
+   */
+  private static Set<String> dropboxErrorTags(String body) {
+    Set<String> tags = new HashSet<>();
+    if (body == null || body.isBlank()) {
+      return tags;
+    }
+    JsonNode root = parseJson(body);
+    if (root == null || !root.isObject()) {
+      for (String token : body.toLowerCase(Locale.ROOT).split("[^a-z0-9_]+")) {
+        if (!token.isEmpty()) {
+          tags.add(token);
+        }
+      }
+      return tags;
+    }
+    for (String segment : root.path("error_summary").asText("").toLowerCase(Locale.ROOT).split("/")) {
+      if (!segment.isEmpty()) {
+        tags.add(segment);
+      }
+    }
+    collectTags(root.path("error"), tags);
+    return tags;
+  }
+
+  private static void collectTags(JsonNode node, Set<String> tags) {
+    if (node.isObject()) {
+      JsonNode tag = node.get(".tag");
+      if (tag != null && tag.isTextual()) {
+        tags.add(tag.asText().toLowerCase(Locale.ROOT));
+      }
+      node.elements().forEachRemaining(child -> collectTags(child, tags));
+    } else if (node.isArray()) {
+      node.elements().forEachRemaining(child -> collectTags(child, tags));
+    }
+  }
+
+  private static JsonNode parseJson(String body) {
+    try {
+      return JSON.readTree(body);
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private static ProviderApiException rateLimited(HttpHeaders headers, String body) {
+    Long retryAfter = parseRetryAfter(headers, Clock.systemUTC());
+    if (retryAfter == null) {
+      retryAfter = parseBodyRetryAfter(body);
+    }
     return new ProviderApiException(
         HttpStatus.TOO_MANY_REQUESTS,
         "PROVEDOR_LIMITADO",
-        "O provedor limitou as requisicoes. Tente novamente em instantes.",
-        parseRetryAfter(headers)
+        "O provedor limitou as requisições. Tente novamente em instantes.",
+        retryAfter
     );
   }
 
   static Long parseRetryAfter(HttpHeaders headers) {
+    return parseRetryAfter(headers, Clock.systemUTC());
+  }
+
+  /** Reads {@code Retry-After} as delay-seconds or as an HTTP date (RFC 1123); dates give at least 1. */
+  static Long parseRetryAfter(HttpHeaders headers, Clock clock) {
     if (headers == null) {
       return null;
     }
@@ -168,12 +275,37 @@ public final class ProviderHttpSupport {
     if (value == null || value.isBlank()) {
       return null;
     }
+    String trimmed = value.trim();
     try {
-      long seconds = Long.parseLong(value.trim());
+      long seconds = Long.parseLong(trimmed);
       return seconds < 0 ? null : seconds;
     } catch (NumberFormatException ex) {
+      // not delay-seconds: try an HTTP date
+    }
+    try {
+      ZonedDateTime date = ZonedDateTime.parse(trimmed, DateTimeFormatter.RFC_1123_DATE_TIME);
+      Duration wait = Duration.between(clock.instant(), date.toInstant());
+      long seconds = wait.getSeconds() + (wait.getNano() > 0 ? 1 : 0);
+      return Math.max(1L, seconds);
+    } catch (DateTimeParseException ex) {
       return null;
     }
+  }
+
+  /** Dropbox may send the delay as {@code error.retry_after} in the JSON body instead of the header. */
+  private static Long parseBodyRetryAfter(String body) {
+    if (body == null || body.isBlank()) {
+      return null;
+    }
+    JsonNode root = parseJson(body);
+    if (root == null) {
+      return null;
+    }
+    JsonNode value = root.path("error").path("retry_after");
+    if (!value.isIntegralNumber() || value.asLong() < 0) {
+      return null;
+    }
+    return value.asLong();
   }
 
   private static boolean isRateLimitBody(String body) {
@@ -198,13 +330,16 @@ public final class ProviderHttpSupport {
     return reasons;
   }
 
-  private static boolean isNameConflict(int code, String body) {
-    if (body == null) {
+  private static boolean isNameConflict(int code, String body, CloudProvider provider) {
+    if (code != 400 || body == null || (provider != null && provider != CloudProvider.ONEDRIVE)) {
       return false;
     }
-    String lower = body.toLowerCase();
-    return code == 400 && (lower.contains("namealreadyexists")
-        || lower.contains("conflict")
-        || lower.contains("already exists"));
+    JsonNode root = parseJson(body);
+    if (root == null) {
+      return false;
+    }
+    JsonNode error = root.path("error");
+    return "nameAlreadyExists".equalsIgnoreCase(error.path("code").asText(""))
+        || "nameAlreadyExists".equalsIgnoreCase(error.path("innererror").path("code").asText(""));
   }
 }

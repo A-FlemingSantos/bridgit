@@ -28,12 +28,15 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -48,6 +51,8 @@ import org.springframework.web.util.UriUtils;
 
 @Component
 public class GraphProviderClient implements CloudProviderClient, CloudSyncClient, CloudWatchClient {
+
+  private static final Logger log = LoggerFactory.getLogger(GraphProviderClient.class);
 
   private static final String DRIVE_BASE = "https://graph.microsoft.com/v1.0/me/drive";
   private static final String SELECT =
@@ -104,7 +109,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
     String deltaLink = json.path("@odata.deltaLink").asText(null);
     String nextUrl = StringUtils.hasText(nextLink) ? requireDeltaUrl(nextLink)
         : StringUtils.hasText(deltaLink) ? requireDeltaUrl(deltaLink) : null;
-    if (nextUrl == null) throw new ProviderApiException("Resposta OneDrive sem continuidade de sincronizacao.");
+    if (nextUrl == null) throw new ProviderApiException("Resposta OneDrive sem continuidade de sincronização.");
     String nextCheckpoint = objectMapper.createObjectNode().put("url", nextUrl).put("rootRef", rootId).toString();
     return new SyncPage(changes, nextCheckpoint, !StringUtils.hasText(nextLink), rootId);
   }
@@ -181,7 +186,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   }
 
   private static ProviderApiException cursorInvalid() {
-    return new ProviderApiException(HttpStatus.BAD_REQUEST, "CURSOR_INVALIDO", "Cursor de paginacao invalido.");
+    return new ProviderApiException(HttpStatus.BAD_REQUEST, "CURSOR_INVALIDO", "Cursor de paginação inválido.");
   }
 
   @Override
@@ -413,11 +418,11 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           }
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
+            throw new ProviderApiException("Não foi possível enviar o arquivo.");
           }
         });
     return mapCreated(json, parentRef);
@@ -444,7 +449,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
     );
     String uploadUrl = session.path("uploadUrl").asText(null);
     if (!StringUtils.hasText(uploadUrl)) {
-      throw new ProviderApiException("Nao foi possivel iniciar o envio do arquivo.");
+      throw new ProviderApiException("Não foi possível iniciar o envio do arquivo.");
     }
 
     byte[] buffer = new byte[CHUNK_SIZE];
@@ -477,21 +482,21 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
                 try {
                   return objectMapper.readTree(response.getBody());
                 } catch (Exception ex) {
-                  throw new ProviderApiException("Nao foi possivel concluir o envio do arquivo.");
+                  throw new ProviderApiException("Não foi possível concluir o envio do arquivo.");
                 }
               }
-              ensureSuccess(response);
+              ensureWriteSuccess(response);
               return null;
             });
       }
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
+      throw new ProviderApiException("Não foi possível enviar o arquivo.");
     }
 
     if (lastResponse == null) {
-      throw new ProviderApiException("Nao foi possivel concluir o envio do arquivo.");
+      throw new ProviderApiException("Não foi possível concluir o envio do arquivo.");
     }
     return mapCreated(lastResponse, parentRef);
   }
@@ -551,7 +556,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -569,7 +574,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -585,7 +590,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -607,7 +612,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -835,7 +840,12 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
     if (!StringUtils.hasText(value)) {
       return null;
     }
-    return OffsetDateTime.parse(value);
+    try {
+      return OffsetDateTime.parse(value);
+    } catch (DateTimeParseException ex) {
+      log.debug("Ignoring invalid lastModifiedDateTime from OneDrive: {}", value);
+      return null;
+    }
   }
 
   private static Instant parseInstant(String value) {
@@ -888,7 +898,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel abrir o conteudo.");
+      throw new ProviderApiException("Não foi possível abrir o conteúdo.");
     }
   }
 
@@ -906,6 +916,14 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   }
 
   private static void ensureSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, false);
+  }
+
+  private static void ensureWriteSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, true);
+  }
+
+  private static void ensureSuccess(ClientHttpResponse response, boolean write) {
     try {
       HttpStatusCode status = response.getStatusCode();
       if (!status.isError()) {
@@ -922,11 +940,15 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
       HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
       response.close();
-      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.ONEDRIVE);
+      if (write) {
+        ProviderHttpSupport.throwOnWriteError(status, headers, body, CloudProvider.ONEDRIVE);
+      } else {
+        ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.ONEDRIVE);
+      }
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
   }
 
@@ -936,7 +958,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
         return;
       }
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
     ensureSuccess(response);
   }

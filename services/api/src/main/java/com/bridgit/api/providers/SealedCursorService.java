@@ -48,7 +48,7 @@ public class SealedCursorService {
       String encoded = base64Url(payload.toString().getBytes(StandardCharsets.UTF_8));
       return encoded + "." + base64Url(hmac(encoded));
     } catch (Exception ex) {
-      throw new BadRequestException("CURSOR_INVALIDO", "Cursor de paginacao invalido.");
+      throw new BadRequestException("CURSOR_INVALIDO", "Cursor de paginação inválido.");
     }
   }
 
@@ -125,7 +125,7 @@ public class SealedCursorService {
   }
 
   private static BadRequestException invalid() {
-    return new BadRequestException("CURSOR_INVALIDO", "Cursor de paginacao invalido.");
+    return new BadRequestException("CURSOR_INVALIDO", "Cursor de paginação inválido.");
   }
 
   private static String base64Url(byte[] value) {

@@ -292,7 +292,7 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   void provider404DeletesLinkInCommittedTransaction() throws Exception {
     String suffix = createLinkSuffix();
     fakeOneDriveClient.setGetFailure(new ProviderApiException(
-        HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Item nao encontrado."));
+        HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Item não encontrado."));
 
     mockMvc.perform(get("/api/public/links/" + suffix))
         .andExpect(status().isNotFound())
@@ -341,7 +341,7 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   @Test
   void providerFailureOpeningContentLooksLikeMissingLink() throws Exception {
     String suffix = createLinkSuffix();
-    doThrow(new ProviderApiException("Nao foi possivel abrir o conteudo."))
+    doThrow(new ProviderApiException("Não foi possível abrir o conteúdo."))
         .when(fakeOneDriveClient).open(anyString(), any(CloudItem.class), any(ContentVariant.class));
 
     mockMvc.perform(get("/api/public/links/" + suffix + "/content"))

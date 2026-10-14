@@ -105,7 +105,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         DRIVE_BASE + "/files/generateIds?count=1&space=drive&fields=ids");
     String id = json.path("ids").path(0).asText(null);
     if (!StringUtils.hasText(id)) {
-      throw new ProviderApiException("Nao foi possivel reservar o identificador do arquivo.");
+      throw new ProviderApiException("Não foi possível reservar o identificador do arquivo.");
     }
     return new PreparedWrite(id, null);
   }
@@ -149,7 +149,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     WatchRegistration current = new WatchRegistration(channelId,
         response.path("resourceId").asText(null), parseExpiration(response.path("expiration").asText(null)));
     if (!StringUtils.hasText(current.resourceId())) {
-      throw new ProviderApiException("Nao foi possivel criar a inscricao do Google Drive.");
+      throw new ProviderApiException("Não foi possível criar a inscrição do Google Drive.");
     }
     if (previous != null && StringUtils.hasText(previous.id()) && StringUtils.hasText(previous.resourceId())) {
       authorizedPostJson(accessToken, DRIVE_BASE + "/channels/stop", """
@@ -215,7 +215,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         DRIVE_BASE + "/changes/startPageToken?fields=startPageToken&supportsAllDrives=true");
     String token = json.path("startPageToken").asText(null);
     if (!StringUtils.hasText(token)) {
-      throw new ProviderApiException("Nao foi possivel iniciar a sincronizacao do Google Drive.");
+      throw new ProviderApiException("Não foi possível iniciar a sincronização do Google Drive.");
     }
     return token;
   }
@@ -485,11 +485,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           out.write(tail);
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
+            throw new ProviderApiException("Não foi possível enviar o arquivo.");
           }
         });
     return mapCreated(json, parentRef);
@@ -524,11 +524,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         .contentType(MediaType.APPLICATION_JSON)
         .body(metadata)
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
           response.close();
           if (!StringUtils.hasText(location)) {
-            throw new ProviderApiException("Nao foi possivel iniciar o envio do arquivo.");
+            throw new ProviderApiException("Não foi possível iniciar o envio do arquivo.");
           }
           return location;
         });
@@ -547,11 +547,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           }
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel concluir o envio do arquivo.");
+            throw new ProviderApiException("Não foi possível concluir o envio do arquivo.");
           }
         });
     return mapCreated(json, parentRef);
@@ -614,7 +614,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -632,13 +632,13 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           } catch (SyncResetException ex) {
             throw ex;
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel sincronizar o Google Drive.");
+            throw new ProviderApiException("Não foi possível sincronizar o Google Drive.");
           }
           ensureSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -654,7 +654,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -670,7 +670,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -842,7 +842,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       return Base64.getUrlEncoder().withoutPadding().encodeToString(
           objectMapper.writeValueAsBytes(checkpoint));
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel salvar o checkpoint do Google Drive.");
+      throw new ProviderApiException("Não foi possível salvar o checkpoint do Google Drive.");
     }
   }
 
@@ -869,7 +869,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     try {
       return Instant.ofEpochMilli(Long.parseLong(value));
     } catch (NumberFormatException ex) {
-      throw new ProviderApiException("Expiracao da inscricao do Google Drive invalida.");
+      throw new ProviderApiException("Expiração da inscrição do Google Drive inválida.");
     }
   }
 
@@ -946,7 +946,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel abrir o conteudo.");
+      throw new ProviderApiException("Não foi possível abrir o conteúdo.");
     }
   }
 
@@ -964,6 +964,14 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   }
 
   private static void ensureSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, false);
+  }
+
+  private static void ensureWriteSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, true);
+  }
+
+  private static void ensureSuccess(ClientHttpResponse response, boolean write) {
     try {
       HttpStatusCode status = response.getStatusCode();
       if (!status.isError()) {
@@ -972,11 +980,15 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
       response.close();
-      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      if (write) {
+        ProviderHttpSupport.throwOnWriteError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      } else {
+        ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.GOOGLE_DRIVE);
+      }
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
   }
 
@@ -986,7 +998,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         return;
       }
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
     ensureSuccess(response);
   }

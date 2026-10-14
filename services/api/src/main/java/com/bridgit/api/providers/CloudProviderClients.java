@@ -25,7 +25,7 @@ public class CloudProviderClients {
       throw new ApiException(
           HttpStatus.SERVICE_UNAVAILABLE,
           "PROVEDOR_INDISPONIVEL",
-          "Este provedor de nuvem ainda nao esta disponivel."
+          "Este provedor de nuvem ainda não está disponível."
       );
     }
     return client;

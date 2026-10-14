@@ -6,10 +6,12 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.bridgit.api.providers.CloudItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Random;
+import com.bridgit.api.providers.ProviderApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -97,6 +99,19 @@ class GraphUploadTest {
         new ByteArrayResource(data));
 
     assertEquals("up-4", item.ref());
+    server.verify();
+  }
+
+  @Test
+  void simpleUpload413MapsToFileTooLarge() {
+    server.expect(requestTo("https://graph.microsoft.com/v1.0/me/drive/items/root:/big.bin:/content"))
+        .andRespond(withStatus(HttpStatus.PAYLOAD_TOO_LARGE).body("{\"error\":{\"code\":\"requestEntityTooLarge\"}}"));
+
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> client.upload(
+        "token", null, "big.bin", "application/octet-stream", 1, new ByteArrayResource(new byte[] {1})));
+
+    assertEquals("ARQUIVO_GRANDE_DEMAIS", ex.getCode());
+    assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, ex.getStatus());
     server.verify();
   }
 

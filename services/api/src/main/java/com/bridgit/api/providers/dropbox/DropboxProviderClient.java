@@ -27,10 +27,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -43,6 +46,8 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class DropboxProviderClient implements CloudProviderClient, CloudSyncClient {
+
+  private static final Logger log = LoggerFactory.getLogger(DropboxProviderClient.class);
 
   private static final String API_BASE = "https://api.dropboxapi.com/2";
   private static final String CONTENT_BASE = "https://content.dropboxapi.com/2";
@@ -176,11 +181,11 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
           }
         })
         .exchange((request, response) -> {
-          ensureSuccess(response);
+          ensureWriteSuccess(response);
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Nao foi possivel enviar o arquivo.");
+            throw new ProviderApiException("Não foi possível enviar o arquivo.");
           }
         });
     return mapEntry(json, listedParentRef(parentRef));
@@ -374,7 +379,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -390,7 +395,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
           try {
             return objectMapper.readTree(response.getBody());
           } catch (Exception ex) {
-            throw new ProviderApiException("Resposta invalida do provedor.");
+            throw new ProviderApiException("Resposta inválida do provedor.");
           }
         });
   }
@@ -581,7 +586,12 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
     if (!StringUtils.hasText(value)) {
       return null;
     }
-    return OffsetDateTime.ofInstant(Instant.parse(value), ZoneOffset.UTC);
+    try {
+      return OffsetDateTime.ofInstant(Instant.parse(value), ZoneOffset.UTC);
+    } catch (DateTimeParseException ex) {
+      log.debug("Ignoring invalid client_modified from Dropbox: {}", value);
+      return null;
+    }
   }
 
   static String escapeApiArg(String json) {
@@ -605,7 +615,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
     try {
       return objectMapper.writeValueAsString(values);
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel preparar a requisicao ao provedor.");
+      throw new ProviderApiException("Não foi possível preparar a requisição ao provedor.");
     }
   }
 
@@ -657,7 +667,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel abrir o conteudo.");
+      throw new ProviderApiException("Não foi possível abrir o conteúdo.");
     }
   }
 
@@ -675,6 +685,14 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
   }
 
   private static void ensureSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, false);
+  }
+
+  private static void ensureWriteSuccess(ClientHttpResponse response) {
+    ensureSuccess(response, true);
+  }
+
+  private static void ensureSuccess(ClientHttpResponse response, boolean write) {
     try {
       HttpStatusCode status = response.getStatusCode();
       if (!status.isError()) {
@@ -683,11 +701,15 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
       HttpHeaders headers = response.getHeaders();
       String body = readBody(response);
       response.close();
-      ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.DROPBOX);
+      if (write) {
+        ProviderHttpSupport.throwOnWriteError(status, headers, body, CloudProvider.DROPBOX);
+      } else {
+        ProviderHttpSupport.throwOnError(status, headers, body, CloudProvider.DROPBOX);
+      }
     } catch (ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
   }
 
@@ -697,7 +719,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
         return;
       }
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
     ensureSuccess(response);
   }
@@ -719,7 +741,7 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
     } catch (SyncResetException | ProviderApiException ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ProviderApiException("Nao foi possivel concluir a operacao.");
+      throw new ProviderApiException("Não foi possível concluir a operação.");
     }
   }
 

@@ -7,6 +7,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.ContentVariant;
@@ -79,6 +81,40 @@ class GraphProviderClientTest {
         "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=abc",
         page.nextCursor()
     );
+    server.verify();
+  }
+
+  @Test
+  void listTreatsInvalidModifiedDateAsMissing() {
+    server.expect(requestTo(org.hamcrest.Matchers.containsString("/me/drive/root/children")))
+        .andRespond(withSuccess("""
+            {
+              "value": [
+                {
+                  "id": "file-1",
+                  "name": "bad-date.txt",
+                  "size": 1,
+                  "file": { "mimeType": "text/plain" },
+                  "lastModifiedDateTime": "not-a-date",
+                  "parentReference": { "id": "root-id" }
+                },
+                {
+                  "id": "file-2",
+                  "name": "ok.txt",
+                  "size": 1,
+                  "file": { "mimeType": "text/plain" },
+                  "lastModifiedDateTime": "2026-01-02T00:00:00Z",
+                  "parentReference": { "id": "root-id" }
+                }
+              ]
+            }
+            """, MediaType.APPLICATION_JSON));
+
+    ItemPage page = client.list("token", null, null);
+
+    assertEquals(2, page.items().size());
+    assertNull(page.items().get(0).modifiedAt());
+    assertNotNull(page.items().get(1).modifiedAt());
     server.verify();
   }
 

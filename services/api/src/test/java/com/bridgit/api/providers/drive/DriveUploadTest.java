@@ -6,11 +6,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.bridgit.api.providers.CloudItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
+import com.bridgit.api.providers.ProviderApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -102,6 +104,21 @@ class DriveUploadTest {
         new ByteArrayResource(data));
 
     assertEquals("up-4", item.ref());
+    server.verify();
+  }
+
+  @Test
+  void multipartUpload413MapsToFileTooLarge() {
+    server.expect(requestTo("https://www.googleapis.com/drive/v3/files/root?fields=id"))
+        .andRespond(withSuccess("{\"id\":\"root-id\"}", MediaType.APPLICATION_JSON));
+    server.expect(requestTo(org.hamcrest.Matchers.containsString("uploadType=multipart")))
+        .andRespond(withStatus(HttpStatus.PAYLOAD_TOO_LARGE).body(""));
+
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> client.upload(
+        "token", null, "big.bin", "application/octet-stream", 1, new ByteArrayResource(new byte[] {1})));
+
+    assertEquals("ARQUIVO_GRANDE_DEMAIS", ex.getCode());
+    assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, ex.getStatus());
     server.verify();
   }
 
