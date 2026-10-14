@@ -217,13 +217,13 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| lacuna | ✅ Sem escrita condicional; `expectedVersion` é ignorado (ver o finding de versão no arquivo dos testes de 13/10) | `GoogleDriveProviderClient` |
+| lacuna | Sem escrita condicional; `expectedVersion` é ignorado (ver o finding de versão no arquivo dos testes de 13/10) (✅ em `fix/google-drive` a versão que o `OperationWorker` compara antes de escrever passou a ser confiável; o Drive continua sem escrita condicional atômica) | `GoogleDriveProviderClient` |
 | lacuna | ✅ Só o primeiro pai é considerado; mover remove só o primeiro pai. Provável bug extra: itens na raiz têm pai `null`, então mover a partir da raiz não remove o pai antigo | `GoogleDriveProviderClient` |
 | lacuna | ✅ ID da raiz não é guardado; cada listagem da raiz e cada `get` fazem uma chamada extra | `GoogleDriveProviderClient` |
 | lacuna | Upload resumable feito num único `PUT`, sem retomada (fica aberto: com o limite de 50 MB a retomada ajuda pouco) | `GoogleDriveProviderClient` |
 | lacuna | Busca só por nome, sem paginação, sem validar consulta vazia (✅ pagina e ignora consulta vazia em `fix/google-drive`; continua só por nome) | `GoogleDriveProviderClient` |
 | inconsistência | ✅ Inventário com `corpora=user`; feed e canal cobrem drives compartilhados | `GoogleDriveProviderClient` |
-| inconsistência | ✅ `incompleteSearch` só é conferido no inventário | `GoogleDriveProviderClient` |
+| inconsistência | `incompleteSearch` só é conferido no inventário (✅ em `fix/google-drive` a busca também confere e registra no log; a resposta ainda não diz ao cliente que é parcial) | `GoogleDriveProviderClient` |
 | lacuna | ✅ Atalhos do Drive e Formulários tratados como arquivo comum | `ReadPlanSupport` |
 | risco | ✅ `ancestry` sem limite de profundidade nem proteção contra ciclo | `GoogleDriveProviderClient` |
 | lacuna | ✅ Limite de exportação (403 `exportSizeLimitExceeded`) vira `SEM_PERMISSAO` | `ProviderHttpSupport` |

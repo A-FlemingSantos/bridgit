@@ -241,6 +241,16 @@ class ProviderHttpSupportTest {
     assertEquals(HttpStatus.INSUFFICIENT_STORAGE, ex.getStatus());
   }
 
+  @Test
+  void maps507ToNoSpaceInsteadOfUnavailable() {
+    ProviderApiException ex = assertThrows(
+        ProviderApiException.class,
+        () -> ProviderHttpSupport.throwOnError(HttpStatus.INSUFFICIENT_STORAGE, "{\"error\":{\"code\":\"quotaLimitReached\"}}")
+    );
+    assertEquals("PROVEDOR_SEM_ESPACO", ex.getCode());
+    assertEquals(HttpStatus.INSUFFICIENT_STORAGE, ex.getStatus());
+  }
+
   @ParameterizedTest
   @CsvSource({
       "'{\"error_summary\": \"path/malformed_path/..\"}'",

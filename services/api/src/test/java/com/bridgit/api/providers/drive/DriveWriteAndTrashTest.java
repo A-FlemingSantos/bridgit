@@ -191,7 +191,7 @@ class DriveWriteAndTrashTest {
     server.expect(requestTo(allOf(containsString("/changes?pageToken=changes-1"), containsString("restrictToMyDrive=true"))))
         .andRespond(withSuccess("""
             {"newStartPageToken":"changes-2","changes":[
-              {"fileId":"unshared","file":{"id":"unshared","name":"c.txt","mimeType":"text/plain","parents":[]}}
+              {"fileId":"unshared","file":{"id":"unshared","name":"c.txt","mimeType":"text/plain"}}
             ]}
             """, MediaType.APPLICATION_JSON));
 

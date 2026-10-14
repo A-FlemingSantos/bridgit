@@ -267,8 +267,10 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
     if (!file.isObject()) {
       return new CloudChange(ref, null, false, null, null, Set.of());
     }
-    if (file.has("parents") && !hasParent(file)) {
-      // Lost its last visible parent (for instance unshared): out of the hub's tree, like in the inventory.
+    // Lost its last visible parent (for instance unshared): out of the hub's tree, like in the inventory.
+    // Drive omits "parents" when there is none, so a full object (it always carries mimeType) without
+    // parents counts; a partial change that only names some fields does not.
+    if ((file.has("parents") || file.has("mimeType")) && !hasParent(file)) {
       return CloudChange.removed(ref);
     }
     return new CloudChange(ref, mapFile(file, rootRef), false, null, null, knownFields(file));

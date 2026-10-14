@@ -163,7 +163,8 @@ export function isApiClientError(error) {
 
 export function isExplicitRejection(error) {
   if (isApiClientError(error)) {
-    return error.status >= 400 && error.status < 500
+    // A full provider account (507) is a definite refusal, not an unknown outcome.
+    return (error.status >= 400 && error.status < 500) || error.code === 'PROVEDOR_SEM_ESPACO'
   }
   return false
 }

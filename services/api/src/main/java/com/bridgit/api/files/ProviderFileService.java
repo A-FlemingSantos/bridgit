@@ -255,14 +255,6 @@ public class ProviderFileService {
     return new FilesDtos.TicketResponse("/api/content/" + issued.ticket(), issued.expiresAt());
   }
 
-  public ContentStream openTicketContent(String ticket) {
-    return openTicketContent(ticket, null);
-  }
-
-  public ContentStream openTicketContent(String ticket, String rangeHeader) {
-    return openTicketContent(contentTicketService.parseTicket(ticket), rangeHeader);
-  }
-
   public ContentStream openTicketContent(ContentTicketService.ContentTicket parsed, String rangeHeader) {
     ProviderConnectionEntity connection = connectionService.findById(parsed.connectionId())
         .orElseThrow(() -> new com.bridgit.api.common.error.NotFoundException(
