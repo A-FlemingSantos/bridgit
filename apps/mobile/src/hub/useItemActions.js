@@ -53,7 +53,9 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   const remove = (entry) => setDialog({
     type: 'confirm',
     title: entry.isFolder ? 'Excluir pasta' : 'Excluir arquivo',
-    message: `"${entry.name}" será excluído do provedor.`,
+    message: entry.isFolder
+      ? `"${entry.name}" e tudo o que está dentro dela vão para a lixeira do provedor.`
+      : `"${entry.name}" vai para a lixeira do provedor.`,
     confirmLabel: 'Excluir',
     danger: true,
     onSubmit: async () => {
