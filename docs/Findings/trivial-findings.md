@@ -173,7 +173,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | Tipo | Finding | Onde |
 |---|---|---|
 | lacuna | OneDrive: desconectar não revoga o acesso na Microsoft | `MicrosoftOAuthClient.revoke` |
-| bug | Google: a URL de revogação concatena o token sem codificar | `GoogleOAuthClient.revoke` |
+| bug | ✅ Google: a URL de revogação concatena o token sem codificar | `GoogleOAuthClient.revoke` |
 | risco | Dropbox sem PKCE (intencional: o Dropbox recusa PKCE para apps confidenciais) | `DropboxOAuthClient` |
 | morto | ✅ `ProviderConnectionRepository.deleteByUserIdAndProvider` | repositório |
 | lacuna | Escopos concedidos são gravados, mas não conferidos | `ProviderConnectionService` |
@@ -187,8 +187,8 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| bug | JSON montado à mão com `escapeJson` que não escapa caracteres de controle; nome com quebra de linha gera JSON inválido | Graph, Drive, chamadas `rpc` do Dropbox |
-| risco | `ref` concatenado em URLs sem codificação | Graph, Drive |
+| bug | JSON montado à mão com `escapeJson` que não escapa caracteres de controle; nome com quebra de linha gera JSON inválido (✅ no Google Drive em `fix/google-drive`; Graph e Dropbox continuam) | Graph, Drive, chamadas `rpc` do Dropbox |
+| risco | `ref` concatenado em URLs sem codificação (✅ no Google Drive em `fix/google-drive`; Graph continua) | Graph, Drive |
 | inconsistência | ✅ Todo 413 vira `CONVERSAO_GRANDE_DEMAIS`, inclusive em upload | `ProviderHttpSupport` |
 | risco | ✅ `isNameConflict` decide por substring, inclusive "conflict" | `ProviderHttpSupport` |
 | lacuna | ✅ `parseRetryAfter` ignora `Retry-After` em formato de data | `ProviderHttpSupport` |
@@ -215,17 +215,17 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| lacuna | Sem escrita condicional; `expectedVersion` é ignorado (ver o finding de versão no arquivo dos testes de 13/10) | `GoogleDriveProviderClient` |
-| lacuna | Só o primeiro pai é considerado; mover remove só o primeiro pai. Provável bug extra: itens na raiz têm pai `null`, então mover a partir da raiz não remove o pai antigo | `GoogleDriveProviderClient` |
-| lacuna | ID da raiz não é guardado; cada listagem da raiz e cada `get` fazem uma chamada extra | `GoogleDriveProviderClient` |
-| lacuna | Upload resumable feito num único `PUT`, sem retomada | `GoogleDriveProviderClient` |
-| lacuna | Busca só por nome, sem paginação, sem validar consulta vazia | `GoogleDriveProviderClient` |
-| inconsistência | Inventário com `corpora=user`; feed e canal cobrem drives compartilhados | `GoogleDriveProviderClient` |
-| inconsistência | `incompleteSearch` só é conferido no inventário | `GoogleDriveProviderClient` |
-| lacuna | Atalhos do Drive e Formulários tratados como arquivo comum | `ReadPlanSupport` |
-| risco | `ancestry` sem limite de profundidade nem proteção contra ciclo | `GoogleDriveProviderClient` |
-| lacuna | Limite de exportação (403 `exportSizeLimitExceeded`) vira `SEM_PERMISSAO` | `ProviderHttpSupport` |
-| lacuna | Sem testes para update, move e delete (o 403 é testado só em `ProviderHttpSupportTest`) | testes |
+| lacuna | ✅ Sem escrita condicional; `expectedVersion` é ignorado (ver o finding de versão no arquivo dos testes de 13/10) | `GoogleDriveProviderClient` |
+| lacuna | ✅ Só o primeiro pai é considerado; mover remove só o primeiro pai. Provável bug extra: itens na raiz têm pai `null`, então mover a partir da raiz não remove o pai antigo | `GoogleDriveProviderClient` |
+| lacuna | ✅ ID da raiz não é guardado; cada listagem da raiz e cada `get` fazem uma chamada extra | `GoogleDriveProviderClient` |
+| lacuna | Upload resumable feito num único `PUT`, sem retomada (fica aberto: com o limite de 50 MB a retomada ajuda pouco) | `GoogleDriveProviderClient` |
+| lacuna | Busca só por nome, sem paginação, sem validar consulta vazia (✅ pagina e ignora consulta vazia em `fix/google-drive`; continua só por nome) | `GoogleDriveProviderClient` |
+| inconsistência | ✅ Inventário com `corpora=user`; feed e canal cobrem drives compartilhados | `GoogleDriveProviderClient` |
+| inconsistência | ✅ `incompleteSearch` só é conferido no inventário | `GoogleDriveProviderClient` |
+| lacuna | ✅ Atalhos do Drive e Formulários tratados como arquivo comum | `ReadPlanSupport` |
+| risco | ✅ `ancestry` sem limite de profundidade nem proteção contra ciclo | `GoogleDriveProviderClient` |
+| lacuna | ✅ Limite de exportação (403 `exportSizeLimitExceeded`) vira `SEM_PERMISSAO` | `ProviderHttpSupport` |
+| lacuna | ✅ Sem testes para update, move e delete (o 403 é testado só em `ProviderHttpSupportTest`) | testes |
 
 ### Dropbox
 

@@ -10,6 +10,8 @@ Os findings estão em ordem de peso. Os primeiros mexem em arquitetura e pedem d
 
 **Peso:** alto. Mexe no contrato de concorrência das operações, no catálogo local e no cliente do Google Drive. Afeta web e mobile.
 
+**Status:** código resolvido em `fix/google-drive`, seguindo a opção 1. `remoteVersion` passa a ser a revisão do conteúdo (ou checksum), e `modifiedTime` nos nativos. Item na lixeira responde 404, e o `OperationWorker` trata o 404 de um DELETE como feito. O checkpoint do Drive ganhou formato `v=2`, o que força uma única reconstrução do catálogo. **Falta confirmar com a conta real**, depois do deploy da branch: renomear `Livros de Matemática.docx`, excluir algo já na lixeira e ver "PDFs" sumir.
+
 ### O que o usuário vê
 
 Renomear ou excluir certos arquivos do Google Drive falha com "O arquivo foi alterado. Atualize e tente de novo.", sem que ninguém tenha mexido no arquivo. Atualizar a tela não resolve. O caso visto foi `Livros de Matemática.docx`, parado desde o upload. Outros arquivos, como o `package.json`, renomeiam normalmente.
@@ -194,6 +196,8 @@ Foi assim que o bug do upload no mobile se apresentou em 13/10. O upload foi cor
 ## 12. Google Drive: arquivos sem pasta visível não aparecem em lugar nenhum
 
 **Peso:** baixo, mas é uma lacuna de produto.
+
+**Status:** resolvido em `fix/google-drive`, pela decisão de ignorar esses itens explicitamente. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos atuais saem na reconstrução do catálogo.
 
 Arquivos compartilhados com o usuário, e não adicionados ao Meu Drive, chegam no inventário sem pai visível. O catálogo os grava com `parentKnown=false`, e eles não aparecem na raiz nem em nenhuma pasta. Foram vistos três casos no catálogo de 13/10. Falta decidir se o Bridgit mostra "Compartilhados comigo" ou ignora esses itens de forma explícita.
 
