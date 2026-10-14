@@ -88,7 +88,7 @@ No dia 13/10, mobile e web passaram a ler o `lastError` da lista de provedores e
 
 **Peso:** médio. Mexe no modelo de eventos e no jeito como o mobile recarrega.
 
-**Status:** resolvido em `fix/catalogo-e-eventos`. O mobile troca o contador global por invalidação por escopo (Home, pasta, item); a lista de provedores não recarrega mais a cada evento. O web também recarrega só o que o evento afeta. Recentes passam a gerar `hub_entries` (`entry: recent`), que só recarrega a Home.
+**Status:** resolvido em `fix/catalogo-e-eventos`. O mobile troca o contador global por invalidação por escopo (Home, pasta, item); a lista de provedores não recarrega mais a cada evento. O web também recarrega só o que o evento afeta. Recentes passam a gerar `hub_entries` (`entry: recent`), que só recarrega a Home. No teste de 14/10, o web ignorava todos os eventos de outros aparelhos. A API devolvia o `connectionId` do evento em maiúsculas, como o SQL Server guarda o `uniqueidentifier`, e o web compara com o id em minúsculas da lista de provedores. O mobile já comparava sem diferenciar maiúsculas. A API passou a devolver o id em minúsculas. Depois disso, outro navegador logado viu a pasta criada em 1,3 s e a exclusão em 1,7 s.
 
 O mobile e o web acompanham mudanças por eventos do servidor (`cloud_events`), lidos por polling no mobile e por SSE no web. Até 13/10, só operações (criar, renomear, excluir, enviar) e mudanças vindas dos provedores geravam eventos. No dia, atalhos e links públicos passaram a gerar `hub_entries`.
 
