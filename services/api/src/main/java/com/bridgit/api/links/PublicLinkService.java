@@ -1,13 +1,15 @@
 package com.bridgit.api.links;
 
+import com.bridgit.api.common.error.ApiException;
 import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.error.NotFoundException;
+import com.bridgit.api.common.error.TooManyRequestsException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
+import com.bridgit.api.common.security.RateLimiter;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
 import com.bridgit.api.integrations.ProviderRetryService;
-import com.bridgit.api.integrations.ReconnectionRequiredException;
 import com.bridgit.api.links.LinkDtos.OwnerPublicLinkResponse;
 import com.bridgit.api.links.LinkDtos.PublicLinkMetadata;
 import com.bridgit.api.providers.CloudItem;
@@ -25,9 +27,14 @@ import com.bridgit.api.providers.ReadPlan;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -42,7 +49,14 @@ public class PublicLinkService {
 
   private static final String LINK_NOT_FOUND_CODE = "LINK_NAO_ENCONTRADO";
   private static final String LINK_NOT_FOUND_MESSAGE = "Este link publico nao esta disponivel.";
+  private static final String LINK_UNAVAILABLE_MESSAGE = "O arquivo nao esta disponivel agora. Tente de novo em instantes.";
+  private static final String TOO_MANY_ACCESSES_CODE = "MUITOS_ACESSOS";
+  private static final String TOO_MANY_ACCESSES_MESSAGE = "Muitos acessos a este link. Tente de novo em instantes.";
   private static final int SUFFIX_COLLISION_RETRIES = 8;
+  private static final Duration ACCESS_WINDOW = Duration.ofMinutes(1);
+  // Visits and range requests would otherwise rewrite the row every time; a minute of resolution is plenty.
+  private static final Duration LAST_ACCESS_RESOLUTION = Duration.ofMinutes(1);
+  private static final Logger logger = LoggerFactory.getLogger(PublicLinkService.class);
 
   private final PublicLinkRepository linkRepository;
   private final ProviderConnectionRepository connectionRepository;
@@ -54,6 +68,7 @@ public class PublicLinkService {
   private final TransactionTemplate shortTemplate;
   private final TransactionTemplate requiresNewTemplate;
   private final Clock clock;
+  private final RateLimiter accessLimiter;
   private final String frontendBaseUrl;
 
   public PublicLinkService(
@@ -66,7 +81,9 @@ public class PublicLinkService {
       ContentStreamResponder contentStreamResponder,
       PlatformTransactionManager transactionManager,
       Clock clock,
-      @Value("${app.frontend-base-url}") String frontendBaseUrl
+      @Value("${app.frontend-base-url}") String frontendBaseUrl,
+      @Value("${app.public-links.max-accesses-per-minute:60}") int maxAccessesPerMinute,
+      @Value("${app.public-links.max-tracked-keys:10000}") int maxTrackedKeys
   ) {
     this.linkRepository = linkRepository;
     this.connectionRepository = connectionRepository;
@@ -79,6 +96,7 @@ public class PublicLinkService {
     this.requiresNewTemplate = new TransactionTemplate(transactionManager);
     this.requiresNewTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     this.clock = clock;
+    this.accessLimiter = new RateLimiter(maxAccessesPerMinute, ACCESS_WINDOW, maxTrackedKeys, clock);
     this.frontendBaseUrl = trimTrailingSlash(frontendBaseUrl);
   }
 
@@ -130,16 +148,14 @@ public class PublicLinkService {
         Map.of("entry", "public_link", "ref", ref, "removed", removed));
   }
 
-  @Transactional
-  public PublicLinkMetadata getPublicMetadata(String suffix) {
-    ResolvedPublicLink resolved = resolvePublicLink(suffix);
-    ReadPlan readPlan = resolved.client().readPlan(resolved.item());
+  public PublicLinkMetadata getPublicMetadata(String suffix, String clientIp) {
+    ResolvedPublicLink resolved = resolvePublicLink(suffix, clientIp);
+    ReadPlan readPlan = publicProviderStep(() -> resolved.client().readPlan(resolved.item()));
     String readUrl = readPlan.mode() == ReadMode.NONE
         ? null
         : "/api/public/links/" + suffix + "/content?variant=read";
 
-    resolved.link().setLastAccessedAt(OffsetDateTime.now(clock));
-    linkRepository.save(resolved.link());
+    recordAccess(resolved.link().getId(), resolved.item());
 
     return new PublicLinkMetadata(
         resolved.item().name(),
@@ -153,18 +169,15 @@ public class PublicLinkService {
     );
   }
 
-  public void streamPublicContent(String suffix, String variant, HttpServletResponse response) throws IOException {
-    streamPublicContent(suffix, variant, null, response);
-  }
-
   public void streamPublicContent(
       String suffix,
       String variant,
       String rangeHeader,
+      String clientIp,
       HttpServletResponse response
   ) throws IOException {
-    PublicLinkContext context = shortTemplate.execute(status -> resolveLinkContext(suffix));
-    ReadPlan readPlan = context.client().readPlan(context.item());
+    ResolvedPublicLink context = resolvePublicLink(suffix, clientIp);
+    ReadPlan readPlan = publicProviderStep(() -> context.client().readPlan(context.item()));
 
     boolean readVariant = "read".equalsIgnoreCase(variant);
     if (readVariant && readPlan.mode() == ReadMode.NONE) {
@@ -177,12 +190,13 @@ public class PublicLinkService {
       range = ContentRange.parseSingle(rangeHeader, context.item().size());
     }
     ContentRange resolvedRange = range;
-    ContentStream stream = retryService.withRetry(
+    // Once the response body starts the status cannot change, so every provider failure is handled here.
+    ContentStream stream = publicProviderStep(() -> retryService.withRetry(
         context.connection(),
         token -> resolvedRange == null
             ? context.client().open(token, context.item(), contentVariant)
             : context.client().open(token, context.item(), contentVariant, resolvedRange)
-    );
+    ));
 
     try (stream) {
       contentStreamResponder.write(
@@ -199,12 +213,45 @@ public class PublicLinkService {
       throw ex;
     }
 
-    shortTemplate.executeWithoutResult(status -> {
-      linkRepository.findById(context.linkId()).ifPresent(link -> {
-        link.setLastAccessedAt(OffsetDateTime.now(clock));
-        linkRepository.save(link);
-      });
-    });
+    recordAccess(context.link().getId(), context.item());
+  }
+
+  // Keeps the stored snapshot fresh and the last access current, in a single short write at most.
+  private void recordAccess(UUID linkId, CloudItem item) {
+    shortTemplate.executeWithoutResult(status ->
+        linkRepository.findById(linkId).ifPresent(link -> {
+          boolean changed = applySnapshot(link, item);
+          OffsetDateTime now = OffsetDateTime.now(clock);
+          OffsetDateTime last = link.getLastAccessedAt();
+          if (last == null || last.isBefore(now.minus(LAST_ACCESS_RESOLUTION))) {
+            link.setLastAccessedAt(now);
+            changed = true;
+          }
+          if (changed) {
+            linkRepository.save(link);
+          }
+        }));
+  }
+
+  private static boolean applySnapshot(PublicLinkEntity link, CloudItem item) {
+    boolean changed = false;
+    if (!Objects.equals(link.getName(), item.name())) {
+      link.setName(item.name());
+      changed = true;
+    }
+    if (!Objects.equals(link.getMimeType(), item.mimeType())) {
+      link.setMimeType(item.mimeType());
+      changed = true;
+    }
+    if (!Objects.equals(link.getExtension(), item.extension())) {
+      link.setExtension(item.extension());
+      changed = true;
+    }
+    if (!Objects.equals(link.getSize(), item.size())) {
+      link.setSize(item.size());
+      changed = true;
+    }
+    return changed;
   }
 
   private PublicLinkEntity createLink(
@@ -236,21 +283,11 @@ public class PublicLinkService {
     throw new IllegalStateException("Nao foi possivel gerar um sufixo unico para o link publico.");
   }
 
-  private PublicLinkContext resolveLinkContext(String suffix) {
-    ResolvedPublicLink resolved = resolvePublicLink(suffix);
-    return new PublicLinkContext(
-        resolved.link().getId(),
-        resolved.provider(),
-        resolved.client(),
-        resolved.item(),
-        resolved.connection()
-    );
-  }
-
-  private ResolvedPublicLink resolvePublicLink(String suffix) {
+  private ResolvedPublicLink resolvePublicLink(String suffix, String clientIp) {
     if (!LinkSuffixGenerator.isValid(suffix)) {
       throw linkNotFound();
     }
+    enforceAccessLimit(suffix, clientIp);
 
     PublicLinkEntity link = linkRepository.findBySuffix(suffix).orElseThrow(this::linkNotFound);
     ProviderConnectionEntity connection = connectionService.findById(link.getConnectionId())
@@ -260,36 +297,66 @@ public class PublicLinkService {
       throw linkNotFound();
     }
 
-    CloudProvider provider = CloudProvider.fromId(connection.getProvider());
-    CloudProviderClient client = providerClients.get(provider);
-
     try {
+      CloudProvider provider = CloudProvider.fromId(connection.getProvider());
+      CloudProviderClient client = providerClients.get(provider);
       CloudItem item = retryService.withRetry(
           connection,
           token -> client.get(token, link.getItemRef())
       );
-
-      link.setName(item.name());
-      link.setMimeType(item.mimeType());
-      link.setExtension(item.extension());
-      link.setSize(item.size());
-      linkRepository.save(link);
-
       return new ResolvedPublicLink(link, provider, client, item, connection);
-    } catch (ReconnectionRequiredException ex) {
-      throw linkNotFound();
-    } catch (ProviderApiException ex) {
-      if ("TOKEN_PROVEDOR_INVALIDO".equals(ex.getCode())) {
-        throw ex;
-      }
-      if (ex.getStatus() == HttpStatus.NOT_FOUND) {
+    } catch (RuntimeException ex) {
+      boolean itemGone = ex instanceof NotFoundException
+          || (ex instanceof ProviderApiException providerEx && providerEx.getStatus() == HttpStatus.NOT_FOUND);
+      if (itemGone) {
         deleteLinkInNewTransaction(link.getId());
       }
-      throw linkNotFound();
-    } catch (NotFoundException ex) {
-      deleteLinkInNewTransaction(link.getId());
-      throw linkNotFound();
+      throw publicFailure(ex);
     }
+  }
+
+  // Per link and visitor address, counting metadata and content alike. Blocked attempts are not recorded,
+  // so the window drains while the visitor waits.
+  private void enforceAccessLimit(String suffix, String clientIp) {
+    String key = suffix + "|" + (clientIp == null ? "" : clientIp);
+    long retryAfter = accessLimiter.retryAfterSeconds(key);
+    if (retryAfter > 0) {
+      throw new TooManyRequestsException(TOO_MANY_ACCESSES_CODE, TOO_MANY_ACCESSES_MESSAGE, retryAfter);
+    }
+    accessLimiter.record(key);
+  }
+
+  private <T> T publicProviderStep(Supplier<T> step) {
+    try {
+      return step.get();
+    } catch (RuntimeException ex) {
+      throw publicFailure(ex);
+    }
+  }
+
+  /**
+   * One answer for the whole anonymous chain. What a visitor can do nothing about, or must not learn
+   * (missing item, no permission, invalid token, reconnection needed), is a plain 404; only a provider
+   * hiccup that may pass (429, 503, 504) says to try again. Anything else is left alone as a server error.
+   */
+  private RuntimeException publicFailure(RuntimeException ex) {
+    if (ex instanceof ProviderApiException providerEx && isTransient(providerEx)) {
+      logger.warn("Public link provider failure code={} status={}", providerEx.getCode(), providerEx.getStatus());
+      return new LinkUnavailableException(LINK_UNAVAILABLE_MESSAGE, providerEx.getRetryAfterSeconds());
+    }
+    if (ex instanceof ApiException) {
+      return linkNotFound();
+    }
+    return ex;
+  }
+
+  private static boolean isTransient(ProviderApiException ex) {
+    HttpStatus status = ex.getStatus();
+    return status == HttpStatus.TOO_MANY_REQUESTS
+        || status == HttpStatus.SERVICE_UNAVAILABLE
+        || status == HttpStatus.GATEWAY_TIMEOUT
+        || "PROVEDOR_INDISPONIVEL".equals(ex.getCode())
+        || "PROVEDOR_LIMITADO".equals(ex.getCode());
   }
 
   private void deleteLinkInNewTransaction(UUID linkId) {
@@ -330,15 +397,6 @@ public class PublicLinkService {
 
   private record ResolvedPublicLink(
       PublicLinkEntity link,
-      CloudProvider provider,
-      CloudProviderClient client,
-      CloudItem item,
-      ProviderConnectionEntity connection
-  ) {
-  }
-
-  private record PublicLinkContext(
-      UUID linkId,
       CloudProvider provider,
       CloudProviderClient client,
       CloudItem item,

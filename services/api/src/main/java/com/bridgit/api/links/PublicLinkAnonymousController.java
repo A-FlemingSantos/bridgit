@@ -2,6 +2,7 @@ package com.bridgit.api.links;
 
 import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.links.LinkDtos.PublicLinkMetadata;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.http.ResponseEntity;
@@ -27,10 +28,13 @@ public class PublicLinkAnonymousController {
   }
 
   @GetMapping("/{suffix}")
-  public ResponseEntity<ApiEnvelope<PublicLinkMetadata>> getMetadata(@PathVariable String suffix) {
+  public ResponseEntity<ApiEnvelope<PublicLinkMetadata>> getMetadata(
+      @PathVariable String suffix,
+      HttpServletRequest request
+  ) {
     return ResponseEntity.ok()
         .header("X-Robots-Tag", NO_INDEX)
-        .body(ApiEnvelope.ok(publicLinkService.getPublicMetadata(suffix)));
+        .body(ApiEnvelope.ok(publicLinkService.getPublicMetadata(suffix, request.getRemoteAddr())));
   }
 
   @GetMapping("/{suffix}/content")
@@ -38,9 +42,10 @@ public class PublicLinkAnonymousController {
       @PathVariable String suffix,
       @RequestParam(required = false) String variant,
       @RequestHeader(value = "Range", required = false) String range,
+      HttpServletRequest request,
       HttpServletResponse response
   ) throws IOException {
     response.setHeader("X-Robots-Tag", NO_INDEX);
-    publicLinkService.streamPublicContent(suffix, variant, range, response);
+    publicLinkService.streamPublicContent(suffix, variant, range, request.getRemoteAddr(), response);
   }
 }

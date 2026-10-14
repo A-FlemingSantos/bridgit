@@ -10,6 +10,34 @@ import styles from './PublicLinkPage.module.css'
 
 const DEFAULT_TITLE = 'Bridgit'
 
+const UNAVAILABLE_STATE = { title: 'Link indisponível', message: 'Link indisponível', canRetry: false }
+
+function errorState(err) {
+  if (err instanceof ApiClientError) {
+    if (err.code === 'LINK_NAO_ENCONTRADO') return UNAVAILABLE_STATE
+    if (err.code === 'LINK_INDISPONIVEL') {
+      return {
+        title: 'Arquivo temporariamente indisponível',
+        message: 'O arquivo não está disponível agora. Tente de novo em instantes.',
+        canRetry: true,
+      }
+    }
+    if (err.code === 'MUITOS_ACESSOS') {
+      return {
+        title: 'Muitos acessos',
+        message: 'Muitos acessos a este link. Tente de novo em instantes.',
+        canRetry: true,
+      }
+    }
+    return { title: 'Link indisponível', message: err.message, canRetry: false }
+  }
+  return {
+    title: 'Link indisponível',
+    message: 'Não foi possível carregar este link.',
+    canRetry: false,
+  }
+}
+
 export default function PublicLinkPage() {
   const { linkRef } = useParams()
   const suffix = useMemo(() => parseLinkSuffix(linkRef), [linkRef])
@@ -52,13 +80,7 @@ export default function PublicLinkPage() {
       } catch (err) {
         if (cancelled) return
 
-        if (err instanceof ApiClientError && err.code === 'LINK_NAO_ENCONTRADO') {
-          setError('Link indisponível')
-        } else if (err instanceof ApiClientError) {
-          setError(err.message)
-        } else {
-          setError('Não foi possível carregar este link.')
-        }
+        setError(errorState(err))
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -70,7 +92,7 @@ export default function PublicLinkPage() {
       loadLink()
     } else {
       setLoading(false)
-      setError('Link indisponível')
+      setError(UNAVAILABLE_STATE)
     }
 
     return () => {
@@ -117,8 +139,17 @@ export default function PublicLinkPage() {
 
         {!loading && error ? (
           <div className={styles.state} role="alert">
-            <h1 className={styles.stateTitle}>Link indisponível</h1>
-            <p className={styles.stateCopy}>{error}</p>
+            <h1 className={styles.stateTitle}>{error.title}</h1>
+            <p className={styles.stateCopy}>{error.message}</p>
+            {error.canRetry ? (
+              <button
+                type="button"
+                className={styles.download}
+                onClick={() => setReloadTick((tick) => tick + 1)}
+              >
+                Tentar de novo
+              </button>
+            ) : null}
           </div>
         ) : null}
 

@@ -1,5 +1,6 @@
 import { ApiClientError, apiRequest } from '@bridgit/shared-client'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PublicLinkPage from './PublicLinkPage.jsx'
@@ -86,6 +87,55 @@ describe('PublicLinkPage', () => {
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Link indisponível' })).toBeInTheDocument()
+  })
+
+  it('oferece tentar de novo quando o arquivo esta temporariamente indisponivel', async () => {
+    apiRequest
+      .mockRejectedValueOnce(
+        new ApiClientError('O arquivo nao esta disponivel agora.', {
+          code: 'LINK_INDISPONIVEL',
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce({
+        name: 'Relatorio Anual',
+        mimeType: 'application/pdf',
+        extension: 'pdf',
+        size: 2048,
+        mode: 'pdf',
+        providerName: 'Google Drive',
+        contentUrl: '/api/public/links/abc1234567890ABCD/content',
+        readUrl: '/api/public/links/abc1234567890ABCD/content?variant=read',
+      })
+
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'O arquivo não está disponível agora. Tente de novo em instantes.',
+    )
+    expect(screen.queryByRole('heading', { name: 'Link indisponível' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
+
+    expect(await screen.findByRole('heading', { name: 'Relatorio Anual', level: 1 })).toBeInTheDocument()
+    expect(apiRequest).toHaveBeenCalledTimes(2)
+  })
+
+  it('mostra mensagem propria quando ha muitos acessos', async () => {
+    apiRequest.mockRejectedValue(
+      new ApiClientError('Muitos acessos a este link.', {
+        code: 'MUITOS_ACESSOS',
+        status: 429,
+      }),
+    )
+
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Muitos acessos a este link. Tente de novo em instantes.',
+    )
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Link indisponível' })).not.toBeInTheDocument()
   })
 
   it('adiciona meta noindex enquanto montado', async () => {
