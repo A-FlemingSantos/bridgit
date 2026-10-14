@@ -157,8 +157,9 @@ export function useSettings() {
     }))
   }, [guard, token])
 
-  const deleteAccount = useCallback(async () => {
-    const message = await guard(() => apiRequest('/api/account', { method: 'DELETE', token }))
+  const deleteAccount = useCallback(async (password) => {
+    if (!password) return 'Informe sua senha para excluir a conta.'
+    const message = await guard(() => apiRequest('/api/account', { method: 'DELETE', token, body: { password } }))
     if (!message) await logout()
     return message
   }, [guard, token, logout])
