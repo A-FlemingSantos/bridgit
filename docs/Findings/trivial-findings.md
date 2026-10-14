@@ -28,6 +28,8 @@ Ligado a isso: sessões e tickets de conteúdo usam o mesmo segredo. O emissor e
 
 ✅ **Resolvido em `fix/seguranca`:** 5 falhas por usuário e 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente passa pelo mesmo bcrypt; excluir a conta exige a senha (web e mobile).
 
+⚠️ **Pendente, decidir no deploy (Azure):** os limites por endereço, do login e dos links públicos (`MUITOS_ACESSOS`), usam `request.getRemoteAddr()`. Atrás de um proxy reverso, esse é o endereço do proxy. Todos os visitantes passam a contar como um só, e 20 falhas de login de qualquer pessoa bloqueiam o login de todos por 15 minutos. O proxy ainda não foi escolhido. Quando for, configurar a API para ler o endereço real do cliente no cabeçalho que o proxy repassa (`X-Forwarded-For`), confiando só nesse proxy, por exemplo com `server.forward-headers-strategy`. Se o deploy tiver mais de uma instância, os limites, que ficam em memória, também passam a valer por instância (ver "Travas e caches que só valem dentro de uma instância").
+
 O login não tem limite de tentativas nem bloqueio. Além disso, um usuário inexistente responde mais rápido que uma senha errada: o `AuthService.login` só roda o bcrypt quando o usuário existe, o que permite descobrir nomes de usuário pelo tempo de resposta.
 
 Também na área de conta: excluir a conta não pede a senha (`DELETE /api/account` sem corpo). Quem tiver uma sessão aberta apaga a conta inteira.
