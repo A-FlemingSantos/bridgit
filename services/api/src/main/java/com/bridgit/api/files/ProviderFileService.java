@@ -260,7 +260,10 @@ public class ProviderFileService {
   }
 
   public ContentStream openTicketContent(String ticket, String rangeHeader) {
-    ContentTicketService.ContentTicket parsed = contentTicketService.parseTicket(ticket);
+    return openTicketContent(contentTicketService.parseTicket(ticket), rangeHeader);
+  }
+
+  public ContentStream openTicketContent(ContentTicketService.ContentTicket parsed, String rangeHeader) {
     ProviderConnectionEntity connection = connectionService.findById(parsed.connectionId())
         .orElseThrow(() -> new com.bridgit.api.common.error.NotFoundException(
             "CONTEUDO_NAO_ENCONTRADO",

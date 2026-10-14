@@ -46,12 +46,6 @@ public class AccountService {
     this.uploadCleanup = uploadCleanup;
   }
 
-  @Transactional(readOnly = true)
-  public AuthDtos.AccountResponse getAccount() {
-    UserEntity user = authenticatedUserService.requireUser();
-    return new AuthDtos.AccountResponse(user.getId(), user.getUsername());
-  }
-
   @Transactional
   public AuthDtos.SessionResponse updateUsername(String username) {
     UserEntity user = authenticatedUserService.requireUser();

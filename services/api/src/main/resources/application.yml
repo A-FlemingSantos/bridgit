@@ -63,8 +63,6 @@ app:
   jwt:
     secret: ${APP_JWT_SECRET:dev-only-local-jwt-secret-change-me-00000000000000000000000000000000}
     issuer: bridgit-api
-  time:
-    zone-id: America/Sao_Paulo
   integrations:
     token-key-base64: ${APP_INTEGRATION_TOKEN_KEY_B64:}
   providers:

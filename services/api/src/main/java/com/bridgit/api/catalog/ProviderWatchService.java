@@ -30,10 +30,17 @@ public class ProviderWatchService {
       if (!(client instanceof CloudWatchClient watch)) continue;
       try {
         catalog.ensure(c);
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT watch_id,watch_resource,watch_secret,watch_expires FROM cloud_catalog_state WHERE connection_id=? AND generation=?", c.getId().toString(), c.getGeneration());
+        List<Map<String, Object>> rows = jdbc.query("SELECT watch_id,watch_resource,watch_secret,watch_expires FROM cloud_catalog_state WHERE connection_id=? AND generation=?", (rs, n) -> {
+          Map<String, Object> values = new HashMap<>();
+          values.put("watch_id", rs.getString("watch_id"));
+          values.put("watch_resource", rs.getString("watch_resource"));
+          values.put("watch_secret", rs.getString("watch_secret"));
+          values.put("watch_expires", rs.getObject("watch_expires", OffsetDateTime.class));
+          return values;
+        }, c.getId().toString(), c.getGeneration());
         if (rows.isEmpty()) continue;
         Map<String, Object> row = rows.getFirst();
-        OffsetDateTime expires = jdbc.queryForObject("SELECT watch_expires FROM cloud_catalog_state WHERE connection_id=?", (rs, n) -> rs.getObject(1, OffsetDateTime.class), c.getId().toString());
+        OffsetDateTime expires = (OffsetDateTime) row.get("watch_expires");
         if (expires != null && expires.isAfter(OffsetDateTime.now(clock).plusMinutes(10))) continue;
         String secret = row.get("watch_secret") == null ? UUID.randomUUID().toString() : row.get("watch_secret").toString();
         jdbc.update("UPDATE cloud_catalog_state SET watch_secret=? WHERE connection_id=? AND generation=?", secret, c.getId().toString(), c.getGeneration());

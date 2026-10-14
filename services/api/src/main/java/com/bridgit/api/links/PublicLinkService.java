@@ -243,7 +243,6 @@ public class PublicLinkService {
         resolved.provider(),
         resolved.client(),
         resolved.item(),
-        resolved.accessToken(),
         resolved.connection()
     );
   }
@@ -269,7 +268,6 @@ public class PublicLinkService {
           connection,
           token -> client.get(token, link.getItemRef())
       );
-      String accessToken = connectionService.accessToken(connection);
 
       link.setName(item.name());
       link.setMimeType(item.mimeType());
@@ -277,7 +275,7 @@ public class PublicLinkService {
       link.setSize(item.size());
       linkRepository.save(link);
 
-      return new ResolvedPublicLink(link, provider, client, item, accessToken, connection);
+      return new ResolvedPublicLink(link, provider, client, item, connection);
     } catch (ReconnectionRequiredException ex) {
       throw linkNotFound();
     } catch (ProviderApiException ex) {
@@ -335,7 +333,6 @@ public class PublicLinkService {
       CloudProvider provider,
       CloudProviderClient client,
       CloudItem item,
-      String accessToken,
       ProviderConnectionEntity connection
   ) {
   }
@@ -345,7 +342,6 @@ public class PublicLinkService {
       CloudProvider provider,
       CloudProviderClient client,
       CloudItem item,
-      String accessToken,
       ProviderConnectionEntity connection
   ) {
   }

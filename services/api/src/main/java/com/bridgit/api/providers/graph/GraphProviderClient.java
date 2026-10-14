@@ -52,8 +52,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   private static final String DRIVE_BASE = "https://graph.microsoft.com/v1.0/me/drive";
   private static final String SELECT =
       "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag";
-  private static final String DELTA_SELECT = SELECT;
-  private static final String ROOT_DELTA_URL = DRIVE_BASE + "/root/delta?$select=" + DELTA_SELECT;
+  private static final String ROOT_DELTA_URL = DRIVE_BASE + "/root/delta?$select=" + SELECT;
   private static final String SUBSCRIPTIONS_URL = "https://graph.microsoft.com/v1.0/subscriptions";
   private static final int PAGE_SIZE = 200;
   private static final long SIMPLE_UPLOAD_MAX = 4L * 1024L * 1024L;
@@ -611,10 +610,6 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
             throw new ProviderApiException("Resposta invalida do provedor.");
           }
         });
-  }
-
-  private void authorizedDelete(String accessToken, String url) {
-    authorizedDelete(accessToken, url, null);
   }
 
   private void authorizedDelete(String accessToken, String url, String remoteVersion) {
