@@ -1,12 +1,10 @@
 package com.bridgit.api.common.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bridgit.api.auth.UserEntity;
 import com.bridgit.api.auth.UserRepository;
 import com.bridgit.api.auth.UserSessionEntity;
 import com.bridgit.api.auth.UserSessionService;
-import com.bridgit.api.common.api.ApiEnvelope;
-import com.bridgit.api.common.api.ApiErrorResponse;
+import com.bridgit.api.common.api.ApiErrorWriter;
 import com.bridgit.api.common.error.UnauthorizedException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -14,8 +12,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.OffsetDateTime;
-import org.springframework.http.MediaType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -25,20 +24,23 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-  private static final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+  private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
   private final JwtService jwtService;
   private final UserRepository userRepository;
   private final UserSessionService userSessionService;
+  private final ApiErrorWriter errorWriter;
 
   public JwtAuthenticationFilter(
       JwtService jwtService,
       UserRepository userRepository,
-      UserSessionService userSessionService
+      UserSessionService userSessionService,
+      ApiErrorWriter errorWriter
   ) {
     this.jwtService = jwtService;
     this.userRepository = userRepository;
     this.userSessionService = userSessionService;
+    this.errorWriter = errorWriter;
   }
 
   @Override
@@ -102,7 +104,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       );
       return;
     } catch (RuntimeException ex) {
+      // A failure here (for instance the database) is not a bad session: answering 401 would
+      // sign the user out. Answer 500 so the client keeps the session and tries again.
       SecurityContextHolder.clearContext();
+      logger.error("Session validation failed path={}", request.getRequestURI(), ex);
+      errorWriter.write(
+          request,
+          response,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          "ERRO_INTERNO",
+          "Ocorreu um erro inesperado ao processar a solicitacao."
+      );
+      return;
     }
 
     filterChain.doFilter(request, response);
@@ -113,20 +126,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       HttpServletResponse response,
       UnauthorizedException ex
   ) throws IOException {
-    if (response.isCommitted()) {
-      return;
-    }
-
-    ApiErrorResponse error = new ApiErrorResponse(
-        ex.getCode(),
-        ex.getMessage(),
-        request.getRequestURI(),
-        OffsetDateTime.now(),
-        null
-    );
-
-    response.setStatus(ex.getStatus().value());
-    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-    objectMapper.writeValue(response.getWriter(), ApiEnvelope.error(error));
+    errorWriter.write(request, response, ex.getStatus(), ex.getCode(), ex.getMessage());
   }
 }
