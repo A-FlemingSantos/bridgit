@@ -81,6 +81,30 @@ describe('hubApi autorizacao', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(6)
   })
 
+  it('resolve url e proxyUrl relativos de descritores e tickets contra VITE_API_BASE_URL', async () => {
+    const { getReadSource, createContentTicket } = await import('@bridgit/shared-client')
+    getReadSource.mockResolvedValue({ url: '/api/content/t1', proxyUrl: '/api/content/t2', revision: 'r1' })
+    createContentTicket.mockResolvedValue({ url: '/api/content/t3' })
+    const api = createHubApi(() => 'token', vi.fn())
+
+    expect(await api.getReadSource('onedrive', 'ref')).toEqual({ url: '/api/content/t1', proxyUrl: '/api/content/t2', revision: 'r1' })
+    expect(await api.createContentTicket('onedrive', 'ref', 'attachment')).toEqual({ url: '/api/content/t3' })
+
+    vi.stubEnv('VITE_API_BASE_URL', 'https://bridgit-demo.duckdns.org')
+    try {
+      expect(await api.getReadSource('onedrive', 'ref')).toEqual({
+        url: 'https://bridgit-demo.duckdns.org/api/content/t1',
+        proxyUrl: 'https://bridgit-demo.duckdns.org/api/content/t2',
+        revision: 'r1',
+      })
+      expect(await api.createContentTicket('onedrive', 'ref', 'attachment')).toEqual({
+        url: 'https://bridgit-demo.duckdns.org/api/content/t3',
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('F18 nunca desloga em erro de provedor', async () => {
     const onUnauthorized = vi.fn()
     const api = createHubApi(() => 'token', onUnauthorized)

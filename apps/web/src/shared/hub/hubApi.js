@@ -30,6 +30,8 @@ import {
   uploadFile as uploadFileRequest,
 } from '@bridgit/shared-client'
 
+import { resolveContentUrls } from '../config/apiBase.js'
+
 export { isApiClientError, isHubSessionFailure }
 
 export function createHubApi(getToken, onUnauthorized, options = {}) {
@@ -155,11 +157,12 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       (token, requestOptions) => updateItemRequest(token, provider, ref, patch, requestOptions)),
     deleteItem: async (provider, ref, hooks) => await operation(provider, 'DELETE', { ref }, null, hooks) ?? legacy(provider, 'DELETE', { ref }, null,
       (token, requestOptions) => deleteItemRequest(token, provider, ref, requestOptions)),
-    getReadSource: (provider, ref, refresh = false) => call((token) => getReadSourceRequest(token, provider, ref, refresh)),
+    getReadSource: async (provider, ref, refresh = false) =>
+      resolveContentUrls(await call((token) => getReadSourceRequest(token, provider, ref, refresh))),
     listOperations: () => call(listOperations),
     retryOperation: (id) => call((token) => retryOperation(token, id)),
-    createContentTicket: (provider, ref, disposition) =>
-      call((token) => createContentTicketRequest(token, provider, ref, disposition)),
+    createContentTicket: async (provider, ref, disposition) =>
+      resolveContentUrls(await call((token) => createContentTicketRequest(token, provider, ref, disposition))),
     search: (query) => call((token) => searchRequest(token, query)),
     listRecents: () => call((token) => listRecentsRequest(token)),
     recordRecent: (provider, ref) => call((token) => recordRecentRequest(token, provider, ref)),

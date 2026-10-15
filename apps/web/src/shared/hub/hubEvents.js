@@ -1,4 +1,5 @@
 import { getHubEvents, getHubEventHead } from '@bridgit/shared-client'
+import { resolveApiUrl } from '../config/apiBase.js'
 
 /** Replayable, bounded authenticated streams; polling recovers networks without streaming. */
 export function subscribeServerEvents(getToken, onEvent, { signal, fetchImpl = globalThis.fetch } = {}) {
@@ -16,7 +17,7 @@ export function subscribeServerEvents(getToken, onEvent, { signal, fetchImpl = g
   async function connect() {
     if (closed || !getToken()) return
     try {
-      const response = await fetchImpl(`/api/hub/events/stream?after=${sequence}`, {
+      const response = await fetchImpl(resolveApiUrl(`/api/hub/events/stream?after=${sequence}`), {
         headers: { Authorization: `Bearer ${getToken()}` }, signal: abort.signal,
       })
       if (!response.ok || !response.body?.getReader) throw new Error('stream unavailable')

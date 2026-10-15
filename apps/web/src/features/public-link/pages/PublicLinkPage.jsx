@@ -3,6 +3,7 @@ import { Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
+import { resolveApiUrl } from '../../../shared/config/apiBase.js'
 import { ROUTES } from '../../../shared/config/routes.js'
 import { formatFileSize } from '../formatFileSize.js'
 import { parseLinkSuffix } from '../parseLinkSuffix.js'
@@ -76,7 +77,11 @@ export default function PublicLinkPage() {
       try {
         const data = await apiRequest(`/api/public/links/${suffix}`)
         if (cancelled) return
-        setMeta(data)
+        setMeta({
+          ...data,
+          contentUrl: resolveApiUrl(data?.contentUrl),
+          readUrl: resolveApiUrl(data?.readUrl),
+        })
       } catch (err) {
         if (cancelled) return
 

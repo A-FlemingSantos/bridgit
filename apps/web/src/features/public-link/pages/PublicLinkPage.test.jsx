@@ -75,6 +75,31 @@ describe('PublicLinkPage', () => {
     })
   })
 
+  it('aponta o download para VITE_API_BASE_URL quando configurado', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://bridgit-demo.duckdns.org')
+    try {
+      apiRequest.mockResolvedValue({
+        name: 'Relatorio Anual',
+        mimeType: 'application/pdf',
+        extension: 'pdf',
+        size: 2048,
+        mode: 'pdf',
+        providerName: 'Google Drive',
+        contentUrl: '/api/public/links/abc1234567890ABCD/content',
+        readUrl: '/api/public/links/abc1234567890ABCD/content?variant=read',
+      })
+
+      renderPage()
+
+      expect(await screen.findByRole('link', { name: 'Baixar' })).toHaveAttribute(
+        'href',
+        'https://bridgit-demo.duckdns.org/api/public/links/abc1234567890ABCD/content',
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('mostra estado amigavel para link inexistente', async () => {
     apiRequest.mockRejectedValue(
       new ApiClientError('Link não encontrado.', {
