@@ -1,4 +1,6 @@
 # Instalar em /etc/caddy/Caddyfile e aplicar com: sudo systemctl reload caddy
+# Validar como o usuario do servico (como root, o validate cria o access log com dono root e o reload falha):
+#   sudo -u caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 # HTTPS automatico (Let's Encrypt): o DNS de bridgit-demo.duckdns.org precisa apontar para o IP da VM
 # e as portas 80/443 precisam estar abertas (o NSG do provision.sh ja libera).
 #
@@ -7,6 +9,27 @@
 #
 # Sem `encode`: nao comprimir nem bufferizar o SSE (/api/hub/events/stream).
 bridgit-demo.duckdns.org {
+	# Access log para diagnostico (inclusive do que nao chega na API: CORS, limite de corpo, TLS).
+	# JSON rotacionado; Authorization/Cookie ja saem redigidos pelo Caddy, e o code/state do
+	# callback OAuth sao removidos da query. Ler com: sudo tail -f /var/log/caddy/bridgit-access.log
+	log {
+		output file /var/log/caddy/bridgit-access.log {
+			roll_size 10MiB
+			roll_keep 5
+			roll_keep_for 168h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					delete code
+					delete state
+				}
+				request>headers>Authorization delete
+			}
+		}
+	}
+
 	# Upload de ate 50 MB (multipart do Spring: 52 MB).
 	request_body {
 		max_size 60MB
