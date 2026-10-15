@@ -1,0 +1,19 @@
+# Instalar em /etc/caddy/Caddyfile e aplicar com: sudo systemctl reload caddy
+# HTTPS automatico (Let's Encrypt): o DNS de bridgit-demo.duckdns.org precisa apontar para o IP da VM
+# e as portas 80/443 precisam estar abertas (o NSG do provision.sh ja libera).
+#
+# O Caddy ja envia X-Forwarded-For/X-Forwarded-Proto/X-Forwarded-Host; o Spring os le com
+# SERVER_FORWARD_HEADERS_STRATEGY=native.
+#
+# Sem `encode`: nao comprimir nem bufferizar o SSE (/api/hub/events/stream).
+bridgit-demo.duckdns.org {
+	# Upload de ate 50 MB (multipart do Spring: 52 MB).
+	request_body {
+		max_size 60MB
+	}
+
+	reverse_proxy 127.0.0.1:8080 {
+		# Repassa cada escrita imediatamente (SSE).
+		flush_interval -1
+	}
+}

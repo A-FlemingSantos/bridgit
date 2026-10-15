@@ -1,0 +1,39 @@
+# Instalar em /etc/systemd/system/bridgit-api.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now bridgit-api
+[Unit]
+Description=Bridgit API (Spring Boot)
+Wants=network-online.target mssql-server.service
+After=network-online.target mssql-server.service
+
+[Service]
+Type=simple
+User=bridgit
+Group=bridgit
+WorkingDirectory=/var/lib/bridgit
+EnvironmentFile=/etc/bridgit/api.env
+# /opt/bridgit/current.jar e um symlink para /opt/bridgit/releases/api-<sha>.jar (deploy-api.sh).
+ExecStart=/usr/bin/java -Xms512m -Xmx1536m -jar /opt/bridgit/current.jar
+# 143 = SIGTERM tratado pela JVM no stop.
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/bridgit
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

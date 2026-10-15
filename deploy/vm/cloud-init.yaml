@@ -1,0 +1,142 @@
+#cloud-config
+# Bridgit - preparacao da VM Ubuntu 24.04 no primeiro boot. Sem segredos.
+#
+# O que faz: usuarios, swap, SSH so com chave, pacotes (Java 21, Caddy, SQL Server 2025 sem configurar, fail2ban,
+# unattended-upgrades), diretorios e sudoers do usuario `deploy`.
+# O que NAO faz: instalar a unit systemd, o Caddyfile e os scripts do repositorio (nao existem no boot),
+# configurar o SQL Server (setup-sql.sh) nem escrever /etc/bridgit/api.env. Veja deploy/README.md.
+#
+# Log da etapa de pacotes: /var/log/bridgit-bootstrap.log (marcador final: /var/lib/bridgit-bootstrap.done)
+
+package_update: true
+package_upgrade: false
+package_reboot_if_required: false
+
+ssh_pwauth: false
+
+users:
+  - default # mantem o administrador criado pelo Azure (--admin-username)
+  - name: bridgit # dono do processo da API; sem login
+    system: true
+    homedir: /var/lib/bridgit
+    no_create_home: true
+    shell: /usr/sbin/nologin
+    lock_passwd: true
+  - name: deploy # usado pelo CI via SSH; a chave publica e adicionada depois (README)
+    shell: /bin/bash
+    lock_passwd: true
+    groups: [systemd-journal] # le `journalctl -u bridgit-api` sem sudo
+
+swap:
+  filename: /swapfile
+  size: 2147483648 # 2 GB
+  maxsize: 2147483648
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - apt-transport-https
+  - openjdk-21-jre-headless
+  - fail2ban
+  - unattended-upgrades
+
+write_files:
+  # SSH: somente chave. (Ubuntu 24.04 le /etc/ssh/sshd_config.d/*.conf; o primeiro valor vence, por isso o prefixo 10.)
+  - path: /etc/ssh/sshd_config.d/10-bridgit.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+
+  - path: /etc/sysctl.d/90-bridgit.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      vm.swappiness = 10
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root:root
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/fail2ban/jail.d/bridgit.local
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      backend = systemd
+      maxretry = 5
+      findtime = 10m
+      bantime = 1h
+
+  # O deploy-api.sh so precisa reiniciar/consultar o servico. Troca de symlink e de jar acontece em
+  # /opt/bridgit, que pertence ao usuario `deploy` (sem sudo).
+  - path: /etc/sudoers.d/bridgit-deploy
+    owner: root:root
+    permissions: "0440"
+    content: |
+      Cmnd_Alias BRIDGIT_API = /usr/bin/systemctl restart bridgit-api, \
+                               /usr/bin/systemctl is-active bridgit-api, \
+                               /usr/bin/systemctl status bridgit-api, \
+                               /usr/bin/systemctl status --no-pager bridgit-api
+      deploy ALL=(root) NOPASSWD: BRIDGIT_API
+
+  - path: /etc/profile.d/mssql-tools.sh
+    owner: root:root
+    permissions: "0644"
+    content: |
+      export PATH="$PATH:/opt/mssql-tools18/bin"
+
+  - path: /usr/local/sbin/bridgit-bootstrap.sh
+    owner: root:root
+    permissions: "0750"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+      APT="apt-get -o DPkg::Lock::Timeout=300 -y"
+
+      # Diretorios e donos
+      getent group bridgit >/dev/null || groupadd --system bridgit
+      install -d -o deploy -g deploy -m 0755 /opt/bridgit /opt/bridgit/releases
+      install -d -o bridgit -g bridgit -m 0750 /var/lib/bridgit /var/lib/bridgit/pending-uploads
+      install -d -o root -g bridgit -m 0750 /etc/bridgit
+      install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh
+      [ -e /home/deploy/.ssh/authorized_keys ] || install -o deploy -g deploy -m 0600 /dev/null /home/deploy/.ssh/authorized_keys
+
+      # sudoers invalido derrubaria o sudo de todos: valida e remove se estiver errado
+      visudo -cf /etc/sudoers.d/bridgit-deploy || { rm -f /etc/sudoers.d/bridgit-deploy; echo "sudoers invalido removido" >&2; exit 1; }
+
+      # Caddy (repositorio oficial)
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' -o /etc/apt/sources.list.d/caddy-stable.list
+      chmod 0644 /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+
+      # Microsoft: repositorios do SQL Server 2025 e das ferramentas (Ubuntu 24.04)
+      curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+      curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list -o /etc/apt/sources.list.d/mssql-server-2025.list
+      curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/prod.list -o /etc/apt/sources.list.d/mssql-release.list
+
+      $APT update
+      # Nenhum EULA e aceito no boot. mssql-server so instala os binarios (o EULA e aceito no mssql-conf setup)
+      # e mssql-tools18/msodbcsql18 (que exigem ACCEPT_EULA=Y) sao instalados pelo setup-sql.sh, atras de
+      # --accept-eula. O repositorio prod.list acima ja deixa o pacote disponivel.
+      $APT install caddy mssql-server
+
+      sysctl --system >/dev/null
+      systemctl enable --now fail2ban
+      systemctl enable --now unattended-upgrades
+      systemctl restart ssh # aplica 10-bridgit.conf (Ubuntu 24.04: unit `ssh`)
+
+      touch /var/lib/bridgit-bootstrap.done
+      echo "bridgit-bootstrap concluido"
+
+runcmd:
+  - [bash, -c, "/usr/local/sbin/bridgit-bootstrap.sh >>/var/log/bridgit-bootstrap.log 2>&1"]
