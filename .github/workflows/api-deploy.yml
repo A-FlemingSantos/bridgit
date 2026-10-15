@@ -125,10 +125,12 @@ jobs:
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           REMOTE="$DEPLOY_USER@$VM_HOST"
           JAR_REMOTE="/tmp/api-$RELEASE_SHA.jar"
+          # Nome por release: /tmp tem sticky bit, entao um arquivo deixado por outro usuario nao pode ser sobrescrito.
+          SCRIPT_REMOTE="/tmp/deploy-api-$RELEASE_SHA.sh"
 
           scp "${SSH_OPTS[@]}" services/api/target/api-1.0.0.jar "$REMOTE:$JAR_REMOTE"
-          scp "${SSH_OPTS[@]}" deploy/vm/deploy-api.sh "$REMOTE:/tmp/deploy-api.sh"
-          ssh "${SSH_OPTS[@]}" "$REMOTE" "cd /tmp && bash deploy-api.sh $JAR_REMOTE $RELEASE_SHA"
+          scp "${SSH_OPTS[@]}" deploy/vm/deploy-api.sh "$REMOTE:$SCRIPT_REMOTE"
+          ssh "${SSH_OPTS[@]}" "$REMOTE" "bash $SCRIPT_REMOTE $JAR_REMOTE $RELEASE_SHA; rc=\$?; rm -f $SCRIPT_REMOTE; exit \$rc"
 
       - name: Cleanup SSH material
         if: always()
