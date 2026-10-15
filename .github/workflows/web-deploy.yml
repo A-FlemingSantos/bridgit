@@ -1,0 +1,73 @@
+# Deploy do front-end (apps/web) para o Azure Static Web Apps.
+#
+# ATENCAO: o gatilho `deploy/azure` abaixo e TEMPORARIO (validacao do deploy na
+# branch de trabalho). Remover antes de fazer o merge em `main`.
+#
+# Requisitos no repositorio:
+#   - variable: VITE_API_BASE_URL  (URL publica da API, embutida no build)
+#   - secret:   AZURE_STATIC_WEB_APPS_API_TOKEN
+name: web-deploy
+
+on:
+  push:
+    branches:
+      - main
+      - deploy/azure # TEMPORARIO: remover antes do merge em main
+    paths:
+      - "apps/web/**"
+      - "packages/shared-client/**"
+      - "package-lock.json"
+      - ".github/workflows/web-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # O hook do husky (script `prepare`) nao deve rodar no CI.
+      HUSKY: "0"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run web tests
+        run: npm --workspace apps/web run test:run
+
+      - name: Check VITE_API_BASE_URL
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::error::A variable VITE_API_BASE_URL do repositorio esta vazia ou nao definida."
+            exit 1
+          fi
+
+      - name: Build web
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          skip_app_build: true
+          app_location: apps/web/dist

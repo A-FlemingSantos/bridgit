@@ -1,0 +1,135 @@
+# Testes e deploy da API (services/api) na VM Azure via SSH.
+#
+# ATENCAO: o gatilho `deploy/azure` abaixo e TEMPORARIO (validacao do deploy na
+# branch de trabalho). Remover antes de fazer o merge em `main`.
+#
+# Requisitos no repositorio (secrets): VM_HOST, VM_SSH_KEY, VM_KNOWN_HOSTS
+# (saida de `ssh-keyscan` / linha do known_hosts da VM). Usuario SSH: `deploy`.
+name: api-deploy
+
+on:
+  push:
+    branches:
+      - main
+      - deploy/azure # TEMPORARIO: remover antes do merge em main
+    paths:
+      - "services/api/**"
+      - "deploy/vm/**"
+      - ".github/workflows/api-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Senha descartavel: o SQL Server abaixo e um container efemero do job.
+      SPRING_DATASOURCE_PASSWORD: Bridgit-Ci-Passw0rd!
+      SPRING_DATASOURCE_USERNAME: sa
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Bridgit-Ci-Passw0rd!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: services/api/pom.xml
+
+      - name: Wait for SQL Server and create test database
+        run: |
+          cid="$(docker ps -q --filter ancestor=mcr.microsoft.com/mssql/server:2022-latest | head -n1)"
+          if [ -z "$cid" ]; then
+            echo "::error::Container do SQL Server nao encontrado."
+            exit 1
+          fi
+          sqlcmd() {
+            docker exec "$cid" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SPRING_DATASOURCE_PASSWORD" "$@"
+          }
+          for i in $(seq 1 60); do
+            if sqlcmd -Q "SELECT 1" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::SQL Server nao respondeu a tempo."
+              docker logs --tail 30 "$cid"
+              exit 1
+            fi
+            sleep 2
+          done
+          sqlcmd -b -Q "IF DB_ID('bridgit_test') IS NULL CREATE DATABASE bridgit_test"
+
+      - name: Run API tests
+        working-directory: services/api
+        run: mvn -B test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY_USER: deploy
+      RELEASE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: services/api/pom.xml
+
+      - name: Build jar
+        working-directory: services/api
+        run: mvn -B -DskipTests package
+
+      - name: Prepare SSH
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Upload artifacts and deploy
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          REMOTE="$DEPLOY_USER@$VM_HOST"
+          JAR_REMOTE="/tmp/api-$RELEASE_SHA.jar"
+
+          scp "${SSH_OPTS[@]}" services/api/target/api-1.0.0.jar "$REMOTE:$JAR_REMOTE"
+          scp "${SSH_OPTS[@]}" deploy/vm/deploy-api.sh "$REMOTE:/tmp/deploy-api.sh"
+          ssh "${SSH_OPTS[@]}" "$REMOTE" "cd /tmp && bash deploy-api.sh $JAR_REMOTE $RELEASE_SHA"
+
+      - name: Cleanup SSH material
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts
