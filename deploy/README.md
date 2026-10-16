@@ -155,6 +155,18 @@ ssh -L 1433:127.0.0.1:1433 azureuser@<IP>
 
 No SSMS: servidor `localhost,1433`, autenticação SQL Server, login `bridgit_app` (ou `sa`), marque "Confiar no certificado do servidor".
 
+## 11. CloudBeaver (banco pelo navegador)
+
+Para consultar o banco em qualquer PC, sem SSMS nem chave SSH: `https://db.bridgit-demo.duckdns.org` (o DuckDNS resolve qualquer subdomínio de `bridgit-demo` para o mesmo IP; o bloco está no `Caddyfile`).
+
+```bash
+scp deploy/vm/setup-cloudbeaver.sh azureuser@<IP>:/tmp/ && ssh azureuser@<IP> 'sudo bash /tmp/setup-cloudbeaver.sh'
+```
+
+- Docker + `dbeaver/cloudbeaver` (versão fixa no script), rede do host, porta 8978 só atrás do Caddy; acesso anônimo desligado.
+- Administrador `bridgit-admin`; senha: `ssh azureuser@<IP> 'sudo grep CB_ADMIN_PASSWORD /etc/bridgit/cloudbeaver.env'`.
+- Conexão já cadastrada, "Bridgit (produção, somente leitura)", com o login SQL `bridgit_readonly` (`db_datareader`). Na primeira conexão, informe a senha: `ssh azureuser@<IP> 'sudo grep BRIDGIT_READONLY /etc/bridgit/sql-secrets.env'`.
+
 ## Solução de problemas
 
 ```bash

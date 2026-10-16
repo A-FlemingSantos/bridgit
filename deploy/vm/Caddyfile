@@ -40,3 +40,9 @@ bridgit-demo.duckdns.org {
 		flush_interval -1
 	}
 }
+
+# CloudBeaver (consulta ao banco pelo navegador; setup-cloudbeaver.sh). O DNS do DuckDNS resolve
+# qualquer subdominio de bridgit-demo.duckdns.org para o mesmo IP.
+db.bridgit-demo.duckdns.org {
+	reverse_proxy 127.0.0.1:8978
+}
