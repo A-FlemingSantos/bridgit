@@ -183,7 +183,7 @@ export default function SecurityTab() {
                 aria-current={item.current ? 'true' : undefined}
               >
                 <span className={styles.sessionMark}>
-                  <BrowserMark browser={item.browser} />
+                  <BrowserMark browser={item.browser} device={item.device} />
                 </span>
                 <span>
                   <span className={styles.sessionName}>
