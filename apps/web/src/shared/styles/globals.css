@@ -14,6 +14,7 @@
   --overlay: #ffffff;
   --type: 'Geist Variable', 'Geist', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   --app-rail-width: 60px;
   --app-sidebar-width: 248px;
   --z-app-shell-header: 30;

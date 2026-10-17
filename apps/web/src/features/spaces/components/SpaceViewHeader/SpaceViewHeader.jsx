@@ -24,6 +24,7 @@ export default function SpaceViewHeader({
   subtitle = null,
   contained = false,
   trail = false,
+  className = '',
 }) {
   const location = useLocation()
   const { state } = useHub()
@@ -51,7 +52,7 @@ export default function SpaceViewHeader({
   // Trail layout: the path itself is the title, ancestors as links and the current folder in bold.
   if (trail) {
     return (
-      <header className={[styles.band, styles.trailBand].join(' ')}>
+      <header className={[styles.band, styles.trailBand, className].filter(Boolean).join(' ')}>
         <div className={styles.trailRow}>
           <div className={styles.trail}>
             {ancestors.length > 0 ? (
@@ -84,7 +85,7 @@ export default function SpaceViewHeader({
   }
 
   return (
-    <header className={[styles.band, contained ? styles.contained : ''].filter(Boolean).join(' ')}>
+    <header className={[styles.band, contained ? styles.contained : '', className].filter(Boolean).join(' ')}>
       {ancestors.length > 0 ? (
         <nav className={styles.crumbs} aria-label="Localização atual">
           {ancestors.map((crumb, index) => (

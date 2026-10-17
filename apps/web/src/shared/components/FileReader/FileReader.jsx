@@ -25,7 +25,10 @@ export default function FileReader({
   onDownload,
   onRetry,
   onContentError,
+  // 'editorial' is a left-aligned reading column; the host page shows the name and meta, so none here.
+  variant = 'default',
 }) {
+  const editorial = variant === 'editorial'
   const [contentReady, setContentReady] = useState(false)
   const [localError, setLocalError] = useState(null)
   const [retryKey, setRetryKey] = useState(0)
@@ -191,7 +194,11 @@ export default function FileReader({
   }
 
   return (
-    <section className={styles.reader} aria-labelledby="file-reader-title">
+    <section
+      className={[styles.reader, editorial ? styles.editorial : ''].filter(Boolean).join(' ')}
+      aria-labelledby={editorial ? undefined : 'file-reader-title'}
+      aria-label={editorial ? file?.name ?? 'Arquivo' : undefined}
+    >
       <div
         className={styles.readingRegion}
         aria-busy={showLoader ? 'true' : 'false'}
@@ -253,12 +260,14 @@ export default function FileReader({
         )}
       </div>
 
-      <div className={styles.meta}>
-        <h2 id="file-reader-title" className={styles.title}>
-          {file?.name ?? 'Arquivo'}
-        </h2>
-        {metaLine ? <p className={styles.subtitle}>{metaLine}</p> : null}
-      </div>
+      {editorial ? null : (
+        <div className={styles.meta}>
+          <h2 id="file-reader-title" className={styles.title}>
+            {file?.name ?? 'Arquivo'}
+          </h2>
+          {metaLine ? <p className={styles.subtitle}>{metaLine}</p> : null}
+        </div>
+      )}
 
       {statusMessage ? (
         <p

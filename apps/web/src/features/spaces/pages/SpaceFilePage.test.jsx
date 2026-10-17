@@ -59,6 +59,21 @@ describe('SpaceFilePage download e leitura', () => {
   })
   afterEach(() => { vi.restoreAllMocks() })
 
+  it('mostra so o nome do arquivo com a meta abaixo, sem breadcrumb', async () => {
+    setup({
+      recordRecent: vi.fn().mockResolvedValue(undefined),
+      getReadSource: vi.fn().mockResolvedValue({ mode: 'image', url: '/foto.png' }),
+      getDownloadUrl: vi.fn(),
+    })
+    useItem.mockReturnValue({ status: 'ready', item: { ...item, size: 2516582 }, error: null, reload: vi.fn() })
+    renderPage()
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Foto.png' })).toBeInTheDocument()
+    expect(screen.getByText('PNG · OneDrive · 2.4 MB')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Localização atual' })).toBeNull()
+    expect(screen.getAllByRole('heading', { name: 'Foto.png' })).toHaveLength(1)
+  })
+
   it('busca um ticket novo a cada clique em Baixar', async () => {
     const user = userEvent.setup()
     const getDownloadUrl = vi.fn()

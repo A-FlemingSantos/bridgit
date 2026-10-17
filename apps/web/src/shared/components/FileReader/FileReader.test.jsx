@@ -46,6 +46,15 @@ describe('FileReader', () => {
     expect(document.querySelector('[aria-hidden="true"]')).toBeTruthy()
   })
 
+  it('no modo editorial deixa nome e meta para a pagina e rotula a regiao pelo nome', () => {
+    render(<FileReader file={file} source={null} error={null} variant="editorial" />)
+
+    expect(screen.queryByRole('heading', { name: 'Relatorio' })).toBeNull()
+    expect(screen.queryByText('PDF · Google Drive')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Relatorio' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Carregando arquivo' })).toBeInTheDocument()
+  })
+
   it('mostra mensagem e download para mode none', () => {
     render(
       <FileReader

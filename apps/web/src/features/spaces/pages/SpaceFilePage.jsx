@@ -15,7 +15,8 @@ import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
-import { buildProviderBreadcrumbItems } from '../buildProviderBreadcrumb.js'
+import { formatFileMeta } from '../../../shared/components/FileReader/formatFileMeta.js'
+import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
 import { fileMenuItems } from '../components/entryActions.js'
 import styles from './SpaceFilePage.module.css'
 
@@ -184,14 +185,16 @@ export default function SpaceFilePage() {
     return <Navigate to={providerFolderUrl(providerId, item.ref)} replace />
   }
 
-  const breadcrumbItems =
-    providerMeta && item
-      ? buildProviderBreadcrumbItems({
-          provider: providerMeta,
-          folder: item.ancestry ? { ancestry: item.ancestry } : null,
-          fileName: item.name,
-        })
-      : null
+  // No breadcrumb while reading: the subheader shows only the file name, with its meta below.
+  const titleItems = providerMeta && item ? [{ label: item.name, current: true }] : null
+  const metaLine = item
+    ? [
+        formatFileMeta({ extension: item.extension, providerName: providerMeta?.name ?? '' }),
+        formatFileSize(item.size),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
 
   const menuContext = {
     openOverlay,
@@ -205,9 +208,11 @@ export default function SpaceFilePage() {
     <AppShell
       refreshKey={fileRef}
       subheader={
-        breadcrumbItems && item ? (
+        titleItems && item ? (
           <SpaceViewHeader
-            items={breadcrumbItems}
+            className={styles.subheader}
+            items={titleItems}
+            subtitle={metaLine || null}
             trailing={
               <div className={styles.headerActions}>
                 <button
@@ -228,7 +233,7 @@ export default function SpaceFilePage() {
             }
           />
         ) : (
-          <SpaceViewHeader trailing={null} />
+          <SpaceViewHeader className={styles.subheader} items={[]} trailing={null} />
         )
       }
     >
@@ -267,6 +272,7 @@ export default function SpaceFilePage() {
                   mimeType: item.mimeType,
                   providerName: providerMeta?.name ?? '',
                 }}
+                variant="editorial"
                 source={readerSource}
                 error={readError}
                 downloadUrl={null}

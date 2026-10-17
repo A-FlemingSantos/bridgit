@@ -213,3 +213,50 @@
     box-shadow: none;
   }
 }
+
+/* Editorial variant: centred reading column with hairline sheets; the host page shows name and meta. */
+.editorial {
+  align-items: center;
+  gap: 28px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+/* Loading covers and spinners stay centred like before; only the readable sheets fill the column. */
+.editorial .sheetShellReading,
+.editorial .pdfVisible {
+  align-self: stretch;
+}
+
+.editorial .sheetShellReading {
+  width: 100%;
+}
+
+.editorial .pdfStack {
+  width: 100%;
+}
+
+.editorial .sheetShellReading,
+.editorial .pageSheet {
+  background: var(--paper);
+  box-shadow: none;
+  border: 1px solid var(--line);
+}
+
+.editorial .download {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editorial .download:hover {
+  border-color: var(--ink);
+  background: transparent;
+}
