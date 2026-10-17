@@ -14,7 +14,7 @@ on:
       - deploy/azure # TEMPORARIO: remover antes do merge em main
     paths:
       - "services/api/**"
-      - "deploy/vm/**"
+      - "deploy/vm/deploy-api.sh"
       - ".github/workflows/api-deploy.yml"
   workflow_dispatch:
 

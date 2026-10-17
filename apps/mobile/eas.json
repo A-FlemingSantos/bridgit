@@ -11,7 +11,7 @@
       },
       "env": {
         "EAS_PROJECT_ID": "06639d8c-3f9d-418f-91b4-4f5b4de94c8c",
-        "EXPO_PUBLIC_API_BASE_URL": "https://bridgit-demo.duckdns.org",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.bridgit-cloud.duckdns.org",
         "HUSKY": "0"
       }
     }

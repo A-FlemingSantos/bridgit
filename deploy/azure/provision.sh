@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provisiona a infraestrutura do Bridgit no Azure: VM Ubuntu 24.04 (API + SQL Server Express + Caddy),
-# rede, IP publico estatico, NSG (22/80/443) e Static Web App (Free) para o front.
+# rede, IP publico estatico e NSG (22/80/443). O web tambem e servido pela VM (Caddy).
 # Opcionalmente cria um orcamento mensal com alerta por e-mail.
 #
 # Idempotente: pode ser executado de novo; recursos que ja existem sao mantidos.
@@ -19,8 +19,6 @@
 #   ADMIN_USER            usuario administrador da VM       (azureuser)
 #   SSH_PUBLIC_KEY_PATH   chave publica SSH (so chave, sem senha) (~/.ssh/id_ed25519.pub)
 #   SSH_SOURCE            origem permitida na porta 22      (* = qualquer; restrinja se puder)
-#   SWA_NAME              nome do Static Web App            (swa-bridgit)
-#   SWA_LOCATION          regiao do Static Web App          (eastus2)
 #   BUDGET_AMOUNT         valor mensal do orcamento (ex.: 50); com BUDGET_EMAIL cria o alerta
 #   BUDGET_EMAIL          e-mail que recebe os alertas do orcamento
 #   BUDGET_NAME           nome do orcamento                 (budget-bridgit)
@@ -47,8 +45,6 @@ VM_SIZE_FALLBACK="${VM_SIZE_FALLBACK:-Standard_D2as_v7}"
 ADMIN_USER="${ADMIN_USER:-azureuser}"
 SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH:-$HOME/.ssh/id_ed25519.pub}"
 SSH_SOURCE="${SSH_SOURCE:-*}"
-SWA_NAME="${SWA_NAME:-swa-bridgit}"
-SWA_LOCATION="${SWA_LOCATION:-eastus2}"
 BUDGET_AMOUNT="${BUDGET_AMOUNT:-}"
 BUDGET_EMAIL="${BUDGET_EMAIL:-}"
 BUDGET_NAME="${BUDGET_NAME:-budget-bridgit}"
@@ -199,15 +195,6 @@ else
   warn "VM ja existia: cloud-init/custom-data NAO e reaplicado."
 fi
 
-# --- Static Web App ---------------------------------------------------------------------------
-if ! azs staticwebapp show --resource-group "$RG" --name "$SWA_NAME" -o none 2>/dev/null; then
-  log "Criando Static Web App $SWA_NAME (Free, $SWA_LOCATION, sem vinculo com GitHub)"
-  azs staticwebapp create --resource-group "$RG" --name "$SWA_NAME" --location "$SWA_LOCATION" \
-    --sku Free --tags app=bridgit -o none
-else
-  log "Static Web App $SWA_NAME ja existe"
-fi
-
 # --- Orcamento (opcional) ---------------------------------------------------------------------
 if [[ -n "$BUDGET_AMOUNT" ]]; then
   log "Orcamento $BUDGET_NAME: $BUDGET_AMOUNT/mes, alerta para $BUDGET_EMAIL"
@@ -245,19 +232,14 @@ fi
 
 # --- Resumo -----------------------------------------------------------------------------------
 PUBLIC_IP="$(azs network public-ip show --resource-group "$RG" --name "$PIP_NAME" --query ipAddress -o tsv)"
-SWA_HOST="$(azs staticwebapp show --resource-group "$RG" --name "$SWA_NAME" --query defaultHostname -o tsv)"
 
 cat <<EOF
 
 ============================================================
 IP publico da VM : $PUBLIC_IP
-Static Web App   : https://$SWA_HOST
 Acesso SSH       : ssh $ADMIN_USER@$PUBLIC_IP
 ============================================================
 Proximos passos (detalhes em deploy/README.md):
-  1. Aponte bridgit-demo.duckdns.org para $PUBLIC_IP.
+  1. No DuckDNS, aponte bridgit-cloud para $PUBLIC_IP (app., api. e db. resolvem junto).
   2. Acompanhe o cloud-init:  ssh $ADMIN_USER@$PUBLIC_IP 'cloud-init status --wait'
-  3. Token de deploy do SWA (segredo AZURE_STATIC_WEB_APPS_API_TOKEN no GitHub):
-       az staticwebapp secrets list --subscription "$SUB_ID" -g "$RG" -n "$SWA_NAME" --query properties.apiKey -o tsv
-  4. Origem do front para APP_FRONTEND_BASE_URL / APP_CORS_ALLOWED_ORIGINS: https://$SWA_HOST
 EOF

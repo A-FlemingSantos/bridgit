@@ -108,6 +108,7 @@ write_files:
       # Diretorios e donos
       getent group bridgit >/dev/null || groupadd --system bridgit
       install -d -o deploy -g deploy -m 0755 /opt/bridgit /opt/bridgit/releases
+      install -d -o deploy -g deploy -m 0755 /var/www/bridgit /var/www/bridgit/releases
       install -d -o bridgit -g bridgit -m 0750 /var/lib/bridgit /var/lib/bridgit/pending-uploads
       install -d -o root -g bridgit -m 0750 /etc/bridgit
       install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh

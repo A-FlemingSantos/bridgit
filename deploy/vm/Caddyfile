@@ -1,19 +1,22 @@
 # Instalar em /etc/caddy/Caddyfile e aplicar com: sudo systemctl reload caddy
 # Validar como o usuario do servico (como root, o validate cria o access log com dono root e o reload falha):
 #   sudo -u caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-# HTTPS automatico (Let's Encrypt): o DNS de bridgit-demo.duckdns.org precisa apontar para o IP da VM
-# e as portas 80/443 precisam estar abertas (o NSG do provision.sh ja libera).
+# HTTPS automatico (Let's Encrypt): cada nome precisa resolver para o IP da VM e as portas 80/443 precisam
+# estar abertas (o NSG do provision.sh ja libera). O DuckDNS resolve qualquer subdominio de um nome
+# (app.bridgit-cloud, api.bridgit-cloud...) para o mesmo IP.
 #
-# O Caddy ja envia X-Forwarded-For/X-Forwarded-Proto/X-Forwarded-Host; o Spring os le com
-# SERVER_FORWARD_HEADERS_STRATEGY=native.
-#
-# Sem `encode`: nao comprimir nem bufferizar o SSE (/api/hub/events/stream).
-bridgit-demo.duckdns.org {
-	# Access log para diagnostico (inclusive do que nao chega na API: CORS, limite de corpo, TLS).
-	# JSON rotacionado; Authorization/Cookie ja saem redigidos pelo Caddy, e o code/state do
-	# callback OAuth sao removidos da query. Ler com: sudo tail -f /var/log/caddy/bridgit-access.log
+# Nomes:
+#   app.bridgit-cloud.duckdns.org  web (arquivos estaticos publicados por deploy-web.sh)
+#   api.bridgit-cloud.duckdns.org  API
+#   db.bridgit-cloud.duckdns.org   CloudBeaver
+#   bridgit-demo.duckdns.org (e db.) nomes antigos, mantidos como proxy: webhooks ja registrados e APKs antigos
+#   ainda chamam esse endereco, e webhook nao segue redirect.
+
+# Access log JSON rotacionado; Authorization/Cookie ja saem redigidos pelo Caddy, e o code/state do
+# callback OAuth sao removidos da query. Ler com: sudo tail -f /var/log/caddy/<arquivo>
+(access_log) {
 	log {
-		output file /var/log/caddy/bridgit-access.log {
+		output file /var/log/caddy/{args[0]} {
 			roll_size 10MiB
 			roll_keep 5
 			roll_keep_for 168h
@@ -29,6 +32,12 @@ bridgit-demo.duckdns.org {
 			}
 		}
 	}
+}
+
+# API. O Caddy ja envia X-Forwarded-For/X-Forwarded-Proto/X-Forwarded-Host; o Spring os le com
+# SERVER_FORWARD_HEADERS_STRATEGY=native. Sem `encode`: nao comprimir nem bufferizar o SSE (/api/hub/events/stream).
+api.bridgit-cloud.duckdns.org, bridgit-demo.duckdns.org {
+	import access_log bridgit-access.log
 
 	# Upload de ate 50 MB (multipart do Spring: 52 MB).
 	request_body {
@@ -41,8 +50,25 @@ bridgit-demo.duckdns.org {
 	}
 }
 
-# CloudBeaver (consulta ao banco pelo navegador; setup-cloudbeaver.sh). O DNS do DuckDNS resolve
-# qualquer subdominio de bridgit-demo.duckdns.org para o mesmo IP.
-db.bridgit-demo.duckdns.org {
+# Web (SPA). /var/www/bridgit/current e um symlink para a release atual (deploy-web.sh).
+app.bridgit-cloud.duckdns.org {
+	import access_log bridgit-web-access.log
+
+	root * /var/www/bridgit/current
+	encode zstd gzip
+
+	# Arquivos com hash no nome podem ficar em cache; o index.html sempre e revalidado.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@html path / /index.html
+	header @html Cache-Control "no-cache"
+
+	# Rotas do React Router caem no index.html.
+	try_files {path} /index.html
+	file_server
+}
+
+# CloudBeaver (consulta ao banco pelo navegador; setup-cloudbeaver.sh).
+db.bridgit-cloud.duckdns.org, db.bridgit-demo.duckdns.org {
 	reverse_proxy 127.0.0.1:8978
 }

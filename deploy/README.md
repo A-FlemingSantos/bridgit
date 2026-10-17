@@ -1,16 +1,18 @@
 # Deploy no Azure (demo)
 
-Arquitetura: uma VM Ubuntu 24.04 com a API Spring Boot (Java 21, porta 8080 só em loopback), SQL Server 2025 Express (só localhost) e Caddy (HTTPS automático) em `https://bridgit-demo.duckdns.org`. O front roda no Azure Static Web Apps (Free). **Uma única instância da API** (os workers rodam no processo).
+Arquitetura: uma VM Ubuntu 24.04 com a API Spring Boot (Java 21, porta 8080 só em loopback), SQL Server 2025 Express (só localhost) e Caddy (HTTPS automático). O Caddy também serve o web (arquivos estáticos). Nomes: `app.bridgit-cloud.duckdns.org` (web), `api.bridgit-cloud.duckdns.org` (API) e `db.bridgit-cloud.duckdns.org` (CloudBeaver). O nome antigo `bridgit-demo.duckdns.org` continua como proxy da API (webhooks já registrados e APKs antigos). **Uma única instância da API** (os workers rodam no processo).
 
 ```
 deploy/
-  azure/provision.sh        cria RG, rede, NSG, IP, VM, Static Web App (e orçamento opcional)
+  azure/provision.sh        cria RG, rede, NSG, IP, VM (e orçamento opcional)
   vm/cloud-init.yaml        preparação da VM no primeiro boot (sem segredos)
   vm/setup-sql.sh           configura o SQL Server Express, banco, login e backup
   vm/Caddyfile              proxy reverso + HTTPS
   vm/bridgit-api.service    unit systemd da API
   vm/api.env.example        modelo de /etc/bridgit/api.env
-  vm/deploy-api.sh          troca de release com rollback (usado pelo CI)
+  vm/deploy-api.sh          troca de release da API com rollback (usado pelo CI)
+  vm/deploy-web.sh          publica o build do web em /var/www/bridgit (usado pelo CI)
+  vm/setup-cloudbeaver.sh   CloudBeaver (banco pelo navegador)
 ```
 
 ## 1. Acesso ao Azure
@@ -34,7 +36,7 @@ SSH_PUBLIC_KEY_PATH=~/.ssh/id_ed25519.pub \
 
 Opcionais: `LOCATION` (brazilsouth), `RG` (rg-bridgit), `VM_SIZE` (Standard_D2s_v4, 2 vCPU / 8 GiB; cai para `VM_SIZE_FALLBACK` Standard_D2as_v7 se faltar SKU/cota — a série B não é oferecida a esta assinatura no Brazil South), `ADMIN_USER` (azureuser), `SSH_SOURCE` (restrinja o IP de origem do SSH se puder), `BUDGET_AMOUNT` + `BUDGET_EMAIL` (cria orçamento mensal com alertas de 80% real e 100% previsto). O script verifica SKU e cota antes de criar qualquer coisa e é seguro repetir.
 
-Ao final ele imprime o **IP público** e o **host do Static Web App**. Anote os dois.
+Ao final ele imprime o **IP público**. Anote.
 
 Acompanhe o cloud-init (instala Java, Caddy, SQL Server; leva alguns minutos):
 
@@ -45,7 +47,7 @@ ssh azureuser@<IP> 'cloud-init status --wait; ls /var/lib/bridgit-bootstrap.done
 
 ## 3. DuckDNS
 
-Em duckdns.org, aponte o subdomínio `bridgit-demo` para o IP público da VM. Confirme: `nslookup bridgit-demo.duckdns.org`. O Caddy só emite o certificado depois que o DNS resolve e as portas 80/443 estão acessíveis.
+Em duckdns.org, aponte o subdomínio `bridgit-cloud` para o IP público da VM. O DuckDNS resolve qualquer subdomínio dele (`app.`, `api.`, `db.`) para o mesmo IP. Confirme: `nslookup api.bridgit-cloud.duckdns.org`. O Caddy só emite o certificado depois que o DNS resolve e as portas 80/443 estão acessíveis.
 
 ## 4. Copiar arquivos para a VM
 
@@ -98,7 +100,7 @@ sudo install -o root -g bridgit -m 0640 /tmp/bridgit-vm/api.env.example /etc/bri
 sudoedit /etc/bridgit/api.env
 ```
 
-Preencha `SPRING_DATASOURCE_PASSWORD` (a senha do `bridgit_app`), `APP_JWT_SECRET`, `APP_INTEGRATION_TOKEN_KEY_B64`, `APP_FRONTEND_BASE_URL` e `APP_CORS_ALLOWED_ORIGINS` (`https://<nome>.azurestaticapps.net`) e, quando tiver, os client id/secret dos três provedores. As redirect URIs já estão preenchidas.
+Preencha `SPRING_DATASOURCE_PASSWORD` (a senha do `bridgit_app`), `APP_JWT_SECRET`, `APP_INTEGRATION_TOKEN_KEY_B64`, `APP_FRONTEND_BASE_URL` e `APP_CORS_ALLOWED_ORIGINS` (`https://app.bridgit-cloud.duckdns.org`) e, quando tiver, os client id/secret dos três provedores. As redirect URIs já estão preenchidas.
 
 ## 7. Primeiro deploy da API
 
@@ -110,7 +112,7 @@ ssh azureuser@<IP>
 sudo -u deploy /opt/bridgit/deploy-api.sh /tmp/api-manual.jar abcdef1
 sudo systemctl enable bridgit-api   # para subir sozinha após reboot
 curl -s http://127.0.0.1:8080/actuator/health
-curl -s https://bridgit-demo.duckdns.org/actuator/health
+curl -s https://api.bridgit-cloud.duckdns.org/actuator/health
 ```
 
 O script move o jar para `/opt/bridgit/releases/api-<sha>.jar`, troca o symlink `/opt/bridgit/current.jar`, reinicia, espera `UP` (até ~120 s) e, se falhar, volta à release anterior e sai com erro. Mantém as 3 mais recentes. O Flyway migra o banco na partida. Se o `<sha>` for o de um commit, use o hash curto/completo; para testes manuais qualquer hexadecimal de 7+ caracteres serve (ex.: `abcdef1`).
@@ -120,9 +122,9 @@ O script move o jar para `/opt/bridgit/releases/api-<sha>.jar`, troca o symlink 
 URIs de produção (mantenha também as de `localhost:8080` se ainda desenvolve localmente):
 
 ```
-https://bridgit-demo.duckdns.org/api/providers/onedrive/callback
-https://bridgit-demo.duckdns.org/api/providers/google-drive/callback
-https://bridgit-demo.duckdns.org/api/providers/dropbox/callback
+https://api.bridgit-cloud.duckdns.org/api/providers/onedrive/callback
+https://api.bridgit-cloud.duckdns.org/api/providers/google-drive/callback
+https://api.bridgit-cloud.duckdns.org/api/providers/dropbox/callback
 ```
 
 - **OneDrive (Microsoft Entra)**: `az ad app update --id <app-id> --web-redirect-uris <lista completa>`. Atenção: o comando **substitui** a lista inteira; inclua todas as URIs que devem continuar válidas (por exemplo `http://localhost:8080/api/providers/onedrive/callback` e a de produção). Veja a atual antes: `az ad app show --id <app-id> --query web.redirectUris`.
@@ -137,13 +139,15 @@ Em Settings > Secrets and variables > Actions:
 
 | Nome | Tipo | Valor |
 |---|---|---|
-| `AZURE_STATIC_WEB_APPS_API_TOKEN` | secret | `az staticwebapp secrets list --subscription <sub> -g rg-bridgit -n swa-bridgit --query properties.apiKey -o tsv` |
-| `VM_HOST` | secret | IP público (ou `bridgit-demo.duckdns.org`) |
+| `VM_HOST` | secret | IP público da VM |
 | `VM_SSH_KEY` | secret | chave **privada** do usuário `deploy` (`bridgit_deploy`) |
 | `VM_KNOWN_HOSTS` | secret | `ssh-keyscan -t ed25519 <IP>` (confira a impressão digital) |
-| `VITE_API_BASE_URL` | variable | `https://bridgit-demo.duckdns.org` |
+| `VITE_API_BASE_URL` | variable | `https://api.bridgit-cloud.duckdns.org` |
 
-O CI envia o jar para `/tmp/api-<sha>.jar`, copia `deploy/vm/deploy-api.sh` ao lado e executa `deploy-api.sh /tmp/api-<sha>.jar <sha>` como `deploy`.
+Os dois workflows usam SSH como `deploy`:
+
+- `api-deploy`: envia o jar e o `deploy-api.sh` para `/tmp` e executa `deploy-api.sh /tmp/api-<sha>.jar <sha>`.
+- `web-deploy`: empacota `apps/web/dist`, envia com o `deploy-web.sh` e executa `deploy-web.sh /tmp/web-<sha>.tar.gz <sha>`, que publica em `/var/www/bridgit/releases/<sha>` e troca o symlink `current` (sem reiniciar nada).
 
 ## 10. SSMS 22 via túnel SSH
 
@@ -157,7 +161,7 @@ No SSMS: servidor `localhost,1433`, autenticação SQL Server, login `bridgit_ap
 
 ## 11. CloudBeaver (banco pelo navegador)
 
-Para consultar o banco em qualquer PC, sem SSMS nem chave SSH: `https://db.bridgit-demo.duckdns.org` (o DuckDNS resolve qualquer subdomínio de `bridgit-demo` para o mesmo IP; o bloco está no `Caddyfile`).
+Para consultar o banco em qualquer PC, sem SSMS nem chave SSH: `https://db.bridgit-cloud.duckdns.org` (o bloco está no `Caddyfile`).
 
 ```bash
 scp deploy/vm/setup-cloudbeaver.sh azureuser@<IP>:/tmp/ && ssh azureuser@<IP> 'sudo bash /tmp/setup-cloudbeaver.sh'

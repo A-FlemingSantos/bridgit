@@ -1,11 +1,11 @@
-# Deploy do front-end (apps/web) para o Azure Static Web Apps.
+# Deploy do front-end (apps/web) na VM Azure, servido pelo Caddy em app.bridgit-cloud.duckdns.org.
 #
 # ATENCAO: o gatilho `deploy/azure` abaixo e TEMPORARIO (validacao do deploy na
 # branch de trabalho). Remover antes de fazer o merge em `main`.
 #
 # Requisitos no repositorio:
 #   - variable: VITE_API_BASE_URL  (URL publica da API, embutida no build)
-#   - secret:   AZURE_STATIC_WEB_APPS_API_TOKEN
+#   - secrets:  VM_HOST, VM_SSH_KEY, VM_KNOWN_HOSTS (os mesmos do api-deploy). Usuario SSH: `deploy`.
 name: web-deploy
 
 on:
@@ -17,6 +17,7 @@ on:
       - "apps/web/**"
       - "packages/shared-client/**"
       - "package-lock.json"
+      - "deploy/vm/deploy-web.sh"
       - ".github/workflows/web-deploy.yml"
   workflow_dispatch:
 
@@ -63,11 +64,37 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: npm run build
 
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: upload
-          skip_app_build: true
-          app_location: apps/web/dist
+      - name: Package build
+        run: tar -czf web.tar.gz -C apps/web/dist .
+
+      - name: Prepare SSH
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Upload and deploy
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(-i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          REMOTE="deploy@$VM_HOST"
+          # Nomes por release: /tmp tem sticky bit, entao um arquivo deixado por outro usuario nao pode ser sobrescrito.
+          TAR_REMOTE="/tmp/web-$RELEASE_SHA.tar.gz"
+          SCRIPT_REMOTE="/tmp/deploy-web-$RELEASE_SHA.sh"
+
+          scp "${SSH_OPTS[@]}" web.tar.gz "$REMOTE:$TAR_REMOTE"
+          scp "${SSH_OPTS[@]}" deploy/vm/deploy-web.sh "$REMOTE:$SCRIPT_REMOTE"
+          ssh "${SSH_OPTS[@]}" "$REMOTE" "bash $SCRIPT_REMOTE $TAR_REMOTE $RELEASE_SHA; rc=\$?; rm -f $SCRIPT_REMOTE; exit \$rc"
+
+      - name: Cleanup SSH material
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts
