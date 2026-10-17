@@ -1,7 +1,4 @@
-import {
-  Palette,
-} from 'lucide-react'
-import { PixelBookmark, PixelFolderMove, PixelLink, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelBookmark, PixelBrush, PixelFolderMove, PixelLink, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 
 export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, onError }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
@@ -102,7 +99,7 @@ export function folderMenuItems(item, { openOverlay, colorPicker = null }) {
           {
             id: 'color',
             label: 'Cor da pasta',
-            icon: Palette,
+            icon: PixelBrush,
             swatch: colorPicker.swatch,
             panel: colorPicker.panel,
           },
