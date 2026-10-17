@@ -1,5 +1,7 @@
 import styles from './FileSheet.module.css'
 
+// Placeholder cover for a file: a pixel-art document, scaled by the host's size
+// variant (default, large or compact).
 export default function FileSheet({ large = false, compact = false }) {
   const className = [
     styles.sheet,
@@ -8,10 +10,15 @@ export default function FileSheet({ large = false, compact = false }) {
   ].filter(Boolean).join(' ')
 
   return (
-    <span className={className} aria-hidden="true">
-      <span />
-      <span />
-      <span />
-    </span>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      shapeRendering="crispEdges"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M16 4h-2v4h4V6h2v16H4V2h12v2ZM6 20h12V10h-6V4H6v16Zm10-2H8v-2h8v2Zm0-4H8v-2h8v2Zm-6-4H8V8h2v2Zm8-4h-2V4h2v2Z" />
+    </svg>
   )
 }

@@ -1,59 +1,23 @@
 .sheet {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 8px;
+  display: block;
   width: 42%;
   max-width: 72px;
-  aspect-ratio: 3 / 4;
-  padding: 12px 10px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--line);
+  aspect-ratio: 1;
+  color: color-mix(in srgb, var(--ink) 38%, transparent);
 }
 
 .large {
   width: min(220px, 42vw);
   max-width: 220px;
-  gap: 14px;
-  padding: 28px 22px;
 }
 
 .compact {
-  width: 22px;
-  max-width: 22px;
-  gap: 3px;
-  padding: 5px 4px;
-}
-
-.sheet span {
-  display: block;
-  height: 1px;
-  background: color-mix(in srgb, var(--ink) 22%, transparent);
-}
-
-.large span {
-  height: 2px;
+  width: 24px;
+  max-width: 24px;
 }
 
 @media (prefers-color-scheme: dark) {
   .sheet {
-    background: color-mix(in srgb, var(--ink) 16%, var(--wash));
-    box-shadow: none;
+    color: color-mix(in srgb, var(--ink) 55%, transparent);
   }
-
-  .sheet span {
-    background: color-mix(in srgb, var(--ink) 38%, transparent);
-  }
-}
-
-.sheet span:first-child {
-  width: 62%;
-}
-
-.sheet span:nth-child(2) {
-  width: 88%;
-}
-
-.sheet span:last-child {
-  width: 74%;
 }
