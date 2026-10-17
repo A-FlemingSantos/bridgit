@@ -1,74 +1,70 @@
 .foot {
-  padding: clamp(64px, 8vw, 104px) clamp(24px, 5vw, 48px) 36px;
-  background: var(--paper);
-}
-
-.stack {
   display: flex;
   flex-direction: column;
-  gap: clamp(48px, 6vw, 72px);
-  max-width: 1120px;
-  margin: 0 auto;
+  gap: clamp(56px, 8vw, 88px);
+  padding: clamp(64px, 10vw, 104px) 0 32px;
 }
 
 .close {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
-  max-width: 34ch;
+  gap: 14px;
 }
 
 .heading {
   margin: 0;
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: 15px;
   font-weight: 500;
-  letter-spacing: -0.05em;
-  line-height: 1.05;
-  text-wrap: balance;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--land-ink);
 }
 
 .note {
   margin: 0;
-  font-size: 15px;
+  max-width: 48ch;
+  font-size: 13.5px;
   line-height: 1.6;
-  color: var(--mute);
+  color: var(--land-mute);
 }
 
 .cta {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 22px;
-  margin-top: 4px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 0 18px;
+  border: 1px solid var(--land-line);
+  font-family: var(--land-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--land-ink);
   text-decoration: none;
+  transition: border-color 160ms ease;
 }
 
 .cta:hover {
-  opacity: 0.88;
+  border-color: var(--land-ink);
 }
 
 .legal {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   flex-wrap: wrap;
-  padding-top: 28px;
-  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  border-top: 1px solid var(--land-line);
 }
 
 .copy {
   margin: 0;
-  font-size: 13px;
-  color: var(--mute);
+  font-family: var(--land-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--land-mute);
 }
 
 .links {
@@ -77,13 +73,15 @@
 }
 
 .link {
-  font-size: 13px;
-  color: var(--mute);
+  font-family: var(--land-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--land-mute);
   text-decoration: none;
 }
 
 .link:hover {
-  color: var(--ink);
+  color: var(--land-ink);
 }
 
 @media (max-width: 640px) {

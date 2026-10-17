@@ -1,20 +1,34 @@
 .bar {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 2;
   display: flex;
   align-items: center;
-  min-height: 72px;
-  padding: 0 clamp(24px, 5vw, 48px);
-  background: var(--hero);
-  pointer-events: none;
+  justify-content: space-between;
+  padding: clamp(28px, 5vw, 40px) 0;
 }
 
 .mark {
-  pointer-events: auto;
-  font-size: 15px;
-  font-weight: 560;
-  letter-spacing: -0.04em;
-  text-decoration: none;
-  color: var(--ink);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--land-ink);
+}
+
+.mark svg {
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+.action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-right: -8px;
+  color: var(--land-mute);
+  transition: color 160ms ease;
+}
+
+.action:hover {
+  color: var(--land-ink);
 }

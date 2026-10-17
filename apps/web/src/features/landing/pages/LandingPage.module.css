@@ -1,12 +1,21 @@
 .page {
+  --land-bg: #121212;
+  --land-ink: #ededed;
+  --land-soft: #b4b4b4;
+  --land-mute: #8a8a8a;
+  --land-line: #262626;
+  --land-card: #1a1a1a;
+  --land-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
   display: flex;
   flex-direction: column;
   height: 100dvh;
   max-height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--land-bg);
+  color: var(--land-ink);
+  color-scheme: dark;
 }
 
 .scroll,
@@ -16,6 +25,8 @@
   height: 100%;
 }
 
-.heroBlock {
-  position: relative;
+.shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(16px, 5vw, 48px);
 }
