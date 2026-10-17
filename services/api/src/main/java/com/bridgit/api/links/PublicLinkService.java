@@ -11,6 +11,7 @@ import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
 import com.bridgit.api.integrations.ProviderRetryService;
 import com.bridgit.api.links.LinkDtos.OwnerPublicLinkResponse;
+import com.bridgit.api.links.LinkDtos.OwnerPublicLinkSummary;
 import com.bridgit.api.links.LinkDtos.PublicLinkMetadata;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
@@ -29,6 +30,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -107,6 +110,30 @@ public class PublicLinkService {
     return linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref)
         .map(link -> toOwnerResponse(link))
         .orElse(null);
+  }
+
+  // Links whose connection was removed are left out: their item can no longer be resolved.
+  @Transactional(readOnly = true)
+  public List<OwnerPublicLinkSummary> listOwnerLinks() {
+    UUID userId = authenticatedUserService.requireUserId();
+    Map<UUID, String> providerByConnection = new HashMap<>();
+    connectionRepository.findByUserId(userId)
+        .forEach(connection -> providerByConnection.put(connection.getId(), connection.getProvider()));
+
+    return linkRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+        .filter(link -> providerByConnection.containsKey(link.getConnectionId()))
+        .map(link -> new OwnerPublicLinkSummary(
+            providerByConnection.get(link.getConnectionId()),
+            link.getItemRef(),
+            "file",
+            link.getName(),
+            link.getMimeType(),
+            link.getExtension(),
+            buildPublicUrl(link),
+            link.getCreatedAt(),
+            link.getLastAccessedAt()
+        ))
+        .toList();
   }
 
   @org.springframework.beans.factory.annotation.Autowired(required = false)

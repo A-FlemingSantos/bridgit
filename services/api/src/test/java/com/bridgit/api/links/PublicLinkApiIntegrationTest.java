@@ -123,6 +123,42 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
+  void ownerListsOnlyOwnPublicLinks() throws Exception {
+    mockMvc.perform(get("/api/hub/public-links")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").isEmpty());
+
+    mockMvc.perform(put("/api/providers/onedrive/items/file-1/public-link")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/hub/public-links")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
+        .andExpect(jsonPath("$.data[0].provider").value("onedrive"))
+        .andExpect(jsonPath("$.data[0].ref").value("file-1"))
+        .andExpect(jsonPath("$.data[0].kind").value("file"))
+        .andExpect(jsonPath("$.data[0].name").value("Relatorio.pdf"))
+        .andExpect(jsonPath("$.data[0].url").value(org.hamcrest.Matchers.containsString("/p/relatorio-")))
+        .andExpect(jsonPath("$.data[0].createdAt").isNotEmpty());
+
+    JsonNode other = registerUser("link_other", "password123", UUID.randomUUID());
+    String otherToken = other.path("data").path("accessToken").asText();
+    mockMvc.perform(get("/api/hub/public-links")
+            .header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").isEmpty());
+  }
+
+  @Test
+  void listPublicLinksRequiresAuthentication() throws Exception {
+    mockMvc.perform(get("/api/hub/public-links"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void createPublicLinkRejectsFolders() throws Exception {
     mockMvc.perform(put("/api/providers/onedrive/items/folder-1/public-link")
             .header("Authorization", "Bearer " + accessToken))

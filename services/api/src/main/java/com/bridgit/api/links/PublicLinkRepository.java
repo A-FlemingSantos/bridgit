@@ -1,5 +1,6 @@
 package com.bridgit.api.links;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,8 @@ public interface PublicLinkRepository extends JpaRepository<PublicLinkEntity, UU
   Optional<PublicLinkEntity> findByConnectionIdAndItemRef(UUID connectionId, String itemRef);
 
   Optional<PublicLinkEntity> findBySuffix(String suffix);
+
+  List<PublicLinkEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
   boolean existsBySuffix(String suffix);
 
