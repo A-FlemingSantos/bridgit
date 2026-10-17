@@ -173,6 +173,12 @@
   padding-right: 28px;
 }
 
+/* Esconde o olho nativo do Edge; o botão .reveal já cobre a função. */
+.secret input::-ms-reveal,
+.secret input::-ms-clear {
+  display: none;
+}
+
 .reveal {
   position: absolute;
   right: 0;
