@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Clock, FolderPlus, LayoutGrid, LayoutList, Layers } from 'lucide-react'
+import { Clock, FolderPlus, Layers } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -375,7 +375,17 @@ export default function HomePage() {
                   aria-label="Grade"
                   onClick={() => setRecentsView('grid')}
                 >
-                  <LayoutGrid size={15} strokeWidth={1.7} aria-hidden="true" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    shapeRendering="crispEdges"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 4h-7v7h7V4h2v16h-2v-7h-7v7h7v2H4v-2h7v-7H4v7H2V4h2v7h7V4H4V2h16v2Z" />
+                  </svg>
                 </button>
                 <button
                   type="button"
@@ -384,7 +394,17 @@ export default function HomePage() {
                   aria-label="Lista"
                   onClick={() => setRecentsView('list')}
                 >
-                  <LayoutList size={15} strokeWidth={1.7} aria-hidden="true" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    shapeRendering="crispEdges"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 5h12v2H10zm0 4h8v2h-8zm0 4h12v2H10zm0 4h8v2h-8zM4 7v2h2V7H4Zm4 4H2V5h6v6Zm-6 2h6v2H2zm0 4h6v2H2zm0 0v-2h2v2zm4 0v-2h2v2z" />
+                  </svg>
                 </button>
               </div>
             </div>
