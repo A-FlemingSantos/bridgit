@@ -8,7 +8,7 @@ import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import { settingsNavState } from '../../../../shared/utils/settingsOverlay.js'
 import ProviderMark from '../../../spaces/components/ProviderMark.jsx'
-import { fileMenuItems } from '../../../spaces/components/entryActions.js'
+import { fileMenuItems } from '../../../spaces/components/entryActions.jsx'
 import { formatRelativeTime } from '../../formatRelativeTime.js'
 import styles from './HomeSidebar.module.css'
 
@@ -189,6 +189,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
       actions,
       isShortcut: shortcutsQuery.isShortcut,
       hasPublicLink: linksQuery.isPublic,
+      navigate,
       providerName: PROVIDER_LABELS[file.provider] ?? file.provider,
       onError: handleError,
     }))

@@ -22,7 +22,7 @@ import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.js
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProviderBreadcrumb.js'
 import { formatItemDate } from '../formatItemDate.js'
-import { fileMenuItems, folderMenuItems } from '../components/entryActions.js'
+import { fileMenuItems, folderMenuItems } from '../components/entryActions.jsx'
 import styles from './SpaceBrowsePage.module.css'
 import { staleCatalogNotice } from './staleCatalogNotice.js'
 
@@ -151,6 +151,7 @@ export default function SpaceBrowsePage() {
       actions,
       isShortcut,
       hasPublicLink,
+      navigate,
       providerName: providerMeta?.name ?? '',
       onError: (error) => setActionError(hubErrorMessage(error)),
     }

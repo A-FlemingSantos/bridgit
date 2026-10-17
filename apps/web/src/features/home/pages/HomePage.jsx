@@ -20,7 +20,7 @@ import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
-import { fileMenuItems } from '../../spaces/components/entryActions.js'
+import { fileMenuItems } from '../../spaces/components/entryActions.jsx'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
 import styles from './HomePage.module.css'
@@ -137,6 +137,7 @@ export default function HomePage() {
       actions,
       isShortcut: shortcutsQuery.isShortcut,
       hasPublicLink: publicLinksQuery.isPublic,
+      navigate,
       providerName: providerLabel(item.provider),
       onError: (error) => setActionError(hubErrorMessage(error)),
     }

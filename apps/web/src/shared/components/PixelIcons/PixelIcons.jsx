@@ -57,6 +57,18 @@ export function PixelBrush() {
   )
 }
 
+export function PixelDownload() {
+  return (
+    <PixelIcon path="M19 21H5v-2h14v2ZM5 19H3v-4h2v4Zm16 0h-2v-4h2v4Zm-8-8h4v2h-2v2h-2v2h-2v-2H9v-2H7v-2h4V3h2v8Z" />
+  )
+}
+
+export function PixelOpen() {
+  return (
+    <PixelIcon path="M2 3h9v2H2zM0 19h11v2H0zM13 3h9v2h-9zm0 16h11v2H13zM11 5h2v18h-2zM0 5h2v14H0zm22 0h2v14h-2zm-7 2h5v2h-5zm0 4h5v2h-5zm0 4h2v2h-2z" />
+  )
+}
+
 export function PixelTrash() {
   return (
     <PixelIcon path="M18 22H6V20H18V22ZM9 6H15V4H17V6H22V8H20V20H18V8H6V20H4V8H2V6H7V4H9V6ZM15 4H9V2H15V4Z" />

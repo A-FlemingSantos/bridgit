@@ -1,10 +1,32 @@
-import { PixelBookmark, PixelBrush, PixelFolderMove, PixelLink, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { providerFileUrl } from '../../../shared/config/routes.js'
+import OpenChoices from './OpenChoices/OpenChoices.jsx'
+import { PixelBookmark, PixelBrush, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 
-export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, onError }) {
+export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, onError }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
   const linked = hasPublicLink?.(item.provider, item.ref) ?? false
 
+  const fileUrl = providerFileUrl(item.provider, item.ref)
+
   return [
+    {
+      id: 'open',
+      label: 'Abrir',
+      icon: PixelOpen,
+      panel: ({ close }) => (
+        <OpenChoices
+          onNewTab={() => {
+            close()
+            window.open(fileUrl, '_blank', 'noopener,noreferrer')
+          }}
+          onHere={() => {
+            close()
+            if (navigate) navigate(fileUrl)
+            else window.location.assign(fileUrl)
+          }}
+        />
+      ),
+    },
     {
       id: 'rename',
       label: 'Renomear',
@@ -18,6 +40,25 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
           ref: item.ref,
           name: item.name,
         }),
+    },
+    {
+      id: 'download',
+      label: 'Baixar',
+      icon: PixelDownload,
+      onSelect: () => {
+        void actions
+          .getDownloadUrl({ providerId: item.provider, ref: item.ref })
+          .then((url) => {
+            const anchor = document.createElement('a')
+            anchor.href = url
+            anchor.download = item.name ?? ''
+            anchor.rel = 'noopener'
+            document.body.appendChild(anchor)
+            anchor.click()
+            anchor.remove()
+          })
+          .catch((error) => onError?.(error))
+      },
     },
     {
       id: 'move',

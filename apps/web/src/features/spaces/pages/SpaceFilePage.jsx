@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
@@ -17,11 +17,12 @@ import { useHub } from '../../../shared/state/HubState.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { formatFileMeta } from '../../../shared/components/FileReader/formatFileMeta.js'
 import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
-import { fileMenuItems } from '../components/entryActions.js'
+import { fileMenuItems } from '../components/entryActions.jsx'
 import styles from './SpaceFilePage.module.css'
 
 export default function SpaceFilePage() {
   const { fileRef, provider: providerId } = useParams()
+  const navigate = useNavigate()
   const { openOverlay } = useHub()
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
@@ -202,6 +203,7 @@ export default function SpaceFilePage() {
     actions,
     isShortcut,
     hasPublicLink,
+    navigate,
     providerName: providerMeta?.name ?? '',
     onError: (error) => setActionError(hubErrorMessage(error)),
   }
