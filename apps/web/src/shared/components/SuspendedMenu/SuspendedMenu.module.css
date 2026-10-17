@@ -1,19 +1,23 @@
+/* Keep in sync with MENU_OPEN_MS / MENU_CLOSE_MS in useSuspendedMenu.js. */
 .extras {
-  --stagger-start: 48ms;
-  --stagger-step: 36ms;
-  --item-motion: 220ms;
-  --item-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --menu-open: 260ms;
+  --menu-close: 180ms;
+  --menu-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   right: 0;
   left: auto;
   z-index: 8;
-  overflow: hidden;
-  width: 168px;
-  max-height: 0;
+  width: 220px;
   visibility: hidden;
   pointer-events: none;
+  clip-path: inset(0 0 100% 0 round 12px);
+  transform: translateY(-4px);
+  transition:
+    clip-path var(--menu-close) var(--menu-ease),
+    transform var(--menu-close) var(--menu-ease),
+    visibility 0s linear var(--menu-close);
 }
 
 .fixed {
@@ -35,69 +39,97 @@
   left: 0;
 }
 
-.extrasOpen,
-.extrasClosing {
-  max-height: 400px;
-  visibility: visible;
-}
-
 .extrasOpen {
+  visibility: visible;
   pointer-events: auto;
+  clip-path: inset(0 0 0 0 round 12px);
+  transform: translateY(0);
+  transition:
+    clip-path var(--menu-open) var(--menu-ease),
+    transform var(--menu-open) var(--menu-ease),
+    visibility 0s linear 0s;
 }
 
 .extrasClosing {
+  visibility: visible;
   pointer-events: none;
 }
 
 .inner {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--overlay);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, #000 8%, transparent),
+    0 12px 32px -8px color-mix(in srgb, #000 28%, transparent);
 }
 
-.extrasOpen .inner,
-.extrasClosing .inner {
-  padding-top: 4px;
+.title {
+  overflow: hidden;
+  margin: 0;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mute);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .item {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  height: calc(clamp(28px, 4vw, 40px) * 1.15);
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 10px;
   border: 0;
-  background: var(--wash);
+  border-radius: 8px;
+  background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
-  font-weight: 450;
+  font-size: 13.5px;
   letter-spacing: -0.02em;
   text-align: left;
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition:
-    opacity var(--item-motion) var(--item-ease),
-    transform var(--item-motion) var(--item-ease);
-  transition-delay: 0ms;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.item:hover {
-  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
-}
-
-.itemDanger {
-  margin-top: 4px;
+.icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 16px;
   color: var(--mute);
+  transition: color 120ms ease;
+}
+
+.label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--raise);
+}
+
+.item:hover .icon,
+.item:focus-visible .icon {
+  color: var(--ink);
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .item:disabled {
@@ -105,33 +137,35 @@
   opacity: 0.4;
 }
 
-.extrasOpen .item {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: calc(var(--stagger-start) + var(--stagger-step) * var(--i, 0));
+.item:disabled:hover {
+  background: transparent;
 }
 
-.extrasClosing .item {
-  opacity: 0;
-  transform: translateY(-8px);
-  transition-delay: calc(
-    var(--stagger-start) + var(--stagger-step) * (var(--n, 1) - 1 - var(--i, 0))
-  );
+.divider {
+  height: 1px;
+  margin: 4px 4px;
+  background: var(--line);
+}
+
+.itemDanger,
+.itemDanger .icon {
+  color: var(--danger);
+}
+
+.itemDanger:hover,
+.itemDanger:focus-visible {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.itemDanger:hover .icon,
+.itemDanger:focus-visible .icon {
+  color: var(--danger);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .item {
-    transition: none;
-  }
-
-  .extrasOpen .item {
-    opacity: 1;
+  .extras,
+  .extrasOpen {
     transform: none;
-  }
-
-  .extrasClosing .item,
-  .extras:not(.extrasOpen) .item {
-    opacity: 0;
-    transform: none;
+    transition: visibility 0s;
   }
 }

@@ -154,7 +154,13 @@ function PublicLinkRow({ link, onError }) {
           </span>
         </span>
       </a>
-      <OverflowMenu ghost hoverReveal label={`Ações do link de ${link.name}`} items={items} />
+      <OverflowMenu
+        ghost
+        hoverReveal
+        label={`Ações do link de ${link.name}`}
+        title={link.name}
+        items={items}
+      />
     </div>
   )
 }
@@ -247,6 +253,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
                   ghost
                   hoverReveal
                   label={`Ações de ${file.name}`}
+                  title={file.name}
                   items={fileMenuItems(
                     {
                       provider: file.provider,

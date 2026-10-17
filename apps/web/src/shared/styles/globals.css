@@ -10,6 +10,8 @@
   --ink: #141414;
   --ok: #2f9e6b;
   --warn: #c98a1b;
+  --danger: #c43d3d;
+  --overlay: #ffffff;
   --type: 'Geist Variable', 'Geist', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   --app-rail-width: 60px;
@@ -29,6 +31,8 @@
   --ink: #ededed;
   --ok: #4cc38a;
   --warn: #e3a944;
+  --danger: #f07a7a;
+  --overlay: #1f1f1f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,6 +47,8 @@
     --ink: #ededed;
     --ok: #4cc38a;
     --warn: #e3a944;
+    --danger: #f07a7a;
+    --overlay: #1f1f1f;
   }
 }
 

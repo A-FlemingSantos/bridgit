@@ -13,6 +13,7 @@ export default function AnchoredSuspendedMenu({
   open,
   closing,
   items,
+  title = null,
   triggerRef,
   hostRef = null,
   panelRef = null,
@@ -21,6 +22,7 @@ export default function AnchoredSuspendedMenu({
   const [coords, setCoords] = useState(null)
   const visible = open || closing
   const hasDanger = items.some((item) => item.danger)
+  const hasTitle = Boolean(title)
 
   useLayoutEffect(() => {
     if (!visible) return undefined
@@ -35,6 +37,7 @@ export default function AnchoredSuspendedMenu({
           host: host.getBoundingClientRect(),
           itemCount: items.length,
           hasDanger,
+          hasTitle,
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
           prefer,
@@ -49,7 +52,7 @@ export default function AnchoredSuspendedMenu({
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [visible, items.length, hasDanger, triggerRef, hostRef, prefer])
+  }, [visible, items.length, hasDanger, hasTitle, triggerRef, hostRef, prefer])
 
   const panel = (
     <SuspendedMenu
@@ -58,6 +61,7 @@ export default function AnchoredSuspendedMenu({
       open={open}
       closing={closing}
       items={items}
+      title={title}
       panelRef={panelRef}
       anchored
       style={coords ?? { top: -9999, left: -9999, width: MENU_WIDTH }}

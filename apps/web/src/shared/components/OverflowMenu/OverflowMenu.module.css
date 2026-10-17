@@ -22,9 +22,11 @@
   height: 28px;
   padding: 0;
   border: 0;
+  border-radius: 8px;
   background: var(--paper);
   color: var(--mute);
   cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease, opacity 120ms ease;
 }
 
 .ghost {
@@ -39,7 +41,7 @@
 
 .ghost:hover,
 .ghost[aria-expanded='true'] {
-  background: var(--wash);
+  background: var(--raise);
 }
 
 .trigger:focus-visible {
@@ -56,8 +58,10 @@
     opacity: 0;
   }
 
-  .dock:hover .hoverReveal,
-  .wrap:hover .hoverReveal,
+  /* The dock sits directly inside the file/folder card, so hovering or tabbing
+     anywhere in that card reveals the trigger. */
+  :global(*:hover) > .dock .hoverReveal,
+  :global(*:focus-within) > .dock .hoverReveal,
   .hoverReveal[aria-expanded='true'] {
     opacity: 1;
   }

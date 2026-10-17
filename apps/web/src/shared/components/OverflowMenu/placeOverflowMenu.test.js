@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { GAP, MENU_WIDTH, VIEW_PAD, placeOverflowMenu } from './placeOverflowMenu.js'
+import { GAP, MENU_WIDTH, VIEW_PAD, menuHeight, placeOverflowMenu } from './placeOverflowMenu.js'
 
 function box({ x, y, w, h }) {
   return { left: x, right: x + w, top: y, bottom: y + h, width: w, height: h }
 }
+
+describe('menuHeight', () => {
+  it('soma título e divisória dos itens destrutivos', () => {
+    const plain = menuHeight(4, false)
+    expect(menuHeight(4, true)).toBeGreaterThan(plain)
+    expect(menuHeight(4, false, true)).toBeGreaterThan(plain)
+    expect(menuHeight(1, true)).toBe(menuHeight(1, false))
+  })
+})
 
 describe('placeOverflowMenu', () => {
   const viewport = { viewportWidth: 1280, viewportHeight: 800, itemCount: 6, hasDanger: true }
@@ -86,8 +95,7 @@ describe('placeOverflowMenu', () => {
       itemCount: 3,
       hasDanger: false,
     })
-    expect(above.top + above.width).toBeDefined()
-    expect(above.top + 150).toBeLessThanOrEqual(lowTrigger.top)
+    expect(above.top + menuHeight(3, false) + GAP).toBe(lowTrigger.top)
 
     const rightTrigger = box({ x: 1180, y: 80, w: 90, h: 36 })
     const flipped = placeOverflowMenu({

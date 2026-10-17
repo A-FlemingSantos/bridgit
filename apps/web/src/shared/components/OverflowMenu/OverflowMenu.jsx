@@ -7,6 +7,7 @@ import styles from './OverflowMenu.module.css'
 export default function OverflowMenu({
   items,
   label = 'Mais ações',
+  title = null,
   floating = false,
   hoverReveal = false,
   ghost = false,
@@ -64,6 +65,7 @@ export default function OverflowMenu({
         open={menu.open}
         closing={menu.closing}
         items={wrappedItems}
+        title={title}
         triggerRef={triggerRef}
         panelRef={menuRef}
       />

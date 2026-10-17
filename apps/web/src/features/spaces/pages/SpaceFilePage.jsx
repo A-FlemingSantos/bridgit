@@ -221,6 +221,7 @@ export default function SpaceFilePage() {
                 <OverflowMenu
                   ghost
                   label={`Ações de ${item.name}`}
+                  title={item.name}
                   items={fileMenuItems(item, menuContext)}
                 />
               </div>

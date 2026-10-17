@@ -396,6 +396,7 @@ export default function HomePage() {
                       ghost
                       hoverReveal
                       label={`Ações de ${file.name}`}
+                      title={file.name}
                       items={fileMenuItems(entryMenuFile(file), menuContext(file))}
                     />
                   </StaggerItem>
@@ -436,6 +437,7 @@ export default function HomePage() {
                       floating
                       hoverReveal
                       label={`Ações de ${file.name}`}
+                      title={file.name}
                       items={fileMenuItems(entryMenuFile(file), menuContext(file))}
                     />
                   </StaggerItem>

@@ -251,6 +251,7 @@ export default function SpaceBrowsePage() {
                       floating
                       hoverReveal
                       label={`Ações de ${item.name}`}
+                      title={item.name}
                       items={folderMenuItems(item, menuContext(item))}
                     />
                   )}
@@ -300,6 +301,7 @@ export default function SpaceBrowsePage() {
                       floating
                       hoverReveal
                       label={`Ações de ${item.name}`}
+                      title={item.name}
                       items={fileMenuItems(item, menuContext(item))}
                     />
                   )}

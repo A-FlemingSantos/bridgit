@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-export const STAGGER_START_MS = 48
-export const STAGGER_STEP_MS = 36
-export const ITEM_MOTION_MS = 220
-
-export function staggerCloseMs(itemCount) {
-  const n = Math.max(itemCount, 1)
-  return STAGGER_START_MS + STAGGER_STEP_MS * (n - 1) + ITEM_MOTION_MS
-}
+// The panel unrolls from its top edge as one piece; keep in sync with SuspendedMenu.module.css.
+export const MENU_OPEN_MS = 260
+export const MENU_CLOSE_MS = 180
 
 export function extrasPanelClassName(styles, open, closing) {
   if (open) return `${styles.extras} ${styles.extrasOpen}`
@@ -45,8 +40,8 @@ export function useSuspendedMenu(itemCount, { enabled = true, menuRef = null } =
     }
 
     setClosing(true)
-    closeTimeoutRef.current = window.setTimeout(finishClose, staggerCloseMs(itemCount))
-  }, [clearCloseTimeout, finishClose, itemCount])
+    closeTimeoutRef.current = window.setTimeout(finishClose, MENU_CLOSE_MS)
+  }, [clearCloseTimeout, finishClose])
 
   const openMenu = useCallback(() => {
     clearCloseTimeout()

@@ -1,11 +1,15 @@
+import { Fragment } from 'react'
 import { extrasPanelClassName } from './useSuspendedMenu.js'
 import styles from './SuspendedMenu.module.css'
 
+// A single card that unrolls from its top edge. Destructive items sit after a
+// divider at the end, so they are never the first thing under the pointer.
 export default function SuspendedMenu({
   open,
   closing,
   items,
   id,
+  title = null,
   stretch = false,
   align = 'end',
   labelledBy,
@@ -22,6 +26,28 @@ export default function SuspendedMenu({
   ]
     .filter(Boolean)
     .join(' ')
+  const regular = items.filter((item) => !item.danger)
+  const destructive = items.filter((item) => item.danger)
+
+  function renderItem(item) {
+    const Icon = item.icon
+    return (
+      <button
+        key={item.id}
+        type="button"
+        role="menuitem"
+        className={[styles.item, item.danger ? styles.itemDanger : ''].filter(Boolean).join(' ')}
+        tabIndex={open ? 0 : -1}
+        disabled={item.disabled}
+        onClick={item.onSelect}
+      >
+        <span className={styles.icon} aria-hidden="true">
+          {Icon ? <Icon size={15} strokeWidth={1.7} /> : null}
+        </span>
+        <span className={styles.label}>{item.label}</span>
+      </button>
+    )
+  }
 
   return (
     <div
@@ -34,24 +60,18 @@ export default function SuspendedMenu({
       style={style}
     >
       <div className={styles.inner}>
-        {items.map((item, index) => {
-          const Icon = item.icon
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              className={[styles.item, item.danger ? styles.itemDanger : ''].filter(Boolean).join(' ')}
-              style={{ '--i': index, '--n': items.length }}
-              tabIndex={open ? 0 : -1}
-              disabled={item.disabled}
-              onClick={item.onSelect}
-            >
-              {Icon ? <Icon size={15} strokeWidth={1.6} aria-hidden="true" /> : null}
-              {item.label}
-            </button>
-          )
-        })}
+        {title ? (
+          <p className={styles.title} title={title}>
+            {title}
+          </p>
+        ) : null}
+        {regular.map(renderItem)}
+        {destructive.length > 0 ? (
+          <Fragment>
+            {regular.length > 0 ? <div className={styles.divider} role="separator" /> : null}
+            {destructive.map(renderItem)}
+          </Fragment>
+        ) : null}
       </div>
     </div>
   )

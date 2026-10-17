@@ -1,14 +1,22 @@
-export const MENU_WIDTH = 168
+export const MENU_WIDTH = 220
 export const GAP = 4
 export const VIEW_PAD = 8
 
-export function itemHeight(viewportWidth) {
-  return Math.min(40, Math.max(28, viewportWidth * 0.04)) * 1.15
-}
+// Mirrors SuspendedMenu.module.css: 6px padding + 1px border on each side,
+// 34px items 2px apart, a 9px divider before destructive items and a 35px title.
+const ITEM_HEIGHT = 34
+const ITEM_GAP = 2
+const PANEL_CHROME = 14
+const DIVIDER_HEIGHT = 9
+const TITLE_HEIGHT = 35
 
-export function menuHeight(itemCount, hasDanger, viewportWidth) {
+export function menuHeight(itemCount, hasDanger, hasTitle = false) {
   const n = Math.max(itemCount, 1)
-  return n * itemHeight(viewportWidth) + (n - 1) * 4 + 4 + (hasDanger ? 4 : 0)
+  return PANEL_CHROME
+    + n * ITEM_HEIGHT
+    + (n - 1) * ITEM_GAP
+    + (hasDanger && n > 1 ? DIVIDER_HEIGHT + ITEM_GAP : 0)
+    + (hasTitle ? TITLE_HEIGHT : 0)
 }
 
 export function resolveOverflowHost(trigger) {
@@ -20,13 +28,14 @@ export function placeOverflowMenu({
   host,
   itemCount,
   hasDanger,
+  hasTitle = false,
   viewportWidth,
   viewportHeight,
   prefer = 'beside',
 }) {
   const triggerRect = trigger
   const hostRect = host ?? triggerRect
-  const height = menuHeight(itemCount, hasDanger, viewportWidth)
+  const height = menuHeight(itemCount, hasDanger, hasTitle)
 
   if (prefer === 'below') {
     let left = triggerRect.left
