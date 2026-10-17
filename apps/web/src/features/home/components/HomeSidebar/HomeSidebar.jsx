@@ -62,7 +62,7 @@ function ProviderLink({ provider }) {
         className={styles.item}
         aria-label={`${provider.name} Acesso expirado`}
       >
-        <ProviderMark id={provider.id} size={18} />
+        <ProviderMark id={provider.id} size={24} />
         <span className={styles.itemMeta}>
           <span className={styles.itemName}>{provider.name}</span>
           <span className={styles.itemSub}>Acesso expirado · Reconectar</span>
@@ -78,7 +78,7 @@ function ProviderLink({ provider }) {
         className={styles.item}
         aria-label={`${provider.name} Conectado`}
       >
-        <ProviderMark id={provider.id} size={18} />
+        <ProviderMark id={provider.id} size={24} />
         <span className={styles.itemMeta}>
           <span className={styles.itemName}>{provider.name}</span>
           <span className={styles.itemSub}>{provider.account?.email ?? 'Conectado'}</span>
@@ -94,7 +94,7 @@ function ProviderLink({ provider }) {
       className={[styles.item, styles.itemGhost].join(' ')}
       aria-label={`${provider.name} Desconectado`}
     >
-      <ProviderMark id={provider.id} size={18} />
+      <ProviderMark id={provider.id} size={24} />
       <span className={styles.itemMeta}>
         <span className={styles.itemName}>{provider.name}</span>
         <span className={styles.itemSub}>Conectar</span>

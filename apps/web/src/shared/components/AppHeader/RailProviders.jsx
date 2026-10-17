@@ -33,7 +33,7 @@ export default function RailProviders() {
             aria-label={label}
             title={provider.name}
           >
-            <ProviderMark id={provider.id} size={20} />
+            <ProviderMark id={provider.id} size={24} />
           </Link>
         )
       })}
