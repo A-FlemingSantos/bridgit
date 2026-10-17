@@ -14,7 +14,7 @@ export default function RailProviders() {
   const location = useLocation()
   const { providers, status } = useProviders()
 
-  if (status !== 'ready' || providers.length === 0) return null
+  if (status !== 'ready') return null
 
   return (
     <nav className={styles.railProviders} aria-label="Provedores">
@@ -37,6 +37,26 @@ export default function RailProviders() {
           </Link>
         )
       })}
+      <Link
+        to={ROUTES.settingsProviders}
+        state={settingsNavState(location)}
+        className={styles.iconButton}
+        aria-label="Nova conta"
+        title="Nova conta"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          shapeRendering="crispEdges"
+          className={styles.pixelIcon}
+          aria-hidden="true"
+        >
+          <path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" />
+        </svg>
+      </Link>
     </nav>
   )
 }
