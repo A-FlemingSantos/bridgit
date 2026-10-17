@@ -71,6 +71,7 @@ export function HubDataProvider({ children }) {
   const [itemCache, setItemCache] = useState({})
   const [recentsState, setRecentsState] = useState(emptyRecentsState)
   const [shortcutsState, setShortcutsState] = useState(emptyListState)
+  const [publicLinksState, setPublicLinksState] = useState(emptyListState)
   const [searchState, setSearchState] = useState(emptySearchState)
 
   const folderCacheRef = useRef({})
@@ -81,6 +82,8 @@ export function HubDataProvider({ children }) {
   recentsRef.current = recentsState
   const shortcutsRef = useRef(shortcutsState)
   shortcutsRef.current = shortcutsState
+  const publicLinksRef = useRef(publicLinksState)
+  publicLinksRef.current = publicLinksState
   const providersRef = useRef(providersState)
   providersRef.current = providersState
 
@@ -452,6 +455,25 @@ export function HubDataProvider({ children }) {
     }
   }, [])
 
+  const loadPublicLinks = useCallback(async (opts = {}) => {
+    const prev = publicLinksRef.current
+    const background = prev.status === 'ready' && !opts.force
+    if (!background) {
+      setPublicLinksState((current) => ({ ...current, status: 'loading', error: null }))
+    }
+    try {
+      const entries = await hubApiRef.current.listPublicLinks()
+      setPublicLinksState({ status: 'ready', entries: entries ?? [], error: null, fetchedAt: Date.now() })
+    } catch (error) {
+      setPublicLinksState((current) => ({
+        ...current,
+        status: current.status === 'ready' ? 'ready' : 'error',
+        error,
+        fetchedAt: Date.now(),
+      }))
+    }
+  }, [])
+
   const runSearch = useCallback(
     async (query, requestId) => {
       const local = dedupeItemsByRef([
@@ -551,9 +573,10 @@ export function HubDataProvider({ children }) {
       postHubEvent({ type: 'invalidate', scope: 'provider', providerId, keys: [] })
       void loadRecents({ force: true }).catch(() => {})
       void loadShortcuts({ force: true }).catch(() => {})
+      void loadPublicLinks({ force: true }).catch(() => {})
       return providers
     },
-    [loadRecents, loadShortcuts, purgeProviderData],
+    [loadPublicLinks, loadRecents, loadShortcuts, purgeProviderData],
   )
 
   const renameItemNameInCaches = useCallback((providerId, ref, name, opId = null) => {
@@ -1322,8 +1345,21 @@ export function HubDataProvider({ children }) {
       },
 
       getPublicLink: ({ providerId, ref }) => hubApiRef.current.getPublicLink(providerId, ref),
-      enablePublicLink: ({ providerId, ref }) => hubApiRef.current.enablePublicLink(providerId, ref),
-      disablePublicLink: ({ providerId, ref }) => hubApiRef.current.disablePublicLink(providerId, ref),
+      async enablePublicLink({ providerId, ref }) {
+        const link = await hubApiRef.current.enablePublicLink(providerId, ref)
+        void loadPublicLinks({ force: true }).catch(() => {})
+        postHubEvent({ type: 'invalidate', scope: 'publicLinks', providerId, keys: [] })
+        return link
+      },
+      async disablePublicLink({ providerId, ref }) {
+        const result = await hubApiRef.current.disablePublicLink(providerId, ref)
+        setPublicLinksState((prev) => ({
+          ...prev,
+          entries: prev.entries.filter((entry) => !(entry.provider === providerId && entry.ref === ref)),
+        }))
+        postHubEvent({ type: 'invalidate', scope: 'publicLinks', providerId, keys: [] })
+        return result
+      },
       async recordRecent({ providerId, ref }) {
         try {
           const entry = await hubApiRef.current.recordRecent(providerId, ref)
@@ -1381,6 +1417,7 @@ export function HubDataProvider({ children }) {
     }),
     [
       loadItem,
+      loadPublicLinks,
       loadShortcuts,
       markFolderStale,
       postHubEvent,
@@ -1423,6 +1460,8 @@ export function HubDataProvider({ children }) {
         setRecentsState((prev) => ({ ...prev, fetchedAt: 0 }))
       } else if (event.scope === 'shortcuts') {
         setShortcutsState((prev) => ({ ...prev, fetchedAt: 0 }))
+      } else if (event.scope === 'publicLinks') {
+        setPublicLinksState((prev) => ({ ...prev, fetchedAt: 0 }))
       } else if (event.scope === 'provider' && event.providerId) {
         purgeProviderData(event.providerId)
       }
@@ -1442,7 +1481,8 @@ export function HubDataProvider({ children }) {
       key.startsWith(`${providerId}:`) ? { ...entry, fetchedAt: 0 } : entry])))
     void loadRecents().catch(() => {})
     void loadShortcuts().catch(() => {})
-  }, [loadRecents, loadShortcuts])
+    void loadPublicLinks().catch(() => {})
+  }, [loadPublicLinks, loadRecents, loadShortcuts])
 
   // Applies a refresh plan to one provider: only the folders it names (if they are open) and the home lists.
   const applyRefreshPlan = useCallback((providerId, plan) => {
@@ -1473,8 +1513,9 @@ export function HubDataProvider({ children }) {
     if (plan.home) {
       void loadRecents().catch(() => {})
       void loadShortcuts().catch(() => {})
+      void loadPublicLinks().catch(() => {})
     }
-  }, [refreshProvider, loadRecents, loadShortcuts])
+  }, [refreshProvider, loadPublicLinks, loadRecents, loadShortcuts])
 
   operationCallbackRef.current = (operation) => {
     if (!operation?.id || !operation.request) return
@@ -1637,6 +1678,9 @@ export function HubDataProvider({ children }) {
       if (isStaleEntry(shortcutsRef.current, SHORTCUTS_STALE_MS, now) && shortcutsRef.current.status === 'ready') {
         void loadShortcuts().catch(() => {})
       }
+      if (isStaleEntry(publicLinksRef.current, SHORTCUTS_STALE_MS, now) && publicLinksRef.current.status === 'ready') {
+        void loadPublicLinks().catch(() => {})
+      }
     }
     function onVisibility() {
       if (document.visibilityState === 'visible') revalidateStale()
@@ -1647,7 +1691,7 @@ export function HubDataProvider({ children }) {
       window.removeEventListener('focus', revalidateStale)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [loadProviders, loadRecents, loadShortcuts])
+  }, [loadProviders, loadPublicLinks, loadRecents, loadShortcuts])
 
   const projection = useMemo(() => projectOperations(folderCache, itemCache, durableOperations, providersState.providers), [folderCache, itemCache, durableOperations, providersState.providers])
   const value = useMemo(
@@ -1658,6 +1702,7 @@ export function HubDataProvider({ children }) {
       hydrated,
       recentsState,
       shortcutsState,
+      publicLinksState,
       searchState,
       setSearchState,
       loadProviders,
@@ -1665,6 +1710,7 @@ export function HubDataProvider({ children }) {
       loadItem,
       loadRecents,
       loadShortcuts,
+      loadPublicLinks,
       runSearch,
       connectProvider,
       disconnectProvider,
@@ -1685,7 +1731,9 @@ export function HubDataProvider({ children }) {
       loadProviders,
       loadRecents,
       loadShortcuts,
+      loadPublicLinks,
       providersState,
+      publicLinksState,
       recentsState,
       runSearch,
       searchState,

@@ -17,6 +17,7 @@ export {
   useHubActions,
   useItem,
   useProviders,
+  usePublicLinks,
   useRecents,
   useSearch,
   useShortcuts,

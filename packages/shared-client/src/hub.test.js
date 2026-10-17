@@ -14,6 +14,7 @@ import {
   listFolder,
   listProviders,
   listRecents,
+  listPublicLinks,
   listShortcuts,
   recordRecent,
   removeShortcut,
@@ -245,6 +246,10 @@ describe('hub api', () => {
     apiRequest.mockResolvedValue([])
     await listShortcuts(token)
     expect(apiRequest).toHaveBeenCalledWith('/api/hub/shortcuts', { token })
+
+    apiRequest.mockResolvedValue([])
+    await listPublicLinks(token)
+    expect(apiRequest).toHaveBeenCalledWith('/api/hub/public-links', { token })
 
     apiRequest.mockResolvedValue({ provider: 'onedrive', ref: 'a' })
     await addShortcut(token, 'onedrive', 'a/1')

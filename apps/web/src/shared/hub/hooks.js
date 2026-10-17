@@ -151,6 +151,27 @@ export function useShortcuts() {
   }
 }
 
+export function usePublicLinks() {
+  const { session } = useSession()
+  const { publicLinksState, loadPublicLinks, hydrated } = useHubDataContext()
+
+  useEffect(() => {
+    if (!session?.accessToken || !hydrated) return
+    if (publicLinksState.status === 'idle') {
+      void loadPublicLinks()
+    } else if (publicLinksState.status === 'ready' && isStaleEntry(publicLinksState, SHORTCUTS_STALE_MS)) {
+      void loadPublicLinks()
+    }
+  }, [hydrated, loadPublicLinks, publicLinksState, session?.accessToken])
+
+  return {
+    status: publicLinksState.status,
+    entries: publicLinksState.entries,
+    error: publicLinksState.error,
+    reload: loadPublicLinks,
+  }
+}
+
 export function useSearch(query) {
   const { session } = useSession()
   const { searchState, setSearchState, runSearch, hydrated } = useHubDataContext()

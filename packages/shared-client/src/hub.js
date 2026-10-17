@@ -152,6 +152,10 @@ export function removeShortcut(token, provider, ref) {
   })
 }
 
+export function listPublicLinks(token) {
+  return apiRequest('/api/hub/public-links', { token })
+}
+
 export function getPublicLink(token, provider, ref) {
   return apiRequest(`${itemPath(provider, ref)}/public-link`, { token })
 }
