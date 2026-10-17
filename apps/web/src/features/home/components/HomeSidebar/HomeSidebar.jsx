@@ -1,7 +1,8 @@
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, Copy, FileText, LayoutDashboard, Link2, Link2Off, Plus, Settings2 } from 'lucide-react'
+import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
+import { PixelCopy, PixelEye, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
@@ -111,22 +112,22 @@ function PublicLinkRow({ link, onError }) {
     {
       id: 'copy',
       label: 'Copiar link',
-      icon: Copy,
+      icon: PixelCopy,
       onSelect: () => {
         void navigator.clipboard?.writeText(link.url).catch((error) => onError?.(error))
       },
     },
     {
       id: 'manage',
-      label: 'Gerenciar link',
-      icon: Settings2,
+      label: 'Ver',
+      icon: PixelEye,
       onSelect: () =>
         openOverlay({ type: 'public-link', providerId: link.provider, ref: link.ref, name: link.name }),
     },
     {
       id: 'disable',
       label: 'Desativar link',
-      icon: Link2Off,
+      icon: PixelUnlink,
       danger: true,
       onSelect: () => {
         void actions
@@ -145,7 +146,9 @@ function PublicLinkRow({ link, onError }) {
         className={styles.item}
         aria-label={`Link público de ${link.name}`}
       >
-        <Link2 className={styles.itemIcon} size={16} strokeWidth={1.6} aria-hidden="true" />
+        <span className={styles.itemIcon} aria-hidden="true">
+          <PixelLink />
+        </span>
         <span className={styles.itemMeta}>
           <span className={styles.itemName}>{link.name}</span>
           <span className={styles.itemSub}>
