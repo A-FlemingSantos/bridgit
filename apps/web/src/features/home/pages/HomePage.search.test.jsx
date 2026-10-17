@@ -8,6 +8,7 @@ import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 vi.mock('../../../shared/hub/index.js', () => ({
   useHubActions: vi.fn(),
   useProviders: vi.fn(),
+  usePublicLinks: vi.fn(() => ({ status: 'ready', entries: [], error: null })),
   useRecents: vi.fn(),
   useSearch: vi.fn(),
   useShortcuts: vi.fn(),

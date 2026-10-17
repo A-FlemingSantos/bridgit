@@ -1,12 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, RefreshCw, Search, Upload } from 'lucide-react'
+import { Clock, Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
-import { providerFileUrl, providerFolderUrl, providerUrl, ROUTES } from '../../../shared/config/routes.js'
+import { providerFileUrl, providerFolderUrl, ROUTES } from '../../../shared/config/routes.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import {
   useHubActions,
@@ -20,6 +20,7 @@ import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import { fileMenuItems } from '../../spaces/components/entryActions.js'
+import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
 import styles from './HomePage.module.css'
 
@@ -38,6 +39,8 @@ const PROVIDER_LABELS = {
   dropbox: 'Dropbox',
 }
 
+const ALL_PROVIDERS = 'all'
+
 function itemKindLabel(item) {
   if (item.extension) return item.extension.toUpperCase()
   if (item.mimeType) return item.mimeType.split('/').pop()?.toUpperCase() ?? 'Arquivo'
@@ -48,16 +51,27 @@ function providerLabel(id) {
   return PROVIDER_LABELS[id] ?? id
 }
 
+function entryMenuFile(file) {
+  return {
+    provider: file.provider,
+    ref: file.ref,
+    name: file.name,
+    parentRef: undefined,
+    mimeType: file.mimeType,
+    extension: file.extension,
+  }
+}
+
 export default function HomePage() {
   const { openOverlay } = useHub()
   const navigate = useNavigate()
   const actions = useHubActions()
-  const { providers, status: providersStatus } = useProviders()
   const recentsQuery = useRecents()
   const shortcutsQuery = useShortcuts()
   const searchId = useId()
   const [query, setQuery] = useState('')
-  const [recentsView, setRecentsView] = useState('list')
+  const [recentsView, setRecentsView] = useState('grid')
+  const [providerFilter, setProviderFilter] = useState(ALL_PROVIDERS)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.() ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
@@ -65,10 +79,18 @@ export default function HomePage() {
   const [uploadProviderId, setUploadProviderId] = useState(null)
   const search = useSearch(query)
 
-  const shortcuts = shortcutsQuery.entries
   const recents = recentsQuery.entries
   const normalized = query.trim().toLowerCase()
   const searching = normalized.length >= 2
+
+  const recentProviders = useMemo(
+    () => [...new Set(recents.map((file) => file.provider))],
+    [recents],
+  )
+  const activeFilter = recentProviders.includes(providerFilter) ? providerFilter : ALL_PROVIDERS
+  const visibleRecents = activeFilter === ALL_PROVIDERS
+    ? recents
+    : recents.filter((file) => file.provider === activeFilter)
 
   const searchGroups = useMemo(() => {
     if (!searching || search.status !== 'ready') return []
@@ -138,41 +160,49 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell refreshKey="home">
+    <AppShell
+      refreshKey="home"
+      sidebar={(
+        <HomeSidebar
+          menuContext={menuContext}
+          onConnect={openSettingsProviders}
+          onError={(error) => setActionError(hubErrorMessage(error))}
+        />
+      )}
+    >
       <main className={styles.main}>
-        <div className={styles.command}>
-          <div className={styles.search}>
-            <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-            <input
-              id={searchId}
-              name="search"
-              type="search"
-              placeholder="Buscar"
-              aria-label="Buscar"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          <div className={styles.actions}>
-            <UploadAction onUploadError={handleUploadError} />
-            <CreateAction />
-            <button type="button" className={styles.action} onClick={openSettingsProviders}>
-              <Cloud size={15} strokeWidth={1.6} aria-hidden="true" />
-              Conectar
-            </button>
-            <button
-              type="button"
-              className={styles.action}
-              onClick={() => openOverlay({ type: 'composer', mode: 'create' })}
-            >
-              <RefreshCw size={15} strokeWidth={1.6} aria-hidden="true" />
-              Espelhar
-            </button>
-          </div>
+        <div className={styles.search}>
+          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+          <input
+            id={searchId}
+            name="search"
+            type="search"
+            placeholder="Buscar em todas as nuvens"
+            aria-label="Buscar"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+
+        <div className={styles.actions}>
+          <CreateAction />
+          <UploadAction onUploadError={handleUploadError} />
+          <button
+            type="button"
+            className={styles.card}
+            onClick={() => openOverlay({ type: 'name', kind: 'folder' })}
+          >
+            <FolderPlus size={20} strokeWidth={1.6} aria-hidden="true" />
+            <span className={styles.cardLabel}>Nova pasta</span>
+          </button>
+          <button type="button" className={styles.card} onClick={openSettingsProviders}>
+            <Cloud size={20} strokeWidth={1.6} aria-hidden="true" />
+            <span className={styles.cardLabel}>Conectar nuvem</span>
+          </button>
         </div>
 
         {actionError ? (
-          <>
+          <div className={styles.notice}>
             <p className={styles.empty} role="alert">
               {actionError}
             </p>
@@ -190,13 +220,13 @@ export default function HomePage() {
                 Tentar novamente
               </button>
             ) : null}
-          </>
+          </div>
         ) : null}
 
-        {searching && (
+        {searching ? (
           <section className={styles.section}>
             <header className={styles.sectionHead}>
-              <h2>Resultados</h2>
+              <h2 className={styles.heading}>Resultados</h2>
             </header>
             {search.status === 'loading' || search.status === 'idle' ? (
               <p className={styles.empty}>Buscando…</p>
@@ -266,281 +296,154 @@ export default function HomePage() {
               </>
             )}
           </section>
+        ) : (
+          <section className={styles.section}>
+            <header className={styles.sectionHead}>
+              <h1 className={styles.heading}>Recentes</h1>
+            </header>
+
+            <div className={styles.toolbar}>
+              {recentProviders.length > 1 ? (
+                <div className={styles.chips} role="group" aria-label="Filtrar recentes por provedor">
+                  <button
+                    type="button"
+                    className={styles.chip}
+                    aria-pressed={activeFilter === ALL_PROVIDERS}
+                    onClick={() => setProviderFilter(ALL_PROVIDERS)}
+                  >
+                    Todos
+                  </button>
+                  {recentProviders.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={styles.chip}
+                      aria-pressed={activeFilter === id}
+                      onClick={() => setProviderFilter(id)}
+                    >
+                      {providerLabel(id)}
+                    </button>
+                  ))}
+                </div>
+              ) : <span />}
+              <div className={styles.viewToggle} role="group" aria-label="Visualização dos recentes">
+                <button
+                  type="button"
+                  className={styles.viewButton}
+                  aria-pressed={recentsView === 'grid'}
+                  aria-label="Grade"
+                  onClick={() => setRecentsView('grid')}
+                >
+                  <LayoutGrid size={15} strokeWidth={1.7} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className={styles.viewButton}
+                  aria-pressed={recentsView === 'list'}
+                  aria-label="Lista"
+                  onClick={() => setRecentsView('list')}
+                >
+                  <LayoutList size={15} strokeWidth={1.7} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            {recentsQuery.status === 'loading' ? (
+              <p className={styles.empty}>Carregando…</p>
+            ) : recentsQuery.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(recentsQuery.error)}
+              </p>
+            ) : visibleRecents.length === 0 ? (
+              <div className={styles.emptyState}>
+                <Clock size={20} strokeWidth={1.6} aria-hidden="true" />
+                <p className={styles.emptyTitle}>Nada encontrado.</p>
+                <p className={styles.empty}>Os arquivos que você abrir em qualquer nuvem aparecem aqui.</p>
+              </div>
+            ) : recentsView === 'list' ? (
+              <div className={styles.list}>
+                {visibleRecents.map((file, index) => (
+                  <StaggerItem
+                    key={`${file.provider}-${file.ref}`}
+                    index={index}
+                    base={0.04}
+                    step={0.025}
+                    variants={rise}
+                    className={styles.rowWrap}
+                  >
+                    <a
+                      href={providerFileUrl(file.provider, file.ref)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.row}
+                      aria-label={file.name}
+                    >
+                      <span className={styles.rowFace} aria-hidden="true">
+                        <FileSheet compact />
+                      </span>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowTitle}>{file.name}</span>
+                        <span className={styles.rowSub}>
+                          {itemKindLabel(file)} · {providerLabel(file.provider)}
+                        </span>
+                      </span>
+                      <span className={styles.rowWhen}>{formatRelativeTime(file.openedAt)}</span>
+                      <span className={styles.rowMark}>
+                        <ProviderMark id={file.provider} size={16} />
+                      </span>
+                    </a>
+                    <OverflowMenu
+                      ghost
+                      hoverReveal
+                      label={`Ações de ${file.name}`}
+                      items={fileMenuItems(entryMenuFile(file), menuContext(file))}
+                    />
+                  </StaggerItem>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.grid}>
+                {visibleRecents.map((file, index) => (
+                  <StaggerItem
+                    key={`${file.provider}-${file.ref}`}
+                    index={index}
+                    base={0.04}
+                    step={0.025}
+                    variants={rise}
+                    className={styles.cardWrap}
+                  >
+                    <a
+                      href={providerFileUrl(file.provider, file.ref)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.tile}
+                      aria-label={file.name}
+                    >
+                      <span className={styles.tileFace} aria-hidden="true">
+                        <FileSheet />
+                        <span className={styles.tileMark}>
+                          <ProviderMark id={file.provider} size={14} />
+                        </span>
+                      </span>
+                      <span className={styles.tileMeta}>
+                        <span className={styles.tileTitle}>{file.name}</span>
+                        <span className={styles.rowSub}>
+                          {itemKindLabel(file)} · {formatRelativeTime(file.openedAt)}
+                        </span>
+                      </span>
+                    </a>
+                    <OverflowMenu
+                      floating
+                      hoverReveal
+                      label={`Ações de ${file.name}`}
+                      items={fileMenuItems(entryMenuFile(file), menuContext(file))}
+                    />
+                  </StaggerItem>
+                ))}
+              </div>
+            )}
+          </section>
         )}
-
-        {!searching ? (
-        <div className={styles.body}>
-          <aside className={styles.rail}>
-            <section className={styles.section}>
-              <header className={styles.sectionHead}>
-                <h2>Provedores</h2>
-              </header>
-              {providersStatus === 'loading' || providersStatus === 'idle' ? (
-                <p className={styles.empty}>Carregando…</p>
-              ) : providersStatus === 'error' ? (
-                <>
-                  <p className={styles.empty} role="alert">
-                    Não foi possível carregar os provedores.
-                  </p>
-                  <button type="button" className={styles.inlineAction} onClick={openSettingsProviders}>
-                    Conectar
-                  </button>
-                </>
-              ) : (
-                <nav className={styles.providers} aria-label="Provedores">
-                  {providers.map((provider, index) => (
-                    <StaggerItem
-                      key={provider.id}
-                      index={index}
-                      base={0.04}
-                      step={0.04}
-                      variants={rise}
-                    >
-                      {provider.connected && provider.lastError === 'RECONEXAO_NECESSARIA' ? (
-                        <Link
-                          to={ROUTES.settingsProviders}
-                          state={settingsNavState({ pathname: ROUTES.home })}
-                          className={styles.provider}
-                          aria-label={`${provider.name} Acesso expirado`}
-                        >
-                          <ProviderMark id={provider.id} size={22} />
-                          <span className={styles.providerMeta}>
-                            <span className={styles.providerName}>{provider.name}</span>
-                            <span className={styles.providerSub}>Acesso expirado · Reconectar</span>
-                          </span>
-                        </Link>
-                      ) : provider.connected ? (
-                        <Link
-                          to={providerUrl(provider.id)}
-                          className={styles.provider}
-                          aria-label={`${provider.name} Conectado`}
-                        >
-                          <ProviderMark id={provider.id} size={22} />
-                          <span className={styles.providerMeta}>
-                            <span className={styles.providerName}>{provider.name}</span>
-                            <span className={styles.providerSub}>
-                              {provider.account?.email ?? 'Conectado'}
-                            </span>
-                          </span>
-                        </Link>
-                      ) : (
-                        <Link
-                          to={ROUTES.settingsProviders}
-                          state={settingsNavState({ pathname: ROUTES.home })}
-                          className={styles.provider}
-                          aria-label={`${provider.name} Desconectado`}
-                        >
-                          <ProviderMark id={provider.id} size={22} />
-                          <span className={styles.providerMeta}>
-                            <span className={styles.providerName}>{provider.name}</span>
-                            <span className={styles.providerSub}>Conectar</span>
-                          </span>
-                        </Link>
-                      )}
-                    </StaggerItem>
-                  ))}
-                </nav>
-              )}
-            </section>
-          </aside>
-
-          <div className={styles.workspace}>
-            <section className={styles.section}>
-              <header className={styles.sectionHead}>
-                <h2>Atalhos</h2>
-              </header>
-              {shortcutsQuery.status === 'loading' ? (
-                <p className={styles.empty}>Carregando…</p>
-              ) : shortcutsQuery.status === 'error' ? (
-                <p className={styles.empty} role="alert">
-                  {hubErrorMessage(shortcutsQuery.error)}
-                </p>
-              ) : shortcuts.length === 0 ? (
-                <p className={styles.empty}>Nenhum atalho.</p>
-              ) : (
-                <div className={styles.pins}>
-                  {shortcuts.map((file, index) => (
-                    <StaggerItem
-                      key={`${file.provider}-${file.ref}`}
-                      index={index}
-                      base={0.08}
-                      step={0.04}
-                      variants={rise}
-                      className={styles.cardWrap}
-                    >
-                      <a
-                        href={providerFileUrl(file.provider, file.ref)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.pin}
-                        aria-label={file.name}
-                      >
-                        <span className={styles.pinFace} aria-hidden="true">
-                          <FileSheet />
-                        </span>
-                        <span className={styles.pinMeta}>
-                          <span className={styles.pinTitle}>{file.name}</span>
-                          <span className={styles.pinSub}>{providerLabel(file.provider)}</span>
-                        </span>
-                      </a>
-                      <OverflowMenu
-                        floating
-                        hoverReveal
-                        label={`Ações de ${file.name}`}
-                        items={fileMenuItems(
-                          {
-                            provider: file.provider,
-                            ref: file.ref,
-                            name: file.name,
-                            parentRef: undefined,
-                            mimeType: file.mimeType,
-                            extension: file.extension,
-                          },
-                          menuContext(file),
-                        )}
-                      />
-                    </StaggerItem>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className={styles.section}>
-              <header className={styles.sectionHead}>
-                <h1>Recentes</h1>
-                <div className={styles.viewToggle} role="group" aria-label="Visualização dos recentes">
-                  <button
-                    type="button"
-                    className={styles.viewButton}
-                    aria-pressed={recentsView === 'list'}
-                    aria-label="Lista"
-                    onClick={() => setRecentsView('list')}
-                  >
-                    <LayoutList size={15} strokeWidth={1.7} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.viewButton}
-                    aria-pressed={recentsView === 'grid'}
-                    aria-label="Grade"
-                    onClick={() => setRecentsView('grid')}
-                  >
-                    <LayoutGrid size={15} strokeWidth={1.7} aria-hidden="true" />
-                  </button>
-                </div>
-              </header>
-
-              {recentsQuery.status === 'loading' ? (
-                <p className={styles.empty}>Carregando…</p>
-              ) : recentsQuery.status === 'error' ? (
-                <p className={styles.empty} role="alert">
-                  {hubErrorMessage(recentsQuery.error)}
-                </p>
-              ) : recents.length === 0 ? (
-                <p className={styles.empty}>Nada encontrado.</p>
-              ) : recentsView === 'list' ? (
-                <div className={styles.list}>
-                  {recents.map((file, index) => (
-                    <StaggerItem
-                      key={`${file.provider}-${file.ref}`}
-                      index={index}
-                      base={0.06}
-                      step={0.025}
-                      variants={rise}
-                      className={styles.rowWrap}
-                    >
-                      <a
-                        href={providerFileUrl(file.provider, file.ref)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.row}
-                        aria-label={file.name}
-                      >
-                        <span className={styles.rowFace} aria-hidden="true">
-                          <FileSheet compact />
-                        </span>
-                        <span className={styles.rowBody}>
-                          <span className={styles.rowTitle}>{file.name}</span>
-                          <span className={styles.rowSub}>
-                            {itemKindLabel(file)} · {providerLabel(file.provider)}
-                          </span>
-                        </span>
-                        <span className={styles.rowWhen}>{formatRelativeTime(file.openedAt)}</span>
-                        <span className={styles.rowMark}>
-                          <ProviderMark id={file.provider} size={16} />
-                        </span>
-                      </a>
-                      <OverflowMenu
-                        ghost
-                        hoverReveal
-                        label={`Ações de ${file.name}`}
-                        items={fileMenuItems(
-                          {
-                            provider: file.provider,
-                            ref: file.ref,
-                            name: file.name,
-                            parentRef: undefined,
-                            mimeType: file.mimeType,
-                            extension: file.extension,
-                          },
-                          menuContext(file),
-                        )}
-                      />
-                    </StaggerItem>
-                  ))}
-                </div>
-              ) : (
-                <div className={styles.grid}>
-                  {recents.map((file, index) => (
-                    <StaggerItem
-                      key={`${file.provider}-${file.ref}`}
-                      index={index}
-                      base={0.06}
-                      step={0.025}
-                      variants={rise}
-                      className={styles.cardWrap}
-                    >
-                      <a
-                        href={providerFileUrl(file.provider, file.ref)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.tile}
-                        aria-label={file.name}
-                      >
-                        <span className={styles.tileFace} aria-hidden="true">
-                          <FileSheet />
-                        </span>
-                        <span className={styles.tileMeta}>
-                          <span className={styles.rowTitle}>{file.name}</span>
-                          <span className={styles.rowSub}>
-                            {itemKindLabel(file)} · {providerLabel(file.provider)}
-                          </span>
-                        </span>
-                      </a>
-                      <OverflowMenu
-                        floating
-                        hoverReveal
-                        label={`Ações de ${file.name}`}
-                        items={fileMenuItems(
-                          {
-                            provider: file.provider,
-                            ref: file.ref,
-                            name: file.name,
-                            parentRef: undefined,
-                            mimeType: file.mimeType,
-                            extension: file.extension,
-                          },
-                          menuContext(file),
-                        )}
-                      />
-                    </StaggerItem>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        </div>
-        ) : null}
       </main>
     </AppShell>
   )
@@ -576,15 +479,15 @@ function UploadAction({ onUploadError }) {
         type="button"
         id={triggerId}
         ref={triggerRef}
-        className={styles.action}
+        className={[styles.card, styles.cardOutline].join(' ')}
         aria-haspopup="menu"
         aria-expanded={menu.open}
         aria-controls={extrasId}
         onClick={menu.toggleMenu}
         disabled={connectedProviders.length === 0}
       >
-        <Upload size={15} strokeWidth={1.6} aria-hidden="true" />
-        Enviar
+        <Upload size={20} strokeWidth={1.6} aria-hidden="true" />
+        <span className={styles.cardLabel}>Enviar</span>
       </button>
       <AnchoredSuspendedMenu
         id={extrasId}
@@ -650,14 +553,14 @@ function CreateAction() {
         type="button"
         id={triggerId}
         ref={triggerRef}
-        className={styles.action}
+        className={[styles.card, styles.cardPrimary].join(' ')}
         aria-haspopup="menu"
         aria-expanded={menu.open}
         aria-controls={extrasId}
         onClick={menu.toggleMenu}
       >
-        <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
-        Criar
+        <Plus size={20} strokeWidth={1.6} aria-hidden="true" />
+        <span className={styles.cardLabel}>Criar</span>
       </button>
       <AnchoredSuspendedMenu
         id={extrasId}

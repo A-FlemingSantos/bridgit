@@ -260,6 +260,17 @@ async function resolveAuthenticatedApiRequest(path, options = {}) {
   if (path.startsWith('/api/hub/shortcuts/')) {
     return null
   }
+  if (path === '/api/hub/public-links') {
+    return Object.entries(hubTestState.publicLinks).map(([ref, link]) => ({
+      provider: 'onedrive',
+      ref,
+      kind: 'file',
+      name: hubTestState.items[ref]?.name ?? ref,
+      url: link.url,
+      createdAt: '2026-10-01T12:00:00Z',
+      lastAccessedAt: null,
+    }))
+  }
   if (path === '/api/search') {
     return {
       results: [hubTestState.items[FILE_ANALISE]],
@@ -428,7 +439,10 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute(
@@ -441,6 +455,22 @@ describe('App', () => {
     expect(recentLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_ANALISE}`)
     expect(recentLink).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
+  })
+
+  it('lista os links públicos na barra lateral da home', async () => {
+    setupAuthenticatedApi()
+    hubTestState.publicLinks[FILE_ANALISE] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('link', { name: 'Link público de Análise de desempenho' }),
+    ).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
+    expect(screen.getByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
   })
 
   it('abre o menu de Enviar com os provedores', async () => {

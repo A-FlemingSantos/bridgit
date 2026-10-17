@@ -1,0 +1,182 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100%;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 12px 16px;
+}
+
+.title {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.primary,
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.groupTitle {
+  margin: 0;
+}
+
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mute);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.groupToggle:hover {
+  color: var(--ink);
+}
+
+.groupToggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  transition: transform 180ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.groupBody[hidden] {
+  display: none;
+}
+
+.itemWrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--soft);
+  text-decoration: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.item:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+.itemActive {
+  background: var(--raise);
+  color: var(--ink);
+}
+
+.itemIcon {
+  flex: 0 0 auto;
+  color: var(--mute);
+}
+
+.itemActive .itemIcon {
+  color: var(--ink);
+}
+
+.itemMeta {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.itemName {
+  overflow: hidden;
+  font-size: 13.5px;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.itemSub {
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--mute);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--mute);
+}
+
+.inlineAction {
+  align-self: flex-start;
+  margin: 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.itemGhost {
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+
+.itemGhost:hover,
+.itemGhost:focus-visible {
+  opacity: 0.8;
+  filter: none;
+}
+
+.addItem {
+  width: 100%;
+  margin-top: 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--mute);
+  cursor: pointer;
+}
