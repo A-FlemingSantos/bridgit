@@ -2,17 +2,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { ROUTES } from '../../config/routes.js'
 import {
   isSettingsPath,
-  resolveSettingsBackground,
   settingsNavState,
 } from '../../utils/settingsOverlay.js'
 import BrandMark from '../BrandMark/BrandMark.jsx'
 import styles from './AppHeader.module.css'
 import RailProviders from './RailProviders.jsx'
-
-function isHomeNavActive(pathname) {
-  return pathname === ROUTES.home
-    || pathname.startsWith('/providers/')
-}
 
 function railClass(active) {
   return [styles.iconButton, active ? styles.iconButtonActive : ''].filter(Boolean).join(' ')
@@ -23,10 +17,6 @@ function railClass(active) {
 export default function AppHeader({ panel = null }) {
   const location = useLocation()
   const settingsActive = isSettingsPath(location.pathname)
-  const pagePathname = settingsActive
-    ? resolveSettingsBackground(location).pathname
-    : location.pathname
-  const homeActive = isHomeNavActive(pagePathname)
   const settingsState = settingsNavState(location)
 
   return (
@@ -39,9 +29,9 @@ export default function AppHeader({ panel = null }) {
         <nav className={styles.primaryNav} aria-label="Navegação principal">
           <Link
             to={ROUTES.home}
-            className={railClass(homeActive)}
-            aria-label="Início"
-            aria-current={homeActive ? 'page' : undefined}
+            state={{ focusSearch: true }}
+            className={styles.iconButton}
+            aria-label="Buscar"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -53,7 +43,7 @@ export default function AppHeader({ panel = null }) {
               className={styles.pixelIcon}
               aria-hidden="true"
             >
-              <path d="M10 20h4v-6h2v6h4v2H4v-2h4v-6h2v6Zm-6 0H2V10h2v10Zm18 0h-2V10h2v10Zm-8-6h-4v-2h4v2Zm-8-4H4V8h2v2Zm14 0h-2V8h2v2ZM8 8H6V6h2v2Zm10 0h-2V6h2v2Zm-8-2H8V4h2v2Zm6 0h-2V4h2v2Zm-2-2h-4V2h4v2Z" />
+              <path d="M22 22h-2v-2h2v2Zm-2-2h-2v-2h2v2Zm-6-2H6v-2h8v2Zm4 0h-2v-2h2v2ZM6 16H4v-2h2v2Zm10 0h-2v-2h2v2ZM4 14H2V6h2v8Zm14 0h-2V6h2v8ZM6 6H4V4h2v2Zm10 0h-2V4h2v2Zm-2-2H6V2h8v2Z" />
             </svg>
           </Link>
         </nav>

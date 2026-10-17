@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Clock, Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, Search, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
@@ -78,6 +78,13 @@ export default function HomePage() {
   const [failedUploads, setFailedUploads] = useState([])
   const [uploadProviderId, setUploadProviderId] = useState(null)
   const search = useSearch(query)
+  const location = useLocation()
+  const searchRef = useRef(null)
+
+  // The rail's search button lands here asking for the field to be focused.
+  useEffect(() => {
+    if (location.state?.focusSearch) searchRef.current?.focus()
+  }, [location.key, location.state])
 
   const recents = recentsQuery.entries
   const normalized = query.trim().toLowerCase()
@@ -175,6 +182,7 @@ export default function HomePage() {
           <Search size={16} strokeWidth={1.75} aria-hidden="true" />
           <input
             id={searchId}
+            ref={searchRef}
             name="search"
             type="search"
             placeholder="Buscar em todas as nuvens"

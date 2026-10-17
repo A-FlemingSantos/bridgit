@@ -441,7 +441,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(await screen.findByRole('link', { name: 'Buscar' })).toHaveAttribute('href', '/home')
     expect(screen.queryByRole('link', { name: 'Spaces' })).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
