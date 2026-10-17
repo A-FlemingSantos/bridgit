@@ -188,6 +188,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
       openOverlay,
       actions,
       isShortcut: shortcutsQuery.isShortcut,
+      hasPublicLink: linksQuery.isPublic,
       providerName: PROVIDER_LABELS[file.provider] ?? file.provider,
       onError: handleError,
     }))

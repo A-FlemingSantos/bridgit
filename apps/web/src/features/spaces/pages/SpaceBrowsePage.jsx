@@ -11,7 +11,7 @@ import {
   providerUrl,
 } from '../../../shared/config/routes.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
-import { useFolder, useHubActions, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { useFolder, useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
 import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -61,6 +61,7 @@ export default function SpaceBrowsePage() {
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
   const { isShortcut } = useShortcuts()
+  const { isPublic: hasPublicLink } = usePublicLinks()
   const folderColors = useFolderColors()
   const folderQuery = useFolder(providerId, folderRef ?? null)
   const uploadRef = useRef(null)
@@ -149,6 +150,7 @@ export default function SpaceBrowsePage() {
       openOverlay,
       actions,
       isShortcut,
+      hasPublicLink,
       providerName: providerMeta?.name ?? '',
       onError: (error) => setActionError(hubErrorMessage(error)),
     }

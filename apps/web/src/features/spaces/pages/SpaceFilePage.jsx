@@ -10,7 +10,7 @@ import {
   providerFolderUrl,
   providerUrl,
 } from '../../../shared/config/routes.js'
-import { useHubActions, useItem, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { useHubActions, useItem, useProviders, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
 import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -26,6 +26,7 @@ export default function SpaceFilePage() {
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
   const { isShortcut } = useShortcuts()
+  const { isPublic: hasPublicLink } = usePublicLinks()
   const itemQuery = useItem(providerId, fileRef)
   const recordedRef = useRef(null)
   const renewedExpiredSourceRef = useRef(null)
@@ -200,6 +201,7 @@ export default function SpaceFilePage() {
     openOverlay,
     actions,
     isShortcut,
+    hasPublicLink,
     providerName: providerMeta?.name ?? '',
     onError: (error) => setActionError(hubErrorMessage(error)),
   }

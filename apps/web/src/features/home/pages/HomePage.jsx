@@ -11,6 +11,7 @@ import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import {
   useHubActions,
   useProviders,
+  usePublicLinks,
   useRecents,
   useSearch,
   useShortcuts,
@@ -68,6 +69,7 @@ export default function HomePage() {
   const actions = useHubActions()
   const recentsQuery = useRecents()
   const shortcutsQuery = useShortcuts()
+  const publicLinksQuery = usePublicLinks()
   const searchId = useId()
   const [query, setQuery] = useState('')
   const [recentsView, setRecentsView] = useState('grid')
@@ -134,6 +136,7 @@ export default function HomePage() {
       openOverlay,
       actions,
       isShortcut: shortcutsQuery.isShortcut,
+      hasPublicLink: publicLinksQuery.isPublic,
       providerName: providerLabel(item.provider),
       onError: (error) => setActionError(hubErrorMessage(error)),
     }

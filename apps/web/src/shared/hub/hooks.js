@@ -169,6 +169,11 @@ export function usePublicLinks() {
     entries: publicLinksState.entries,
     error: publicLinksState.error,
     reload: loadPublicLinks,
+    isPublic(providerId, ref) {
+      return publicLinksState.entries.some(
+        (entry) => entry.provider === providerId && entry.ref === ref,
+      )
+    },
   }
 }
 
