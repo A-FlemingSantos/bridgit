@@ -1,9 +1,9 @@
 .page {
-  --land-bg: #121212;
-  --land-ink: #ededed;
-  --land-soft: #b4b4b4;
-  --land-mute: #8a8a8a;
-  --land-line: #262626;
+  --land-bg: #fafaf9;
+  --land-ink: #141414;
+  --land-soft: #3d3d3d;
+  --land-mute: #6b6b6b;
+  --land-line: #e6e3dd;
   --land-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 
   height: 100dvh;
@@ -11,7 +11,18 @@
   overflow-y: auto;
   background: var(--land-bg);
   color: var(--land-ink);
-  color-scheme: dark;
+  color-scheme: light dark;
+}
+
+/* Follows the browser theme: light by default, dark when the system asks for it. */
+@media (prefers-color-scheme: dark) {
+  .page {
+    --land-bg: #121212;
+    --land-ink: #ededed;
+    --land-soft: #b4b4b4;
+    --land-mute: #8a8a8a;
+    --land-line: #262626;
+  }
 }
 
 .shell {
