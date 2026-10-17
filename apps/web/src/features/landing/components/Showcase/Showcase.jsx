@@ -1,37 +1,4 @@
-import { FileText, Folder, Image, Sheet } from 'lucide-react'
 import styles from './Showcase.module.css'
-
-const ROWS = [
-  { icon: Folder, name: 'Contratos 2026', source: 'OneDrive' },
-  { icon: Sheet, name: 'Orçamento Q4.xlsx', source: 'Google Drive' },
-  { icon: FileText, name: 'Proposta comercial.pdf', source: 'Dropbox' },
-  { icon: Image, name: 'Identidade visual.png', source: 'Google Drive' },
-  { icon: FileText, name: 'Ata de reunião.docx', source: 'OneDrive' },
-]
-
-function SpacePreview() {
-  return (
-    <div className={styles.window} aria-hidden="true">
-      <div className={styles.chrome}>
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className={styles.pane}>
-        <p className={styles.crumb}>Spaces / Cliente Aurora</p>
-        <ul className={styles.rows}>
-          {ROWS.map(({ icon: Icon, name, source }) => (
-            <li key={name} className={styles.row}>
-              <Icon size={14} strokeWidth={1.6} />
-              <span className={styles.name}>{name}</span>
-              <span className={styles.source}>{source}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  )
-}
 
 export default function Showcase() {
   return (
@@ -41,21 +8,30 @@ export default function Showcase() {
       </h2>
       <div className={styles.layout}>
         <div className={styles.copy}>
-          <h3 className={styles.title}>Spaces</h3>
+          <h3 className={styles.title}>Privacidade em ambientes corporativos</h3>
           <p className={styles.lede}>
-            Um espaço por projeto, com arquivos de qualquer nuvem lado a lado.
+            Três nuvens atrás de um único usuário e senha.
           </p>
           <p className={styles.body}>
-            Equipes raramente guardam tudo no mesmo lugar. O contrato está no OneDrive do jurídico,
-            a planilha no Drive do financeiro e a apresentação no Dropbox da agência. Com Spaces,
-            tudo isso aparece junto, sem mover nem duplicar nada.
+            Em um computador compartilhado ou de trabalho, entrar na conta Google ou Microsoft só para
+            pegar um arquivo abre muito mais do que o necessário: e-mail, agenda, contatos e toda a
+            suíte de aplicativos daquele ecossistema ficam a um clique de distância.
           </p>
           <p className={styles.body}>
-            Cada item continua ligado à origem: abra, pré-visualize ou compartilhe por link público
-            direto do Bridgit, sem alternar entre abas.
+            Com o Bridgit, você acessa OneDrive, Google Drive e Dropbox pela sua conta Bridgit. Os
+            arquivos aparecem; o resto da sua vida digital fica de fora. Ao terminar, encerre a
+            sessão ou revogue o dispositivo em Segurança.
           </p>
         </div>
-        <SpacePreview />
+        <svg
+          className={styles.art}
+          xmlns="http://www.w3.org/2000/svg"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M5 2h14v2H5zm0 18h14v2H5zM3 4h2v16H3zm16 0h2v16h-2zM7 6h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm-1 4h4v2h-4zm5-4h2v2h-2z" />
+        </svg>
       </div>
     </section>
   )
