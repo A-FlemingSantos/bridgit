@@ -7,6 +7,7 @@ import SpaceFilePage from './SpaceFilePage.jsx'
 vi.mock('../../../shared/hub/index.js', () => ({
   useHubActions: vi.fn(),
   useItem: vi.fn(),
+  usePublicLinks: () => ({ status: 'ready', entries: [] }),
   useProviders: vi.fn(),
   useShortcuts: vi.fn(),
 }))
@@ -38,7 +39,7 @@ function setup(actions) {
     providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
     status: 'ready',
   })
-  useShortcuts.mockReturnValue({ isShortcut: () => false })
+  useShortcuts.mockReturnValue({ status: 'ready', entries: [], isShortcut: () => false })
   useItem.mockReturnValue({ status: 'ready', item, error: null, reload: vi.fn() })
   useHubActions.mockReturnValue(actions)
 }

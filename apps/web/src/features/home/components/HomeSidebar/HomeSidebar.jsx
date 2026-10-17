@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Copy, FileText, LayoutDashboard, Link2, Link2Off, Plus, Settings2 } from 'lucide-react'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/routes.js'
@@ -165,19 +165,49 @@ function PublicLinkRow({ link, onError }) {
   )
 }
 
+// The app-wide side panel. HomePage passes its own handlers so errors surface in
+// the page; elsewhere the panel is self-contained and reports errors itself.
 export default function HomeSidebar({ menuContext, onConnect, onError }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { openOverlay } = useHub()
+  const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
   const shortcutsQuery = useShortcuts()
   const linksQuery = usePublicLinks()
+  const [localError, setLocalError] = useState(null)
   const shortcuts = shortcutsQuery.entries
   const links = linksQuery.entries
+  const homeActive = location.pathname === ROUTES.home
+
+  const handleError = onError ?? ((error) => setLocalError(hubErrorMessage(error)))
+  const handleConnect = onConnect
+    ?? (() => navigate(ROUTES.settingsProviders, { state: settingsNavState(location) }))
+  const fileMenuContext = menuContext
+    ?? ((file) => ({
+      openOverlay,
+      actions,
+      isShortcut: shortcutsQuery.isShortcut,
+      providerName: PROVIDER_LABELS[file.provider] ?? file.provider,
+      onError: handleError,
+    }))
 
   return (
     <div className={styles.panel}>
       <p className={styles.title}>Início</p>
 
+      {localError ? (
+        <p className={styles.empty} role="alert">
+          {localError}
+        </p>
+      ) : null}
+
       <nav className={styles.primary} aria-label="Seções">
-        <Link to={ROUTES.home} className={[styles.item, styles.itemActive].join(' ')} aria-current="page">
+        <Link
+          to={ROUTES.home}
+          className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
+          aria-current={homeActive ? 'page' : undefined}
+        >
           <LayoutDashboard className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
           <span className={styles.itemName}>Visão geral</span>
         </Link>
@@ -191,7 +221,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             <p className={styles.empty} role="alert">
               Não foi possível carregar os provedores.
             </p>
-            <button type="button" className={styles.inlineAction} onClick={onConnect}>
+            <button type="button" className={styles.inlineAction} onClick={handleConnect}>
               Conectar
             </button>
           </>
@@ -202,7 +232,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             ))}
           </nav>
         )}
-        <button type="button" className={[styles.item, styles.addItem].join(' ')} onClick={onConnect}>
+        <button type="button" className={[styles.item, styles.addItem].join(' ')} onClick={handleConnect}>
           <Plus className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
           <span className={styles.itemName}>Nova conta</span>
         </button>
@@ -220,7 +250,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         ) : (
           <div className={styles.list}>
             {links.map((link) => (
-              <PublicLinkRow key={`${link.provider}-${link.ref}`} link={link} onError={onError} />
+              <PublicLinkRow key={`${link.provider}-${link.ref}`} link={link} onError={handleError} />
             ))}
           </div>
         )}
@@ -263,7 +293,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
                       mimeType: file.mimeType,
                       extension: file.extension,
                     },
-                    menuContext(file),
+                    fileMenuContext(file),
                   )}
                 />
               </div>

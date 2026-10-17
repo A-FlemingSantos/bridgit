@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useId, useLayoutEffect, useRef, 
 import { MotionConfig } from 'framer-motion'
 import AppHeader from '../../../shared/components/AppHeader/AppHeader.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
+import HomeSidebar from '../../../features/home/components/HomeSidebar/HomeSidebar.jsx'
 import styles from './AppShell.module.css'
 
 const TOP_REVEAL_PX = 12
@@ -51,7 +52,9 @@ function useSidebarCollapsed() {
   return { collapsed, toggle, close }
 }
 
-export default function AppShell({ children, refreshKey, subheader = null, sidebar = null, className = '' }) {
+// Every page shares the same side panel; a page may pass its own `sidebar` to
+// wire page-level handlers into it.
+export default function AppShell({ children, refreshKey, subheader = null, sidebar = <HomeSidebar />, className = '' }) {
   const viewportRef = useRef(null)
   const bodyRef = useRef(null)
   const subheaderRef = useRef(null)

@@ -28,6 +28,12 @@ vi.mock('@bridgit/shared-client', async (importOriginal) => {
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
+// The side panel lists the same files, so page buttons are looked up inside the
+// page's <main>, re-queried because the page swaps it out once data loads.
+function findPageButton(name) {
+  return waitFor(() => within(screen.getByRole('main')).getByRole('button', { name }))
+}
+
 const testSessionResponse = {
   accessToken: 'test-token',
   expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -436,7 +442,7 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
-    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
+    expect(screen.queryByRole('link', { name: 'Spaces' })).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
@@ -501,7 +507,6 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Spaces' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Spaces' })).toHaveAttribute('href', '/spaces')
     expect(screen.getByRole('link', { name: 'Scripts' })).toHaveAttribute('href', '/s/scripts')
     expect(screen.getByRole('link', { name: 'Currículo' })).toHaveAttribute('href', '/s/curriculo')
     expect(screen.getByRole('button', { name: 'Novo space' })).toBeInTheDocument()
@@ -512,8 +517,9 @@ describe('App', () => {
     expect(screen.getByRole('textbox', { name: 'Nome do space' })).toHaveValue('Scripts')
     expect(screen.getByText('Origem')).toBeInTheDocument()
     expect(screen.getByText('Destino')).toBeInTheDocument()
-    expect(screen.getByText('OneDrive')).toBeInTheDocument()
-    expect(screen.getByText('Dropbox')).toBeInTheDocument()
+    const pageMain = within(screen.getByRole('main'))
+    expect(pageMain.getByText('OneDrive')).toBeInTheDocument()
+    expect(pageMain.getByText('Dropbox')).toBeInTheDocument()
     const actions = screen.getByRole('complementary', { name: 'Ações' })
     expect(within(actions).getByRole('button', { name: 'Sincronizar' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Pausar' })).toBeInTheDocument()
@@ -609,10 +615,11 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Novo space' }))
     await user.click(screen.getByRole('button', { name: 'Escolher pasta de Origem' }))
 
-    expect(screen.getByRole('button', { name: /Inovações técnicas/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Referências de código/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Relatório 2023/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Análise de desempenho/ })).not.toBeInTheDocument()
+    const picker = within(screen.getByRole('dialog'))
+    expect(picker.getByRole('button', { name: /Inovações técnicas/ })).toBeInTheDocument()
+    expect(picker.getByRole('button', { name: /Referências de código/ })).toBeInTheDocument()
+    expect(picker.queryByRole('button', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    expect(picker.queryByRole('button', { name: /Análise de desempenho/ })).not.toBeInTheDocument()
   })
 
   it('mostra a cadeia de pastas no seletor de space', async () => {
@@ -646,7 +653,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(await findPageButton('Ações de Relatório 2023'))
     expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
@@ -664,7 +671,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
     const dialog = screen.getByRole('dialog', { name: 'Renomear' })
     const input = within(dialog).getByLabelText('Nome do arquivo')
@@ -672,9 +679,9 @@ describe('App', () => {
     await user.type(input, 'Relatório final')
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
+      expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
     })
-    expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
   })
 
   it('mostra erro ao falhar rename otimista', async () => {
@@ -687,7 +694,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
     const dialog = screen.getByRole('dialog', { name: 'Renomear' })
     const input = within(dialog).getByLabelText('Nome do arquivo')
@@ -695,7 +702,7 @@ describe('App', () => {
     await user.type(input, 'Relatório final')
     await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Falhou')
-    expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
   })
 
   it('move um arquivo para outra pasta', async () => {
@@ -707,7 +714,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Mover' }))
     const dialog = screen.getByRole('dialog', { name: 'Mover' })
     await user.click(within(dialog).getByRole('button', { name: /Referências de código/ }))
@@ -716,11 +723,11 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
     })
-    expect(screen.queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: /Referências de código/ }))
+    await user.click(within(screen.getByRole('main')).getByRole('link', { name: /Referências de código/ }))
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
+      expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
     })
   })
 
@@ -733,7 +740,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Inovações técnicas' }))
+    await user.click(await findPageButton('Ações de Inovações técnicas'))
     expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Espelhar' })).toBeInTheDocument()
@@ -741,7 +748,7 @@ describe('App', () => {
     const dialog = screen.getByRole('dialog', { name: 'Excluir pasta' })
     expect(within(dialog).getByText('"Inovações técnicas" e tudo o que está dentro dela vão para a lixeira do provedor.')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Excluir' }))
-    expect(screen.queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
   })
 
   it('mostra a página não encontrada em rotas desconhecidas', async () => {
@@ -817,11 +824,11 @@ describe('App', () => {
       within(screen.getByRole('navigation', { name: 'Localização atual' })).getByRole('link', { name: 'Início' }),
     ).toHaveAttribute('href', '/home')
     expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
+    expect(within(screen.getByRole('main')).getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
       'href',
       '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
     )
-    const fileLink = await screen.findByRole('link', { name: /Relatório 2023/ })
+    const fileLink = await within(screen.getByRole('main')).findByRole('link', { name: /Relatório 2023/ })
     expect(fileLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_REL}`)
     expect(fileLink).toHaveAttribute('target', '_blank')
   })
@@ -835,7 +842,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Ações de Relatório 2023' }))
+    await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Link público' }))
     const dialog = await screen.findByRole('dialog', { name: 'Link público' })
     await user.click(within(dialog).getByRole('button', { name: 'Criar link' }))

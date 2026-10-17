@@ -8,6 +8,7 @@ import { HubUploadError } from '../../../shared/hub/hubErrors.js'
 vi.mock('../../../shared/hub/index.js', () => ({
   useFolder: vi.fn(),
   useHubActions: vi.fn(),
+  usePublicLinks: () => ({ status: 'ready', entries: [] }),
   useProviders: vi.fn(),
   useShortcuts: vi.fn(),
 }))
@@ -29,7 +30,7 @@ function setup({ uploadFiles }) {
     providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
     status: 'ready',
   })
-  useShortcuts.mockReturnValue({ isShortcut: () => false })
+  useShortcuts.mockReturnValue({ status: 'ready', entries: [], isShortcut: () => false })
   useFolder.mockReturnValue({
     status: 'ready',
     folder: { ref: null, name: 'OneDrive', ancestry: [] },
