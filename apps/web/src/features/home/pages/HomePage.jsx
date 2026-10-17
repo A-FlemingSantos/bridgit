@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Clock, Cloud, FolderPlus, LayoutGrid, LayoutList, Layers, Plus, Search, Upload } from 'lucide-react'
+import { Clock, FolderPlus, LayoutGrid, LayoutList, Layers, Search } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -200,11 +200,31 @@ export default function HomePage() {
             className={styles.card}
             onClick={() => openOverlay({ type: 'name', kind: 'folder' })}
           >
-            <FolderPlus size={20} strokeWidth={1.6} aria-hidden="true" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              shapeRendering="crispEdges"
+              aria-hidden="true"
+            >
+              <path d="M20 18h2v2h-2v2h-2v-2h-2v-2h2v-2h2v2Zm-6 2H4v-2h10v2ZM4 18H2V6h2v12Zm18-4h-2V8h2v6ZM12 6h8v2H10V6H4V4h8v2Z" />
+            </svg>
             <span className={styles.cardLabel}>Nova pasta</span>
           </button>
           <button type="button" className={styles.card} onClick={openSettingsProviders}>
-            <Cloud size={20} strokeWidth={1.6} aria-hidden="true" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              shapeRendering="crispEdges"
+              aria-hidden="true"
+            >
+              <path d="M10 4h6v2h-6zM8 6h2v2H8zm8 0h2v2h-2zM4 8h4v2H4zm14 0h2v2h-2zM2 10h2v2H2zm6 0h2v2H8zm10 0h4v2h-4zM0 12h2v6H0zm16 0h2v2h-2zm6 0h2v2h-2zm-2 4h2v2h-2zM2 18h14v2H2zm16 0h6v2h-6zm2 2h2v2h-2z" />
+            </svg>
             <span className={styles.cardLabel}>Conectar nuvem</span>
           </button>
         </div>
@@ -496,7 +516,17 @@ function UploadAction({ onUploadError }) {
         onClick={menu.toggleMenu}
         disabled={connectedProviders.length === 0}
       >
-        <Upload size={20} strokeWidth={1.6} aria-hidden="true" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          shapeRendering="crispEdges"
+          aria-hidden="true"
+        >
+          <path d="M19 21H5v-2h14v2ZM5 19H3v-4h2v4Zm16 0h-2v-4h2v4ZM13 5h2v2h2v2h-4v8h-2V9H7V7h2V5h2V3h2v2Z" />
+        </svg>
         <span className={styles.cardLabel}>Enviar</span>
       </button>
       <AnchoredSuspendedMenu
@@ -569,7 +599,17 @@ function CreateAction() {
         aria-controls={extrasId}
         onClick={menu.toggleMenu}
       >
-        <Plus size={20} strokeWidth={1.6} aria-hidden="true" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+          shapeRendering="crispEdges"
+          aria-hidden="true"
+        >
+          <path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" />
+        </svg>
         <span className={styles.cardLabel}>Criar</span>
       </button>
       <AnchoredSuspendedMenu
