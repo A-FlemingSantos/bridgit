@@ -5,7 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
 import { resolveApiUrl } from '../../../shared/config/apiBase.js'
 import { ROUTES } from '../../../shared/config/routes.js'
-import { formatFileSize } from '../formatFileSize.js'
+import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
 import { parseLinkSuffix } from '../parseLinkSuffix.js'
 import styles from './PublicLinkPage.module.css'
 
