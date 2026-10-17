@@ -20,6 +20,10 @@
   transition: border-color 150ms ease;
 }
 
+.search svg {
+  flex: none;
+}
+
 .search:focus-within {
   border-color: color-mix(in srgb, var(--ink) 40%, var(--line));
 }
