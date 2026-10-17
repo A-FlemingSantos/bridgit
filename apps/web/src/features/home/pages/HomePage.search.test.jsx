@@ -82,8 +82,8 @@ describe('HomePage upload parcial', () => {
     renderPage()
 
     await user.click(screen.getByRole('button', { name: 'Enviar' }))
-    await user.click(screen.getByRole('menuitem', { name: 'OneDrive' }))
-    await user.upload(document.querySelector('input[type="file"]'), [okFile, badFile])
+    await user.click(screen.getByRole('menuitem', { name: 'Enviar arquivos' }))
+    await user.upload(document.querySelector('input[type="file"]:not([webkitdirectory])'), [okFile, badFile])
 
     expect(await screen.findByRole('alert')).toHaveTextContent('1 de 2 enviados')
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }))

@@ -81,6 +81,31 @@ export function PixelEye() {
   )
 }
 
+export function PixelFileEmpty() {
+  return (
+    <PixelIcon path="M16 4h-2v4h4V6h2v16H4V2h12v2ZM6 20h12V10h-6V4H6v16ZM18 6h-2V4h2v2Z" />
+  )
+}
+
+// Empty-file outline with a plus in the lower corner, like the folder-plus icon.
+export function PixelFilePlus() {
+  return (
+    <PixelIcon path="M4 2h12v2H4zM4 4h2v16H4zM4 20h10v2H4zM18 6h2v8h-2zM12 4h2v4h-2zM12 8h8v2h-8zM16 4h2v2h-2zM20 18h2v2h-2v2h-2v-2h-2v-2h2v-2h2v2Z" />
+  )
+}
+
+export function PixelFolder() {
+  return (
+    <PixelIcon path="M20 20H4v-2h16v2ZM4 18H2V6h2v12Zm18 0h-2V8h2v10ZM20 8H10V6H4V4h8v2h8v2Z" />
+  )
+}
+
+export function PixelFolderPlus() {
+  return (
+    <PixelIcon path="M20 18h2v2h-2v2h-2v-2h-2v-2h2v-2h2v2Zm-6 2H4v-2h10v2ZM4 18H2V6h2v12Zm18-4h-2V8h2v6ZM12 6h8v2H10V6H4V4h8v2Z" />
+  )
+}
+
 export function PixelTrash() {
   return (
     <PixelIcon path="M18 22H6V20H18V22ZM9 6H15V4H17V6H22V8H20V20H18V8H6V20H4V8H2V6H7V4H9V6ZM15 4H9V2H15V4Z" />

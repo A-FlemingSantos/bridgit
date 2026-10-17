@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Clock, FolderPlus, Layers } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -19,6 +19,7 @@ import {
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
+import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import { fileMenuItems } from '../../spaces/components/entryActions.jsx'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
@@ -519,6 +520,7 @@ function UploadAction({ onUploadError }) {
   const extrasId = useId()
   const triggerId = useId()
   const inputRef = useRef(null)
+  const folderInputRef = useRef(null)
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
   // An expired connection cannot receive uploads until it is reconnected.
@@ -526,16 +528,55 @@ function UploadAction({ onUploadError }) {
     (provider) => provider.connected && provider.lastError !== 'RECONEXAO_NECESSARIA',
   )
   const providerRef = useRef(connectedProviders[0]?.id ?? null)
-  const menu = useSuspendedMenu(connectedProviders.length, { menuRef })
-  const items = connectedProviders.map((provider) => ({
-    id: provider.id,
-    label: provider.name,
-    onSelect: () => {
-      menu.closeMenu()
-      providerRef.current = provider.id
-      inputRef.current?.click()
-    },
-  }))
+  const menu = useSuspendedMenu(2, { menuRef })
+
+  // Both options open the system picker straight away; the upload goes to the
+  // first connected provider.
+  function startPicking(input) {
+    menu.closeMenu()
+    providerRef.current = connectedProviders[0]?.id ?? null
+    input.current?.click()
+  }
+
+  const items = [
+    { id: 'files', label: 'Enviar arquivos', icon: PixelFileEmpty, onSelect: () => startPicking(inputRef) },
+    { id: 'folder', label: 'Enviar pasta', icon: PixelFolder, onSelect: () => startPicking(folderInputRef) },
+  ]
+
+  async function uploadFolder(providerId, files) {
+    // webkitRelativePath is "pasta/sub/arquivo.ext": rebuild the tree folder by
+    // folder, then upload each folder's files into its new counterpart.
+    const byDirectory = new Map()
+    files.forEach((file) => {
+      const parts = (file.webkitRelativePath || file.name).split('/')
+      const directory = parts.slice(0, -1).join('/')
+      if (!byDirectory.has(directory)) byDirectory.set(directory, [])
+      byDirectory.get(directory).push(file)
+    })
+    const directories = [...byDirectory.keys()].sort(
+      (a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b),
+    )
+    const refs = new Map([['', null]])
+    for (const directory of directories) {
+      const parts = directory.split('/')
+      for (let depth = 1; depth <= parts.length; depth += 1) {
+        const path = parts.slice(0, depth).join('/')
+        if (refs.has(path)) continue
+        const parentRef = refs.get(parts.slice(0, depth - 1).join('/'))
+        const created = await actions.createFolder({
+          providerId,
+          parentRef,
+          name: parts[depth - 1],
+        })
+        refs.set(path, created.ref)
+      }
+      await actions.uploadFiles({
+        providerId,
+        parentRef: refs.get(directory),
+        files: byDirectory.get(directory),
+      })
+    }
+  }
 
   return (
     <div className={styles.actionDock} ref={menu.dockRef}>
@@ -589,6 +630,22 @@ function UploadAction({ onUploadError }) {
             .catch((error) => onUploadError?.(providerId, files, error))
         }}
       />
+      <input
+        ref={folderInputRef}
+        type="file"
+        hidden
+        multiple
+        webkitdirectory=""
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? [])
+          event.target.value = ''
+          const providerId = providerRef.current
+          if (!providerId || !files.length) return
+          void uploadFolder(providerId, files).catch((error) =>
+            onUploadError?.(providerId, files, error),
+          )
+        }}
+      />
     </div>
   )
 }
@@ -602,18 +659,18 @@ function CreateAction() {
   const menu = useSuspendedMenu(2, { menuRef })
   const items = [
     {
-      id: 'space',
-      label: 'Novo space',
-      icon: Layers,
+      id: 'file',
+      label: 'Novo arquivo',
+      icon: PixelFilePlus,
       onSelect: () => {
         menu.closeMenu()
-        openOverlay({ type: 'composer', mode: 'create' })
+        openOverlay({ type: 'name', kind: 'file' })
       },
     },
     {
       id: 'folder',
       label: 'Nova pasta',
-      icon: FolderPlus,
+      icon: PixelFolderPlus,
       onSelect: () => {
         menu.closeMenu()
         openOverlay({ type: 'name', kind: 'folder' })

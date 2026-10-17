@@ -141,6 +141,13 @@ function NameOverlay({ overlay }) {
           name,
           onAccepted: closeOnce,
         })
+      } else if (overlay.kind === 'file') {
+        // A new file is an empty upload: the providers have no separate "create" call.
+        await actions.uploadFiles({
+          providerId,
+          parentRef: overlay.folderRef ?? null,
+          files: [new File([], name)],
+        })
       }
       closeOnce()
     } catch (submitError) {

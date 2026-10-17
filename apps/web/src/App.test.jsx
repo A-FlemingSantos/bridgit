@@ -479,7 +479,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
   })
 
-  it('abre o menu de Enviar com os provedores', async () => {
+  it('abre o menu de Enviar com arquivos e pasta', async () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
@@ -492,9 +492,9 @@ describe('App', () => {
     const send = await screen.findByRole('button', { name: 'Enviar' })
     await waitFor(() => expect(send).toBeEnabled())
     await user.click(send)
-    expect(screen.getByRole('menuitem', { name: 'OneDrive' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Google Drive' })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: 'Dropbox' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Enviar arquivos' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Enviar pasta' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'OneDrive' })).not.toBeInTheDocument()
   })
 
   it('mostra os spaces e abre o par de sinc', async () => {
