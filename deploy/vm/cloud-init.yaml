@@ -51,6 +51,8 @@ write_files:
       KbdInteractiveAuthentication no
       PermitRootLogin no
       PubkeyAuthentication yes
+      # Porta 22 aberta para o CI: varreduras de bots estouram o padrao (10) e derrubam conexoes legitimas.
+      MaxStartups 30:50:100
 
   - path: /etc/sysctl.d/90-bridgit.conf
     owner: root:root
