@@ -789,7 +789,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Manter destino' })).toBeInTheDocument()
   })
 
-  it('mostra as pastas ancestrais de um arquivo aninhado', async () => {
+  it('mostra so o nome de um arquivo aninhado, sem as pastas ancestrais', async () => {
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24']}>
@@ -797,18 +797,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    const nav = await screen.findByRole('navigation', { name: 'Localização atual' })
-    expect(within(nav).getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
-    expect(within(nav).getByRole('link', { name: 'OneDrive' })).toHaveAttribute('href', '/providers/onedrive')
-    expect(within(nav).getByRole('link', { name: 'Inovações técnicas' })).toHaveAttribute(
-      'href',
-      '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
-    )
-    expect(within(nav).getByRole('link', { name: 'Relatórios' })).toHaveAttribute(
-      'href',
-      '/providers/onedrive/folder/e3c7a1b4-6d29-4f80-9e15-2a8c4b70d193',
-    )
-    expect(screen.getAllByRole('heading', { name: 'Rascunho' }).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Rascunho' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Localização atual' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Relatórios' })).not.toBeInTheDocument()
   })
 
   it('mostra a lista de um provedor', async () => {
