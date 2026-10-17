@@ -3,6 +3,7 @@ import {
   Bookmark,
   FolderInput,
   Link,
+  Palette,
   Pencil,
   Trash2,
 } from 'lucide-react'
@@ -85,7 +86,8 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError,
   ]
 }
 
-export function folderMenuItems(item, { openOverlay, providerName }) {
+// colorPicker (optional): { swatch, panel } adds a "Cor da pasta" choice that opens a docked palette.
+export function folderMenuItems(item, { openOverlay, providerName, colorPicker = null }) {
   const origin = makeApiFolderLocation(item, providerName)
 
   return [
@@ -127,6 +129,17 @@ export function folderMenuItems(item, { openOverlay, providerName }) {
           origin,
         }),
     },
+    ...(colorPicker
+      ? [
+          {
+            id: 'color',
+            label: 'Cor da pasta',
+            icon: Palette,
+            swatch: colorPicker.swatch,
+            panel: colorPicker.panel,
+          },
+        ]
+      : []),
     {
       id: 'delete',
       label: 'Excluir',

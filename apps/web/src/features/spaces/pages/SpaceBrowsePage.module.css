@@ -1,22 +1,8 @@
 .main {
-  --folder-tab: #2b2b2b;
-  --folder-top: #4a4a4a;
-  --folder-bottom: #2a2a2a;
-  --folder-edge: rgba(255, 255, 255, 0.14);
-
   display: flex;
   flex-direction: column;
   gap: 40px;
   padding: 28px clamp(20px, 4vw, 40px) 56px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .main {
-    --folder-tab: #2f2f2f;
-    --folder-top: #4b4b4b;
-    --folder-bottom: #303030;
-    --folder-edge: rgba(255, 255, 255, 0.1);
-  }
 }
 
 .section {
@@ -76,6 +62,12 @@
   display: block;
   width: 112px;
   height: 82px;
+  /* Every shade comes from one base color; carbon unless the user picked another. */
+  --folder-base: #4a4a4a;
+  --folder-tab: color-mix(in srgb, var(--folder-base) 62%, #000);
+  --folder-top: var(--folder-base);
+  --folder-bottom: color-mix(in srgb, var(--folder-base) 64%, #000);
+  --folder-edge: rgba(255, 255, 255, 0.14);
 }
 
 .folderTab {

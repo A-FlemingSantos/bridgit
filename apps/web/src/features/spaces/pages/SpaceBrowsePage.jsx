@@ -16,6 +16,8 @@ import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
+import FolderColorPalette from '../components/FolderColorPalette/FolderColorPalette.jsx'
+import { useFolderColors } from '../folderColors.js'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProviderBreadcrumb.js'
@@ -59,6 +61,7 @@ export default function SpaceBrowsePage() {
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
   const { isShortcut } = useShortcuts()
+  const folderColors = useFolderColors()
   const folderQuery = useFolder(providerId, folderRef ?? null)
   const uploadRef = useRef(null)
   const [actionError, setActionError] = useState(null)
@@ -151,6 +154,25 @@ export default function SpaceBrowsePage() {
     }
   }
 
+  function folderMenuContext(item) {
+    const color = folderColors.colorOf(providerId, item.ref)
+    return {
+      ...menuContext(item),
+      colorPicker: {
+        swatch: color.hex,
+        panel: ({ close }) => (
+          <FolderColorPalette
+            selectedId={color.id}
+            onPick={(id) => {
+              folderColors.setColor(providerId, item.ref, id)
+              close()
+            }}
+          />
+        ),
+      },
+    }
+  }
+
   function renderBody() {
     if (providersStatus === 'loading' || folderQuery.status === 'loading' || folderQuery.status === 'idle') {
       return <p className={styles.empty}>Carregando…</p>
@@ -235,7 +257,10 @@ export default function SpaceBrowsePage() {
                     )}
                   >
                     <span className={styles.face} aria-hidden="true">
-                      <span className={styles.folder}>
+                      <span
+                        className={styles.folder}
+                        style={{ '--folder-base': folderColors.colorOf(providerId, item.ref).hex }}
+                      >
                         <span className={styles.folderTab} />
                         <span className={styles.folderBody} />
                       </span>
@@ -251,7 +276,7 @@ export default function SpaceBrowsePage() {
                       hoverReveal
                       label={`Ações de ${item.name}`}
                       title={item.name}
-                      items={folderMenuItems(item, menuContext(item))}
+                      items={folderMenuItems(item, folderMenuContext(item))}
                     />
                   )}
                 </StaggerItem>
