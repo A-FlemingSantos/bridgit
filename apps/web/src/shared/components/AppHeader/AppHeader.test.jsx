@@ -20,15 +20,10 @@ function renderHeader() {
 }
 
 describe('AppHeader', () => {
-  it('mostra a inicial do usuário da sessão no avatar', () => {
-    sessionApi.user = { id: 'user-1', username: 'beatriz' }
+  it('mostra o ícone pixel-art no botão da conta', () => {
     const { container } = renderHeader()
-    expect(container.querySelector('[aria-hidden="true"]:not(svg)')?.textContent).toBe('B')
-  })
-
-  it('não inventa um nome quando não há usuário', () => {
-    sessionApi.user = null
-    const { container } = renderHeader()
-    expect(container.querySelector('[aria-label="Conta"] span')?.textContent).toBe('')
+    const icon = container.querySelector('[aria-label="Conta"] svg')
+    expect(icon).not.toBeNull()
+    expect(icon.getAttribute('aria-hidden')).toBe('true')
   })
 })
