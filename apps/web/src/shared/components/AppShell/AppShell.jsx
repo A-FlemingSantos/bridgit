@@ -1,4 +1,4 @@
-import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { MotionConfig } from 'framer-motion'
 import AppHeader from '../../../shared/components/AppHeader/AppHeader.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
@@ -7,10 +7,51 @@ import styles from './AppShell.module.css'
 const TOP_REVEAL_PX = 12
 const DIRECTION_DELTA_PX = 4
 const HOVER_ZONE_EXTRA_PX = 12
+const SIDEBAR_STORAGE_KEY = 'bridgit.sidebar.collapsed'
+const NARROW_QUERY = '(max-width: 860px)'
 
 export const AppShellSubheaderShownContext = createContext(true)
 
-export default function AppShell({ children, refreshKey, subheader = null, className = '' }) {
+function isNarrowViewport() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(NARROW_QUERY).matches
+}
+
+// Narrow screens open the sidebar as an overlay, so it starts closed there and
+// its state is not remembered; wide screens keep the last choice.
+function readInitialCollapsed() {
+  if (isNarrowViewport()) return true
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(readInitialCollapsed)
+
+  const toggle = useCallback(() => {
+    setCollapsed((current) => {
+      const next = !current
+      if (!isNarrowViewport()) {
+        try {
+          window.localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0')
+        } catch {
+          // Storage can be unavailable (private mode); the toggle still works.
+        }
+      }
+      return next
+    })
+  }, [])
+
+  const close = useCallback(() => setCollapsed(true), [])
+
+  return { collapsed, toggle, close }
+}
+
+export default function AppShell({ children, refreshKey, subheader = null, sidebar = null, className = '' }) {
   const viewportRef = useRef(null)
   const bodyRef = useRef(null)
   const subheaderRef = useRef(null)
@@ -21,7 +62,10 @@ export default function AppShell({ children, refreshKey, subheader = null, class
   const [retracted, setRetracted] = useState(false)
   const [hoverReveal, setHoverReveal] = useState(false)
   const [spacerHeight, setSpacerHeight] = useState(0)
+  const sidebarId = useId()
+  const sidebarState = useSidebarCollapsed()
   const hasSubheader = Boolean(subheader)
+  const hasSidebar = Boolean(sidebar)
   const shown = !retracted || hoverReveal
 
   useLayoutEffect(() => {
@@ -112,11 +156,35 @@ export default function AppShell({ children, refreshKey, subheader = null, class
     }
   }, [hasSubheader, refreshKey])
 
+  const sidebarOpen = hasSidebar && !sidebarState.collapsed
+
   return (
     <MotionConfig reducedMotion="user">
     <AppShellSubheaderShownContext.Provider value={shown}>
       <div className={[styles.page, className].filter(Boolean).join(' ')}>
-      <AppHeader />
+      <AppHeader
+        panel={hasSidebar
+          ? { id: sidebarId, collapsed: sidebarState.collapsed, onToggle: sidebarState.toggle }
+          : null}
+      />
+      {hasSidebar ? (
+        <aside
+          id={sidebarId}
+          className={[styles.sidebar, sidebarOpen ? '' : styles.sidebarCollapsed].filter(Boolean).join(' ')}
+          aria-label="Painel lateral"
+        >
+          <div className={styles.sidebarInner}>{sidebar}</div>
+        </aside>
+      ) : null}
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className={styles.scrim}
+          aria-label="Fechar painel"
+          tabIndex={-1}
+          onClick={sidebarState.close}
+        />
+      ) : null}
       <div className={styles.body} ref={bodyRef}>
         {subheader ? (
           <div
