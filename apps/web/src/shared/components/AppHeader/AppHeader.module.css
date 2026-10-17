@@ -12,7 +12,8 @@
   height: 100%;
   padding: calc(18px + env(safe-area-inset-top, 0px)) 0 calc(18px + env(safe-area-inset-bottom, 0px));
   background: var(--wash);
-  border-right: 1px solid var(--line);
+  /* Drawn inside the rail so its content stays an even 60px and icons land on whole pixels. */
+  box-shadow: inset -1px 0 0 var(--line);
   color: var(--ink);
 }
 
@@ -95,4 +96,9 @@
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.04em;
+}
+
+/* Pixel-art icon: drawn on a 12-cell grid, so 24px keeps each cell at 2px. */
+.pixelIcon {
+  display: block;
 }
