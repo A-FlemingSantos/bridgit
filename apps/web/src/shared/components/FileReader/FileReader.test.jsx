@@ -83,6 +83,21 @@ describe('FileReader', () => {
     expect(screen.getByRole('button', { name: 'Baixar' })).toBeInTheDocument()
   })
 
+  it('com erro e retry mostra so Tentar novamente, sem Baixar', () => {
+    render(
+      <FileReader
+        file={file}
+        source={null}
+        error="Não foi possível concluir a operação solicitada."
+        onDownload={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Baixar' })).toBeNull()
+  })
+
   it('esconde o loader depois que a imagem carrega', async () => {
     render(
       <FileReader

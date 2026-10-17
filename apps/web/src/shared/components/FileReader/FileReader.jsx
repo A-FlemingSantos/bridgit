@@ -81,7 +81,9 @@ export default function FileReader({
   const metaLine = useMemo(() => formatFileMeta(file), [file])
   const noneMessage = mode === 'none' ? 'Este arquivo não tem leitura no Bridgit' : null
   const statusMessage = displayError ?? noneMessage
-  const showDownload = unreadable && (downloadUrl || onDownload)
+  // One way out at a time: an error with a retry offers only the retry; download is for files we can't read.
+  const showRetry = Boolean(displayError && onRetry)
+  const showDownload = unreadable && !showRetry && (downloadUrl || onDownload)
 
   const handleContentReady = useCallback(() => {
     setContentReady(true)
@@ -278,7 +280,7 @@ export default function FileReader({
         </p>
       ) : null}
 
-      {displayError && onRetry ? (
+      {showRetry ? (
         <button type="button" className={styles.download} onClick={handleRetry}>
           Tentar novamente
         </button>
