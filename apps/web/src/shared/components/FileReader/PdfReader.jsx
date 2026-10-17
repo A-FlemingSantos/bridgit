@@ -195,6 +195,7 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
   const pdfRef = useRef(null)
   const pageRefs = useRef(new Map())
   const renderedPages = useRef(new Set())
+  const renderTasks = useRef(new Map())
   const firstPageReadyRef = useRef(false)
   const renderWidthRef = useRef(renderWidth)
   const onErrorRef = useRef(onError)
@@ -222,9 +223,13 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
       if (!pdfDoc || !canvas || !width) return
 
       renderedPages.current.add(pageNumber)
+      // A canvas takes one render at a time: a newer width replaces the render still in flight.
+      renderTasks.current.get(pageNumber)?.cancel()
+      renderTasks.current.delete(pageNumber)
 
       try {
         const page = await pdfDoc.getPage(pageNumber)
+        if (pdfRef.current !== pdfDoc || renderWidthRef.current !== width) return
         const viewport = page.getViewport({ scale: 1 })
         const scale = width / viewport.width
         const scaledViewport = page.getViewport({ scale })
@@ -235,16 +240,23 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
         canvas.style.width = '100%'
         canvas.style.height = 'auto'
 
-        await page.render({
+        const task = page.render({
           canvasContext: context,
           viewport: scaledViewport,
-        }).promise
+        })
+        renderTasks.current.set(pageNumber, task)
+        try {
+          await task.promise
+        } finally {
+          if (renderTasks.current.get(pageNumber) === task) renderTasks.current.delete(pageNumber)
+        }
 
         if (!firstPageReadyRef.current && pageNumber === 1) {
           firstPageReadyRef.current = true
           onFirstPageReady?.()
         }
       } catch (err) {
+        if (err?.name === 'RenderingCancelledException') return
         renderedPages.current.delete(pageNumber)
         if (err?.name === 'AbortError') return
         if (pageNumber === 1 && !firstPageReadyRef.current) {
@@ -313,6 +325,8 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
     return () => {
       cancelled = true
       pdfRef.current = null
+      renderTasks.current.forEach((task) => task.cancel())
+      renderTasks.current.clear()
       transport?.abort()
       void loadingTask?.destroy()
     }
@@ -320,6 +334,11 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
 
   useEffect(() => {
     if (!pageCount || !renderWidth) return undefined
+
+    // Every width is a fresh layout. The first page is rendered outright: the reader stays hidden
+    // until it is ready, and a hidden page never reaches the viewport to be observed.
+    renderedPages.current = new Set()
+    renderPage(1)
 
     const observers = []
 
@@ -345,15 +364,6 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
       observers.forEach((observer) => observer.disconnect())
     }
   }, [pageCount, renderWidth, renderPage])
-
-  useEffect(() => {
-    renderedPages.current = new Set()
-    firstPageReadyRef.current = false
-
-    pageRefs.current.forEach((_, pageNumber) => {
-      renderPage(pageNumber)
-    })
-  }, [renderWidth, renderPage])
 
   return (
     <div ref={containerRef} className={styles.pdfStack}>
