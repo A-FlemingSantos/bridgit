@@ -312,7 +312,7 @@ export default function SpaceBrowsePage() {
                     )}
                   >
                     <span className={styles.face} aria-hidden="true">
-                      <FileSheet />
+                      <FileSheet file={item} />
                     </span>
                     <span className={styles.meta}>
                       <span className={styles.itemTitle}>{item.name}</span>

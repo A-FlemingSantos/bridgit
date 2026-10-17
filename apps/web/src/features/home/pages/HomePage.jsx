@@ -420,7 +420,7 @@ export default function HomePage() {
                       aria-label={file.name}
                     >
                       <span className={styles.rowFace} aria-hidden="true">
-                        <FileSheet compact />
+                        <FileSheet compact file={file} />
                       </span>
                       <span className={styles.rowBody}>
                         <span className={styles.rowTitle}>{file.name}</span>
@@ -462,7 +462,7 @@ export default function HomePage() {
                       aria-label={file.name}
                     >
                       <span className={styles.tileFace} aria-hidden="true">
-                        <FileSheet />
+                        <FileSheet file={file} />
                         <span className={styles.tileMark}>
                           <ProviderMark id={file.provider} size={14} />
                         </span>

@@ -210,7 +210,7 @@ export default function FileReader({
           <div className={styles.pdfStage}>
             {!contentReady ? (
               <>
-                <FileSheet large />
+                <FileSheet large file={file} />
                 <Spinner label="Carregando arquivo" />
               </>
             ) : null}
@@ -251,7 +251,7 @@ export default function FileReader({
                     exit={{ opacity: 0 }}
                     transition={TRANSITION}
                   >
-                    <FileSheet large />
+                    <FileSheet large file={file} />
                   </motion.div>
                 ) : null}
               </AnimatePresence>
