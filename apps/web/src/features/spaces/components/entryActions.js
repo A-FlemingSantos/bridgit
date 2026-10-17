@@ -1,25 +1,17 @@
 import {
-  ArrowLeftRight,
-  Bookmark,
-  FolderInput,
-  Link,
   Palette,
-  Pencil,
-  Trash2,
 } from 'lucide-react'
-import { makeApiFolderLocation } from '../../../shared/state/hubStore.js'
+import { PixelBookmark, PixelFolderMove, PixelLink, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 
-export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError, providerName }) {
+export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, onError }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
-  const origin = item.parentRef
-    ? makeApiFolderLocation({ ref: item.parentRef, name: '', provider: item.provider }, providerName)
-    : null
+  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
 
   return [
     {
       id: 'rename',
       label: 'Renomear',
-      icon: Pencil,
+      icon: PixelPencil,
       onSelect: () =>
         openOverlay({
           type: 'name',
@@ -33,7 +25,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError,
     {
       id: 'move',
       label: 'Mover',
-      icon: FolderInput,
+      icon: PixelFolderMove,
       onSelect: () =>
         openOverlay({
           type: 'move',
@@ -44,27 +36,16 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError,
         }),
     },
     {
-      id: 'mirror',
-      label: 'Espelhar',
-      icon: ArrowLeftRight,
-      onSelect: () =>
-        openOverlay({
-          type: 'composer',
-          mode: 'create',
-          origin: makeApiFolderLocation(item, providerName),
-        }),
-    },
-    {
       id: 'link',
       label: 'Link público',
-      icon: Link,
+      icon: linked ? PixelUnlink : PixelLink,
       onSelect: () =>
         openOverlay({ type: 'public-link', providerId: item.provider, ref: item.ref, name: item.name }),
     },
     {
       id: 'pin',
       label: pinned ? 'Remover atalho' : 'Atalho',
-      icon: Bookmark,
+      icon: PixelBookmark,
       onSelect: () => {
         void actions.toggleShortcut(item).catch((error) => onError?.(error))
       },
@@ -72,7 +53,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError,
     {
       id: 'delete',
       label: 'Excluir',
-      icon: Trash2,
+      icon: PixelTrash,
       danger: true,
       onSelect: () =>
         openOverlay({
@@ -87,14 +68,12 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, onError,
 }
 
 // colorPicker (optional): { swatch, panel } adds a "Cor da pasta" choice that opens a docked palette.
-export function folderMenuItems(item, { openOverlay, providerName, colorPicker = null }) {
-  const origin = makeApiFolderLocation(item, providerName)
-
+export function folderMenuItems(item, { openOverlay, colorPicker = null }) {
   return [
     {
       id: 'rename',
       label: 'Renomear',
-      icon: Pencil,
+      icon: PixelPencil,
       onSelect: () =>
         openOverlay({
           type: 'name',
@@ -108,7 +87,7 @@ export function folderMenuItems(item, { openOverlay, providerName, colorPicker =
     {
       id: 'move',
       label: 'Mover',
-      icon: FolderInput,
+      icon: PixelFolderMove,
       onSelect: () =>
         openOverlay({
           type: 'move',
@@ -116,17 +95,6 @@ export function folderMenuItems(item, { openOverlay, providerName, colorPicker =
           providerId: item.provider,
           ref: item.ref,
           parentRef: item.parentRef ?? undefined,
-        }),
-    },
-    {
-      id: 'mirror',
-      label: 'Espelhar',
-      icon: ArrowLeftRight,
-      onSelect: () =>
-        openOverlay({
-          type: 'composer',
-          mode: 'create',
-          origin,
         }),
     },
     ...(colorPicker
@@ -143,7 +111,7 @@ export function folderMenuItems(item, { openOverlay, providerName, colorPicker =
     {
       id: 'delete',
       label: 'Excluir',
-      icon: Trash2,
+      icon: PixelTrash,
       danger: true,
       onSelect: () =>
         openOverlay({
