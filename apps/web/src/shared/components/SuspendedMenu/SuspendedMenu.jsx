@@ -11,6 +11,7 @@ export default function SuspendedMenu({
   id,
   title = null,
   stretch = false,
+  attached = false,
   align = 'end',
   labelledBy,
   panelRef = null,
@@ -21,6 +22,7 @@ export default function SuspendedMenu({
   const className = [
     extrasPanelClassName(styles, open, closing),
     stretch ? styles.stretch : '',
+    attached ? styles.attached : '',
     !anchored && align === 'start' ? styles.start : '',
     anchored ? styles.fixed : '',
   ]

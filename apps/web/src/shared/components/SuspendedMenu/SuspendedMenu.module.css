@@ -39,6 +39,22 @@
   left: 0;
 }
 
+/* Attached: the card continues the trigger's body, flush under it, with only the bottom corners rounded. */
+.attached {
+  top: 100%;
+  clip-path: inset(0 0 100% 0 round 0 0 10px 10px);
+  transform: none;
+}
+
+.attached.extrasOpen {
+  clip-path: inset(0 0 -40px 0 round 0 0 10px 10px);
+}
+
+.attached .inner {
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
 .extrasOpen {
   visibility: visible;
   pointer-events: auto;
