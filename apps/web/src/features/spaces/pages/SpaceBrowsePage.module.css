@@ -1,36 +1,33 @@
 .main {
+  --folder-tab: #2b2b2b;
+  --folder-top: #4a4a4a;
+  --folder-bottom: #2a2a2a;
+  --folder-edge: rgba(255, 255, 255, 0.14);
+
   display: flex;
   flex-direction: column;
-  gap: 36px;
-  padding: 22px clamp(20px, 4vw, 40px) 48px;
+  gap: 40px;
+  padding: 28px clamp(20px, 4vw, 40px) 56px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .main {
+    --folder-tab: #2f2f2f;
+    --folder-top: #4b4b4b;
+    --folder-bottom: #303030;
+    --folder-edge: rgba(255, 255, 255, 0.1);
+  }
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-
-.section h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  color: inherit;
-  text-decoration: none;
+  grid-template-columns: repeat(auto-fill, 172px);
+  gap: 24px 12px;
 }
 
 .wrap {
@@ -38,48 +35,90 @@
   min-width: 0;
 }
 
-.item:hover .face {
-  background: color-mix(in srgb, var(--ink) 6%, var(--wash));
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 8px 12px;
+  border-radius: 8px;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 120ms ease;
 }
 
-.face {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 16 / 10;
+.item:hover {
   background: var(--wash);
 }
 
-.folderMark {
-  width: 28%;
-  max-width: 56px;
-  aspect-ratio: 1;
-  background: var(--ink);
-  -webkit-mask: var(--folder-mark) center / contain no-repeat;
-  mask: var(--folder-mark) center / contain no-repeat;
+.item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.item[aria-busy='true'] {
+  opacity: 0.55;
+}
+
+.face {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100px;
+}
+
+/* Folder drawn in carbon: a back tab peeking above a front panel. */
+.folder {
+  position: relative;
+  display: block;
+  width: 112px;
+  height: 82px;
+}
+
+.folderTab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46%;
+  height: 20px;
+  border-radius: 5px 8px 0 0;
+  background: var(--folder-tab);
+}
+
+.folderBody {
+  position: absolute;
+  inset: 8px 0 0;
+  border-radius: 4px 6px 5px 5px;
+  background: linear-gradient(180deg, var(--folder-top) 0%, var(--folder-bottom) 100%);
+  box-shadow:
+    inset 0 1px 0 var(--folder-edge),
+    0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 .meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  width: 100%;
   min-width: 0;
-  padding: 0 2px;
 }
 
 .itemTitle {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .itemSub {
   overflow: hidden;
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--mute);
-  letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -105,7 +144,7 @@
   cursor: pointer;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 560px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

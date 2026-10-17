@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import {
   isSettingsPath,
   resolveSettingsBackground,
@@ -22,6 +23,7 @@ export default function SpaceViewHeader({
   onRename = null,
   subtitle = null,
   contained = false,
+  trail = false,
 }) {
   const location = useLocation()
   const { state } = useHub()
@@ -45,6 +47,32 @@ export default function SpaceViewHeader({
   useEffect(() => {
     setDraft(current?.label ?? '')
   }, [current?.label])
+
+  // Trail layout: the path itself is the title, ancestors as links and the current folder in bold.
+  if (trail) {
+    return (
+      <header className={[styles.band, styles.trailBand].join(' ')}>
+        <div className={styles.trailRow}>
+          <div className={styles.trail}>
+            {ancestors.length > 0 ? (
+              <nav className={styles.trailNav} aria-label="Localização atual">
+                {ancestors.map((crumb, index) => (
+                  <span key={`${crumb.label}-${crumb.to ?? index}`} className={styles.trailSegment}>
+                    <Link to={crumb.to} state={crumb.state} className={styles.trailLink}>
+                      {crumb.label}
+                    </Link>
+                    <ChevronRight className={styles.trailSeparator} size={16} strokeWidth={1.6} aria-hidden="true" />
+                  </span>
+                ))}
+              </nav>
+            ) : null}
+            <h1 className={styles.trailCurrent}>{current?.label}</h1>
+          </div>
+          {trailing}
+        </div>
+      </header>
+    )
+  }
 
   function commitRename() {
     const name = draft.trim()

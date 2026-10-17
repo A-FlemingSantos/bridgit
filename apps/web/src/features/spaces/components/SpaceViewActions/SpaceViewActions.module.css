@@ -3,57 +3,69 @@
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  width: 168px;
-  min-width: 168px;
+  width: 176px;
+  min-width: 176px;
 }
 
+/* One rounded control; the chevron half is split off by a hairline. */
 .head {
   display: flex;
-  height: calc(clamp(28px, 4vw, 40px) * 1.15);
+  height: 34px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--ink);
+  transition: border-radius 120ms ease;
+}
+
+/* While the menu is out the head is the top of one body, so its bottom corners go square. */
+.headOpen {
+  border-radius: 8px 8px 0 0;
+  transition: none;
 }
 
 .primary,
 .toggle {
   border: 0;
+  background: transparent;
+  color: var(--paper);
   font: inherit;
   font-size: 13px;
-  font-weight: 450;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
 .primary {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
   padding: 0 12px;
   text-align: left;
   flex: 1 1 auto;
-  background: var(--ink);
-  color: var(--paper);
 }
 
 .toggle {
   display: grid;
   place-items: center;
-  width: 36px;
-  flex: 0 0 36px;
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: inset 1px 0 0 var(--paper);
+  width: 32px;
+  flex: 0 0 32px;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--paper) 22%, transparent);
 }
 
 .primary:hover,
-.toggle:hover {
-  opacity: 0.92;
+.toggle:hover,
+.toggle[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--paper) 12%, transparent);
 }
 
 .primary:focus-visible,
 .toggle:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: 2px solid var(--paper);
+  outline-offset: -3px;
+  border-radius: 6px;
 }
 
 .chevron {

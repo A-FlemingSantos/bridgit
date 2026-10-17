@@ -31,7 +31,7 @@ export default function SpaceViewActions({
 
   return (
     <div className={styles.dock} ref={menu.dockRef}>
-      <div className={styles.head}>
+      <div className={[styles.head, menu.open || menu.closing ? styles.headOpen : ''].filter(Boolean).join(' ')}>
         <button type="button" className={styles.primary} onClick={onCreate}>
           <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
           {createLabel}
@@ -59,6 +59,7 @@ export default function SpaceViewActions({
         closing={menu.closing}
         items={wrappedExtras}
         stretch
+        attached
       />
     </div>
   )

@@ -19,7 +19,7 @@ import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProviderBreadcrumb.js'
-import folderMark from '../assets/folder.svg'
+import { formatItemDate } from '../formatItemDate.js'
 import { fileMenuItems, folderMenuItems } from '../components/entryActions.js'
 import styles from './SpaceBrowsePage.module.css'
 import { staleCatalogNotice } from './staleCatalogNotice.js'
@@ -212,8 +212,7 @@ export default function SpaceBrowsePage() {
         {empty && !expired && !staleNotice ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
 
         {folders.length > 0 ? (
-          <section className={styles.section}>
-            <h2>Pastas</h2>
+          <section className={styles.section} aria-label="Pastas">
             <div className={styles.grid}>
               {folders.map((item, index) => (
                 <StaggerItem
@@ -236,14 +235,14 @@ export default function SpaceBrowsePage() {
                     )}
                   >
                     <span className={styles.face} aria-hidden="true">
-                      <span
-                        className={styles.folderMark}
-                        style={{ '--folder-mark': `url("${folderMark}")` }}
-                      />
+                      <span className={styles.folder}>
+                        <span className={styles.folderTab} />
+                        <span className={styles.folderBody} />
+                      </span>
                     </span>
                     <span className={styles.meta}>
                       <span className={styles.itemTitle}>{item.name}</span>
-                      <span className={styles.itemSub}>Pasta · {providerMeta.name}</span>
+                      <span className={styles.itemSub}>{formatItemDate(item.modifiedAt) || 'Pasta'}</span>
                     </span>
                   </PendingAware>
                   {item.pending ? null : (
@@ -262,8 +261,7 @@ export default function SpaceBrowsePage() {
         ) : null}
 
         {files.length > 0 ? (
-          <section className={styles.section}>
-            <h2>Arquivos</h2>
+          <section className={styles.section} aria-label="Arquivos">
             <div className={styles.grid}>
               {files.map((item, index) => (
                 <StaggerItem
@@ -292,7 +290,7 @@ export default function SpaceBrowsePage() {
                     <span className={styles.meta}>
                       <span className={styles.itemTitle}>{item.name}</span>
                       <span className={styles.itemSub}>
-                        {itemKindLabel(item)} · {providerMeta.name}
+                        {formatItemDate(item.modifiedAt) || itemKindLabel(item)}
                       </span>
                     </span>
                   </PendingAware>
@@ -330,6 +328,7 @@ export default function SpaceBrowsePage() {
       subheader={
         breadcrumbItems ? (
           <SpaceViewHeader
+            trail
             items={breadcrumbItems}
             trailing={
               connected && !expired ? (
@@ -357,7 +356,7 @@ export default function SpaceBrowsePage() {
             }
           />
         ) : (
-          <SpaceViewHeader trailing={null} />
+          <SpaceViewHeader trail trailing={null} />
         )
       }
     >
