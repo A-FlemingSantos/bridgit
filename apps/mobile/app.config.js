@@ -8,9 +8,17 @@ export default {
     orientation: 'portrait',
     scheme: 'bridgit',
     userInterfaceStyle: 'automatic',
+    // The Bridgit logo in ink on paper, like the launch screen.
+    icon: './assets/icon.png',
     newArchEnabled: true,
     android: {
       package: 'com.bridgit.mobile',
+      // Logo kept inside the launcher mask's safe zone; the monochrome copy feeds themed icons.
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        monochromeImage: './assets/adaptive-icon.png',
+        backgroundColor: '#ffffff',
+      },
       // Edge to edge, "resize" leaves the window still and hands the keyboard height to the app
       // (sheets and screens make room themselves); "pan" would shift the whole window, background
       // screen included.
