@@ -3,6 +3,7 @@ import Header from '../components/Header/Header.jsx'
 import Hero from '../components/Hero/Hero.jsx'
 import Services from '../components/Services/Services.jsx'
 import Showcase from '../components/Showcase/Showcase.jsx'
+import AppDownload from '../components/AppDownload/AppDownload.jsx'
 import Footer from '../components/Footer/Footer.jsx'
 import styles from './LandingPage.module.css'
 
@@ -20,6 +21,7 @@ export default function LandingPage() {
             <Hero />
             <Services />
             <Showcase />
+            <AppDownload />
           </main>
           <Footer />
         </div>
