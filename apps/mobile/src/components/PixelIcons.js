@@ -42,6 +42,15 @@ export const PixelList = pixelIcon('M10 5h12v2H10zm0 4h8v2h-8zm0 4h12v2H10zm0 4h
 export const PixelPanel = pixelIcon('M20 4v16h2V4zM2 11v2h16v-2zm12 2v2h2v-2zm-2 2v2h2v-2zm-2 2v2h2v-2zm4-8v2h2V9zm-2-2v2h2V7zm-2-2v2h2V5z')
 export const PixelGear = pixelIcon('M10 22H6v-2h4v2Zm-4-2H4v-2H2v-2h2v-2h2v6Zm6-4h10v2H12v2h-2v-6h2v2Zm-2-2H6v-2h4v2Zm8-2h-4v-2h4v2Zm-6-4H2V6h10V4h2v6h-2V8Zm8-2h2v2h-2v2h-2V4h2v2Zm-2-2h-4V2h4v2Z')
 
+// House outline for the sidebar's "Início".
+export const PixelHome = pixelIcon('M10 20h4v-6h2v6h4v2H4v-2h4v-6h2v6Zm-6 0H2V10h2v10Zm18 0h-2V10h2v10Zm-8-6h-4v-2h4v2Zm-8-4H4V8h2v2Zm14 0h-2V8h2v2ZM8 8H6V6h2v2Zm10 0h-2V6h2v2Zm-8-2H8V4h2v2Zm6 0h-2V4h2v2Zm-2-2h-4V2h4v2Z')
+
+// Funnel for the Home's provider filter.
+export const PixelFilter = pixelIcon('M11 20h2v2H9V12h2v8Zm4 0h-2v-8h2v8Zm-6-8H7v-2h2v2Zm8 0h-2v-2h2v2ZM7 10H5V8h2v2Zm12 0h-2V8h2v2Zm2-2h-2V4H5v4H3V2h18v6Z')
+
+// Framed bust for the account button in the Home header.
+export const PixelUser = pixelIcon('M8 20h8v-2h2v2h2v2H4v-2h2v-2h2v2Zm-4 0H2V4h2v16Zm18 0h-2V4h2v16Zm-6-2H8v-2h8v2Zm-2-4h-4v-2h4v2Zm-4-2H8V8h2v4Zm6 0h-2V8h2v4Zm-2-4h-4V6h4v2Zm6-4H4V2h16v2Z')
+
 // Mobile-only shapes drawn on the same grid.
 export const PixelMore = pixelIcon('M10 4h4v4h-4zM10 10h4v4h-4zM10 16h4v4h-4z')
 export const PixelBack = pixelIcon('M14 4h2v2h-2zM12 6h2v2h-2zM10 8h2v2h-2zM8 10h2v4H8zM10 14h2v2h-2zM12 16h2v2h-2zM14 18h2v2h-2z')

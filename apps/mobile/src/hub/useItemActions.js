@@ -272,7 +272,8 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   }
 
   // An empty file with the typed name, as the web creates one; the provider opens it from there.
-  const newFile = () => setDialog({
+  // `target` picks another provider's root, like newFolder.
+  const newFile = (target = null) => setDialog({
     type: 'name',
     title: 'Criar arquivo',
     label: 'Nome do arquivo',
@@ -289,7 +290,8 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
         await FileSystem.writeAsStringAsync(uri, '')
         file = { uri, name, type: 'application/octet-stream', size: 0 }
       }
-      await hub.upload(providerId, parentRef, file)
+      if (target) await hub.upload(target, null, file)
+      else await hub.upload(providerId, parentRef, file)
       say('Arquivo criado.')
     },
   })
@@ -332,7 +334,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
         upload: () => upload(),
         photos: uploadPhotos,
         folder: () => newFolder(),
-        file: newFile,
+        file: () => newFile(),
         camera: capture,
       }
       : {}),
@@ -341,6 +343,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     pickFolder,
     sendPicked,
     newFolderIn: (target) => newFolder(target),
+    newFileIn: (target) => newFile(target),
     shareUrl,
     disableLink,
   }

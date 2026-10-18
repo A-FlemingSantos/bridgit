@@ -3,14 +3,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSession } from '../auth/SessionContext'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
-import { PixelPanel } from './PixelIcons'
+import { PixelPanel, PixelUser } from './PixelIcons'
 
-// Home top bar: the side panel toggle on the left, the account on the right.
+// Home top bar: the side panel toggle on the left, the account (username and icon) on the right.
 export default function HomeHeader({ onOpenPanel, onOpenSettings }) {
   const insets = useSafeAreaInsets()
   const { theme } = useMobileTheme()
   const { user } = useSession()
-  const initial = (user?.username ?? '?').charAt(0).toUpperCase()
+  const username = user?.username ?? ''
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + 8, backgroundColor: theme.colors.paper }]}>
@@ -25,14 +25,17 @@ export default function HomeHeader({ onOpenPanel, onOpenSettings }) {
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Ajustes"
+        accessibilityLabel={username ? `Ajustes da conta ${username}` : 'Ajustes'}
         onPress={onOpenSettings}
         hitSlop={8}
-        style={[styles.avatar, { backgroundColor: theme.colors.ink }]}
+        style={({ pressed }) => [styles.account, pressed ? { backgroundColor: theme.colors.wash } : null]}
       >
-        <AppText weight="500" style={[styles.initial, { color: theme.colors.paper }]}>
-          {initial}
-        </AppText>
+        {username ? (
+          <AppText weight="500" numberOfLines={1} style={[styles.username, { color: theme.colors.ink }]}>
+            {username}
+          </AppText>
+        ) : null}
+        <PixelUser size={24} color={theme.colors.ink} />
       </Pressable>
     </View>
   )
@@ -53,16 +56,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatar: {
-    width: 30,
-    height: 30,
-    marginRight: 6,
-    borderRadius: 15,
+  account: {
+    maxWidth: '60%',
+    height: 40,
+    paddingLeft: 10,
+    paddingRight: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
-  initial: {
-    fontSize: 12,
-    letterSpacing: 0.4,
+  username: {
+    flexShrink: 1,
+    fontSize: 14,
+    letterSpacing: -0.28,
   },
 })

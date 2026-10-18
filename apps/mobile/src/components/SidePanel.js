@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react-native'
+import { ChevronRight, FileText, Plus } from 'lucide-react-native'
 import { useProviders, usePublicLinks } from '../hub/hooks'
 import { needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
@@ -21,7 +21,7 @@ import { useNativeDriver } from '../theme/motion'
 import { SheetHeader } from './ActionSheet'
 import FileSheet from './FileSheet'
 import HoldMenu from './OverflowMenu'
-import { PixelGear, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
+import { PixelGear, PixelHome, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
 import ProviderMark from './ProviderMark'
 import { Overlay } from './OverlayHost'
 import { useSlideModal } from './useSlideModal'
@@ -155,9 +155,9 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
         ]}
       >
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <AppText weight="500" style={styles.title}>Início</AppText>
+          <AppText weight="500" style={styles.title}>Bridgit</AppText>
 
-          <Item icon={icon(LayoutDashboard)} title="Visão geral" active onPress={onClose} />
+          <Item icon={<PixelHome size={24} color={theme.colors.mute} />} title="Início" active onPress={onClose} />
 
           <Group title="Provedores">
             {providersStatus === 'loading' ? <Empty>Carregando…</Empty> : null}
@@ -268,6 +268,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
+    // Same rounding as the bottom sheets, on the edge that faces the screen.
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    overflow: 'hidden',
   },
   scroll: {
     paddingHorizontal: 12,

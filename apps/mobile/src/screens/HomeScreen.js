@@ -4,12 +4,15 @@ import { Clock } from 'lucide-react-native'
 import CollapsingHeader from '../components/CollapsingHeader'
 import ActionDialog, { Notice } from '../components/ActionDialog'
 import ActionSheet, { SheetHeader } from '../components/ActionSheet'
+import AnchoredMenu from '../components/AnchoredMenu'
 import FileSheet from '../components/FileSheet'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
 import {
   PixelCloud,
   PixelFileEmpty,
+  PixelFilePlus,
+  PixelFilter,
   PixelFolder,
   PixelFolderPlus,
   PixelGrid,
@@ -108,6 +111,42 @@ function ActionTile({ icon: Icon, label, primary = false, sheetTitle, sheetHint,
   )
 }
 
+// One button for the provider filter; the clouds open in a menu that drops from it, so the
+// toolbar keeps a single line however many are connected.
+function ProviderFilter({ value, options, onChange }) {
+  const { theme } = useMobileTheme()
+  const [open, setOpen] = useState(false)
+  const button = useRef(null)
+  const filtered = value !== ALL_PROVIDERS
+  return (
+    <>
+      <Pressable
+        ref={button}
+        accessibilityRole="button"
+        accessibilityLabel={`Filtrar recentes por provedor: ${filtered ? providerName(value) : 'Todos'}`}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(true)}
+        style={[styles.viewButton, filtered || open ? { backgroundColor: theme.colors.wash } : null]}
+      >
+        <PixelFilter size={24} color={filtered ? theme.colors.ink : theme.colors.mute} />
+      </Pressable>
+      <AnchoredMenu
+        open={open}
+        anchor={button}
+        onClose={() => setOpen(false)}
+        label="Filtrar recentes por provedor"
+        items={options.map((id) => ({
+          id,
+          label: id === ALL_PROVIDERS ? 'Todos' : providerName(id),
+          icon: id === ALL_PROVIDERS ? PixelCloud : providerIcon(id),
+          selected: value === id,
+          onSelect: () => onChange(id),
+        }))}
+      />
+    </>
+  )
+}
+
 function ViewButton({ icon: Icon, label, selected, onPress }) {
   const { theme } = useMobileTheme()
   return (
@@ -149,7 +188,7 @@ export default function HomeScreen({ navigation }) {
 
   const openSettings = () => navigation.push('Settings')
 
-  // Home uploads and new folders land at the root of the cloud picked in the sheet.
+  // Home uploads, new files and new folders land at the root of the cloud picked in the sheet.
   // An expired connection stays listed but cannot take writes until it is reconnected.
   function destinationItems(run) {
     const connected = providers.filter((provider) => provider.connected)
@@ -216,24 +255,18 @@ export default function HomeScreen({ navigation }) {
               items={sendItems}
             />
             <ActionTile
+              icon={PixelFilePlus}
+              label="Novo arquivo"
+              sheetTitle="Novo arquivo"
+              sheetHint="Escolha onde criar o arquivo"
+              items={destinationItems(actions.newFileIn)}
+            />
+            <ActionTile
               icon={PixelFolderPlus}
               label="Nova pasta"
               sheetTitle="Nova pasta"
               sheetHint="Escolha onde criar a pasta"
               items={destinationItems(actions.newFolderIn)}
-            />
-            <ActionTile
-              icon={PixelCloud}
-              label="Conectar"
-              sheetTitle="Nuvens"
-              sheetHint="Conecte ou reconecte em Ajustes"
-              items={providers.map((provider) => ({
-                id: provider.id,
-                label: provider.name,
-                hint: providerHint(provider),
-                icon: providerIcon(provider.id),
-                onSelect: openSettings,
-              }))}
             />
           </View>
 
@@ -242,24 +275,11 @@ export default function HomeScreen({ navigation }) {
 
             <View style={styles.toolbar}>
               {recentProviders.length > 1 ? (
-                <View accessibilityLabel="Filtrar recentes por provedor" style={styles.chips}>
-                  {[ALL_PROVIDERS, ...recentProviders].map((id) => {
-                    const selected = activeFilter === id
-                    return (
-                      <Pressable
-                        key={id}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        onPress={() => setProviderFilter(id)}
-                        style={[styles.chip, { backgroundColor: selected ? theme.colors.ink : theme.colors.wash }]}
-                      >
-                        <AppText style={[styles.chipLabel, { color: selected ? theme.colors.paper : theme.colors.ink }]}>
-                          {id === ALL_PROVIDERS ? 'Todos' : providerName(id)}
-                        </AppText>
-                      </Pressable>
-                    )
-                  })}
-                </View>
+                <ProviderFilter
+                  value={activeFilter}
+                  options={[ALL_PROVIDERS, ...recentProviders]}
+                  onChange={setProviderFilter}
+                />
               ) : <View />}
               <View style={styles.toggle}>
                 <ViewButton icon={PixelGrid} label="Grade" selected={recentsView === 'grid'} onPress={() => setRecentsView('grid')} />
@@ -451,25 +471,9 @@ const styles = StyleSheet.create({
   toolbar: {
     marginTop: -4,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-  },
-  chips: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  chip: {
-    height: 30,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    justifyContent: 'center',
-  },
-  chipLabel: {
-    fontSize: 12.5,
-    letterSpacing: -0.12,
   },
   toggle: {
     flexDirection: 'row',
