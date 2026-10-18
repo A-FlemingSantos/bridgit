@@ -4,7 +4,6 @@ import Constants from 'expo-constants'
 import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
 import { apiRequest, connectProvider, disconnectProvider, isSessionFailure } from '@bridgit/shared-client'
-import { getItem, setItem } from '../auth/secureStorage'
 import { useSession } from '../auth/SessionContext'
 import { useHub } from '../hub/HubContext'
 import { filesScope, foldersScope, HOME } from '../hub/eventScopes'
@@ -15,38 +14,18 @@ import { describeOauthReturn } from './oauthOutcome'
 
 export const ABOUT = {
   version: Constants.expoConfig?.version ?? '1.0.0',
-  stores: 'Só metadados. O arquivo fica no provedor.',
-  providers: 'OneDrive, Google Drive e Dropbox.',
 }
-
-const NOTIFY_FAIL_KEY = 'bridgit.notifyFail'
 
 // Lets the in-app browser close itself when the redirect returns to the app.
 WebBrowser.maybeCompleteAuthSession()
 
-// The API reports "scheduled" while a connection is healthy and "attention" after an error.
-const SYNC_STATES = {
-  SCHEDULED: 'Sincronização agendada',
-  ATTENTION: 'Precisa de atenção',
-}
-
-function syncLabel(state) {
-  if (!state) return 'Aguardando a primeira sincronização'
-  return SYNC_STATES[String(state).toUpperCase()] ?? String(state)
-}
-
-function sessionLabel(item) {
-  const parts = [item.browser, item.device].filter(Boolean)
-  return item.current ? 'Este aparelho' : parts.join(' · ') || 'Sessão'
-}
 
 // Real settings backed by the account, session and provider endpoints.
 // Actions that can fail return a message in Portuguese, or '' on success.
 export function useSettings() {
   const { token, user, logout, invalidate, replaceSession } = useSession()
-  const { providers: statuses, reload: reloadProviders } = useProviders()
+  const { providers: statuses, status: providersStatus, reload: reloadProviders } = useProviders()
   const { refreshScopes } = useHub()
-  const [notifyFail, setNotifyFailState] = useState(true)
   const [sessions, setSessions] = useState([])
   // Provider whose OAuth came back with a different account and waits for the user's confirmation.
   const [accountChangeId, setAccountChangeId] = useState(null)
@@ -69,8 +48,9 @@ export function useSettings() {
       const items = await apiRequest('/api/auth/sessions', { token })
       setSessions((Array.isArray(items) ? items : []).map((item) => ({
         id: item.id,
-        device: sessionLabel(item),
-        detail: item.current ? 'Ativo agora' : `Ativo ${formatWhen(item.lastSeenAt).toLowerCase()}`,
+        browser: item.browser || 'Sessão',
+        device: item.device || '',
+        detail: item.current ? 'Ativa agora' : `Ativa ${formatWhen(item.lastSeenAt).toLowerCase()}`,
         current: Boolean(item.current),
       })))
     } catch (error) {
@@ -81,14 +61,6 @@ export function useSettings() {
   useEffect(() => {
     loadSessions()
   }, [loadSessions])
-
-  useEffect(() => {
-    getItem(NOTIFY_FAIL_KEY)
-      .then((value) => {
-        if (value != null) setNotifyFailState(value !== '0')
-      })
-      .catch(() => {})
-  }, [])
 
   // OAuth finishes in the system browser; refresh provider state when the app comes back.
   useEffect(() => {
@@ -143,11 +115,6 @@ export function useSettings() {
     refreshScopes([HOME, foldersScope(id), filesScope(id)])
   }), [guard, token, reloadProviders, refreshScopes])
 
-  const setNotifyFail = useCallback((value) => {
-    setNotifyFailState(value)
-    setItem(NOTIFY_FAIL_KEY, value ? '1' : '0').catch(() => {})
-  }, [])
-
   const revokeOtherSessions = useCallback(() => guard(async () => {
     await apiRequest('/api/auth/sessions/revoke-others', { method: 'POST', token })
     await loadSessions()
@@ -182,15 +149,14 @@ export function useSettings() {
       account: provider.connected
         ? provider.account?.email ?? provider.account?.name ?? 'Conectado'
         : null,
-      sync: !provider.connected ? null : needsReconnect(provider) ? 'Acesso expirado. Reconecte em Provedores.' : syncLabel(provider.syncState),
     })),
+    providersStatus,
+    reloadProviders,
     connectProvider: connect,
     accountChangeId,
     confirmAccountChange,
     cancelAccountChange,
     disconnectProvider: disconnect,
-    notifyFail,
-    setNotifyFail,
     sessions,
     revokeOtherSessions,
     changePassword,

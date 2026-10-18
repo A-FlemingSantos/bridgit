@@ -3,15 +3,6 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 import AppText, { fontFamilyFor } from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
-export function Section({ title, children }) {
-  return (
-    <View style={styles.section}>
-      <AppText weight="500" style={styles.sectionTitle}>{title}</AppText>
-      {children}
-    </View>
-  )
-}
-
 export function Hint({ children }) {
   const { theme } = useMobileTheme()
   return <AppText style={[styles.hint, { color: theme.colors.mute }]}>{children}</AppText>
@@ -39,50 +30,6 @@ export function Button({ label, onPress, variant = 'outline', disabled = false }
       ]}
     >
       <AppText weight="500" style={[styles.buttonLabel, { color: textColor }]}>{label}</AppText>
-    </Pressable>
-  )
-}
-
-// Confirmação inline (Alert não funciona no web).
-export function ConfirmPanel({ prompt, confirmLabel, onConfirm, onCancel }) {
-  const { theme } = useMobileTheme()
-
-  return (
-    <View style={[styles.confirm, { borderColor: theme.colors.line }]}>
-      <AppText style={styles.confirmText}>{prompt}</AppText>
-      <View style={styles.actions}>
-        <Button label="Cancelar" onPress={onCancel} />
-        <Button label={confirmLabel} variant="danger" onPress={onConfirm} />
-      </View>
-    </View>
-  )
-}
-
-// Linha com título, dica e um controle à direita.
-export function PrefRow({ title, hint, children }) {
-  return (
-    <View style={styles.pref}>
-      <View style={styles.prefBody}>
-        <AppText weight="500" style={styles.prefTitle}>{title}</AppText>
-        {hint ? <Hint>{hint}</Hint> : null}
-      </View>
-      {children}
-    </View>
-  )
-}
-
-export function Switch({ label, value, onChange }) {
-  const { theme } = useMobileTheme()
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityState={{ checked: value }}
-      onPress={() => onChange(!value)}
-      hitSlop={8}
-      style={[styles.track, { backgroundColor: value ? theme.colors.ink : theme.colors.line }]}
-    >
-      <View style={[styles.thumb, { backgroundColor: theme.colors.paper }, value ? styles.thumbOn : null]} />
     </Pressable>
   )
 }
@@ -122,19 +69,7 @@ export function TextField({ label, value, onChangeText, secure = false, autoComp
   )
 }
 
-export function Divider() {
-  const { theme } = useMobileTheme()
-  return <View style={[styles.divider, { backgroundColor: theme.colors.line }]} />
-}
-
 const styles = StyleSheet.create({
-  section: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    letterSpacing: -0.42,
-  },
   hint: {
     fontSize: 12,
     letterSpacing: -0.12,
@@ -155,49 +90,6 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.4,
   },
-  confirm: {
-    gap: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderRadius: 16,
-  },
-  confirmText: {
-    fontSize: 13,
-    letterSpacing: -0.2,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  pref: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  prefBody: {
-    flex: 1,
-    gap: 2,
-  },
-  prefTitle: {
-    fontSize: 13,
-    letterSpacing: -0.39,
-  },
-  track: {
-    width: 40,
-    height: 24,
-    borderRadius: 12,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-  },
-  thumbOn: {
-    alignSelf: 'flex-end',
-  },
   field: {
     gap: 6,
   },
@@ -208,8 +100,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     fontSize: 15,
     letterSpacing: -0.3,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
   },
 })

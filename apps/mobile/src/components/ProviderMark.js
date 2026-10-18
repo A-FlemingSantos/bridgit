@@ -1,9 +1,7 @@
-import { useMemo, useRef } from 'react'
-import { Image, Platform } from 'react-native'
-import Svg, { Path, SvgXml } from 'react-native-svg'
+import Svg, { Path } from 'react-native-svg'
 import { googleDrive, onedrive } from '../assets/marks'
 import { useMobileTheme } from '../theme/ThemeProvider'
-import { expandSvgStyles, nextSvgPrefix, withSvgIds } from './svgMarkup'
+import SvgMark from './SvgMark'
 
 const MARKS = {
   onedrive,
@@ -24,31 +22,5 @@ function DropboxMark({ size }) {
 
 export default function ProviderMark({ id, size = 16 }) {
   if (id === 'dropbox') return <DropboxMark size={size} />
-  return <SvgMark id={id} size={size} />
-}
-
-function SvgMark({ id, size }) {
-  const source = MARKS[id]
-  const prefix = useRef(nextSvgPrefix()).current
-  const xml = useMemo(() => {
-    if (!source) return null
-    return withSvgIds(expandSvgStyles(source), prefix)
-  }, [prefix, source])
-
-  if (!source) return null
-
-  if (Platform.OS === 'web') {
-    const uri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`
-    return (
-      <Image
-        source={{ uri }}
-        style={{ width: size, height: size }}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-      />
-    )
-  }
-
-  if (!xml) return null
-  return <SvgXml xml={xml} width={size} height={size} />
+  return <SvgMark source={MARKS[id]} size={size} />
 }

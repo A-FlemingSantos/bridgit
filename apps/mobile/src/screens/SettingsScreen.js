@@ -1,243 +1,283 @@
-import { useState } from 'react'
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import ActionDialog, { NameField, Notice, SheetButton } from '../components/ActionDialog'
+import ActionSheet, { SheetHeader } from '../components/ActionSheet'
 import BrowseHeader from '../components/BrowseHeader'
+import BrowserMark from '../components/BrowserMark'
 import ProviderMark from '../components/ProviderMark'
 import {
-  Button,
-  ConfirmPanel,
-  Divider,
-  Hint,
-  PrefRow,
-  Section,
-  Switch,
-  TextField,
-} from '../components/SettingsParts'
+  BrandMark,
+  PixelGithub,
+  PixelKey,
+  PixelLink,
+  PixelLinkedin,
+  PixelTrash,
+  PixelUnlink,
+  PixelUser,
+  PixelX,
+} from '../components/PixelIcons'
 import { useSession } from '../auth/SessionContext'
 import { ABOUT, useSettings } from '../settings/useSettings'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
-function AccountSection({ settings, onLogout }) {
+const NOTICE_MS = 3200
+
+// Only GitHub has a link for now; LinkedIn and X are placeholders.
+const SOCIALS = [
+  { id: 'github', label: 'GitHub', icon: PixelGithub, url: 'https://github.com/A-FlemingSantos/bridgit' },
+  { id: 'linkedin', label: 'LinkedIn', icon: PixelLinkedin, url: null },
+  { id: 'x', label: 'X', icon: PixelX, url: null },
+]
+
+// A message at the top of the screen for a few seconds (failed connects, revokes, saves).
+function useFlash() {
+  const [message, setMessage] = useState('')
+  const timer = useRef(null)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  function say(text) {
+    clearTimeout(timer.current)
+    setMessage(text)
+    if (text) timer.current = setTimeout(() => setMessage(''), NOTICE_MS)
+  }
+  return [message, say]
+}
+
+function SectionTitle({ children }) {
+  return <AppText weight="500" style={styles.sectionTitle}>{children}</AppText>
+}
+
+// Rounded group of rows on the raised surface, like the bottom sheet lists.
+function Card({ children }) {
   const { theme } = useMobileTheme()
-  const [draft, setDraft] = useState(settings.username)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
-  const initial = settings.username.slice(0, 1).toUpperCase()
-
+  const rows = (Array.isArray(children) ? children : [children]).filter(Boolean)
   return (
-    <Section title="Conta">
-      <View style={styles.identity}>
-        <View style={[styles.avatar, { backgroundColor: theme.colors.ink }]}>
-          <AppText weight="500" style={[styles.avatarInitial, { color: theme.colors.paper }]}>{initial}</AppText>
+    <View style={[styles.card, { backgroundColor: theme.colors.raise }]}>
+      {rows.map((row, index) => (
+        <View key={row.key ?? index}>
+          {index > 0 ? <View style={[styles.separator, { backgroundColor: theme.colors.line }]} /> : null}
+          {row}
         </View>
-        <View style={styles.rowBody}>
-          <AppText weight="500" numberOfLines={1} style={styles.name}>{settings.username}</AppText>
-          <Hint>Usuário do hub</Hint>
-        </View>
-        <Button label="Sair" onPress={onLogout} />
-      </View>
-      <TextField
-        label="Usuário"
-        value={draft}
-        onChangeText={(value) => {
-          setDraft(value)
-          setSaved(false)
-        }}
-        autoComplete="username"
-      />
-      {error ? <Hint>{error}</Hint> : null}
-      <Button
-        label={saved ? 'Salvo' : 'Salvar'}
-        variant="solid"
-        onPress={async () => {
-          const message = await settings.saveUsername(draft)
-          setError(message)
-          setSaved(!message)
-        }}
-      />
-    </Section>
+      ))}
+    </View>
   )
 }
 
-function ProvidersSection({ settings }) {
-  const [asking, setAsking] = useState(null)
-  const [error, setError] = useState('')
-
-  return (
-    <Section title="Provedores">
-      {error ? <Hint>{error}</Hint> : null}
-      {settings.providers.map((provider) => (
-        <View key={provider.id} style={styles.providerBlock}>
-          <View style={styles.providerRow}>
-            <ProviderMark id={provider.id} size={22} />
-            <View style={styles.rowBody}>
-              <AppText weight="500" style={styles.rowTitle}>{provider.name}</AppText>
-              <Hint>{provider.needsReconnect ? 'Acesso expirado' : provider.account ?? 'Não conectado'}</Hint>
+function Row({ leading = null, title, subtitle = null, badge = null, danger = false, disabled = false, onPress = null }) {
+  const { theme } = useMobileTheme()
+  const content = (
+    <>
+      {leading ? <View style={styles.rowLeading}>{leading}</View> : null}
+      <View style={styles.rowBody}>
+        <View style={styles.rowTitleLine}>
+          <AppText numberOfLines={1} style={[styles.rowTitle, { color: danger ? theme.colors.danger : theme.colors.ink }]}>
+            {title}
+          </AppText>
+          {badge ? (
+            <View style={[styles.badge, { backgroundColor: theme.colors.wash }]}>
+              <AppText style={[styles.badgeLabel, { color: theme.colors.soft }]}>{badge}</AppText>
             </View>
-            {provider.needsReconnect ? (
-              <Button
-                label="Reconectar"
-                variant="solid"
-                onPress={async () => setError(await settings.connectProvider(provider.id))}
-              />
-            ) : provider.account ? (
-              <Button label="Desconectar" onPress={() => setAsking(provider.id)} />
-            ) : (
-              <Button
-                label="Conectar"
-                variant="solid"
-                disabled={!provider.configured}
-                onPress={async () => setError(await settings.connectProvider(provider.id))}
-              />
-            )}
-          </View>
-          {settings.accountChangeId === provider.id ? (
-            <ConfirmPanel
-              prompt={`Você entrou com outra conta do ${provider.name}. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.`}
-              confirmLabel="Trocar de conta"
-              onCancel={settings.cancelAccountChange}
-              onConfirm={async () => setError(await settings.confirmAccountChange())}
-            />
-          ) : null}
-          {asking === provider.id && provider.account ? (
-            <ConfirmPanel
-              prompt={`Desconectar ${provider.name}? Os arquivos continuam no provedor.`}
-              confirmLabel="Desconectar"
-              onCancel={() => setAsking(null)}
-              onConfirm={async () => {
-                setAsking(null)
-                setError(await settings.disconnectProvider(provider.id))
-              }}
-            />
           ) : null}
         </View>
-      ))}
-    </Section>
+        {subtitle ? (
+          <AppText numberOfLines={1} style={[styles.rowSubtitle, { color: theme.colors.mute }]}>{subtitle}</AppText>
+        ) : null}
+      </View>
+    </>
   )
-}
-
-function SyncSection({ settings }) {
-  const connected = settings.providers.filter((provider) => provider.connected)
-
+  if (!onPress) return <View style={styles.row}>{content}</View>
   return (
-    <Section title="Sincronização">
-      <Hint>Nada é espelhado por padrão. O hub só orquestra o que você ligar.</Hint>
-      <PrefRow title="Avisar se a sincronização falhar" hint="Só para os itens que você marcou.">
-        <Switch
-          label="Avisar se a sincronização falhar"
-          value={settings.notifyFail}
-          onChange={settings.setNotifyFail}
-        />
-      </PrefRow>
-      {connected.length === 0 ? <Hint>Conecte um provedor para acompanhar a sincronização.</Hint> : null}
-      {connected.map((provider) => (
-        <View key={provider.id} style={styles.fact}>
-          <AppText style={styles.rowTitle}>{provider.name}</AppText>
-          <Hint>{provider.sync}</Hint>
-        </View>
-      ))}
-    </Section>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        pressed ? { backgroundColor: theme.colors.line } : null,
+        disabled ? styles.disabled : null,
+      ]}
+    >
+      {content}
+    </Pressable>
   )
 }
 
-function SecuritySection({ settings }) {
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
+function Pill({ label, onPress }) {
+  const { theme } = useMobileTheme()
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.pill, { backgroundColor: pressed ? theme.colors.line : theme.colors.raise }]}
+    >
+      <AppText weight="500" style={[styles.pillLabel, { color: theme.colors.ink }]}>{label}</AppText>
+    </Pressable>
+  )
+}
+
+// The account, centered: the Home's account icon with the username under it.
+function AccountHero({ username, onEdit, onLogout }) {
+  const { theme } = useMobileTheme()
+  return (
+    <View style={styles.hero}>
+      <PixelUser size={72} color={theme.colors.ink} />
+      <AppText weight="500" numberOfLines={1} style={styles.heroName}>{username}</AppText>
+      <AppText style={[styles.heroHint, { color: theme.colors.mute }]}>Conta Bridgit</AppText>
+      <View style={styles.heroActions}>
+        <Pill label="Editar usuário" onPress={onEdit} />
+        <Pill label="Sair" onPress={onLogout} />
+      </View>
+    </View>
+  )
+}
+
+function providerStatus(provider) {
+  if (provider.needsReconnect) return 'Expirado'
+  if (provider.connected) return 'Conectado'
+  if (!provider.configured) return 'Indisponível'
+  return 'Conectar'
+}
+
+// One card per provider across a single strip, drawn like the Home's action tiles.
+function ProviderCard({ provider, onPress }) {
+  const { theme } = useMobileTheme()
+  const status = providerStatus(provider)
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${provider.name}: ${status}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.providerCard, { backgroundColor: pressed ? theme.colors.line : theme.colors.raise }]}
+    >
+      <ProviderMark id={provider.id} size={32} />
+      <AppText weight="500" numberOfLines={1} style={[styles.providerName, { color: theme.colors.ink }]}>
+        {provider.name}
+      </AppText>
+      <AppText
+        numberOfLines={1}
+        style={[styles.providerStatus, { color: provider.needsReconnect ? theme.colors.danger : theme.colors.mute }]}
+      >
+        {status}
+      </AppText>
+    </Pressable>
+  )
+}
+
+function providerItems(provider, { connect, disconnect }) {
+  if (provider.needsReconnect) {
+    return [
+      { id: 'reconnect', label: 'Reconectar', icon: PixelLink, onSelect: connect },
+      { id: 'disconnect', label: 'Desconectar', icon: PixelUnlink, danger: true, onSelect: disconnect },
+    ]
+  }
+  if (provider.connected) {
+    return [{ id: 'disconnect', label: 'Desconectar', icon: PixelUnlink, danger: true, onSelect: disconnect }]
+  }
+  return [{
+    id: 'connect',
+    label: 'Conectar',
+    hint: provider.configured ? null : 'Não configurado neste servidor',
+    icon: PixelLink,
+    disabled: !provider.configured,
+    onSelect: connect,
+  }]
+}
+
+// A form in a bottom sheet: title, fields, then Cancelar and the confirm button.
+function FormSheet({ open, onClose, title, message = null, confirmLabel, danger = false, onSubmit, children }) {
+  const { theme } = useMobileTheme()
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
-  const others = settings.sessions.filter((session) => !session.current)
+
+  useEffect(() => {
+    if (open) {
+      setBusy(false)
+      setError('')
+    }
+  }, [open])
 
   async function submit() {
-    const message = await settings.changePassword(current, next, confirm)
-    setError(message)
-    setSaved(!message)
-    if (!message) {
-      setCurrent('')
-      setNext('')
-      setConfirm('')
-    }
+    if (busy) return
+    setBusy(true)
+    const failure = await onSubmit()
+    setBusy(false)
+    if (failure) setError(failure)
+    else onClose()
   }
 
   return (
-    <Section title="Segurança">
-      <TextField label="Senha atual" value={current} onChangeText={setCurrent} secure autoComplete="password" />
-      <TextField label="Nova senha" value={next} onChangeText={setNext} secure autoComplete="password-new" />
-      <TextField label="Confirmar senha" value={confirm} onChangeText={setConfirm} secure autoComplete="password-new" />
-      {error ? <Hint>{error}</Hint> : null}
-      <Button label={saved ? 'Senha alterada' : 'Salvar senha'} variant="solid" onPress={submit} />
-
-      <Divider />
-      <AppText weight="500" style={styles.rowTitle}>Sessões</AppText>
-      {settings.sessions.map((session) => (
-        <View key={session.id} style={styles.fact}>
-          <AppText style={styles.rowTitle}>{session.device}</AppText>
-          <Hint>{session.detail}</Hint>
+    <ActionSheet open={open} onClose={busy ? () => {} : onClose}>
+      <View style={styles.form}>
+        <View style={styles.formText}>
+          <AppText weight="500" style={styles.formTitle}>{title}</AppText>
+          {message ? <AppText style={[styles.formMessage, { color: theme.colors.mute }]}>{message}</AppText> : null}
         </View>
-      ))}
-      <Button
-        label={others.length === 0 ? 'Encerradas' : 'Encerrar outras sessões'}
-        disabled={others.length === 0}
-        onPress={async () => setError(await settings.revokeOtherSessions())}
-      />
-
-      <Divider />
-      <AppText weight="500" style={styles.rowTitle}>Excluir conta</AppText>
-      <Hint>Apaga seus dados do hub. Os arquivos continuam nos provedores.</Hint>
-      <DeleteAccount onDelete={async (password) => setError(await settings.deleteAccount(password))} />
-    </Section>
+        {children}
+        {error ? <AppText style={[styles.formMessage, { color: theme.colors.danger }]}>{error}</AppText> : null}
+        <View style={styles.formActions}>
+          <SheetButton label="Cancelar" onPress={onClose} disabled={busy} />
+          <SheetButton label={busy ? 'Aguarde…' : confirmLabel} variant={danger ? 'danger' : 'solid'} disabled={busy} onPress={submit} />
+        </View>
+      </View>
+    </ActionSheet>
   )
 }
 
-// Excluir a conta pede a senha: uma sessão aberta sozinha não basta.
-function DeleteAccount({ onDelete }) {
-  const [asking, setAsking] = useState(false)
+function PasswordSheet({ open, onClose, changePassword, onDone }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [confirm, setConfirm] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setCurrent('')
+    setNext('')
+    setConfirm('')
+  }, [open])
+
+  return (
+    <FormSheet
+      open={open}
+      onClose={onClose}
+      title="Alterar senha"
+      confirmLabel="Salvar"
+      onSubmit={async () => {
+        const failure = await changePassword(current, next, confirm)
+        if (!failure) onDone()
+        return failure
+      }}
+    >
+      <NameField label="Senha atual" value={current} onChangeText={setCurrent} secure autoComplete="password" />
+      <NameField label="Nova senha" value={next} onChangeText={setNext} secure autoComplete="password-new" />
+      <NameField label="Confirmar senha" value={confirm} onChangeText={setConfirm} secure autoComplete="password-new" />
+    </FormSheet>
+  )
+}
+
+// Deleting the account asks for the password: an open session alone is not enough.
+function DeleteSheet({ open, onClose, deleteAccount }) {
   const [password, setPassword] = useState('')
 
-  if (!asking) return <Button label="Excluir conta" variant="danger" onPress={() => setAsking(true)} />
+  useEffect(() => {
+    if (open) setPassword('')
+  }, [open])
 
   return (
-    <>
-      <TextField label="Sua senha" value={password} onChangeText={setPassword} secure autoComplete="password" autoFocus />
-      <ConfirmPanel
-        prompt="Excluir a conta de vez? Isso não pode ser desfeito."
-        confirmLabel="Excluir"
-        onCancel={() => {
-          setAsking(false)
-          setPassword('')
-        }}
-        onConfirm={() => {
-          const typed = password
-          setAsking(false)
-          setPassword('')
-          onDelete(typed)
-        }}
-      />
-    </>
-  )
-}
-
-function AboutSection() {
-  return (
-    <Section title="Sobre">
-      <View style={styles.fact}>
-        <AppText weight="500" style={styles.rowTitle}>Bridgit</AppText>
-        <Hint>Versão {ABOUT.version}</Hint>
-      </View>
-      <View style={styles.fact}>
-        <AppText weight="500" style={styles.rowTitle}>O que guarda</AppText>
-        <Hint>{ABOUT.stores}</Hint>
-      </View>
-      <View style={styles.fact}>
-        <AppText weight="500" style={styles.rowTitle}>Provedores</AppText>
-        <Hint>{ABOUT.providers}</Hint>
-      </View>
-      <View style={styles.actions}>
-        <Button label="Privacidade" onPress={() => {}} />
-        <Button label="Termos" onPress={() => {}} />
-      </View>
-    </Section>
+    <FormSheet
+      open={open}
+      onClose={onClose}
+      title="Excluir conta"
+      message="Apaga seus dados do Bridgit de vez. Os arquivos continuam nos provedores."
+      confirmLabel="Excluir"
+      danger
+      onSubmit={() => deleteAccount(password)}
+    >
+      <NameField label="Sua senha" value={password} onChangeText={setPassword} secure autoComplete="password" />
+    </FormSheet>
   )
 }
 
@@ -245,34 +285,190 @@ export default function SettingsScreen({ navigation }) {
   const { theme } = useMobileTheme()
   const insets = useSafeAreaInsets()
   const settings = useSettings()
-
   const { logout } = useSession()
+  const [notice, say] = useFlash()
+  const [dialog, setDialog] = useState(null)
+  const [providerId, setProviderId] = useState(null)
+  const [form, setForm] = useState(null)
+  // The provider sheet keeps drawing the last provider while it slides away.
+  const lastProvider = useRef(null)
+  const openProvider = settings.providers.find((provider) => provider.id === providerId) ?? null
+  if (openProvider) lastProvider.current = openProvider
+  const shownProvider = openProvider ?? lastProvider.current
+  const others = settings.sessions.filter((session) => !session.current)
+
+  // Fails with the hook's message so the dialog sheet shows it and stays open.
+  const orThrow = (run) => async (value) => {
+    const failure = await run(value)
+    if (failure) throw new Error(failure)
+  }
+
+  const editUsername = () => setDialog({
+    type: 'name',
+    title: 'Editar usuário',
+    label: 'Usuário',
+    initial: settings.username,
+    confirmLabel: 'Salvar',
+    onSubmit: orThrow(settings.saveUsername),
+  })
+
+  const confirmDisconnect = (provider) => setDialog({
+    type: 'confirm',
+    title: `Desconectar ${provider.name}?`,
+    message: 'Os arquivos continuam no provedor. Recentes, atalhos e links dele saem do Bridgit.',
+    confirmLabel: 'Desconectar',
+    danger: true,
+    onSubmit: orThrow(() => settings.disconnectProvider(provider.id)),
+  })
+
+  const changeName = settings.providers.find((provider) => provider.id === settings.accountChangeId)?.name
+  const { confirmAccountChange } = settings
+  // Memoized: ActionDialog resets its state whenever it receives a new dialog object.
+  const accountDialog = useMemo(() => (changeName
+    ? {
+        type: 'confirm',
+        title: 'Trocar de conta?',
+        message: `Você entrou com outra conta do ${changeName}. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.`,
+        confirmLabel: 'Trocar de conta',
+        danger: true,
+        onSubmit: async () => {
+          const failure = await confirmAccountChange()
+          if (failure) throw new Error(failure)
+        },
+      }
+    : null), [changeName, confirmAccountChange])
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <BrowseHeader title="Ajustes" onBack={() => navigation.goBack()} />
-      {/* The window does not move for the keyboard, so the list shrinks above it. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={styles.keyboard}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        <AccountSection settings={settings} onLogout={logout} />
-        <ProvidersSection settings={settings} />
-        <SyncSection settings={settings} />
-        <SecuritySection settings={settings} />
-        <AboutSection />
+        <AccountHero username={settings.username} onEdit={editUsername} onLogout={logout} />
+
+        <View style={styles.section}>
+          <SectionTitle>Provedores</SectionTitle>
+          {settings.providers.length ? (
+            <View style={styles.providers}>
+              {settings.providers.map((provider) => (
+                <ProviderCard key={provider.id} provider={provider} onPress={() => setProviderId(provider.id)} />
+              ))}
+            </View>
+          ) : settings.providersStatus === 'error' ? (
+            <Pressable accessibilityRole="button" onPress={settings.reloadProviders}>
+              <AppText style={[styles.rowSubtitle, { color: theme.colors.mute }]}>
+                Não foi possível carregar os provedores. Toque para tentar de novo.
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle>Segurança</SectionTitle>
+          <Card>
+            <Row
+              key="password"
+              leading={<PixelKey size={20} color={theme.colors.mute} />}
+              title="Alterar senha"
+              onPress={() => setForm('password')}
+            />
+            <Row
+              key="delete"
+              leading={<PixelTrash size={20} color={theme.colors.danger} />}
+              title="Excluir conta"
+              danger
+              onPress={() => setForm('delete')}
+            />
+          </Card>
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle>Sessões</SectionTitle>
+          {settings.sessions.length ? (
+            <Card>
+              {settings.sessions.map((session) => (
+                <Row
+                  key={session.id}
+                  leading={<BrowserMark browser={session.browser} device={session.device} size={28} />}
+                  title={session.browser}
+                  subtitle={[session.device, session.detail].filter(Boolean).join(' · ')}
+                  badge={session.current ? 'Esta sessão' : null}
+                />
+              ))}
+            </Card>
+          ) : null}
+          <Card>
+            <Row
+              leading={<PixelUnlink size={20} color={theme.colors.mute} />}
+              title={others.length ? 'Encerrar outras sessões' : 'Nenhuma outra sessão aberta'}
+              disabled={!others.length}
+              onPress={async () => {
+                const failure = await settings.revokeOtherSessions()
+                say(failure || 'Outras sessões encerradas.')
+              }}
+            />
+          </Card>
+        </View>
+
+        <View style={styles.section}>
+          <SectionTitle>Sobre</SectionTitle>
+          <View style={[styles.about, { backgroundColor: theme.colors.raise }]}>
+            <BrandMark size={32} color={theme.colors.ink} />
+            <AppText weight="500" style={styles.aboutName}>Bridgit</AppText>
+            <AppText style={[styles.aboutLine, { color: theme.colors.mute }]}>Versão {ABOUT.version}</AppText>
+            <View style={styles.socials}>
+              {SOCIALS.map(({ id, label, icon: Icon, url }) => (
+                <Pressable
+                  key={id}
+                  accessibilityRole={url ? 'link' : 'image'}
+                  accessibilityLabel={label}
+                  disabled={!url}
+                  onPress={() => Linking.openURL(url).catch(() => {})}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.social, pressed ? { backgroundColor: theme.colors.line } : null]}
+                >
+                  <Icon size={24} color={theme.colors.ink} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
       </ScrollView>
-      </KeyboardAvoidingView>
+
+      <ActionSheet
+        open={Boolean(openProvider)}
+        onClose={() => setProviderId(null)}
+        header={shownProvider ? (
+          <SheetHeader
+            centered
+            leading={<ProviderMark id={shownProvider.id} size={48} />}
+            title={shownProvider.name}
+            subtitle={shownProvider.needsReconnect ? 'Acesso expirado' : shownProvider.account ?? 'Não conectado'}
+          />
+        ) : null}
+        items={shownProvider ? providerItems(shownProvider, {
+          connect: async () => say(await settings.connectProvider(shownProvider.id)),
+          disconnect: () => confirmDisconnect(shownProvider),
+        }) : []}
+      />
+
+      <PasswordSheet
+        open={form === 'password'}
+        onClose={() => setForm(null)}
+        changePassword={settings.changePassword}
+        onDone={() => say('Senha alterada.')}
+      />
+      <DeleteSheet open={form === 'delete'} onClose={() => setForm(null)} deleteAccount={settings.deleteAccount} />
+
+      <ActionDialog dialog={dialog} onClose={() => setDialog(null)} />
+      <ActionDialog dialog={accountDialog} onClose={settings.cancelAccountChange} />
+      <Notice message={notice} />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  keyboard: {
-    flex: 1,
-  },
   screen: {
     flex: 1,
   },
@@ -281,45 +477,163 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     gap: 32,
   },
-  identity: {
-    flexDirection: 'row',
+  hero: {
     alignItems: 'center',
-    gap: 12,
+    paddingTop: 8,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  heroName: {
+    marginTop: 14,
+    maxWidth: '100%',
+    fontSize: 22,
+    letterSpacing: -0.66,
+  },
+  heroHint: {
+    marginTop: 2,
+    fontSize: 13,
+    letterSpacing: -0.13,
+  },
+  heroActions: {
+    marginTop: 18,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pill: {
+    minHeight: 38,
+    paddingHorizontal: 18,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: {
-    fontSize: 15,
+  pillLabel: {
+    fontSize: 13.5,
+    letterSpacing: -0.27,
   },
-  name: {
-    fontSize: 15,
-    letterSpacing: -0.45,
+  section: {
+    gap: 12,
   },
-  providerBlock: {
-    gap: 10,
+  sectionTitle: {
+    fontSize: 17,
+    letterSpacing: -0.51,
   },
-  providerRow: {
+  providers: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  providerCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 112,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  providerName: {
+    marginTop: 8,
+    fontSize: 13.5,
+    letterSpacing: -0.27,
+  },
+  providerStatus: {
+    fontSize: 11.5,
+    letterSpacing: -0.1,
+  },
+  card: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 52,
+  },
+  row: {
+    minHeight: 56,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  rowLeading: {
+    width: 28,
+    alignItems: 'center',
+  },
   rowBody: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
+  },
+  rowTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   rowTitle: {
-    fontSize: 13,
-    letterSpacing: -0.39,
+    flexShrink: 1,
+    fontSize: 15,
+    letterSpacing: -0.3,
   },
-  fact: {
-    gap: 2,
+  rowSubtitle: {
+    fontSize: 12.5,
+    letterSpacing: -0.12,
   },
-  actions: {
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  badgeLabel: {
+    fontSize: 11,
+    letterSpacing: -0.1,
+  },
+  disabled: {
+    opacity: 0.45,
+  },
+  about: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  aboutName: {
+    marginTop: 12,
+    fontSize: 16,
+    letterSpacing: -0.4,
+  },
+  aboutLine: {
+    marginTop: 2,
+    fontSize: 12.5,
+  },
+  socials: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  social: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  form: {
+    gap: 20,
+    paddingHorizontal: 4,
+  },
+  formText: {
+    gap: 6,
+  },
+  formTitle: {
+    fontSize: 18,
+    letterSpacing: -0.54,
+  },
+  formMessage: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    letterSpacing: -0.2,
+  },
+  formActions: {
     flexDirection: 'row',
     gap: 8,
   },

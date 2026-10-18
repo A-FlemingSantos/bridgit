@@ -12,12 +12,12 @@ import { errorMessage } from '../api/errorMessage'
 // The name field grows the sheet before its keyboard opens (see ActionSheet `prepare`). A tap counts
 // too: after Android's back button hides the keyboard the field keeps its focus, so tapping it
 // again brings the keyboard back without a new focus event.
-function NameField(props) {
+export function NameField(props) {
   const sheetKeyboard = useSheetKeyboard()
   return <TextField {...props} onFocus={sheetKeyboard?.prepare} onPressIn={sheetKeyboard?.prepare} />
 }
 
-function SheetButton({ label, onPress, variant = 'plain', disabled = false }) {
+export function SheetButton({ label, onPress, variant = 'plain', disabled = false }) {
   const { theme } = useMobileTheme()
   const background = variant === 'solid'
     ? theme.colors.ink

@@ -51,6 +51,17 @@ export const PixelFilter = pixelIcon('M11 20h2v2H9V12h2v8Zm4 0h-2v-8h2v8Zm-6-8H7
 // Framed bust for the account button in the Home header.
 export const PixelUser = pixelIcon('M8 20h8v-2h2v2h2v2H4v-2h2v-2h2v2Zm-4 0H2V4h2v16Zm18 0h-2V4h2v16Zm-6-2H8v-2h8v2Zm-2-4h-4v-2h4v2Zm-4-2H8V8h2v4Zm6 0h-2V8h2v4Zm-2-4h-4V6h4v2Zm6-4H4V2h16v2Z')
 
+// Open folder for the empty-folder state (web PixelFolderOpen).
+export const PixelFolderOpen = pixelIcon('M3 4h8v2H3zM1 6h2v12H1zM9 6h10v2H9zM19 8h2v2h-2zM7 10h15v2H7zM5 12h2v2H5zM20 12h2v2h-2zM3 14h2v2H3zM18 14h2v2h-2zM16 16h2v2h-2zM3 18h13v2H3z')
+
+// Key for Settings' "Alterar senha".
+export const PixelKey = pixelIcon('M11 18H3V16H11V18ZM23 15H21V18H17V16H19V13H21V11H11V8H13V9H23V15ZM3 16H1V8H3V16ZM17 16H15V15H13V16H11V13H17V16ZM9 14H5V10H9V14ZM11 8H3V6H11V8Z')
+
+// Social links in Settings' "Sobre".
+export const PixelGithub = pixelIcon('M5 2h4v2H7v2H5V2Zm0 10H3V6h2v6Zm2 2H5v-2h2v2Zm2 2v-2H7v2H3v-2H1v2h2v2h4v4h2v-4h2v-2H9Zm0 0v2H7v-2h2Zm6-12v2H9V4h6Zm4 2h-2V4h-2V2h4v4Zm0 6V6h2v6h-2Zm-2 2v-2h2v2h-2Zm-2 2v-2h2v2h-2Zm0 2h-2v-2h2v2Zm0 0h2v4h-2v-4Z')
+export const PixelLinkedin = pixelIcon('M7 22H1V8h6v14Zm12-12h-8v10h2v-8h4v2h-2v8H9V8h10v2Zm4 12h-6v-8h2v6h2v-8h2v10ZM3 20h2V10H3v10Zm18-8h-2v-2h2v2ZM5 7H3V5h2v2ZM3 5H1V3h2v2Zm4 0H5V3h2v2ZM5 3H3V1h2v2Z')
+export const PixelX = pixelIcon('M6 20H4v-2h2v2Zm14-2h2v2h-6v-2h2v-2h2v2ZM8 18H6v-2h2v2Zm8 0h-2v-2h2v2Zm-6-2H8v-2h2v2Zm4 0h-2v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2h-2v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2H8v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2H6V8h2v2Zm4 0h-2V8h2v2Zm4 0h-2V8h2v2ZM8 6H6v2H4V6H2V4h6v2Zm2 2H8V6h2v2Zm8 0h-2V6h2v2Zm2-2h-2V4h2v2Z')
+
 // Mobile-only shapes drawn on the same grid.
 export const PixelMore = pixelIcon('M10 4h4v4h-4zM10 10h4v4h-4zM10 16h4v4h-4z')
 export const PixelBack = pixelIcon('M14 4h2v2h-2zM12 6h2v2h-2zM10 8h2v2h-2zM8 10h2v4H8zM10 14h2v2h-2zM12 16h2v2h-2zM14 18h2v2h-2z')

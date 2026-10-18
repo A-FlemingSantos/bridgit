@@ -12,6 +12,42 @@ export function withSvgIds(xml, prefix) {
     .replace(/url\(#([^)]+)\)/g, (_, id) => `url(#${prefix}-${id})`)
 }
 
+const GRADIENT = /<(linearGradient|radialGradient)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/g
+const INHERITED = ['gradientUnits', 'gradientTransform', 'spreadMethod']
+
+function attrOf(attrs, name) {
+  return attrs.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1]
+}
+
+// react-native-svg ignores a gradient's href to another gradient, the way exported logos (Edge,
+// Safari) share gradientUnits and stops. Copies what each gradient inherits into it, then drops
+// the reference.
+export function inheritGradients(xml) {
+  const byId = new Map()
+  for (const [, , attrs, body = ''] of xml.matchAll(GRADIENT)) {
+    const id = attrOf(attrs, 'id')
+    if (id) byId.set(id, { attrs, body })
+  }
+
+  function resolve(attrs, body, depth = 0) {
+    const ref = attrs.match(/\s(?:xlink:)?href="#([^"]+)"/)
+    const parent = ref && byId.get(ref[1])
+    if (!parent || depth > 4) return { attrs, body }
+    const base = resolve(parent.attrs, parent.body, depth + 1)
+    let merged = attrs.replace(ref[0], '')
+    for (const name of INHERITED) {
+      const value = attrOf(base.attrs, name)
+      if (value != null && attrOf(merged, name) == null) merged += ` ${name}="${value}"`
+    }
+    return { attrs: merged, body: /<stop\b/.test(body) ? body : base.body }
+  }
+
+  return xml.replace(GRADIENT, (_, tag, attrs, body = '') => {
+    const resolved = resolve(attrs, body)
+    return `<${tag}${resolved.attrs}>${resolved.body}</${tag}>`
+  })
+}
+
 function percentRgbToHex(value) {
   return value.replace(
     /rgb\(\s*([\d.]+)%\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)/g,
