@@ -14,7 +14,8 @@ import { NavigationContainer } from '@react-navigation/native'
 import RootNavigator from './src/navigation/RootNavigator'
 import { SessionProvider } from './src/auth/SessionContext'
 import { HubProvider } from './src/hub/HubContext'
-import { theme } from './src/theme/tokens'
+import { OverlayHost } from './src/components/OverlayHost'
+import { clearColor, theme } from './src/theme/tokens'
 import { MobileThemeProvider, useMobileTheme, useThemedStyles } from './src/theme/ThemeProvider'
 
 function ThemedAppRoot() {
@@ -26,10 +27,13 @@ function ThemedAppRoot() {
 
     async function syncNavigationBar() {
       try {
-        await NavigationBar.setBackgroundColorAsync(activeTheme.colors.paper)
+        // Edge to edge: the screens draw under a transparent navigation bar.
+        await NavigationBar.setPositionAsync('absolute')
+        await NavigationBar.setBackgroundColorAsync(clearColor(activeTheme.colors.paper))
         await NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark')
-      } catch {
-        // Expo Go / unsupported hosts can ignore navigation bar APIs.
+      } catch (error) {
+        // Expo Go / unsupported hosts can ignore navigation bar APIs; the navigator sets it too.
+        if (__DEV__) console.warn('Navigation bar color not applied:', error?.message ?? error)
       }
     }
 
@@ -41,9 +45,11 @@ function ThemedAppRoot() {
       <View style={[Platform.OS === 'web' ? styles.webFullscreenDevice : styles.nativeRoot, styles.fullscreen]}>
         <SafeAreaProvider>
           <StatusBar style={statusBarStyle} translucent backgroundColor="transparent" />
-          <NavigationContainer theme={navigationTheme}>
-            <RootNavigator />
-          </NavigationContainer>
+          <OverlayHost>
+            <NavigationContainer theme={navigationTheme}>
+              <RootNavigator />
+            </NavigationContainer>
+          </OverlayHost>
         </SafeAreaProvider>
       </View>
     </View>
