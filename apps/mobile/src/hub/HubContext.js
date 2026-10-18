@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native'
 import {
   addShortcut,
+  disablePublicLink,
   enablePublicLink,
   getHubEventHead,
   getHubEvents,
@@ -116,6 +117,9 @@ export function HubProvider({ children }) {
     ), [HOME, foldersScope(providerId), fileScope(providerId, ref)]),
     // A public link changes nothing the screens show; the server event refreshes the Home.
     publicLink: (providerId, ref) => write((accessToken) => enablePublicLink(accessToken, providerId, ref)),
+    // The Home lists the public links, so it refetches after one is turned off.
+    disablePublicLink: (providerId, ref) =>
+      write((accessToken) => disablePublicLink(accessToken, providerId, ref), [HOME]),
   }), [operate, write])
 
   const value = useMemo(

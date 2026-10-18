@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Image, ScrollView, StyleSheet, View } from 'react-native'
-import { createContentTicket } from '@bridgit/shared-client'
 import { API_BASE_URL } from '../api/config'
 import { useSession } from '../auth/SessionContext'
 import AppText from '../theme/AppText'
@@ -8,7 +7,7 @@ import { useMobileTheme } from '../theme/ThemeProvider'
 import { Button, Hint } from './SettingsParts'
 import Spinner from './Spinner'
 import { errorMessage } from '../api/errorMessage'
-import { openWith } from '../hub/openWith'
+import { openFileWith } from '../hub/openWith'
 
 const MAX_TEXT_CHARS = 200000
 
@@ -112,10 +111,7 @@ export default function FileViewer({ providerId, file, source }) {
     setOpening(true)
     setError('')
     try {
-      // A fresh ticket: the one in `source` may have expired (5 min) while the screen stayed open.
-      const ticket = await createContentTicket(token, providerId, file.ref, 'attachment')
-      if (!ticket?.url) throw new Error('Arquivo indisponível.')
-      await openWith({ url: absoluteUrl(ticket.url), name: file.name, mimeType: file.mimeType })
+      await openFileWith(token, providerId, file)
     } catch (openError) {
       setError(errorMessage(openError, 'Não foi possível abrir o arquivo.'))
     } finally {

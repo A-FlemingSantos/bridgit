@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getItem, getReadSource, isSessionFailure, listFolder, listRecents, listShortcuts, recordRecent } from '@bridgit/shared-client'
+import { getItem, getReadSource, isSessionFailure, listFolder, listPublicLinks, listRecents, listShortcuts, recordRecent } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
 import { useHub } from './HubContext'
 import { fileScopes, folderScopes, HOME } from './eventScopes'
-import { toEntry } from './format'
+import { formatWhen, toEntry } from './format'
 import { createLatestRunner } from './invalidation'
 
 const MAX_PAGES = 20
@@ -112,6 +112,22 @@ export function useHomeEntries() {
     recents: data?.recents ?? [],
     shortcuts: data?.shortcuts ?? [],
   }
+}
+
+// The user's public links, newest first, for the side panel.
+export function usePublicLinks() {
+  const { status, data, error, reload } = useResource(async (token) => {
+    const links = await listPublicLinks(token)
+    return (links ?? []).map((link) => ({
+      providerId: link.provider,
+      ref: link.ref,
+      name: link.name,
+      url: link.url,
+      when: link.createdAt ? formatWhen(link.createdAt) : null,
+    }))
+  }, 'public-links', [HOME])
+
+  return { status, error, reload, links: data ?? [] }
 }
 
 export function useFile(providerId, fileRef) {

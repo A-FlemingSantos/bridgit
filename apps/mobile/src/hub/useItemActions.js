@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Share } from 'react-native'
+import { Platform, Share } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
+import * as FileSystem from 'expo-file-system'
+import * as ImagePicker from 'expo-image-picker'
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@bridgit/shared-client'
+import FolderColorPalette from '../components/FolderColorPalette'
 import { createMenuItems, fileMenuItems, folderMenuItems } from '../components/menus'
 import { errorMessage } from '../api/errorMessage'
+import { safeName } from './download'
 import { splitExtension, withExtension } from './format'
+import { useSession } from '../auth/SessionContext'
+import { useFolderColors } from './folderColors'
 import { useHub } from './HubContext'
+import { openFileWith } from './openWith'
+import { pickFolderTree } from './pickFolder'
 
 function failureMessage(error) {
   return errorMessage(error)
@@ -15,6 +23,8 @@ function failureMessage(error) {
 // `providerId` and `parentRef` say where "Nova pasta" and "Enviar" act; without them the create menu is empty.
 export function useItemActions({ providerId = null, parentRef = null } = {}) {
   const hub = useHub()
+  const { token } = useSession()
+  const folderColors = useFolderColors()
   const [dialog, setDialog] = useState(null)
   const [notice, setNotice] = useState('')
   const timer = useRef(null)
@@ -81,42 +91,208 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     }
   }
 
-  const newFolder = () => setDialog({
+  // Downloads the file and hands it to the system "Abrir com…" (the share sheet on iOS).
+  const download = async (entry) => {
+    try {
+      say('Baixando…')
+      await openFileWith(token, providerOf(entry), entry)
+      setNotice('')
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  const shareUrl = async (url) => {
+    try {
+      await Share.share({ message: url })
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  const disableLink = async (link) => {
+    try {
+      await hub.disablePublicLink(link.providerId, link.ref)
+      say('Link desativado.')
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  // `target` picks another provider's root (the Home asks which one); by default the screen's folder.
+  const newFolder = (target = null) => setDialog({
     type: 'name',
     title: 'Nova pasta',
     initial: '',
     confirmLabel: 'Criar',
     onSubmit: async (name) => {
-      await hub.createFolder(providerId, parentRef, name)
+      if (target) await hub.createFolder(target, null, name)
+      else await hub.createFolder(providerId, parentRef, name)
       say('Pasta criada.')
     },
   })
 
-  const upload = async () => {
+  // Sends picked files one after another to `target`'s root, or to the screen's folder by default.
+  // Native sends { uri, name, type } as a form part; web sends the File the picker already holds.
+  const sendFiles = async (target, files) => {
+    const tooLarge = files.filter((file) => (file.size ?? 0) > MAX_UPLOAD_BYTES)
+    const ready = files.filter((file) => (file.size ?? 0) <= MAX_UPLOAD_BYTES)
+    if (ready.length === 0) {
+      say(`O arquivo excede o limite de ${MAX_UPLOAD_LABEL}.`)
+      return
+    }
+    for (const [index, file] of ready.entries()) {
+      say(ready.length > 1 ? `Enviando ${index + 1} de ${ready.length}…` : 'Enviando…')
+      if (target) await hub.upload(target, null, file)
+      else await hub.upload(providerId, parentRef, file)
+    }
+    const sent = ready.length > 1 ? `${ready.length} arquivos enviados.` : 'Arquivo enviado.'
+    const left = tooLarge.length === 1 ? '1 ficou de fora' : `${tooLarge.length} ficaram de fora`
+    say(tooLarge.length ? `${sent} ${left} por passar de ${MAX_UPLOAD_LABEL}.` : sent)
+  }
+
+  const documentFile = (asset) => asset.file ?? {
+    uri: asset.uri,
+    name: asset.name,
+    type: asset.mimeType ?? 'application/octet-stream',
+    size: asset.size,
+  }
+
+  // Files from the device's picker, or null when the user backs out.
+  const pickFiles = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false })
-      if (result.canceled || !result.assets?.[0]) return
-      const asset = result.assets[0]
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: true })
+      if (result.canceled || !result.assets?.length) return null
+      return result.assets.map(documentFile)
+    } catch (error) {
+      say(failureMessage(error))
+      return null
+    }
+  }
 
-      if ((asset.size ?? 0) > MAX_UPLOAD_BYTES) {
-        say(`O arquivo excede o limite de ${MAX_UPLOAD_LABEL}.`)
-        return
-      }
-
-      // Native sends { uri, name, type } as a form part; web sends the File the picker already holds.
-      const file = asset.file ?? {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType ?? 'application/octet-stream',
-        size: asset.size,
-      }
-      say('Enviando…')
-      await hub.upload(providerId, parentRef, file)
-      say('Arquivo enviado.')
+  const upload = async () => {
+    const files = await pickFiles()
+    if (!files) return
+    try {
+      await sendFiles(null, files)
     } catch (error) {
       say(failureMessage(error))
     }
   }
+
+  // A folder from the device (Android), or null when the user backs out or it holds no files.
+  const pickFolder = async () => {
+    try {
+      const tree = await pickFolderTree()
+      if (tree && tree.files.length === 0) {
+        say('A pasta escolhida não tem arquivos.')
+        return null
+      }
+      return tree
+    } catch (error) {
+      say(failureMessage(error))
+      return null
+    }
+  }
+
+  // Rebuilds the picked folder under `target`'s root, folder by folder, then uploads each folder's
+  // files into its new counterpart, as the web does with a picked directory.
+  const sendFolder = async (target, tree) => {
+    const tooLarge = tree.files.filter(({ file }) => (file.size ?? 0) > MAX_UPLOAD_BYTES).length
+    const ready = tree.files.filter(({ file }) => (file.size ?? 0) <= MAX_UPLOAD_BYTES)
+    say('Criando pastas…')
+    const root = await hub.createFolder(target, null, tree.name)
+    const refs = new Map([['', root?.ref ?? null]])
+    const dirs = [...new Set(ready.map(({ dir }) => dir))].sort((a, b) => a.split('/').length - b.split('/').length)
+    for (const dir of dirs) {
+      const parts = dir ? dir.split('/') : []
+      for (let depth = 1; depth <= parts.length; depth += 1) {
+        const path = parts.slice(0, depth).join('/')
+        if (refs.has(path)) continue
+        const created = await hub.createFolder(target, refs.get(parts.slice(0, depth - 1).join('/')), parts[depth - 1])
+        refs.set(path, created?.ref ?? null)
+      }
+    }
+    for (const [index, { dir, file }] of ready.entries()) {
+      say(`Enviando ${index + 1} de ${ready.length}…`)
+      await hub.upload(target, refs.get(dir), file)
+    }
+    const left = tooLarge === 1 ? ' 1 arquivo ficou de fora' : ` ${tooLarge} arquivos ficaram de fora`
+    say(`Pasta "${tree.name}" enviada.${tooLarge ? `${left} por passar de ${MAX_UPLOAD_LABEL}.` : ''}`)
+  }
+
+  // Sends what the Home picked to the cloud chosen afterwards.
+  const sendPicked = async (target, picked) => {
+    try {
+      if (picked.kind === 'folder') await sendFolder(target, picked.tree)
+      else await sendFiles(target, picked.files)
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  // Photos and videos from the gallery (several at once) or straight from the camera.
+  const mediaFile = (asset, index) => {
+    const extension = asset.type === 'video' ? 'mp4' : 'jpg'
+    return asset.file ?? {
+      uri: asset.uri,
+      name: asset.fileName ?? `${asset.type === 'video' ? 'video' : 'foto'}-${Date.now()}-${index + 1}.${extension}`,
+      type: asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      size: asset.fileSize,
+    }
+  }
+
+  const uploadPhotos = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        allowsMultipleSelection: true,
+        quality: 1,
+      })
+      if (result.canceled || !result.assets?.length) return
+      await sendFiles(null, result.assets.map(mediaFile))
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  const capture = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync()
+      if (!permission.granted) {
+        say('Permita o acesso à câmera nos ajustes do aparelho.')
+        return
+      }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images', 'videos'], quality: 1 })
+      if (result.canceled || !result.assets?.length) return
+      await sendFiles(null, result.assets.map(mediaFile))
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
+
+  // An empty file with the typed name, as the web creates one; the provider opens it from there.
+  const newFile = () => setDialog({
+    type: 'name',
+    title: 'Criar arquivo',
+    label: 'Nome do arquivo',
+    initial: '',
+    confirmLabel: 'Criar',
+    onSubmit: async (name) => {
+      let file
+      if (Platform.OS === 'web') {
+        file = new File([], name)
+      } else {
+        const folder = `${FileSystem.cacheDirectory}new-file/${Date.now()}/`
+        await FileSystem.makeDirectoryAsync(folder, { intermediates: true })
+        const uri = `${folder}${safeName(name)}`
+        await FileSystem.writeAsStringAsync(uri, '')
+        file = { uri, name, type: 'application/octet-stream', size: 0 }
+      }
+      await hub.upload(providerId, parentRef, file)
+      say('Arquivo criado.')
+    },
+  })
 
   const canCreate = Boolean(providerId)
 
@@ -126,14 +302,46 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     notice,
     fileMenu: (entry) => fileMenuItems({
       rename: () => rename(entry),
+      download: () => download(entry),
       remove: () => remove(entry),
       pin: () => togglePin(entry),
       link: () => shareLink(entry),
     }, { pinned: entry.pinned }),
-    folderMenu: (entry) => folderMenuItems({
-      rename: () => rename(entry),
-      remove: () => remove(entry),
-    }),
-    createMenu: () => createMenuItems(canCreate ? { upload, folder: newFolder } : {}),
+    folderMenu: (entry) => {
+      const color = folderColors.colorOf(providerOf(entry), entry.ref)
+      return folderMenuItems({
+        rename: () => rename(entry),
+        remove: () => remove(entry),
+      }, {
+        colorPicker: {
+          swatch: color.hex,
+          panel: ({ close }) => (
+            <FolderColorPalette
+              selectedId={color.id}
+              onPick={(id) => {
+                folderColors.setColor(providerOf(entry), entry.ref, id)
+                close()
+              }}
+            />
+          ),
+        },
+      })
+    },
+    createMenu: () => createMenuItems(canCreate
+      ? {
+        upload: () => upload(),
+        photos: uploadPhotos,
+        folder: () => newFolder(),
+        file: newFile,
+        camera: capture,
+      }
+      : {}),
+    folderColor: (entry) => folderColors.colorOf(providerOf(entry), entry.ref).hex,
+    pickFiles,
+    pickFolder,
+    sendPicked,
+    newFolderIn: (target) => newFolder(target),
+    shareUrl,
+    disableLink,
   }
 }

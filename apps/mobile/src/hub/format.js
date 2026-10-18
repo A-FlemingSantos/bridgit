@@ -52,7 +52,27 @@ export function toEntry(item, providerId = item.provider) {
     version: item.remoteVersion ?? null,
     pinned: Boolean(item.pinnedAt),
     when: item.openedAt ? formatWhen(item.openedAt) : null,
+    modified: formatItemDate(item.modifiedAt),
   }
+}
+
+// Caption under a file or folder, as on the web: weekday and time within the last week, day and
+// month this year, the full date before that.
+export function formatItemDate(value, now = new Date()) {
+  if (!value) return ''
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const age = now.getTime() - date.getTime()
+  if (age >= 0 && age < 6 * DAY) {
+    const weekday = date.toLocaleDateString('pt-BR', { weekday: 'long' })
+    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    return `${weekday} às ${time}`
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+  }
+  return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export function formatWhen(value, now = Date.now()) {

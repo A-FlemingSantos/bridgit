@@ -2,6 +2,8 @@ import { Linking, Platform } from 'react-native'
 import * as FileSystem from 'expo-file-system'
 import * as IntentLauncher from 'expo-intent-launcher'
 import * as Sharing from 'expo-sharing'
+import { createContentTicket } from '@bridgit/shared-client'
+import { API_BASE_URL } from '../api/config'
 import { contentType, fileNameFrom } from './download'
 
 // Android's FLAG_GRANT_READ_URI_PERMISSION: the chosen app may read the cached copy.
@@ -44,4 +46,13 @@ export async function openWith({ url, name, mimeType }) {
 
   if (!(await Sharing.isAvailableAsync())) throw new Error('Nenhum app disponível para abrir este arquivo.')
   await Sharing.shareAsync(target, { mimeType: type, dialogTitle: 'Abrir com' })
+}
+
+// Asks for a fresh download ticket (one in hand may have expired, they last 5 min) and opens the
+// file with another app. Backs the reader's "Abrir com…" and the file menu's "Baixar".
+export async function openFileWith(token, providerId, file) {
+  const ticket = await createContentTicket(token, providerId, file.ref, 'attachment')
+  if (!ticket?.url) throw new Error('Arquivo indisponível.')
+  const url = /^https?:\/\//i.test(ticket.url) ? ticket.url : `${API_BASE_URL}${ticket.url}`
+  await openWith({ url, name: file.name, mimeType: file.mimeType })
 }
