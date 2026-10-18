@@ -12,10 +12,6 @@ export function withSvgIds(xml, prefix) {
     .replace(/url\(#([^)]+)\)/g, (_, id) => `url(#${prefix}-${id})`)
 }
 
-export function tintSvg(xml, color) {
-  return xml.replace(/currentColor/g, color)
-}
-
 function percentRgbToHex(value) {
   return value.replace(
     /rgb\(\s*([\d.]+)%\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)/g,

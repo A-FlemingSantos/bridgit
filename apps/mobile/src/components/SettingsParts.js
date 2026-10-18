@@ -22,8 +22,8 @@ export function Button({ label, onPress, variant = 'outline', disabled = false }
   const { theme } = useMobileTheme()
   const solid = variant === 'solid'
   const danger = variant === 'danger'
-  const border = danger ? theme.colors.red : theme.colors.line
-  const textColor = solid ? theme.colors.paper : danger ? theme.colors.red : theme.colors.ink
+  const border = danger ? theme.colors.danger : theme.colors.line
+  const textColor = solid ? theme.colors.paper : danger ? theme.colors.danger : theme.colors.ink
 
   return (
     <Pressable
@@ -87,7 +87,7 @@ export function Switch({ label, value, onChange }) {
   )
 }
 
-export function TextField({ label, value, onChangeText, secure = false, autoComplete, autoFocus = false }) {
+export function TextField({ label, value, onChangeText, secure = false, autoComplete, autoFocus = false, onFocus, onPressIn }) {
   const { theme, fontsReady } = useMobileTheme()
   const [focused, setFocused] = useState(false)
 
@@ -103,7 +103,11 @@ export function TextField({ label, value, onChangeText, secure = false, autoComp
         autoComplete={autoComplete}
         autoFocus={autoFocus}
         accessibilityLabel={label}
-        onFocus={() => setFocused(true)}
+        onFocus={(event) => {
+          setFocused(true)
+          onFocus?.(event)
+        }}
+        onPressIn={onPressIn}
         onBlur={() => setFocused(false)}
         style={[
           styles.input,
