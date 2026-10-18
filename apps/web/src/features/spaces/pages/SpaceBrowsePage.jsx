@@ -26,6 +26,9 @@ import { fileMenuItems, folderMenuItems } from '../components/entryActions.jsx'
 import styles from './SpaceBrowsePage.module.css'
 import { staleCatalogNotice } from './staleCatalogNotice.js'
 
+// Open pixel folder drawn in the empty-folder state.
+const FOLDER_OPEN = 'M3 4h8v2H3zM1 6h2v12H1zM9 6h10v2H9zM19 8h2v2h-2zM7 10h15v2H7zM5 12h2v2H5zM20 12h2v2h-2zM3 14h2v2H3zM18 14h2v2h-2zM16 16h2v2h-2zM3 18h13v2H3z'
+
 const rise = {
   hidden: { opacity: 0, y: 10 },
   show: (delay) => ({
@@ -234,7 +237,21 @@ export default function SpaceBrowsePage() {
           </>
         ) : null}
         {staleNotice ? <p className={styles.empty} role="status">{staleNotice}</p> : null}
-        {empty && !expired && !staleNotice ? <p className={styles.empty}>Nenhum arquivo aqui ainda</p> : null}
+        {empty && !expired && !staleNotice ? (
+          <div className={styles.emptyState}>
+            <svg
+              className={styles.emptyIcon}
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              shapeRendering="crispEdges"
+              aria-hidden="true"
+            >
+              <path d={FOLDER_OPEN} />
+            </svg>
+            <p className={styles.emptyTitle}>Pasta vazia</p>
+            <p className={styles.empty}>Envie arquivos ou crie uma pasta.</p>
+          </div>
+        ) : null}
 
         {folders.length > 0 ? (
           <section className={styles.section} aria-label="Pastas">

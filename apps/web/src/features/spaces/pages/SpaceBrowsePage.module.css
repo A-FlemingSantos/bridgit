@@ -1,4 +1,6 @@
 .main {
+  /* Fills the scroll area so the empty state can sit in its middle. */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -120,6 +122,36 @@
   font-size: 13px;
   color: var(--mute);
   letter-spacing: -0.02em;
+}
+
+.emptyState {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 16px;
+  color: var(--mute);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
+.emptyState .empty {
+  font-size: 14.5px;
 }
 
 .loadMore {

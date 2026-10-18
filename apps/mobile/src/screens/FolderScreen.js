@@ -7,6 +7,7 @@ import CreateFab from '../components/CreateFab'
 import FileSheet from '../components/FileSheet'
 import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
+import { PixelFolderOpen } from '../components/PixelIcons'
 import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
 import { useFolder, useProviders } from '../hub/hooks'
@@ -80,9 +81,13 @@ export default function FolderScreen({ navigation, route }) {
           </Pressable>
         ) : null}
         {connected && !expired && !staleNotice && empty ? (
-          <AppText style={[styles.empty, { color: theme.colors.mute }]}>
-            Nenhum arquivo aqui ainda
-          </AppText>
+          <View style={styles.emptyState}>
+            <PixelFolderOpen size={96} color={theme.colors.mute} />
+            <AppText weight="500" style={styles.emptyTitle}>Pasta vazia</AppText>
+            <AppText style={[styles.empty, styles.emptyHint, { color: theme.colors.mute }]}>
+              Envie arquivos ou crie uma pasta pelo +.
+            </AppText>
+          </View>
         ) : null}
 
         {location.folders.length ? (
@@ -201,10 +206,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  // Fills the screen so the empty state can sit in its middle.
   scroll: {
+    flexGrow: 1,
     paddingBottom: 108,
   },
   content: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 12,
     gap: 32,
@@ -249,5 +257,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     letterSpacing: -0.26,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    marginTop: 20,
+    fontSize: 19,
+    letterSpacing: -0.5,
+  },
+  emptyHint: {
+    marginTop: 6,
+    fontSize: 14.5,
+    lineHeight: 21,
+    textAlign: 'center',
   },
 })
