@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import BrowseHeader from '../components/BrowseHeader'
 import ProviderMark from '../components/ProviderMark'
@@ -251,6 +251,8 @@ export default function SettingsScreen({ navigation }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <BrowseHeader title="Ajustes" onBack={() => navigation.goBack()} />
+      {/* The window does not move for the keyboard, so the list shrinks above it. */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={styles.keyboard}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
@@ -262,11 +264,15 @@ export default function SettingsScreen({ navigation }) {
         <SecuritySection settings={settings} />
         <AboutSection />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
+  keyboard: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
   },

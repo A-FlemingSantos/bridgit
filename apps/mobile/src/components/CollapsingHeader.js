@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { Animated, ScrollView, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { easeOut, useNativeDriver } from '../theme/motion'
 
 const TOP_REVEAL_PX = 12
@@ -11,6 +12,7 @@ export default function CollapsingHeader({
   contentContainerStyle,
   ...scrollProps
 }) {
+  const insets = useSafeAreaInsets()
   const translateY = useRef(new Animated.Value(0)).current
   const headerHeightRef = useRef(0)
   const retractedRef = useRef(false)
@@ -41,7 +43,14 @@ export default function CollapsingHeader({
         {...scrollProps}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        contentContainerStyle={[contentContainerStyle, { paddingTop: headerHeight }]}
+        // The screen runs under the system navigation bar, so the end of the list clears it.
+        contentContainerStyle={[
+          contentContainerStyle,
+          {
+            paddingTop: headerHeight,
+            paddingBottom: (StyleSheet.flatten(contentContainerStyle)?.paddingBottom ?? 0) + insets.bottom,
+          },
+        ]}
       >
         {children}
       </ScrollView>

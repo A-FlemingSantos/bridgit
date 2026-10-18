@@ -1,55 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Animated,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Eye, EyeOff } from 'lucide-react-native'
-import Svg, { Line, SvgXml } from 'react-native-svg'
-import { atSign } from '../assets/marks'
+import { ArrowRight, Eye, EyeOff } from 'lucide-react-native'
 import { useSession } from '../auth/SessionContext'
+import { BrandMark } from '../components/PixelIcons'
 import AppText, { fontFamilyFor } from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { easeOut, useNativeDriver } from '../theme/motion'
-import { nextSvgPrefix, tintSvg, withSvgIds } from '../components/svgMarkup'
 import { errorMessage } from '../api/errorMessage'
 
-function AuthMark({ size }) {
-  const { theme } = useMobileTheme()
-  const prefix = useRef(nextSvgPrefix()).current
-  const xml = tintSvg(withSvgIds(atSign, prefix), theme.colors.ink)
-  if (size < 8) return null
-  return <SvgXml xml={xml} width={size} height={size} />
+// The web login sets labels, links and the button in a monospace face.
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, Consolas, monospace' })
+
+function useRise(delay) {
+  const opacity = useRef(new Animated.Value(0)).current
+  const translateY = useRef(new Animated.Value(12)).current
+  return {
+    style: { opacity, transform: [{ translateY }] },
+    play: () => {
+      opacity.setValue(0)
+      translateY.setValue(12)
+      return Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 600, delay, easing: easeOut, useNativeDriver }),
+        Animated.timing(translateY, { toValue: 0, duration: 600, delay, easing: easeOut, useNativeDriver }),
+      ])
+    },
+  }
 }
 
-function SubmitArrow() {
-  const { theme } = useMobileTheme()
-  const color = theme.colors.ink
-  return (
-    <Svg width={36} height={36} viewBox="0 0 48 48">
-      <Line x1="8" y1="24" x2="40" y2="24" stroke={color} strokeWidth={2.6} strokeLinecap="square" />
-      <Line x1="26" y1="10" x2="40" y2="24" stroke={color} strokeWidth={2.6} strokeLinecap="square" />
-      <Line x1="26" y1="38" x2="40" y2="24" stroke={color} strokeWidth={2.6} strokeLinecap="square" />
-    </Svg>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChangeText,
-  secure = false,
-  revealed = false,
-  onToggleReveal,
-  autoComplete,
-}) {
-  const { theme, isDark, fontsReady } = useMobileTheme()
+function Field({ label, value, onChangeText, secure = false, revealed = false, onToggleReveal, autoComplete, disabled }) {
+  const { theme, fontsReady } = useMobileTheme()
   const [focused, setFocused] = useState(false)
-  const idle = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(10,10,10,0.28)'
   const hidden = secure && !revealed
 
   return (
@@ -63,17 +53,19 @@ function Field({
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete={autoComplete}
+          editable={!disabled}
+          accessibilityLabel={label}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholderTextColor={theme.colors.mute}
           style={[
             styles.input,
             {
               color: theme.colors.ink,
-              borderBottomColor: focused ? theme.colors.ink : idle,
+              borderBottomColor: focused ? theme.colors.ink : theme.colors.line,
               fontFamily: fontsReady ? fontFamilyFor('400') : undefined,
-              fontSize: hidden ? 17 : 15,
-              letterSpacing: hidden ? 3.4 : -0.3,
+              letterSpacing: hidden ? 3 : -0.15,
+              paddingRight: onToggleReveal ? 28 : 0,
+              opacity: disabled ? 0.6 : 1,
             },
           ]}
         />
@@ -82,7 +74,7 @@ function Field({
             accessibilityRole="button"
             accessibilityLabel={revealed ? 'Ocultar senha' : 'Mostrar senha'}
             onPress={onToggleReveal}
-            hitSlop={8}
+            hitSlop={10}
             style={styles.reveal}
           >
             {revealed ? (
@@ -98,7 +90,7 @@ function Field({
 }
 
 export default function AuthScreen() {
-  const { theme, isDark } = useMobileTheme()
+  const { theme } = useMobileTheme()
   const insets = useSafeAreaInsets()
   const [register, setRegister] = useState(false)
   const [username, setUsername] = useState('')
@@ -108,42 +100,18 @@ export default function AuthScreen() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const { login: signIn, register: signUp } = useSession()
-  const [band, setBand] = useState({ width: 0, height: 0 })
+  const year = new Date().getFullYear()
 
-  const markOpacity = useRef(new Animated.Value(0)).current
-  const markScale = useRef(new Animated.Value(0.86)).current
-  const fieldsOpacity = useRef(new Animated.Value(0)).current
+  const hello = useRise(0)
+  const title = useRise(60)
+  const lead = useRise(120)
+  const fields = useRise(180)
 
   useEffect(() => {
-    markOpacity.setValue(0)
-    markScale.setValue(0.86)
-    fieldsOpacity.setValue(0)
-    Animated.parallel([
-      Animated.timing(markOpacity, {
-        toValue: 1,
-        duration: 700,
-        easing: easeOut,
-        useNativeDriver,
-      }),
-      Animated.timing(markScale, {
-        toValue: 1,
-        duration: 700,
-        easing: easeOut,
-        useNativeDriver,
-      }),
-      Animated.timing(fieldsOpacity, {
-        toValue: 1,
-        duration: 400,
-        delay: 120,
-        easing: easeOut,
-        useNativeDriver,
-      }),
-    ]).start()
-  }, [fieldsOpacity, markOpacity, markScale])
-
-  const markSize = Math.min(280, band.width * 0.48, band.height * 0.48)
-  const shellColor = isDark ? theme.colors.paper : theme.colors.hero
-  const paneColor = isDark ? theme.colors.hero : theme.colors.paper
+    Animated.parallel([hello.play(), title.play(), lead.play(), fields.play()]).start()
+    // Replays when the mode switches, like the web page entering again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [register])
 
   function switchMode() {
     setRegister((current) => !current)
@@ -182,198 +150,223 @@ export default function AuthScreen() {
     }
   }
 
-  return (
-    <View style={[styles.shell, { backgroundColor: shellColor }]}>
-      <View
-        style={styles.visual}
-        onLayout={(event) => {
-          const { width, height } = event.nativeEvent.layout
-          setBand({ width, height })
-        }}
-      >
-        <Animated.View
-          style={[
-            styles.figure,
-            { opacity: markOpacity, transform: [{ scale: markScale }] },
-          ]}
-        >
-          <AuthMark size={markSize || 0} />
-        </Animated.View>
-        <AppText weight="500" style={[styles.brand, { top: insets.top + 16 }]}>
-          Bridgit
-        </AppText>
-      </View>
+  const submitLabel = register ? 'Criar conta' : 'Entrar'
 
-      <View style={[styles.pane, { backgroundColor: paneColor, paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={register ? 'Entrar' : 'Criar conta'}
-          onPress={switchMode}
-          style={styles.switch}
-          hitSlop={8}
-        >
-          <AppText style={[styles.switchLabel, { color: theme.colors.mute }]}>
-            {register ? 'Entrar' : 'Criar conta'}
-          </AppText>
-        </Pressable>
+  return (
+    <KeyboardAvoidingView
+      // Android leaves the window still too (keyboard mode "resize" with edge to edge).
+      behavior={Platform.OS === 'web' ? undefined : 'padding'}
+      style={[styles.page, { backgroundColor: theme.colors.landBg }]}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.shell,
+          { paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 16) + 16 },
+        ]}
+      >
+        <View style={styles.bar}>
+          <View accessibilityLabel="Bridgit" accessibilityRole="image">
+            <BrandMark size={28} color={theme.colors.ink} />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={register ? 'Entrar' : 'Criar conta'} onPress={switchMode} hitSlop={10}>
+            <AppText style={[styles.mono, styles.switch, { color: theme.colors.mute }]}>
+              {register ? 'ENTRAR' : 'CRIAR CONTA'}
+            </AppText>
+          </Pressable>
+        </View>
 
         <View style={styles.form}>
-          <AppText weight="500" style={styles.title}>
-            {register ? 'Cadastro' : 'Entrar'}
-          </AppText>
+          <Animated.View style={hello.style}>
+            <AppText style={[styles.hello, { color: theme.colors.mute }]}>
+              {register ? 'Bem-vindo ao Bridgit.' : 'Bem-vindo de volta.'}
+            </AppText>
+          </Animated.View>
+          <Animated.View style={title.style}>
+            <AppText weight="500" style={styles.title}>{register ? 'Cadastro' : 'Entrar'}</AppText>
+          </Animated.View>
+          <Animated.View style={lead.style}>
+            <AppText style={[styles.lead, { color: theme.colors.mute }]}>
+              {register
+                ? 'Um usuário e uma senha para reunir OneDrive, Google Drive e Dropbox.'
+                : 'Suas três nuvens, atrás de um único usuário e senha.'}
+            </AppText>
+          </Animated.View>
 
           {error ? (
-            <AppText style={[styles.error, { color: theme.colors.mute }]} accessibilityRole="alert">
-              {error}
-            </AppText>
+            <View
+              accessibilityRole="alert"
+              style={[styles.error, { borderLeftColor: theme.colors.ink, backgroundColor: theme.colors.raise }]}
+            >
+              <AppText style={styles.errorText}>{error}</AppText>
+            </View>
           ) : null}
 
-          <Animated.View style={{ opacity: fieldsOpacity, gap: 22 }}>
+          <Animated.View style={[styles.fields, fields.style]}>
+            <Field label="USUÁRIO" value={username} onChangeText={setUsername} autoComplete="username" disabled={submitting} />
             <Field
-              label="Usuário"
-              value={username}
-              onChangeText={setUsername}
-              autoComplete="username"
-            />
-            <Field
-              label="Senha"
+              label="SENHA"
               value={password}
               onChangeText={setPassword}
               secure
               revealed={revealed}
               onToggleReveal={() => setRevealed((current) => !current)}
               autoComplete={register ? 'password-new' : 'password'}
+              disabled={submitting}
             />
-          </Animated.View>
-
-          {register ? (
-            <View style={styles.confirm}>
+            {register ? (
               <Field
-                label="Confirmar senha"
+                label="CONFIRMAR SENHA"
                 value={confirm}
                 onChangeText={setConfirm}
                 secure
                 revealed={revealed}
                 autoComplete="password-new"
+                disabled={submitting}
               />
-            </View>
-          ) : (
-            <View style={styles.meta}>
-              <Pressable accessibilityRole="button" hitSlop={8}>
-                <AppText style={[styles.metaLabel, { color: theme.colors.mute }]}>Esqueceu?</AppText>
-              </Pressable>
-            </View>
-          )}
+            ) : (
+              <View style={styles.meta}>
+                <Pressable accessibilityRole="button" hitSlop={8}>
+                  <AppText style={[styles.mono, styles.metaLabel, { color: theme.colors.mute }]}>Esqueceu?</AppText>
+                </Pressable>
+              </View>
+            )}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={submitLabel}
+              accessibilityState={{ disabled: submitting }}
+              onPress={submit}
+              disabled={submitting}
+              style={({ pressed }) => [
+                styles.submit,
+                { backgroundColor: theme.colors.ink, opacity: submitting ? 0.6 : pressed ? 0.86 : 1 },
+              ]}
+            >
+              <AppText style={[styles.mono, styles.submitLabel, { color: theme.colors.landBg }]}>
+                {submitting ? 'AGUARDE' : submitLabel.toUpperCase()}
+              </AppText>
+              <ArrowRight size={14} strokeWidth={1.8} color={theme.colors.landBg} />
+            </Pressable>
+          </Animated.View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={register ? 'Criar conta' : 'Entrar'}
-          onPress={submit}
-          style={[styles.submit, { bottom: Math.max(insets.bottom, 16) }]}
-        >
-          <SubmitArrow />
-        </Pressable>
-      </View>
-    </View>
+        <View style={[styles.legal, { borderTopColor: theme.colors.line }]}>
+          <AppText style={[styles.mono, styles.legalText, { color: theme.colors.mute }]}>© {year} Bridgit</AppText>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+  },
   shell: {
-    flex: 1,
+    flexGrow: 1,
+    paddingHorizontal: 24,
   },
-  visual: {
-    flex: 1,
-  },
-  figure: {
-    ...StyleSheet.absoluteFillObject,
+  bar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
-  brand: {
-    position: 'absolute',
-    left: 24,
-    fontSize: 15,
-    letterSpacing: -0.6,
-  },
-  pane: {
-    flex: 1,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 28,
-    paddingTop: 28,
+  mono: {
+    fontFamily: MONO,
   },
   switch: {
-    position: 'absolute',
-    top: 28,
-    right: 28,
-    zIndex: 2,
-  },
-  switchLabel: {
-    fontSize: 13,
-    letterSpacing: -0.26,
+    fontSize: 12,
+    letterSpacing: 0.72,
   },
   form: {
     flex: 1,
-    paddingTop: 36,
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  hello: {
+    marginBottom: 10,
+    fontSize: 17,
+    letterSpacing: -0.34,
   },
   title: {
-    fontSize: 36,
-    lineHeight: 40,
-    letterSpacing: -2.16,
-    marginBottom: 28,
-    paddingRight: 96,
+    fontSize: 38,
+    lineHeight: 42,
+    letterSpacing: -1.33,
+  },
+  lead: {
+    marginTop: 16,
+    fontSize: 14.5,
+    lineHeight: 23,
   },
   error: {
-    fontSize: 13,
-    letterSpacing: -0.2,
-    marginBottom: 16,
+    marginTop: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderLeftWidth: 2,
   },
-  confirm: {
-    marginTop: 22,
+  errorText: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  fields: {
+    marginTop: 36,
+    gap: 26,
   },
   field: {
-    gap: 10,
+    gap: 8,
   },
   label: {
-    fontSize: 12,
-    letterSpacing: -0.12,
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: 0.88,
   },
   input: {
-    height: 38,
-    paddingTop: 6,
-    paddingBottom: 12,
-    paddingRight: 28,
+    height: 40,
+    paddingTop: 4,
+    paddingBottom: 10,
     borderBottomWidth: 1,
+    fontSize: 15,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
   },
   reveal: {
     position: 'absolute',
     right: 0,
-    bottom: 10,
+    bottom: 8,
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   meta: {
-    marginTop: 18,
+    marginTop: -6,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 16,
   },
   metaLabel: {
-    fontSize: 12,
-    letterSpacing: -0.12,
+    fontSize: 11,
+    letterSpacing: 0.44,
   },
   submit: {
-    position: 'absolute',
-    right: 20,
-    width: 44,
-    height: 44,
+    alignSelf: 'flex-start',
+    minHeight: 44,
+    marginTop: 8,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  submitLabel: {
+    fontSize: 12,
+    letterSpacing: 0.72,
+  },
+  legal: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+  },
+  legalText: {
+    fontSize: 11,
+    letterSpacing: 0.44,
   },
 })

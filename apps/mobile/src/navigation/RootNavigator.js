@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useSession } from '../auth/SessionContext'
+import { clearColor } from '../theme/tokens'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import AuthScreen from '../screens/AuthScreen'
 import FileScreen from '../screens/FileScreen'
@@ -21,6 +22,9 @@ export default function RootNavigator() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.colors.paper },
+        // Edge to edge on Android: every screen draws under a transparent navigation bar.
+        navigationBarColor: clearColor(theme.colors.paper),
+        navigationBarTranslucent: true,
       }}
     >
       {session ? (

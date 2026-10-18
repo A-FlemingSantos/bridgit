@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import BrowseHeader from '../components/BrowseHeader'
 import CollapsingHeader from '../components/CollapsingHeader'
 import ActionDialog, { Notice } from '../components/ActionDialog'
+import { SheetHeader } from '../components/ActionSheet'
 import CreateFab from '../components/CreateFab'
 import FileSheet from '../components/FileSheet'
 import FolderMark from '../components/FolderMark'
@@ -15,18 +16,10 @@ import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
-function Face({ children, width }) {
-  return (
-    <View style={[styles.glyph, { width }]}>
-      {children}
-    </View>
-  )
-}
-
 export default function FolderScreen({ navigation, route }) {
   const { theme } = useMobileTheme()
   const { width } = useWindowDimensions()
-  const { providerId, folderRef = null } = route.params ?? {}
+  const { providerId, folderRef = null, trail = [] } = route.params ?? {}
   const { providers } = useProviders()
   const provider = providers.find((entry) => entry.id === providerId)
   const providerName = () => provider?.name ?? providerId
@@ -39,9 +32,8 @@ export default function FolderScreen({ navigation, route }) {
   const actions = useItemActions({ providerId: connected && !expired ? providerId : null, parentRef: folderRef })
   const location = { title: title ?? provider?.name ?? 'Pasta', folders, files }
   const tileWidth = (width - 40 - 12) / 2
-  const glyphWidth = Math.round(tileWidth * 0.86)
-  const fileWidth = Math.round(tileWidth * 0.72)
-  const sheetHeight = Math.round(fileWidth * (4 / 3))
+  const folderWidth = Math.min(112, Math.round(tileWidth * 0.7))
+  const fileSize = Math.min(72, Math.round(tileWidth * 0.42))
   const empty = status === 'ready' && folders.length === 0 && files.length === 0
 
   return (
@@ -50,8 +42,10 @@ export default function FolderScreen({ navigation, route }) {
         header={(
           <BrowseHeader
             title={location.title}
+            trail={trail}
             providerId={folderRef ? null : providerId}
             onBack={() => navigation.goBack()}
+            onCrumb={(index) => navigation.pop(trail.length - index)}
           />
         )}
         contentContainerStyle={styles.scroll}
@@ -92,91 +86,111 @@ export default function FolderScreen({ navigation, route }) {
         ) : null}
 
         {location.folders.length ? (
-          <View style={styles.section}>
-            <AppText weight="500" style={styles.sectionTitle}>Pastas</AppText>
-            <View style={styles.grid}>
-              {location.folders.map((folder, index) => (
-                <StaggerItem
-                  key={folder.ref}
-                  index={index}
-                  base={0.06}
-                  step={0.04}
-                  distance={10}
-                  duration={400}
-                  style={{ width: tileWidth }}
+          <View accessibilityLabel="Pastas" style={styles.grid}>
+            {location.folders.map((folder, index) => (
+              <StaggerItem
+                key={folder.ref}
+                index={index}
+                base={0.06}
+                step={0.04}
+                distance={10}
+                duration={400}
+                style={{ width: tileWidth }}
+              >
+                <HoldMenu
+                  header={(
+                    <SheetHeader
+                      centered
+                      leading={<FolderMark width={64} color={actions.folderColor(folder)} />}
+                      title={folder.name}
+                      subtitle={`Pasta · ${providerName()}`}
+                    />
+                  )}
+                  items={actions.folderMenu(folder)}
                 >
-                  <HoldMenu items={actions.folderMenu(folder)}>
-                    {({ onLongPress }) => (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={folder.name}
-                        accessibilityHint="Mantenha pressionado para ações"
-                        delayLongPress={420}
-                        onLongPress={onLongPress}
-                        onPress={() => navigation.push('Folder', { providerId, folderRef: folder.ref })}
-                      >
-                        <Face width={tileWidth}>
-                          <FolderMark size={glyphWidth} />
-                        </Face>
-                        <View style={styles.meta}>
-                          <AppText weight="500" numberOfLines={1} style={styles.itemTitle}>{folder.name}</AppText>
-                          <AppText numberOfLines={1} style={[styles.itemSub, { color: theme.colors.mute }]}>
-                            Pasta · {providerName(providerId)}
-                          </AppText>
-                        </View>
-                      </Pressable>
-                    )}
-                  </HoldMenu>
-                </StaggerItem>
-              ))}
-            </View>
+                  {({ onLongPress }) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={folder.name}
+                      accessibilityHint="Mantenha pressionado para ações"
+                      delayLongPress={420}
+                      onLongPress={onLongPress}
+                      onPress={() => navigation.push('Folder', {
+                        providerId,
+                        folderRef: folder.ref,
+                        trail: [...trail, { title: location.title }],
+                      })}
+                      style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.wash } : null]}
+                    >
+                      <View style={styles.face}>
+                        <FolderMark width={folderWidth} color={actions.folderColor(folder)} />
+                      </View>
+                      <View style={styles.meta}>
+                        <AppText numberOfLines={1} style={styles.itemTitle}>{folder.name}</AppText>
+                        <AppText numberOfLines={1} style={[styles.itemSub, { color: theme.colors.mute }]}>
+                          {folder.modified || 'Pasta'}
+                        </AppText>
+                      </View>
+                    </Pressable>
+                  )}
+                </HoldMenu>
+              </StaggerItem>
+            ))}
           </View>
         ) : null}
 
         {location.files.length ? (
-          <View style={styles.section}>
-            <AppText weight="500" style={styles.sectionTitle}>Arquivos</AppText>
-            <View style={styles.grid}>
-              {location.files.map((file, index) => (
-                <StaggerItem
-                  key={file.ref}
-                  index={index}
-                  base={0.14}
-                  step={0.03}
-                  distance={10}
-                  duration={400}
-                  style={{ width: tileWidth }}
+          <View accessibilityLabel="Arquivos" style={styles.grid}>
+            {location.files.map((file, index) => (
+              <StaggerItem
+                key={file.ref}
+                index={index}
+                base={0.14}
+                step={0.03}
+                distance={10}
+                duration={400}
+                style={{ width: tileWidth }}
+              >
+                <HoldMenu
+                  header={(
+                    <SheetHeader
+                      centered
+                      leading={<FileSheet file={file} size={48} />}
+                      title={file.name}
+                      subtitle={`${file.kind} · ${providerName()}`}
+                    />
+                  )}
+                  items={actions.fileMenu(file)}
                 >
-                  <HoldMenu items={actions.fileMenu(file)}>
-                    {({ onLongPress }) => (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={file.name}
-                        accessibilityHint="Mantenha pressionado para ações"
-                        delayLongPress={420}
-                        onLongPress={onLongPress}
-                        onPress={() => navigation.push('File', { providerId, fileRef: file.ref })}
-                      >
-                        <Face width={tileWidth}>
-                          <FileSheet fitted={{ width: fileWidth, height: sheetHeight }} />
-                        </Face>
-                        <View style={styles.meta}>
-                          <AppText weight="500" numberOfLines={1} style={styles.itemTitle}>{file.name}</AppText>
-                          <AppText numberOfLines={1} style={[styles.itemSub, { color: theme.colors.mute }]}>
-                            {file.kind} · {providerName(providerId)}
-                          </AppText>
-                        </View>
-                      </Pressable>
-                    )}
-                  </HoldMenu>
-                </StaggerItem>
-              ))}
-            </View>
+                  {({ onLongPress }) => (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={file.name}
+                      accessibilityHint="Mantenha pressionado para ações"
+                      delayLongPress={420}
+                      onLongPress={onLongPress}
+                      onPress={() => navigation.push('File', { providerId, fileRef: file.ref })}
+                      style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.wash } : null]}
+                    >
+                      <View style={styles.face}>
+                        <FileSheet file={file} size={fileSize} />
+                      </View>
+                      <View style={styles.meta}>
+                        <AppText numberOfLines={1} style={styles.itemTitle}>{file.name}</AppText>
+                        <AppText numberOfLines={1} style={[styles.itemSub, { color: theme.colors.mute }]}>
+                          {file.modified || file.kind}
+                        </AppText>
+                      </View>
+                    </Pressable>
+                  )}
+                </HoldMenu>
+              </StaggerItem>
+            ))}
           </View>
         ) : null}
         </View>
       </CollapsingHeader>
-      <CreateFab items={actions.createMenu()} />
+      <CreateFab {...actions.createMenu()} />
       <Notice message={actions.notice} />
       <ActionDialog dialog={actions.dialog} onClose={actions.closeDialog} />
     </View>
@@ -192,44 +206,48 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    gap: 36,
+    paddingTop: 12,
+    gap: 32,
   },
   loading: {
     alignItems: 'center',
     paddingVertical: 24,
   },
-  section: {
-    gap: 14,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    letterSpacing: -0.42,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    columnGap: 12,
+    rowGap: 20,
   },
-  glyph: {
+  item: {
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderRadius: 8,
+  },
+  face: {
+    width: '100%',
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   meta: {
-    gap: 2,
-    paddingHorizontal: 2,
-    paddingTop: 10,
+    width: '100%',
+    alignItems: 'center',
+    gap: 3,
   },
   itemTitle: {
-    fontSize: 13,
-    letterSpacing: -0.39,
+    fontSize: 13.5,
+    letterSpacing: -0.14,
   },
   itemSub: {
-    fontSize: 11,
-    letterSpacing: -0.11,
+    fontSize: 11.5,
   },
   empty: {
     fontSize: 13,
+    lineHeight: 19,
     letterSpacing: -0.26,
   },
 })
