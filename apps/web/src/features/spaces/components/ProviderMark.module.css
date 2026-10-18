@@ -2,3 +2,8 @@
   display: block;
   object-fit: contain;
 }
+
+.glyph {
+  flex-shrink: 0;
+  fill: var(--ink);
+}
