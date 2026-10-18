@@ -51,6 +51,7 @@ describe('SecurityTab', () => {
     renderTab()
     await screen.findAllByRole('listitem')
 
+    await user.click(screen.getByRole('button', { name: 'Alterar senha' }))
     await user.type(screen.getByLabelText('Senha atual'), 'antiga123')
     await user.type(screen.getByLabelText('Nova senha'), 'nova12345')
     await user.type(screen.getByLabelText('Confirmar senha'), 'outra12345')

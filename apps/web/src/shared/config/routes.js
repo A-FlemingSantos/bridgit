@@ -6,7 +6,6 @@ export const ROUTES = {
   settings: '/settings',
   settingsProviders: '/settings/providers',
   settingsSecurity: '/settings/security',
-  settingsSync: '/settings/sync',
   settingsAbout: '/settings/about',
   spaces: '/spaces',
   space: '/s/:spaceRef',

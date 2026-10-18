@@ -1,37 +1,42 @@
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../../shared/config/routes.js'
+import { PixelBrand, PixelGithub, PixelLinkedin, PixelX } from '../components/SettingsIcons.jsx'
 import styles from './SettingsPage.module.css'
+
+// Only GitHub has a link for now; LinkedIn and X are placeholders.
+const SOCIALS = [
+  { id: 'github', label: 'GitHub', icon: PixelGithub, url: 'https://github.com/A-FlemingSantos/bridgit' },
+  { id: 'linkedin', label: 'LinkedIn', icon: PixelLinkedin, url: null },
+  { id: 'x', label: 'X', icon: PixelX, url: null },
+]
 
 export default function AboutTab() {
   return (
-    <section className={styles.pane}>
-      <h1>Sobre</h1>
+    <section id="settings-about" className={styles.pane}>
+      <h2 className={styles.paneTitle}>Sobre</h2>
 
-      <div className={styles.card}>
-        <div className={styles.sectionHead}>
-          <div>
-            <h2>Bridgit</h2>
-            <p className={styles.hint}>{`Versão ${__APP_VERSION__}`}</p>
-          </div>
+      <div className={styles.about}>
+        <PixelBrand size={40} />
+        <p className={styles.aboutName}>Bridgit</p>
+        <p className={styles.heroHint}>{`Versão ${__APP_VERSION__}`}</p>
+        <div className={styles.socials}>
+          {SOCIALS.map(({ id, label, icon: Icon, url }) =>
+            url ? (
+              <a key={id} className={styles.social} href={url} target="_blank" rel="noreferrer" aria-label={label}>
+                <Icon size={24} />
+              </a>
+            ) : (
+              <span key={id} className={styles.social} role="img" aria-label={label}>
+                <Icon size={24} />
+              </span>
+            ),
+          )}
         </div>
-        <dl className={styles.facts}>
-          <div>
-            <dt>O que guarda</dt>
-            <dd>Só metadados. O arquivo fica no provedor.</dd>
-          </div>
-          <div>
-            <dt>Provedores</dt>
-            <dd>OneDrive, Google Drive e Dropbox.</dd>
-          </div>
-        </dl>
       </div>
 
-      <div className={styles.card}>
-        <h2>Links</h2>
-        <div className={styles.links}>
-          <Link to={ROUTES.privacy}>Privacidade</Link>
-          <Link to={ROUTES.terms}>Termos</Link>
-        </div>
+      <div className={styles.links}>
+        <Link to={ROUTES.privacy}>Privacidade</Link>
+        <Link to={ROUTES.terms}>Termos</Link>
       </div>
     </section>
   )

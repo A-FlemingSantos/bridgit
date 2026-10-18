@@ -36,7 +36,7 @@ function mapOAuthError(code) {
 
 function providerAccountLabel(provider) {
   if (!provider.connected) return 'Não conectado'
-  if (provider.lastError === 'RECONEXAO_NECESSARIA') return 'Acesso expirado. Reconecte para atualizar os arquivos.'
+  if (provider.lastError === 'RECONEXAO_NECESSARIA') return 'Acesso expirado'
   return provider.account?.email ?? provider.account?.name ?? 'Conectado'
 }
 
@@ -124,13 +124,13 @@ export default function ProvidersTab() {
   }
 
   return (
-    <section className={styles.pane}>
-      <h1>Provedores</h1>
-      <p className={styles.lead}>A conexão é global. Cada space só escolhe o que entra nele.</p>
+    <section id="settings-providers" className={styles.pane}>
+      <h2 className={styles.paneTitle}>Provedores</h2>
+      <p className={styles.lead}>A conexão vale para todo o Bridgit.</p>
 
       {banner ? (
         <div className={styles.banner}>
-          <p className={styles.hint} role={banner.type === 'error' ? 'alert' : 'status'}>
+          <p className={styles.bannerText} role={banner.type === 'error' ? 'alert' : 'status'}>
             {banner.message}
           </p>
           <button type="button" className={styles.bannerClose} onClick={() => setBanner(null)}>
@@ -140,33 +140,34 @@ export default function ProvidersTab() {
       ) : null}
 
       {accountChangeId ? (
-        <div className={styles.banner} role="alertdialog" aria-labelledby="account-change-text">
+        <div className={styles.sheet} role="alertdialog" aria-labelledby="account-change-text">
+          <p className={styles.sheetTitle}>Trocar de conta?</p>
           <p id="account-change-text" className={styles.hint}>
             Você entrou com outra conta do {PROVIDER_LABELS[accountChangeId] ?? accountChangeId}. Continuar troca a
             conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.
           </p>
-          <span className={styles.pair}>
+          <div className={styles.sheetActions}>
             <button type="button" className={styles.secondary} onClick={() => setAccountChangeId(null)}>
               Cancelar
             </button>
-            <button type="button" className={styles.primary} onClick={handleConfirmAccountChange}>
+            <button type="button" className={styles.danger} onClick={handleConfirmAccountChange}>
               Trocar de conta
             </button>
-          </span>
+          </div>
         </div>
       ) : null}
 
       {error ? (
-        <p className={styles.hint} role="alert">
+        <p className={styles.error} role="alert">
           {error.message}
         </p>
       ) : null}
 
-      <div className={styles.cards}>
-        {status === 'loading' && providers.length === 0 ? (
-          <p className={styles.hint}>Carregando provedores…</p>
-        ) : null}
+      {status === 'loading' && providers.length === 0 ? (
+        <p className={styles.hint}>Carregando provedores…</p>
+      ) : null}
 
+      <div className={styles.providers}>
         {providers.map((provider) => {
           const needsReconnect = provider.lastError === 'RECONEXAO_NECESSARIA'
           const unavailable = !provider.configured
@@ -194,7 +195,7 @@ export default function ProvidersTab() {
                 </button>
                 <button
                   type="button"
-                  className={styles.primary}
+                  className={styles.danger}
                   disabled={busy}
                   onClick={() => void handleDisconnect(provider.id)}
                 >
@@ -238,20 +239,20 @@ export default function ProvidersTab() {
           }
 
           return (
-            <div key={provider.id} className={styles.service}>
-              <span className={styles.serviceMark} data-off={!connected || undefined}>
-                <ProviderMark id={provider.id} size={36} />
+            <div key={provider.id} className={styles.provider} data-off={!connected || undefined}>
+              <span className={styles.providerMark}>
+                <ProviderMark id={provider.id} size={40} />
               </span>
-              <div className={styles.who}>
-                <p className={styles.whoName}>{provider.name}</p>
-                <p className={styles.whoHint}>{providerAccountLabel(provider)}</p>
-                {actionError?.providerId === provider.id ? (
-                  <p className={styles.hint} role="alert">
-                    {actionError.message}
-                  </p>
-                ) : null}
-              </div>
-              {action}
+              <p className={styles.providerName}>{provider.name}</p>
+              <p className={styles.providerStatus} data-expired={needsReconnect || undefined}>
+                {confirming ? 'Desconectar? Os arquivos continuam no provedor.' : providerAccountLabel(provider)}
+              </p>
+              {actionError?.providerId === provider.id ? (
+                <p className={styles.error} role="alert">
+                  {actionError.message}
+                </p>
+              ) : null}
+              <div className={styles.providerAction}>{action}</div>
             </div>
           )
         })}

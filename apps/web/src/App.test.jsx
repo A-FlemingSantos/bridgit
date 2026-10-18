@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError, apiRequest } from '@bridgit/shared-client'
 import App from './App.jsx'
-import ProvidersTab from './features/settings/pages/ProvidersTab.jsx'
 import SettingsPage from './features/settings/pages/SettingsPage.jsx'
 import { SessionProvider } from './shared/auth/SessionContext.jsx'
 import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
@@ -718,7 +717,7 @@ describe('App', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Mover' }))
     const dialog = screen.getByRole('dialog', { name: 'Mover' })
     await user.click(within(dialog).getByRole('button', { name: /Referências de código/ }))
-    await user.click(within(dialog).getByRole('button', { name: 'Escolher' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
@@ -878,7 +877,7 @@ describe('App', () => {
     })
   })
 
-  it('mostra a aba de conta nas configurações', async () => {
+  it('mostra todas as seções numa página só de configurações', async () => {
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/settings']}>
@@ -887,17 +886,14 @@ describe('App', () => {
     )
 
     const dialog = await screen.findByRole('dialog', { name: 'Configurações' })
-    expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('link', { name: 'Conta' })).toHaveAttribute('href', '/settings')
-    expect(within(dialog).getByRole('link', { name: 'Provedores' })).toHaveAttribute('href', '/settings/providers')
-    expect(within(dialog).getByRole('link', { name: 'Sincronização' })).toHaveAttribute('href', '/settings/sync')
-    expect(within(dialog).getByRole('link', { name: 'Segurança' })).toHaveAttribute('href', '/settings/security')
-    expect(within(dialog).getByRole('link', { name: 'Sobre' })).toHaveAttribute('href', '/settings/about')
-    expect(within(dialog).getByLabelText('Usuário')).toHaveValue('arthur')
+    for (const name of ['Conta', 'Provedores', 'Segurança', 'Sessões', 'Sobre']) {
+      expect(within(dialog).getByRole('heading', { name })).toBeInTheDocument()
+    }
+    expect(within(dialog).queryByRole('link', { name: 'Sincronização' })).not.toBeInTheDocument()
+    expect(within(dialog).getByText('arthur')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Editar usuário' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
     expect(within(dialog).queryByLabelText('Senha atual')).not.toBeInTheDocument()
-    expect(within(dialog).queryByText('OneDrive')).not.toBeInTheDocument()
   })
 
   it('mostra os provedores na aba correspondente', async () => {
@@ -907,9 +903,7 @@ describe('App', () => {
         <SessionProvider>
           <HubDataProvider>
             <Routes>
-              <Route path="/settings" element={<SettingsPage />}>
-                <Route path="providers" element={<ProvidersTab />} />
-              </Route>
+              <Route path="/settings/*" element={<SettingsPage />} />
             </Routes>
           </HubDataProvider>
         </SessionProvider>
@@ -924,23 +918,6 @@ describe('App', () => {
     expect(within(dialog).queryByLabelText('Usuário')).not.toBeInTheDocument()
   })
 
-  it('mostra os spaces na sincronização', async () => {
-    setupAuthenticatedApi()
-    render(
-      <MemoryRouter {...router} initialEntries={['/settings/sync']}>
-        <App />
-      </MemoryRouter>,
-    )
-
-    expect(await screen.findByRole('heading', { name: 'Sincronização' })).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Avisar se a sincronização falhar' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-    expect(screen.getByRole('link', { name: 'Scripts' })).toHaveAttribute('href', '/s/scripts')
-    expect(screen.getByRole('switch', { name: 'Pausar Scripts' })).toHaveAttribute('aria-checked', 'true')
-  })
-
   it('mostra senha e sessão na aba de segurança', async () => {
     setupAuthenticatedApi()
     render(
@@ -949,7 +926,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByLabelText('Senha atual')).toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Alterar senha' }))
+    expect(screen.getByLabelText('Senha atual')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Salvar senha' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Encerrar outras sessões' })).toBeInTheDocument()
     expect(await screen.findByText('Chrome')).toBeInTheDocument()
@@ -971,8 +950,8 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Configurações' })
     expect(dialog).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
 

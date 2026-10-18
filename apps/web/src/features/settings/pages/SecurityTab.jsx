@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSession } from '../../../shared/auth/SessionContext.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
 import { apiErrorMessage } from '../../../shared/state/hubErrorMessage.js'
+import { PixelKey, PixelTrash, PixelUnlink } from '../components/SettingsIcons.jsx'
 import Toggle from '../components/Toggle.jsx'
 import BrowserMark from './BrowserMark.jsx'
 import { formatSessionTime } from './formatSessionTime.js'
@@ -21,6 +22,7 @@ export default function SecurityTab() {
   const [sessions, setSessions] = useState([])
   const [sessionsClosed, setSessionsClosed] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   const [rememberDevice, setRememberDevice] = useState(session?.session?.persistent ?? true)
   const [errors, setErrors] = useState({})
   const [deleting, setDeleting] = useState(false)
@@ -120,117 +122,91 @@ export default function SecurityTab() {
     }
   }
 
+  const others = sessions.filter((item) => !item.current)
+
   return (
-    <section className={styles.pane}>
-      <h1>Segurança</h1>
+    <section id="settings-security" className={styles.pane}>
+      <h2 className={styles.paneTitle}>Segurança</h2>
 
-      <form className={styles.card} onSubmit={handleChangePassword}>
-        <h2>Senha</h2>
-        <div className={styles.fields}>
-          <div className={styles.field}>
-            <label htmlFor={currentId}>Senha atual</label>
-            <input id={currentId} name="current" type="password" autoComplete="current-password" required />
-          </div>
-          <div className={styles.field}>
-            <label htmlFor={nextId}>Nova senha</label>
-            <input id={nextId} name="next" type="password" autoComplete="new-password" required />
-          </div>
-          <div className={styles.field}>
-            <label htmlFor={confirmId}>Confirmar senha</label>
-            <input id={confirmId} name="confirm" type="password" autoComplete="new-password" required />
-          </div>
-        </div>
-        {errors.password ? <p className={styles.hint} role="alert">{errors.password}</p> : null}
-        <button type="submit" className={styles.primary}>
-          {passwordSaved ? 'Senha alterada' : 'Salvar senha'}
+      <div className={styles.list}>
+        <button
+          type="button"
+          className={styles.row}
+          aria-expanded={changingPassword}
+          onClick={() => {
+            setChangingPassword((open) => !open)
+            setError('password')
+            setPasswordSaved(false)
+          }}
+        >
+          <PixelKey size={20} className={styles.rowIcon} />
+          <span className={styles.rowBody}>
+            <span className={styles.rowTitle}>Alterar senha</span>
+            {passwordSaved ? <span className={styles.rowHint}>Senha alterada.</span> : null}
+          </span>
         </button>
-      </form>
+        {changingPassword ? (
+          <form className={styles.rowPanel} onSubmit={handleChangePassword}>
+            <div className={styles.fields}>
+              <div className={styles.field}>
+                <label htmlFor={currentId}>Senha atual</label>
+                <input id={currentId} name="current" type="password" autoComplete="current-password" required autoFocus />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor={nextId}>Nova senha</label>
+                <input id={nextId} name="next" type="password" autoComplete="new-password" required />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor={confirmId}>Confirmar senha</label>
+                <input id={confirmId} name="confirm" type="password" autoComplete="new-password" required />
+              </div>
+            </div>
+            {errors.password ? <p className={styles.error} role="alert">{errors.password}</p> : null}
+            <div className={styles.sheetActions}>
+              <button type="button" className={styles.secondary} onClick={() => setChangingPassword(false)}>
+                Cancelar
+              </button>
+              <button type="submit" className={styles.primary}>
+                Salvar senha
+              </button>
+            </div>
+          </form>
+        ) : null}
 
-      <div className={styles.cards}>
-        <div className={styles.pref}>
-          <span>
-            <span className={styles.prefTitle}>Manter este dispositivo</span>
-            <span className={styles.hint}>Não pede a senha de novo neste navegador.</span>
+        <div className={styles.row} data-static="">
+          <span className={styles.rowSpacer} aria-hidden="true" />
+          <span className={styles.rowBody}>
+            <span className={styles.rowTitle}>Manter este dispositivo</span>
+            <span className={styles.rowHint}>Não pede a senha de novo neste navegador.</span>
           </span>
           <Toggle label="Manter este dispositivo" checked={rememberDevice} onChange={handleRememberDevice} />
         </div>
-        {errors.device ? <p className={styles.hint} role="alert">{errors.device}</p> : null}
-      </div>
+        {errors.device ? <p className={styles.rowError} role="alert">{errors.device}</p> : null}
 
-      <div className={styles.card}>
-        <div className={styles.sectionHead}>
-          <div>
-            <h2>Sessão</h2>
-            <p className={styles.hint}>Encerra o acesso neste aparelho ou nos outros.</p>
-          </div>
-          <span className={styles.pair}>
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={handleRevokeOthers}
-            >
-              {sessionsClosed ? 'Encerradas' : 'Encerrar outras sessões'}
-            </button>
+        <button
+          type="button"
+          className={styles.row}
+          data-danger=""
+          aria-expanded={confirmDelete}
+          onClick={() => {
+            setConfirmDelete((open) => !open)
+            setError('delete')
+          }}
+        >
+          <PixelTrash size={20} className={styles.rowIcon} />
+          <span className={styles.rowBody}>
+            <span className={styles.rowTitle}>Excluir conta</span>
           </span>
-        </div>
-        {errors.sessions ? <p className={styles.hint} role="alert">{errors.sessions}</p> : null}
-        {sessions.length > 0 ? (
-          <ul className={styles.sessions}>
-            {sessions.map((item) => (
-              <li
-                key={item.id}
-                className={[styles.session, item.current ? styles.sessionCurrent : ''].filter(Boolean).join(' ')}
-                aria-current={item.current ? 'true' : undefined}
-              >
-                <span className={styles.sessionMark}>
-                  <BrowserMark browser={item.browser} device={item.device} />
-                </span>
-                <span>
-                  <span className={styles.sessionName}>
-                    {item.browser}
-                    {item.current ? <span className={styles.sessionBadge}>Sessão atual</span> : null}
-                  </span>
-                  <span className={styles.sessionDevice}>{item.device}</span>
-                </span>
-                <time className={styles.sessionTime} dateTime={item.lastSeenAt}>
-                  {formatSessionTime(item.lastSeenAt)}
-                </time>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      <div className={styles.card}>
-        <div className={styles.sectionHead}>
-          <div>
-            <h2>Excluir conta</h2>
-            <p className={styles.hint}>Os arquivos continuam nos provedores.</p>
-          </div>
-          {confirmDelete ? null : (
-            <button type="button" className={styles.secondary} onClick={() => setConfirmDelete(true)}>
-              Excluir conta
-            </button>
-          )}
-        </div>
+        </button>
         {confirmDelete ? (
-          <form className={styles.deleteForm} onSubmit={handleDeleteAccount}>
-            <div className={styles.fields}>
-              <div className={styles.field}>
-                <label htmlFor={deletePasswordId}>Confirme com sua senha</label>
-                <input
-                  id={deletePasswordId}
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
+          <form className={styles.rowPanel} onSubmit={handleDeleteAccount}>
+            <p className={styles.hint}>Apaga seus dados do Bridgit de vez. Os arquivos continuam nos provedores.</p>
+            <div className={styles.field}>
+              <label htmlFor={deletePasswordId}>Confirme com sua senha</label>
+              <input id={deletePasswordId} name="password" type="password" autoComplete="current-password" required />
             </div>
-            <span className={styles.pair}>
-              <button type="submit" className={styles.primary} disabled={deleting}>
-                Confirmar exclusão
-              </button>
+            {errors.delete ? <p className={styles.error} role="alert">{errors.delete}</p> : null}
+            <div className={styles.sheetActions}>
               <button
                 type="button"
                 className={styles.secondary}
@@ -241,11 +217,50 @@ export default function SecurityTab() {
               >
                 Cancelar
               </button>
-            </span>
+              <button type="submit" className={styles.danger} disabled={deleting}>
+                Confirmar exclusão
+              </button>
+            </div>
           </form>
         ) : null}
-        {errors.delete ? <p className={styles.hint} role="alert">{errors.delete}</p> : null}
       </div>
+
+      <h3 className={styles.sectionTitle}>Sessões</h3>
+      {sessions.length > 0 ? (
+        <ul className={styles.list}>
+          {sessions.map((item) => (
+            <li key={item.id} className={styles.row} data-static="" aria-current={item.current ? 'true' : undefined}>
+              <span className={styles.sessionMark}>
+                <BrowserMark browser={item.browser} device={item.device} size={28} />
+              </span>
+              <span className={styles.rowBody}>
+                <span className={styles.rowTitle}>
+                  {item.browser}
+                  {item.current ? <span className={styles.sessionBadge}>Sessão atual</span> : null}
+                </span>
+                <span className={styles.rowHint}>{item.device}</span>
+              </span>
+              <time className={styles.sessionTime} dateTime={item.lastSeenAt}>
+                {formatSessionTime(item.lastSeenAt)}
+              </time>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className={styles.list}>
+        <button
+          type="button"
+          className={styles.row}
+          disabled={!sessionsClosed && sessions.length > 0 && others.length === 0}
+          onClick={handleRevokeOthers}
+        >
+          <PixelUnlink size={20} className={styles.rowIcon} />
+          <span className={styles.rowBody}>
+            <span className={styles.rowTitle}>{sessionsClosed ? 'Encerradas' : 'Encerrar outras sessões'}</span>
+          </span>
+        </button>
+      </div>
+      {errors.sessions ? <p className={styles.error} role="alert">{errors.sessions}</p> : null}
     </section>
   )
 }

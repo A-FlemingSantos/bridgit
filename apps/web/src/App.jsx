@@ -6,11 +6,6 @@ import SpaceBrowsePage from './features/spaces/pages/SpaceBrowsePage.jsx'
 import SpaceFilePage from './features/spaces/pages/SpaceFilePage.jsx'
 import SpaceDetailPage from './features/spaces/pages/SpaceDetailPage.jsx'
 import SettingsPage from './features/settings/pages/SettingsPage.jsx'
-import AccountTab from './features/settings/pages/AccountTab.jsx'
-import ProvidersTab from './features/settings/pages/ProvidersTab.jsx'
-import SecurityTab from './features/settings/pages/SecurityTab.jsx'
-import SyncTab from './features/settings/pages/SyncTab.jsx'
-import AboutTab from './features/settings/pages/AboutTab.jsx'
 import SpacesPage from './features/spaces/pages/SpacesPage.jsx'
 import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PublicLinkPage from './features/public-link/pages/PublicLinkPage.jsx'
@@ -88,13 +83,7 @@ function AppShell() {
       </Routes>
       {settingsOpen ? (
         <Routes>
-          <Route path={ROUTES.settings} element={<SettingsPage />}>
-            <Route index element={<AccountTab />} />
-            <Route path="providers" element={<ProvidersTab />} />
-            <Route path="sync" element={<SyncTab />} />
-            <Route path="security" element={<SecurityTab />} />
-            <Route path="about" element={<AboutTab />} />
-          </Route>
+          <Route path={`${ROUTES.settings}/*`} element={<SettingsPage />} />
         </Routes>
       ) : null}
       <HubOverlays />

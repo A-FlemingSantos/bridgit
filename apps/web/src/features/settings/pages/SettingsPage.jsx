@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Cloud, Info, RefreshCw, Shield, User, X } from 'lucide-react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { PixelClose } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
 import { ROUTES } from '../../../shared/config/routes.js'
-import { resolveSettingsBackground, settingsNavState } from '../../../shared/utils/settingsOverlay.js'
+import { resolveSettingsBackground } from '../../../shared/utils/settingsOverlay.js'
+import AboutTab from './AboutTab.jsx'
+import AccountTab from './AccountTab.jsx'
+import ProvidersTab from './ProvidersTab.jsx'
+import SecurityTab from './SecurityTab.jsx'
 import styles from './SettingsPage.module.css'
 
-const tabs = [
-  { to: ROUTES.settings, label: 'Conta', icon: User, end: true },
-  { to: ROUTES.settingsProviders, label: 'Provedores', icon: Cloud },
-  { to: ROUTES.settingsSync, label: 'Sincronização', icon: RefreshCw },
-  { to: ROUTES.settingsSecurity, label: 'Segurança', icon: Shield },
-  { to: ROUTES.settingsAbout, label: 'Sobre', icon: Info },
-]
+// Every section on one page; the old per-tab paths still open it, scrolled to their section.
+const SECTION_BY_PATH = {
+  [ROUTES.settingsProviders]: 'settings-providers',
+  [ROUTES.settingsSecurity]: 'settings-security',
+  [ROUTES.settingsAbout]: 'settings-about',
+}
 
 const ease = [0.22, 1, 0.36, 1]
 const backdropMotion = { duration: 0.22, ease }
@@ -24,7 +27,6 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const titleId = useId()
   const panelRef = useRef(null)
-  const navState = settingsNavState(location)
   const [visible, setVisible] = useState(true)
   const backgroundRef = useRef(resolveSettingsBackground(location))
   backgroundRef.current = resolveSettingsBackground(location)
@@ -36,6 +38,12 @@ export default function SettingsPage() {
   const commitClose = useCallback(() => {
     navigate(backgroundRef.current)
   }, [navigate])
+
+  const sectionId = SECTION_BY_PATH[location.pathname]
+  useEffect(() => {
+    if (!sectionId) return
+    document.getElementById(sectionId)?.scrollIntoView({ block: 'start' })
+  }, [sectionId])
 
   useEffect(() => {
     const previous = document.activeElement
@@ -92,33 +100,15 @@ export default function SettingsPage() {
             <div className={styles.chrome}>
               <h2 id={titleId}>Configurações</h2>
               <button type="button" className={styles.close} onClick={close} aria-label="Fechar configurações">
-                <X size={16} strokeWidth={1.7} aria-hidden="true" />
+                <PixelClose size={24} />
               </button>
             </div>
             <CustomScrollArea className={styles.body} refreshKey={location.pathname}>
               <div className={styles.main}>
-                <div className={styles.split}>
-                  <nav className={styles.side} aria-label="Seções">
-                    {tabs.map((tab) => {
-                      const Icon = tab.icon
-                      return (
-                        <NavLink
-                          key={tab.to}
-                          to={tab.to}
-                          end={tab.end}
-                          state={navState}
-                          className={({ isActive }) => (isActive ? styles.navActive : styles.nav)}
-                        >
-                          <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
-                          {tab.label}
-                        </NavLink>
-                      )
-                    })}
-                  </nav>
-                  <div className={styles.content}>
-                    <Outlet />
-                  </div>
-                </div>
+                <AccountTab />
+                <ProvidersTab />
+                <SecurityTab />
+                <AboutTab />
               </div>
             </CustomScrollArea>
           </motion.div>
