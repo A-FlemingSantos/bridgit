@@ -10,6 +10,7 @@ import {
   Geist_700Bold,
 } from '@expo-google-fonts/geist'
 import * as NavigationBar from 'expo-navigation-bar'
+import * as SplashScreen from 'expo-splash-screen'
 import { NavigationContainer } from '@react-navigation/native'
 import RootNavigator from './src/navigation/RootNavigator'
 import { SessionProvider } from './src/auth/SessionContext'
@@ -17,6 +18,9 @@ import { HubProvider } from './src/hub/HubContext'
 import { OverlayHost } from './src/components/OverlayHost'
 import { clearColor, theme } from './src/theme/tokens'
 import { MobileThemeProvider, useMobileTheme, useThemedStyles } from './src/theme/ThemeProvider'
+
+// Held until RootNavigator has the session (see there).
+SplashScreen.preventAutoHideAsync().catch(() => {})
 
 function ThemedAppRoot() {
   styles = useThemedStyles(createStyles)

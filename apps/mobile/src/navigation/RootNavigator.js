@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import * as SplashScreen from 'expo-splash-screen'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useSession } from '../auth/SessionContext'
 import { clearColor } from '../theme/tokens'
@@ -13,6 +15,12 @@ const Stack = createNativeStackNavigator()
 export default function RootNavigator() {
   const { theme } = useMobileTheme()
   const { status, session } = useSession()
+
+  // The launch screen (logo on paper) stays up until fonts and the saved session are in, so the
+  // app opens straight on its first screen instead of a blank frame.
+  useEffect(() => {
+    if (status !== 'loading') SplashScreen.hideAsync().catch(() => {})
+  }, [status])
 
   if (status === 'loading') return null
 

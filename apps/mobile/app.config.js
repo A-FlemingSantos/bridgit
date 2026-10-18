@@ -36,6 +36,20 @@ export default {
     plugins: [
       'expo-dev-client',
       [
+        // Launch screen: the Bridgit logo centered on the app's paper, light and dark.
+        'expo-splash-screen',
+        {
+          image: './assets/splash-logo.png',
+          imageWidth: 96,
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+          dark: {
+            image: './assets/splash-logo-dark.png',
+            backgroundColor: '#161616',
+          },
+        },
+      ],
+      [
         'expo-image-picker',
         {
           photosPermission: 'O Bridgit acessa suas fotos para enviá-las à sua nuvem.',
