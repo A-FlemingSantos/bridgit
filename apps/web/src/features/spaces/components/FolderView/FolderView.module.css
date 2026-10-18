@@ -1,0 +1,162 @@
+/* Pieces shared by the folder pages and the folder picker in dialogs (Mover). */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile-width, 172px));
+  gap: 24px 12px;
+}
+
+.fill {
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-width, 156px), 1fr));
+}
+
+.wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.tile:hover:not(:disabled) {
+  background: var(--wash);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.tile[aria-busy='true'],
+.tile:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.face {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100px;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--mute);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Path: the folders above as links (or buttons in a dialog), a chevron, then the current one. */
+.trail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.trail[data-size='compact'] {
+  gap: 6px;
+  font-size: 14px;
+}
+
+.trailNav {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+
+.trailSegment {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+}
+
+.trailLink {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--soft);
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.trailLink:hover {
+  color: var(--ink);
+}
+
+.trailLink:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.trailSeparator {
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
+.trailCurrent {
+  display: block;
+  flex: 0 1 auto;
+  margin: 0;
+  overflow: hidden;
+  font-size: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

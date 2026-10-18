@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Clock } from 'lucide-react'
+import AppOverlay, { overlayStyles } from '../../../shared/components/AppOverlay/AppOverlay.jsx'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -21,6 +22,7 @@ import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
+import ProviderStrip from '../../spaces/components/ProviderStrip/ProviderStrip.jsx'
 import { fileMenuItems } from '../../spaces/components/entryActions.jsx'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
@@ -527,16 +529,38 @@ function UploadAction({ onUploadError }) {
   const connectedProviders = providers.filter(
     (provider) => provider.connected && provider.lastError !== 'RECONEXAO_NECESSARIA',
   )
-  const providerRef = useRef(connectedProviders[0]?.id ?? null)
   const menu = useSuspendedMenu(2, { menuRef })
+  // What the system picker returned, waiting for the cloud it goes to (asked only when more than
+  // one is connected).
+  const [picked, setPicked] = useState(null)
 
-  // Both options open the system picker straight away; the upload goes to the
-  // first connected provider.
+  // Both options open the system picker straight away; the cloud is asked afterwards.
   function startPicking(input) {
     menu.closeMenu()
-    providerRef.current = connectedProviders[0]?.id ?? null
     input.current?.click()
   }
+
+  function send(providerId, choice) {
+    const run = choice.kind === 'folder'
+      ? uploadFolder(providerId, choice.files)
+      : actions.uploadFiles({ providerId, parentRef: null, files: choice.files })
+    void run.catch((error) => onUploadError?.(providerId, choice.files, error))
+  }
+
+  function receive(kind, files) {
+    if (!files.length || connectedProviders.length === 0) return
+    const choice = { kind, files }
+    if (connectedProviders.length === 1) send(connectedProviders[0].id, choice)
+    else setPicked(choice)
+  }
+
+  const pickedLabel = !picked
+    ? ''
+    : picked.kind === 'folder'
+      ? `Pasta "${(picked.files[0]?.webkitRelativePath || '').split('/')[0] || 'sem nome'}"`
+      : picked.files.length === 1
+        ? picked.files[0].name
+        : `${picked.files.length} arquivos`
 
   const items = [
     { id: 'files', label: 'Enviar arquivos', icon: PixelFileEmpty, onSelect: () => startPicking(inputRef) },
@@ -623,11 +647,7 @@ function UploadAction({ onUploadError }) {
         onChange={(event) => {
           const files = Array.from(event.target.files ?? [])
           event.target.value = ''
-          const providerId = providerRef.current
-          if (!providerId || !files.length) return
-          void actions
-            .uploadFiles({ providerId, parentRef: null, files })
-            .catch((error) => onUploadError?.(providerId, files, error))
+          receive('files', files)
         }}
       />
       <input
@@ -639,13 +659,22 @@ function UploadAction({ onUploadError }) {
         onChange={(event) => {
           const files = Array.from(event.target.files ?? [])
           event.target.value = ''
-          const providerId = providerRef.current
-          if (!providerId || !files.length) return
-          void uploadFolder(providerId, files).catch((error) =>
-            onUploadError?.(providerId, files, error),
-          )
+          receive('folder', files)
         }}
       />
+      {picked ? (
+        <AppOverlay title="Enviar para" onClose={() => setPicked(null)} compact>
+          <p className={overlayStyles.lead}>{pickedLabel}</p>
+          <ProviderStrip
+            providers={connectedProviders}
+            onPick={(providerId) => {
+              const choice = picked
+              setPicked(null)
+              send(providerId, choice)
+            }}
+          />
+        </AppOverlay>
+      ) : null}
     </div>
   )
 }

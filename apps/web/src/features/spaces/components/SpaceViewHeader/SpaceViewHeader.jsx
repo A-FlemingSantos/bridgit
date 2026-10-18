@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
 import {
   isSettingsPath,
   resolveSettingsBackground,
@@ -14,6 +13,7 @@ import {
 } from '../../../../shared/state/hubStore.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import ProviderMark from '../ProviderMark.jsx'
+import { FolderTrail } from '../FolderView/FolderView.jsx'
 import { resolveSpaceViewBreadcrumb } from './resolveSpaceViewBreadcrumb.js'
 import styles from './SpaceViewHeader.module.css'
 
@@ -54,21 +54,7 @@ export default function SpaceViewHeader({
     return (
       <header className={[styles.band, styles.trailBand, className].filter(Boolean).join(' ')}>
         <div className={styles.trailRow}>
-          <div className={styles.trail}>
-            {ancestors.length > 0 ? (
-              <nav className={styles.trailNav} aria-label="Localização atual">
-                {ancestors.map((crumb, index) => (
-                  <span key={`${crumb.label}-${crumb.to ?? index}`} className={styles.trailSegment}>
-                    <Link to={crumb.to} state={crumb.state} className={styles.trailLink}>
-                      {crumb.label}
-                    </Link>
-                    <ChevronRight className={styles.trailSeparator} size={16} strokeWidth={1.6} aria-hidden="true" />
-                  </span>
-                ))}
-              </nav>
-            ) : null}
-            <h1 className={styles.trailCurrent}>{current?.label}</h1>
-          </div>
+          <FolderTrail ancestors={ancestors} current={current?.label} currentAs="h1" />
           {trailing}
         </div>
       </header>

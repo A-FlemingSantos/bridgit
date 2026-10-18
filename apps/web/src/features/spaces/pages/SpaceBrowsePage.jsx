@@ -16,6 +16,8 @@ import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
+import FolderArt from '../components/FolderArt/FolderArt.jsx'
+import { folderViewStyles, ItemGrid, TileContent } from '../components/FolderView/FolderView.jsx'
 import FolderColorPalette from '../components/FolderColorPalette/FolderColorPalette.jsx'
 import { useFolderColors } from '../folderColors.js'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
@@ -254,8 +256,7 @@ export default function SpaceBrowsePage() {
         ) : null}
 
         {folders.length > 0 ? (
-          <section className={styles.section} aria-label="Pastas">
-            <div className={styles.grid}>
+          <ItemGrid label="Pastas">
               {folders.map((item, index) => (
                 <StaggerItem
                   key={item.uiKey ?? item.ref}
@@ -263,11 +264,11 @@ export default function SpaceBrowsePage() {
                   base={0.06}
                   step={0.04}
                   variants={rise}
-                  className={styles.wrap}
+                  className={folderViewStyles.wrap}
                 >
                   <PendingAware
                     pending={item.pending}
-                    className={styles.item}
+                    className={folderViewStyles.tile}
                     render={(props) => (
                       <Link
                         {...props}
@@ -276,19 +277,11 @@ export default function SpaceBrowsePage() {
                       />
                     )}
                   >
-                    <span className={styles.face} aria-hidden="true">
-                      <span
-                        className={styles.folder}
-                        style={{ '--folder-base': folderColors.colorOf(providerId, item.ref).hex }}
-                      >
-                        <span className={styles.folderTab} />
-                        <span className={styles.folderBody} />
-                      </span>
-                    </span>
-                    <span className={styles.meta}>
-                      <span className={styles.itemTitle}>{item.name}</span>
-                      <span className={styles.itemSub}>{formatItemDate(item.modifiedAt) || 'Pasta'}</span>
-                    </span>
+                    <TileContent
+                      art={<FolderArt color={folderColors.colorOf(providerId, item.ref).hex} />}
+                      title={item.name}
+                      subtitle={formatItemDate(item.modifiedAt) || 'Pasta'}
+                    />
                   </PendingAware>
                   {item.pending ? null : (
                     <OverflowMenu
@@ -301,13 +294,11 @@ export default function SpaceBrowsePage() {
                   )}
                 </StaggerItem>
               ))}
-            </div>
-          </section>
+          </ItemGrid>
         ) : null}
 
         {files.length > 0 ? (
-          <section className={styles.section} aria-label="Arquivos">
-            <div className={styles.grid}>
+          <ItemGrid label="Arquivos">
               {files.map((item, index) => (
                 <StaggerItem
                   key={item.uiKey ?? item.ref}
@@ -315,11 +306,11 @@ export default function SpaceBrowsePage() {
                   base={0.14}
                   step={0.03}
                   variants={rise}
-                  className={styles.wrap}
+                  className={folderViewStyles.wrap}
                 >
                   <PendingAware
                     pending={item.pending}
-                    className={styles.item}
+                    className={folderViewStyles.tile}
                     render={(props) => (
                       <a
                         {...props}
@@ -329,15 +320,11 @@ export default function SpaceBrowsePage() {
                       />
                     )}
                   >
-                    <span className={styles.face} aria-hidden="true">
-                      <FileSheet file={item} />
-                    </span>
-                    <span className={styles.meta}>
-                      <span className={styles.itemTitle}>{item.name}</span>
-                      <span className={styles.itemSub}>
-                        {formatItemDate(item.modifiedAt) || itemKindLabel(item)}
-                      </span>
-                    </span>
+                    <TileContent
+                      art={<FileSheet file={item} />}
+                      title={item.name}
+                      subtitle={formatItemDate(item.modifiedAt) || itemKindLabel(item)}
+                    />
                   </PendingAware>
                   {item.pending ? null : (
                     <OverflowMenu
@@ -350,8 +337,7 @@ export default function SpaceBrowsePage() {
                   )}
                 </StaggerItem>
               ))}
-            </div>
-          </section>
+          </ItemGrid>
         ) : null}
 
         {folderQuery.nextCursor ? (

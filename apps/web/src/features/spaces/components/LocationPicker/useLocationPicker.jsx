@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import ProviderMark from '../ProviderMark.jsx'
+import ProviderStrip from '../ProviderStrip/ProviderStrip.jsx'
 import FileSheet from '../FileSheet/FileSheet.jsx'
-import folderMark from '../../assets/folder.svg'
+import FolderArt from '../FolderArt/FolderArt.jsx'
+import { FolderTrail, folderViewStyles, ItemGrid, TileContent } from '../FolderView/FolderView.jsx'
+import { useFolderColors } from '../../folderColors.js'
 import {
   getFolder,
   getFolderAncestry,
@@ -98,26 +100,13 @@ function useMockLocationPicker({
       trailing: null,
       refreshKey: 'providers',
       body: (
-        <div className={styles.stack} role="listbox" aria-label="Provedores">
-          {providers.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={styles.pick}
-              role="option"
-              onClick={() => {
-                setProviderId(item.id)
-                setFolderRef(null)
-              }}
-            >
-              <ProviderMark id={item.id} size={22} />
-              <span className={styles.pickMeta}>
-                <span className={styles.pickTitle}>{item.name}</span>
-                <span className={styles.pickSub}>Pasta</span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <ProviderStrip
+          providers={providers}
+          onPick={(id) => {
+            setProviderId(id)
+            setFolderRef(null)
+          }}
+        />
       ),
     }
   }
@@ -151,30 +140,14 @@ function useMockLocationPicker({
     body: (
       <>
         {folder ? (
-          <nav className={styles.crumbs} aria-label="Localização atual">
-            <span className={styles.crumbSegment}>
-              <button type="button" className={styles.crumb} onClick={() => setFolderRef(null)}>
-                {provider.name}
-              </button>
-              {parents.length > 0 ? (
-                <span className={styles.separator} aria-hidden="true">
-                  /
-                </span>
-              ) : null}
-            </span>
-            {parents.map((item, index) => (
-              <span key={item.folderRef} className={styles.crumbSegment}>
-                <button type="button" className={styles.crumb} onClick={() => setFolderRef(item.folderRef)}>
-                  {item.name}
-                </button>
-                {index < parents.length - 1 ? (
-                  <span className={styles.separator} aria-hidden="true">
-                    /
-                  </span>
-                ) : null}
-              </span>
-            ))}
-          </nav>
+          <FolderTrail
+            size="compact"
+            ancestors={[
+              { label: provider.name, onSelect: () => setFolderRef(null) },
+              ...parents.map((item) => ({ label: item.name, onSelect: () => setFolderRef(item.folderRef) })),
+            ]}
+            current={folder.name}
+          />
         ) : initialProviderId ? null : (
           <button type="button" className={styles.more} onClick={() => setProviderId(null)}>
             Provedores
@@ -186,14 +159,14 @@ function useMockLocationPicker({
         ) : (
           <>
             {contents.folders.length > 0 ? (
-              <div className={styles.grid}>
+              <ItemGrid label="Pastas" fill tileWidth="132px">
                 {contents.folders.map((item) => {
                   const blocked = blockedRefs.includes(item.folderRef)
                   return (
                     <button
                       key={item.folderRef}
                       type="button"
-                      className={styles.item}
+                      className={folderViewStyles.tile}
                       disabled={blocked}
                       title={blocked ? blockedHint : undefined}
                       onClick={() => {
@@ -201,46 +174,29 @@ function useMockLocationPicker({
                         setFolderRef(item.folderRef)
                       }}
                     >
-                      <span className={styles.face} aria-hidden="true">
-                        <span
-                          className={styles.folderMark}
-                          style={{ '--folder-mark': `url("${folderMark}")` }}
-                        />
-                      </span>
-                      <span className={styles.meta}>
-                        <span className={styles.itemTitle}>{item.name}</span>
-                        <span className={styles.itemSub}>Pasta · {item.provider}</span>
-                      </span>
+                      <TileContent art={<FolderArt size="small" />} title={item.name} subtitle={`Pasta · ${item.provider}`} />
                     </button>
                   )
                 })}
-              </div>
+              </ItemGrid>
             ) : null}
             {!foldersOnly && contents.files.length > 0 ? (
-              <div className={styles.grid}>
+              <ItemGrid label="Arquivos" fill tileWidth="132px">
                 {contents.files.map((item) => (
                   <button
                     key={item.fileRef}
                     type="button"
-                    className={styles.item}
+                    className={folderViewStyles.tile}
                     onClick={() =>
                       onChoose?.(
                         item.folderRef ? makeFolderLocationFromState(state, item.folderRef) : null,
                       )
                     }
                   >
-                    <span className={styles.face} aria-hidden="true">
-                      <FileSheet />
-                    </span>
-                    <span className={styles.meta}>
-                      <span className={styles.itemTitle}>{item.title}</span>
-                      <span className={styles.itemSub}>
-                        {item.kind} · {item.provider}
-                      </span>
-                    </span>
+                    <TileContent art={<FileSheet />} title={item.title} subtitle={`${item.kind} · ${item.provider}`} />
                   </button>
                 ))}
-              </div>
+              </ItemGrid>
             ) : null}
           </>
         )}
@@ -259,6 +215,7 @@ function useApiLocationPicker({
   resetKey,
 } = {}) {
   const { providers } = useProviders()
+  const folderColors = useFolderColors()
   const [destination, setDestination] = useState(null)
   const [continuationError, setContinuationError] = useState(null)
   const providerId = initialProviderId
@@ -367,36 +324,17 @@ function useApiLocationPicker({
     const showEmpty = folders.length === 0 && exhausted
     bodyContent = (
       <>
-        {folderRef ? (
-          <nav className={styles.crumbs} aria-label="Localização atual">
-            <span className={styles.crumbSegment}>
-              <button type="button" className={styles.crumb} onClick={goRoot}>
-                {provider.name}
-              </button>
-              {parents.length > 0 ? (
-                <span className={styles.separator} aria-hidden="true">
-                  /
-                </span>
-              ) : null}
-            </span>
-            {parents.map((item, index) => (
-              <span key={item.ref} className={styles.crumbSegment}>
-                <button
-                  type="button"
-                  className={styles.crumb}
-                  onClick={() => goTo(item.ref, item.name)}
-                >
-                  {item.name}
-                </button>
-                {index < parents.length - 1 ? (
-                  <span className={styles.separator} aria-hidden="true">
-                    /
-                  </span>
-                ) : null}
-              </span>
-            ))}
-          </nav>
-        ) : null}
+        {/* Where the item goes, like the folder pages: the cloud, the folders above, then this one. */}
+        <FolderTrail
+          size="compact"
+          ancestors={folderRef
+            ? [
+                { label: provider.name, onSelect: goRoot },
+                ...parents.map((item) => ({ label: item.name, onSelect: () => goTo(item.ref, item.name) })),
+              ]
+            : []}
+          current={folderRef ? (destination?.name ?? folderQuery.folder?.name ?? '') : provider.name}
+        />
 
         {folderQuery.status === 'error' ? (
           <p className={styles.hint} role="alert">
@@ -412,14 +350,14 @@ function useApiLocationPicker({
         {showEmpty ? (
           <p className={styles.empty}>Esta pasta está vazia.</p>
         ) : (
-          <div className={styles.grid}>
+          <ItemGrid label="Pastas" fill>
             {folders.map((item) => {
               const blocked = blockedRefs.includes(item.ref)
               return (
                 <button
                   key={item.ref}
                   type="button"
-                  className={styles.item}
+                  className={folderViewStyles.tile}
                   disabled={blocked}
                   title={blocked ? blockedHint : undefined}
                   onClick={() => {
@@ -427,20 +365,15 @@ function useApiLocationPicker({
                     goTo(item.ref, item.name)
                   }}
                 >
-                  <span className={styles.face} aria-hidden="true">
-                    <span
-                      className={styles.folderMark}
-                      style={{ '--folder-mark': `url("${folderMark}")` }}
-                    />
-                  </span>
-                  <span className={styles.meta}>
-                    <span className={styles.itemTitle}>{item.name}</span>
-                    <span className={styles.itemSub}>Pasta · {provider.name}</span>
-                  </span>
+                  <TileContent
+                    art={<FolderArt color={folderColors.colorOf(provider.id, item.ref).hex} />}
+                    title={item.name}
+                    subtitle="Pasta"
+                  />
                 </button>
               )
             })}
-          </div>
+          </ItemGrid>
         )}
 
         {hasMore ? (
@@ -470,6 +403,12 @@ function useApiLocationPicker({
     refreshKey: `${provider.id}-${folderRef ?? 'root'}`,
     validated,
     chosenLocation,
+    chooseDisabled,
+    blockedReason: currentBlocked ? blockedHint : null,
+    choose: () => {
+      if (chooseDisabled) return
+      onChoose?.(chosenLocation)
+    },
     trailing: (
       <button
         type="button"

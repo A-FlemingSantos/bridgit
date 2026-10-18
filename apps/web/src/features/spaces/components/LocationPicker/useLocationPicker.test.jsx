@@ -12,6 +12,11 @@ vi.mock('../../../../shared/state/HubState.jsx', () => ({
   useHub: () => ({ state: { providers: [] } }),
 }))
 
+// Folder colors are stored per user; the picker only needs the default one here.
+vi.mock('../../folderColors.js', () => ({
+  useFolderColors: () => ({ colorOf: () => ({ id: 'carbon', hex: '#4a4a4a' }) }),
+}))
+
 import { useFolder, useProviders } from '../../../../shared/hub/index.js'
 
 const PROVIDERS = [{ id: 'onedrive', name: 'OneDrive' }]

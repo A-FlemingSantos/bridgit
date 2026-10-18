@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import AppOverlay, { overlayStyles as styles } from '../components/AppOverlay/AppOverlay.jsx'
-import ProviderMark from '../../features/spaces/components/ProviderMark.jsx'
+import { PixelClose, PixelSave } from '../components/PixelIcons/PixelIcons.jsx'
+import ProviderStrip from '../../features/spaces/components/ProviderStrip/ProviderStrip.jsx'
 import { useLocationPicker } from '../../features/spaces/components/LocationPicker/useLocationPicker.jsx'
 import { getSpace } from './hubStore.js'
 import { hubErrorMessage } from './hubErrorMessage.js'
@@ -39,7 +40,7 @@ export default function HubOverlays() {
           </button>
           <button
             type="button"
-            className={styles.primary}
+            className={styles.danger}
             onClick={() => dispatch({ type: 'deleteSpace', spaceId: space.space_id })}
           >
             Excluir
@@ -105,11 +106,12 @@ function NameOverlay({ overlay }) {
     !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
 
   const title =
-    overlay.kind === 'space' || renaming ? 'Renomear' : overlay.kind === 'file' ? 'Criar' : 'Nova pasta'
+    overlay.kind === 'space' || renaming ? 'Renomear' : overlay.kind === 'file' ? 'Novo arquivo' : 'Nova pasta'
   const label = overlay.kind === 'file' ? 'Nome do arquivo' : 'Nome'
   const submitLabel = overlay.kind === 'space' || renaming ? 'Salvar' : 'Criar'
   const provider = providerId ? providers.find((item) => item.id === providerId) : null
   const connectedProviders = providers.filter((item) => item.connected)
+  const thing = overlay.kind === 'file' ? 'o arquivo' : 'a pasta'
 
   async function submit() {
     const name = value.trim()
@@ -159,38 +161,20 @@ function NameOverlay({ overlay }) {
 
   return (
     <AppOverlay
-      title={!provider && needsProvider ? 'Provedor' : title}
+      title={!provider && needsProvider ? `Onde criar ${thing}?` : title}
       onClose={closeOverlay}
       compact
-      trailing={
-        !provider && needsProvider ? null : (
-          <button
-            type="button"
-            className={styles.choose}
-            disabled={!value.trim() || (needsProvider && !providerId) || pending}
-            onClick={() => void submit()}
-          >
-            {submitLabel}
-          </button>
-        )
-      }
     >
       {needsProvider && !provider ? (
-        <div className={styles.stack} role="listbox" aria-label="Provedores">
-          {connectedProviders.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={styles.pick}
-              role="option"
-              onClick={() => setProviderId(item.id)}
-            >
-              <ProviderMark id={item.id} size={22} />
-              <span className={styles.pickTitle}>{item.name}</span>
-            </button>
-          ))}
-        </div>
+        <ProviderStrip providers={connectedProviders} onPick={setProviderId} />
       ) : (
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+        >
         <div className={styles.field}>
           <label htmlFor="hub-name">{label}</label>
           {fileExtension ? (
@@ -201,6 +185,7 @@ function NameOverlay({ overlay }) {
                 onChange={(event) => setValue(event.target.value)}
                 autoComplete="off"
                 disabled={pending}
+                autoFocus
               />
               <span className={styles.nameExtension} aria-label={`Extensão ${fileExtension}`}>
                 {fileExtension}
@@ -213,15 +198,29 @@ function NameOverlay({ overlay }) {
               onChange={(event) => setValue(event.target.value)}
               autoComplete="off"
               disabled={pending}
+              autoFocus
             />
           )}
         </div>
+        {error ? (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className={styles.actions}>
+          <button type="button" className={styles.secondary} onClick={closeOverlay} disabled={pending}>
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className={styles.primary}
+            disabled={!value.trim() || (needsProvider && !providerId) || pending}
+          >
+            {submitLabel}
+          </button>
+        </div>
+        </form>
       )}
-      {error ? (
-        <p className={styles.hint} role="alert">
-          {error}
-        </p>
-      ) : null}
     </AppOverlay>
   )
 }
@@ -283,13 +282,30 @@ function MoveOverlay({ overlay }) {
     <AppOverlay
       title="Mover"
       onClose={closeOverlay}
-      compact
-      trailing={picker.trailing}
+      explorer
       refreshKey={picker.refreshKey}
+      footer={
+        <>
+          <button type="button" className={styles.ghost} onClick={closeOverlay} disabled={pending}>
+            <PixelClose size={20} />
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className={styles.ghost}
+            disabled={pending || picker.chooseDisabled}
+            title={picker.blockedReason ?? undefined}
+            onClick={picker.choose}
+          >
+            <PixelSave size={20} />
+            {pending ? 'Movendo…' : 'Salvar'}
+          </button>
+        </>
+      }
     >
       {picker.body}
       {error ? (
-        <p className={styles.hint} role="alert">
+        <p className={styles.error} role="alert">
           {error}
         </p>
       ) : null}
@@ -358,7 +374,7 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
         <button type="button" className={styles.secondary} onClick={closeOverlay} disabled={pending}>
           Cancelar
         </button>
-        <button type="button" className={styles.primary} onClick={() => void confirmDelete()} disabled={pending}>
+        <button type="button" className={styles.danger} onClick={() => void confirmDelete()} disabled={pending}>
           Excluir
         </button>
       </div>
@@ -471,7 +487,7 @@ function PublicLinkOverlay({ overlay }) {
             >
               Copiar
             </button>
-            <button type="button" className={styles.primary} disabled={pending} onClick={() => void disableLink()}>
+            <button type="button" className={styles.danger} disabled={pending} onClick={() => void disableLink()}>
               Revogar
             </button>
           </>

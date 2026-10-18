@@ -33,6 +33,7 @@
   width: min(720px, 100%);
   height: min(560px, calc(100dvh - 48px));
   overflow: hidden;
+  border-radius: 20px;
   background: var(--paper);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent),
@@ -41,7 +42,7 @@
 }
 
 .compact {
-  width: min(420px, 100%);
+  width: min(460px, 100%);
   height: auto;
   max-height: min(560px, calc(100dvh - 48px));
 }
@@ -52,21 +53,36 @@
   max-height: min(560px, calc(100dvh - 48px));
 }
 
+/* A file browser inside a dialog: same size whatever the folder holds. */
+.explorer {
+  width: min(960px, 100%);
+  height: min(720px, calc(100dvh - 48px));
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--line);
+}
+
 .chrome {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex: 0 0 auto;
-  padding: 14px 18px 0 22px;
+  padding: 18px 16px 0 24px;
 }
 
 .chrome h2 {
   margin: 0;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--mute);
+  letter-spacing: -0.035em;
+  color: var(--ink);
 }
 
 .trailing {
@@ -78,15 +94,17 @@
 .close {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--mute);
   cursor: pointer;
 }
 
 .close:hover {
+  background: var(--raise);
   color: var(--ink);
 }
 
@@ -104,12 +122,13 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 12px 22px 28px;
+  padding: 14px 24px 24px;
 }
 
 .lead {
   margin: 0;
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
   color: var(--mute);
   letter-spacing: -0.01em;
   max-width: 52ch;
@@ -173,6 +192,19 @@
   color: var(--mute);
 }
 
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--danger);
+  letter-spacing: -0.01em;
+}
+
 .hint {
   margin: 0;
   font-size: 12px;
@@ -181,23 +213,33 @@
 }
 
 .actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: 8px;
+  margin-top: 4px;
 }
 
 .primary,
 .secondary,
+.danger,
 .choose {
-  height: 32px;
-  padding: 0 12px;
+  height: 40px;
+  padding: 0 16px;
   border: 0;
+  border-radius: 12px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   letter-spacing: -0.02em;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.choose {
+  height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .primary,
@@ -207,21 +249,60 @@
 }
 
 .secondary {
-  background: color-mix(in srgb, var(--ink) 10%, var(--wash));
+  background: var(--raise);
   color: var(--ink);
 }
 
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--raise);
+}
+
+.ghost:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.danger {
+  background: var(--danger);
+  color: #fff;
+}
+
 .primary:hover,
+.danger:hover,
 .choose:hover {
-  opacity: 0.92;
+  opacity: 0.9;
 }
 
 .secondary:hover {
-  background: color-mix(in srgb, var(--ink) 16%, var(--wash));
+  background: var(--line);
 }
 
 .primary:focus-visible,
 .secondary:focus-visible,
+.danger:focus-visible,
 .choose:focus-visible,
 .more:focus-visible {
   outline: 2px solid var(--ink);
@@ -229,6 +310,8 @@
 }
 
 .primary:disabled,
+.secondary:disabled,
+.danger:disabled,
 .choose:disabled {
   opacity: 0.4;
   cursor: default;
@@ -262,10 +345,11 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: calc(clamp(28px, 4vw, 40px) * 1.15);
-  padding: 0 12px;
+  min-height: 52px;
+  padding: 0 14px;
   border: 0;
-  background: var(--wash);
+  border-radius: 12px;
+  background: var(--raise);
   color: var(--ink);
   font: inherit;
   font-size: 13px;
@@ -276,7 +360,7 @@
 }
 
 .pick:hover {
-  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+  background: var(--line);
 }
 
 .pick:focus-visible {
@@ -304,124 +388,6 @@
   font-size: 11px;
   color: var(--mute);
   letter-spacing: -0.01em;
-}
-
-.crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 2px;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 12px;
-  letter-spacing: -0.01em;
-}
-
-.crumbSegment {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.crumb {
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mute);
-  font: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.crumb:hover {
-  color: var(--ink);
-}
-
-.separator {
-  flex-shrink: 0;
-  color: var(--mute);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.item {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.item:hover .face {
-  background: color-mix(in srgb, var(--ink) 6%, var(--wash));
-}
-
-.item:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.item:disabled:hover .face {
-  background: var(--wash);
-}
-
-.face {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 16 / 10;
-  background: var(--wash);
-}
-
-.folderMark {
-  width: 28%;
-  max-width: 56px;
-  aspect-ratio: 1;
-  background: var(--ink);
-  -webkit-mask: var(--folder-mark) center / contain no-repeat;
-  mask: var(--folder-mark) center / contain no-repeat;
-}
-
-.itemTitle {
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.itemSub {
-  overflow: hidden;
-  font-size: 11px;
-  color: var(--mute);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 0 2px;
 }
 
 .empty {
@@ -495,12 +461,6 @@
   margin: 0;
   align-self: center;
   color: var(--mute);
-}
-
-@media (max-width: 980px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 720px) {

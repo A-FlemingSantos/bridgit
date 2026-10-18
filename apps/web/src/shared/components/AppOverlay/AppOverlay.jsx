@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { PixelClose } from '../PixelIcons/PixelIcons.jsx'
 import CustomScrollArea from '../CustomScrollArea/CustomScrollArea.jsx'
 import styles from './AppOverlay.module.css'
 
@@ -14,7 +14,9 @@ export default function AppOverlay({
   onClose,
   compact = false,
   wide = false,
+  explorer = false,
   trailing = null,
+  footer = null,
   labelledBy,
   refreshKey = 'overlay',
 }) {
@@ -74,6 +76,7 @@ export default function AppOverlay({
               styles.panel,
               compact ? styles.compact : '',
               wide ? styles.wide : '',
+              explorer ? styles.explorer : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -91,13 +94,14 @@ export default function AppOverlay({
               <div className={styles.trailing}>
                 {trailing}
                 <button type="button" className={styles.close} onClick={close} aria-label="Fechar">
-                  <X size={16} strokeWidth={1.7} aria-hidden="true" />
+                  <PixelClose size={24} />
                 </button>
               </div>
             </div>
             <CustomScrollArea className={styles.body} refreshKey={refreshKey}>
               <div className={styles.main}>{children}</div>
             </CustomScrollArea>
+            {footer ? <div className={styles.footer}>{footer}</div> : null}
           </motion.div>
         </motion.div>
       ) : null}

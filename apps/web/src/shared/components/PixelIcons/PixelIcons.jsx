@@ -111,3 +111,41 @@ export function PixelTrash() {
     <PixelIcon path="M18 22H6V20H18V22ZM9 6H15V4H17V6H22V8H20V20H18V8H6V20H4V8H2V6H7V4H9V6ZM15 4H9V2H15V4Z" />
   )
 }
+
+// Close "x" for dialogs and the settings panel. Unlike the menu icons above, it keeps its own size.
+export function PixelClose({ size = 24 }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: 'block' }}
+    >
+      <path d="M7 19H5v-2h2v2Zm12 0h-2v-2h2v2ZM9 15v2H7v-2h2Zm8 2h-2v-2h2v2Zm-6-2H9v-2h2v2Zm4 0h-2v-2h2v2Zm-2-2h-2v-2h2v2Zm-2-2H9V9h2v2Zm4 0h-2V9h2v2ZM9 9H7V7h2v2Zm8 0h-2V7h2v2ZM7 7H5V5h2v2Zm12 0h-2V5h2v2Z" />
+    </svg>
+  )
+}
+
+// Floppy disk for "Salvar"; keeps its own size like PixelClose.
+export function PixelSave({ size = 24 }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: 'block' }}
+    >
+      <path d="M20 22H4v-2h2v-6h2v6h8v-6h2v6h2v2ZM4 20H2V4h2v16Zm18 0h-2V6h2v14Zm-6-6H8v-2h8v2Zm-4-4H6V6h6v4Zm8-4h-2V4h2v2Zm-2-2H4V2h14v2Z" />
+    </svg>
+  )
+}
