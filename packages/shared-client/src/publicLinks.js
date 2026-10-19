@@ -1,6 +1,6 @@
 import { apiRequest } from './apiClient.js'
 
-export const MAX_LINK_ALIAS_LENGTH = 60
+const MAX_LINK_ALIAS_LENGTH = 60
 
 const ALIAS_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 // New links carry a 4-char lowercase code; legacy links a 16-char base62 one (case matters).
@@ -32,7 +32,7 @@ export function getPublicLinkItem(linkRef, itemRef) {
   return apiRequest(`${linkBase(linkRef)}/items/${encodeURIComponent(itemRef)}`)
 }
 
-export function isValidLinkAlias(alias) {
+function isValidLinkAlias(alias) {
   if (typeof alias !== 'string') return false
   const value = alias.toLowerCase()
   return value.length >= 1 && value.length <= MAX_LINK_ALIAS_LENGTH && ALIAS_PATTERN.test(value)
@@ -49,14 +49,4 @@ export function parseLinkRef(linkRef) {
   if (!isValidLinkAlias(alias) || !CODE_PATTERN.test(code)) return null
 
   return { alias, code }
-}
-
-// Does not truncate: callers check the length against MAX_LINK_ALIAS_LENGTH.
-export function normalizeLinkAlias(raw) {
-  return String(raw ?? '')
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
 }

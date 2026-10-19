@@ -20,7 +20,6 @@ import {
   removeShortcut,
   search,
   updateItem,
-  updatePublicLink,
   uploadFile,
 } from './hub.js'
 import { ApiClientError, apiRequest } from './apiClient.js'
@@ -284,16 +283,6 @@ describe('hub api', () => {
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc/public-link', {
       method: 'DELETE',
       token,
-    })
-  })
-
-  it('updatePublicLink patches the alias on the encoded item path', async () => {
-    apiRequest.mockResolvedValue({ url: 'https://public', alias: 'fotos', code: 'ab12', kind: 'folder', suffix: 'fotos-ab12' })
-    await updatePublicLink(token, 'onedrive', 'a/b', { alias: 'fotos' })
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/a%2Fb/public-link', {
-      method: 'PATCH',
-      token,
-      body: { alias: 'fotos' },
     })
   })
 

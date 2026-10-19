@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getPublicLinkItem,
   getPublicLinkMetadata,
-  isValidLinkAlias,
   listPublicLinkFolder,
-  normalizeLinkAlias,
   parseLinkRef,
 } from './publicLinks.js'
 import { apiRequest } from './apiClient.js'
@@ -84,46 +82,5 @@ describe('parseLinkRef', () => {
 
   it('accepts an alias of exactly 60 chars', () => {
     expect(parseLinkRef(`${'a'.repeat(60)}-ab12`)).toEqual({ alias: 'a'.repeat(60), code: 'ab12' })
-  })
-})
-
-describe('normalizeLinkAlias', () => {
-  it('strips accents, lowercases and dashes separators', () => {
-    expect(normalizeLinkAlias('Relatório Final 2024')).toBe('relatorio-final-2024')
-    expect(normalizeLinkAlias('  Ação & Coração!! ')).toBe('acao-coracao')
-  })
-
-  it('collapses and trims dashes', () => {
-    expect(normalizeLinkAlias('--a___b--c--')).toBe('a-b-c')
-  })
-
-  it('returns an empty string when nothing is left', () => {
-    expect(normalizeLinkAlias('')).toBe('')
-    expect(normalizeLinkAlias('!!!')).toBe('')
-    expect(normalizeLinkAlias(null)).toBe('')
-  })
-
-  it('does not truncate', () => {
-    expect(normalizeLinkAlias('a'.repeat(100))).toHaveLength(100)
-  })
-})
-
-describe('isValidLinkAlias', () => {
-  it('accepts valid aliases', () => {
-    expect(isValidLinkAlias('a')).toBe(true)
-    expect(isValidLinkAlias('minhas-fotos-2024')).toBe(true)
-    expect(isValidLinkAlias('Fotos')).toBe(true)
-    expect(isValidLinkAlias('a'.repeat(60))).toBe(true)
-  })
-
-  it('rejects invalid aliases', () => {
-    expect(isValidLinkAlias('')).toBe(false)
-    expect(isValidLinkAlias('-a')).toBe(false)
-    expect(isValidLinkAlias('a-')).toBe(false)
-    expect(isValidLinkAlias('a--b')).toBe(false)
-    expect(isValidLinkAlias('a b')).toBe(false)
-    expect(isValidLinkAlias('ação')).toBe(false)
-    expect(isValidLinkAlias('a'.repeat(61))).toBe(false)
-    expect(isValidLinkAlias(undefined)).toBe(false)
   })
 })

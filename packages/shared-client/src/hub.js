@@ -167,14 +167,6 @@ export function enablePublicLink(token, provider, ref) {
   })
 }
 
-export function updatePublicLink(token, provider, ref, { alias } = {}) {
-  return apiRequest(`${itemPath(provider, ref)}/public-link`, {
-    method: 'PATCH',
-    token,
-    body: { alias },
-  })
-}
-
 export function disablePublicLink(token, provider, ref) {
   return apiRequest(`${itemPath(provider, ref)}/public-link`, {
     method: 'DELETE',
