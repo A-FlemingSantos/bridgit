@@ -32,6 +32,8 @@ import { staleCatalogNotice } from './staleCatalogNotice.js'
 // Open pixel folder drawn in the empty-folder state.
 const FOLDER_OPEN = 'M3 4h8v2H3zM1 6h2v12H1zM9 6h10v2H9zM19 8h2v2h-2zM7 10h15v2H7zM5 12h2v2H5zM20 12h2v2h-2zM3 14h2v2H3zM18 14h2v2h-2zM16 16h2v2h-2zM3 18h13v2H3z'
 
+const EXIT_SECONDS = 0.2
+
 const rise = {
   hidden: { opacity: 0, y: 10 },
   show: (delay) => ({
@@ -39,7 +41,7 @@ const rise = {
     y: 0,
     transition: { duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] },
   }),
-  exit: { opacity: 0, scale: 0.9, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, scale: 0.9, transition: { duration: EXIT_SECONDS, ease: [0.22, 1, 0.36, 1] } },
 }
 
 // The name field that replaces a tile's title while a name is typed. Enter confirms and Escape cancels.
@@ -136,6 +138,9 @@ export default function SpaceBrowsePage() {
   // The folder being named. Its key is the one its pending entry will carry, so the same row goes
   // from name field to pending to created without being remounted.
   const [draftKey, setDraftKey] = useState(null)
+  // A dropped draft fades out in place first; only once it is gone do the other folders close the gap,
+  // the creation animation played backwards.
+  const [leavingDraftKey, setLeavingDraftKey] = useState(null)
   const [renamingRef, setRenamingRef] = useState(null)
   // A draft belongs to the folder it was opened in; moving to another folder drops it.
   useEffect(() => { setDraftKey(null) }, [providerId, folderRef])
@@ -188,6 +193,15 @@ export default function SpaceBrowsePage() {
     } catch (error) {
       setActionError(hubErrorMessage(error))
     }
+  }
+
+  function dropDraft() {
+    const key = draftKey
+    setLeavingDraftKey(key)
+    setTimeout(() => {
+      setDraftKey((current) => (current === key ? null : current))
+      setLeavingDraftKey((current) => (current === key ? null : current))
+    }, EXIT_SECONDS * 1000)
   }
 
   async function createFolder(name) {
@@ -350,6 +364,7 @@ export default function SpaceBrowsePage() {
                   step={0.04}
                   variants={rise}
                   layout
+                  leaving={item.draft && leavingDraftKey === draftKey}
                   className={folderViewStyles.wrap}
                 >
                   {item.draft ? (
@@ -362,7 +377,7 @@ export default function SpaceBrowsePage() {
                             label="Nome da nova pasta"
                             creating
                             onCommit={(name) => void createFolder(name)}
-                            onCancel={() => setDraftKey(null)}
+                            onCancel={dropDraft}
                           />
                         }
                         subtitle="Pasta"
