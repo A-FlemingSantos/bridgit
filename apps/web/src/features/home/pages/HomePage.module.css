@@ -324,7 +324,7 @@
 
 .rowWrap {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
 }
 

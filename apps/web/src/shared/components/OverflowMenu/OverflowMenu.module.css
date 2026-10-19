@@ -11,6 +11,21 @@
   z-index: 2;
 }
 
+/* Context menu: covers the card without taking clicks; the anchor marks where the pointer was. */
+.contextDock {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
 .inline {
   position: relative;
 }

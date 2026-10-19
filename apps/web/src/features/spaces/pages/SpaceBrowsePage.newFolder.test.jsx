@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SpaceBrowsePage from './SpaceBrowsePage.jsx'
 
@@ -49,8 +49,10 @@ function setup() {
 
 // Lets a test move to another folder of the same page, as a click on a folder tile would.
 let goTo = null
+let currentPath = null
 function NavigateProbe() {
   goTo = useNavigate()
+  currentPath = useLocation().pathname
   return null
 }
 
@@ -96,7 +98,8 @@ describe('SpaceBrowsePage new folder draft', () => {
     const field = await openDraft(user)
     field.blur()
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument())
+    // The draft leaves with an exit animation, which can run long when the whole suite is busy.
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument(), { timeout: 3000 })
     expect(createFolder).not.toHaveBeenCalled()
   })
 
@@ -108,7 +111,8 @@ describe('SpaceBrowsePage new folder draft', () => {
     await openDraft(user)
     await user.keyboard('{Escape}')
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument())
+    // The draft leaves with an exit animation, which can run long when the whole suite is busy.
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument(), { timeout: 3000 })
     expect(createFolder).not.toHaveBeenCalled()
   })
 
@@ -120,7 +124,72 @@ describe('SpaceBrowsePage new folder draft', () => {
     await openDraft(user)
     goTo('/providers/onedrive/folder/folder-a')
 
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument())
+    // The draft leaves with an exit animation, which can run long when the whole suite is busy.
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument(), { timeout: 3000 })
     expect(createFolder).not.toHaveBeenCalled()
+  })
+})
+
+describe('SpaceBrowsePage tile selection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('clicar no contorno seleciona sem abrir; no nome, abre', async () => {
+    const user = userEvent.setup()
+    setup()
+    renderPage()
+
+    const tile = await screen.findByRole('link', { name: /Anexos/ })
+    await user.click(tile)
+    expect(tile).toHaveAttribute('data-selected', 'true')
+    expect(tile.closest('main')).toBeInTheDocument()
+
+    await user.click(within(tile).getByText('Anexos'))
+    await waitFor(() => expect(currentPath).toBe('/providers/onedrive/folder/folder-a'))
+  })
+
+  it('clicar fora tira a seleção', async () => {
+    const user = userEvent.setup()
+    setup()
+    renderPage()
+
+    const tile = await screen.findByRole('link', { name: /Anexos/ })
+    await user.click(tile)
+    expect(tile).toHaveAttribute('data-selected', 'true')
+    await user.click(document.body)
+    expect(tile).not.toHaveAttribute('data-selected')
+  })
+})
+
+describe('SpaceBrowsePage multiple selection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('cada clique no destaque soma ou tira o item; Shift soma o intervalo', async () => {
+    const user = userEvent.setup()
+    setup()
+    renderPage()
+
+    const anexos = await screen.findByRole('link', { name: /Anexos/ })
+    const documentos = screen.getByRole('link', { name: /Documentos/ })
+    const selected = () => screen.queryAllByRole('link').filter((link) => link.getAttribute('data-selected') === 'true')
+
+    await user.click(anexos)
+    await user.click(documentos)
+    expect(selected()).toEqual([anexos, documentos])
+
+    await user.click(anexos)
+    expect(selected()).toEqual([documentos])
+
+    await user.click(documentos)
+    expect(selected()).toEqual([])
+
+    await user.click(anexos)
+    await user.keyboard('{Shift>}')
+    await user.click(documentos)
+    await user.keyboard('{/Shift}')
+    expect(selected()).toEqual([anexos, documentos])
   })
 })

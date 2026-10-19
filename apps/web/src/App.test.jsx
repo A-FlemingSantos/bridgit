@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +31,13 @@ const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true 
 // page's <main>, re-queried because the page swaps it out once data loads.
 function findPageButton(name) {
   return waitFor(() => within(screen.getByRole('main')).getByRole('button', { name }))
+}
+
+// Items have no "..." button: their menu opens with a right click on the tile.
+async function openItemMenu(name) {
+  const tile = await waitFor(() => within(screen.getByRole('main')).getByRole('link', { name: new RegExp(name) }))
+  fireEvent.contextMenu(tile, { clientX: 40, clientY: 40 })
+  return screen.findByRole('menuitem', { name: 'Renomear' })
 }
 
 const testSessionResponse = {
@@ -652,7 +659,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await findPageButton('Ações de Relatório 2023'))
+    await openItemMenu('Relatório 2023')
     expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Espelhar' })).not.toBeInTheDocument()
@@ -670,7 +677,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await findPageButton('Ações de Relatório 2023'))
+    await openItemMenu('Relatório 2023')
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
     const input = screen.getByLabelText('Novo nome de Relatório 2023')
     await user.clear(input)
@@ -691,7 +698,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await findPageButton('Ações de Relatório 2023'))
+    await openItemMenu('Relatório 2023')
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
     const input = screen.getByLabelText('Novo nome de Relatório 2023')
     await user.clear(input)
@@ -709,7 +716,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await findPageButton('Ações de Relatório 2023'))
+    await openItemMenu('Relatório 2023')
     await user.click(screen.getByRole('menuitem', { name: 'Mover' }))
     const dialog = screen.getByRole('dialog', { name: 'Mover' })
     await user.click(within(dialog).getByRole('button', { name: /Referências de código/ }))
@@ -723,7 +730,8 @@ describe('App', () => {
       expect(within(screen.getByRole('main')).queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
     })
 
-    await user.click(within(screen.getByRole('main')).getByRole('link', { name: /Referências de código/ }))
+    // The name opens the folder; the rest of the tile only selects it.
+    await user.click(within(within(screen.getByRole('main')).getByRole('link', { name: /Referências de código/ })).getByText('Referências de código'))
     await waitFor(() => {
       expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
     })
@@ -738,7 +746,7 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await findPageButton('Ações de Inovações técnicas'))
+    await openItemMenu('Inovações técnicas')
     expect(screen.getByRole('menuitem', { name: 'Renomear' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Mover' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Espelhar' })).not.toBeInTheDocument()
@@ -845,14 +853,13 @@ describe('App', () => {
     // userEvent.setup() installs its own clipboard stub, so this spy goes in after it.
     const writeText = vi.spyOn(navigator.clipboard, 'writeText')
 
-    await user.click(await findPageButton('Ações de Relatório 2023'))
-    const trigger = await findPageButton('Ações de Relatório 2023')
+    const menu = (await openItemMenu('Relatório 2023')).closest('[role="menu"]')
     await user.click(screen.getByRole('menuitem', { name: 'Link público' }))
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://bridgit.test/p/abc123'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     // The menu stays open, so the filled item stays in view.
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(menu.className).toMatch(/extrasOpen/)
   })
 
   it('busca um ticket novo ao clicar em Baixar', async () => {

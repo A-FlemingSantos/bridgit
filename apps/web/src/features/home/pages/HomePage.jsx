@@ -458,8 +458,7 @@ export default function HomePage() {
                       </span>
                     </a>
                     <OverflowMenu
-                      ghost
-                      hoverReveal
+                      contextual
                       label={`Ações de ${file.name}`}
                       title={file.name}
                       items={fileMenuItems(entryMenuFile(file), menuContext(file))}
@@ -499,8 +498,7 @@ export default function HomePage() {
                       </span>
                     </a>
                     <OverflowMenu
-                      floating
-                      hoverReveal
+                      contextual
                       label={`Ações de ${file.name}`}
                       title={file.name}
                       items={fileMenuItems(entryMenuFile(file), menuContext(file))}

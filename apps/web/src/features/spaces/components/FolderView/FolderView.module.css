@@ -33,8 +33,36 @@
   transition: background-color 120ms ease;
 }
 
+/* A selectable tile opens only from its drawing and name, so only those show the hand. */
+.tile[data-selectable] {
+  cursor: default;
+  user-select: none;
+}
+
+.tile[data-selectable] [data-tile-hit] {
+  cursor: pointer;
+}
+
 .tile:hover:not(:disabled) {
   background: var(--wash);
+}
+
+/* A selected tile fills its highlight with the opposite theme's color; what sits on it flips too. */
+.tile[data-selected='true'],
+.tile[data-selected='true']:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Selecting swaps colors that cannot all fade together, so the change lands at once (no blink). */
+.tile[data-instant],
+.tile[data-instant] * {
+  transition: none !important;
+}
+
+.tile[data-selected='true'] > * {
+  --ink: var(--paper);
+  --mute: color-mix(in srgb, var(--paper) 60%, transparent);
 }
 
 .tile:focus-visible {
@@ -46,6 +74,10 @@
 .tile:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.hit {
+  display: contents;
 }
 
 .face {

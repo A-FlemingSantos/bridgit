@@ -18,6 +18,8 @@ export default function AnchoredSuspendedMenu({
   hostRef = null,
   panelRef = null,
   prefer = 'beside',
+  // Changes when the anchor itself moves (a context menu opened at another point): place it again.
+  anchorKey = null,
 }) {
   const [coords, setCoords] = useState(null)
   const visible = open || closing
@@ -52,7 +54,7 @@ export default function AnchoredSuspendedMenu({
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [visible, items.length, hasDanger, hasTitle, triggerRef, hostRef, prefer])
+  }, [visible, items.length, hasDanger, hasTitle, triggerRef, hostRef, prefer, anchorKey])
 
   const panel = (
     <SuspendedMenu

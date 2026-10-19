@@ -18,7 +18,7 @@ import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import FolderArt from '../components/FolderArt/FolderArt.jsx'
-import { folderViewStyles, ItemGrid, TileContent } from '../components/FolderView/FolderView.jsx'
+import { folderViewStyles, ItemGrid, TileContent, useTileSelection } from '../components/FolderView/FolderView.jsx'
 import FolderColorPalette from '../components/FolderColorPalette/FolderColorPalette.jsx'
 import { useFolderColors } from '../folderColors.js'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
@@ -142,6 +142,11 @@ export default function SpaceBrowsePage() {
   // the creation animation played backwards.
   const [leavingDraftKey, setLeavingDraftKey] = useState(null)
   const [renamingRef, setRenamingRef] = useState(null)
+  // Folders are shown before files, so a Shift range follows that order.
+  const tileOrder = ['folder', 'file'].flatMap((kind) =>
+    folderQuery.items.filter((item) => item.kind === kind && !item.pending).map((item) => item.ref),
+  )
+  const selection = useTileSelection(`${providerId}:${folderRef ?? ''}`, tileOrder)
   // A draft belongs to the folder it was opened in; moving to another folder drops it.
   useEffect(() => { setDraftKey(null) }, [providerId, folderRef])
 
@@ -394,6 +399,7 @@ export default function SpaceBrowsePage() {
                       ) : (
                         <Link
                           {...props}
+                          {...selection.tileProps(item.ref)}
                           to={providerFolderUrl(providerId, item.ref)}
                           state={{ folderName: item.name, folderTrail: childFolderTrail(folderQuery.folder) }}
                         />
@@ -419,8 +425,7 @@ export default function SpaceBrowsePage() {
                   </PendingAware>
                   {item.pending || renamingRef === item.ref ? null : (
                     <OverflowMenu
-                      floating
-                      hoverReveal
+                      contextual
                       label={`Ações de ${item.name}`}
                       title={item.name}
                       items={folderMenuItems(item, folderMenuContext(item))}
@@ -456,6 +461,7 @@ export default function SpaceBrowsePage() {
                       ) : (
                         <a
                           {...props}
+                          {...selection.tileProps(item.ref)}
                           href={providerFileUrl(providerId, item.ref)}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -483,8 +489,7 @@ export default function SpaceBrowsePage() {
                   </PendingAware>
                   {item.pending || renamingRef === item.ref ? null : (
                     <OverflowMenu
-                      floating
-                      hoverReveal
+                      contextual
                       label={`Ações de ${item.name}`}
                       title={item.name}
                       items={fileMenuItems(item, menuContext(item))}

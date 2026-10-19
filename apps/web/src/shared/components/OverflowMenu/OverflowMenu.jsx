@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Ellipsis } from 'lucide-react'
 import AnchoredSuspendedMenu from '../SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../SuspendedMenu/useSuspendedMenu.js'
@@ -11,12 +11,36 @@ export default function OverflowMenu({
   floating = false,
   hoverReveal = false,
   ghost = false,
+  contextual = false,
 }) {
   const extrasId = useId()
   const triggerId = useId()
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
   const menu = useSuspendedMenu(items.length, { menuRef })
+  const { dockRef, openMenu } = menu
+  // `contextual`: no trigger button; a right click (or the context menu key) on the card that holds
+  // the menu opens it where the pointer is.
+  const [point, setPoint] = useState(null)
+
+  useEffect(() => {
+    if (!contextual) return undefined
+    const host = dockRef.current?.parentElement
+    if (!host) return undefined
+    function handleContextMenu(event) {
+      event.preventDefault()
+      const rect = host.getBoundingClientRect()
+      const fromPointer = event.clientX !== 0 || event.clientY !== 0
+      setPoint({
+        x: fromPointer ? event.clientX - rect.left : rect.width - 8,
+        y: fromPointer ? event.clientY - rect.top : 8,
+        at: Date.now(),
+      })
+      openMenu()
+    }
+    host.addEventListener('contextmenu', handleContextMenu)
+    return () => host.removeEventListener('contextmenu', handleContextMenu)
+  }, [contextual, dockRef, openMenu])
 
   // Expandable items keep the menu open; their panel gets `close` to finish the choice.
   // `fill` items also keep it open, so their fill stays in view.
@@ -33,6 +57,33 @@ export default function OverflowMenu({
             },
           },
   )
+
+  if (contextual) {
+    return (
+      <div className={styles.contextDock} ref={dockRef}>
+        <span
+          id={triggerId}
+          ref={triggerRef}
+          className={styles.anchor}
+          aria-label={label}
+          style={point ? { left: point.x, top: point.y } : undefined}
+        />
+        {/* Kept mounted so the panel still unrolls on open; a new point only moves it. */}
+        <AnchoredSuspendedMenu
+          id={extrasId}
+          labelledBy={triggerId}
+          open={menu.open}
+          closing={menu.closing}
+          items={wrappedItems}
+          title={title}
+          triggerRef={triggerRef}
+          panelRef={menuRef}
+          prefer="below"
+          anchorKey={point?.at ?? null}
+        />
+      </div>
+    )
+  }
 
   return (
     <div

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import styles from './FolderView.module.css'
@@ -21,16 +22,92 @@ export function ItemGrid({ label, fill = false, tileWidth, children }) {
 
 // What a tile shows: the folder drawing or file sheet, then the name and one line under it.
 // The tile itself (a link on the pages, a button in the picker) uses `folderViewStyles.tile`.
+// The drawing and the name are marked as the parts that open the item (see useTileSelection).
 export function TileContent({ art, title, subtitle }) {
   return (
     <>
-      <span className={styles.face} aria-hidden="true">{art}</span>
+      <span className={styles.face} aria-hidden="true">
+        <span className={styles.hit} data-tile-hit="">{art}</span>
+      </span>
       <span className={styles.meta}>
-        <span className={styles.title}>{title}</span>
+        <span className={styles.title}><span data-tile-hit="">{title}</span></span>
         {subtitle ? <span className={styles.subtitle}>{subtitle}</span> : null}
       </span>
     </>
   )
+}
+
+// A click on a tile's drawing or name opens it; a click elsewhere in its highlight selects it, or
+// unselects it if it already was, so several tiles can be picked one by one. Shift adds the range from
+// the last one clicked (`order` is the tiles' order on screen). Keyboard activation keeps opening.
+// Pressing outside the tiles, Escape or a new `resetKey` (another folder) clears the selection.
+// The fill and the colors on it swap in one frame: the tiles skip their transitions until it is painted.
+function settleInstantly() {
+  const tiles = document.querySelectorAll('[data-selectable]')
+  tiles.forEach((tile) => tile.setAttribute('data-instant', ''))
+  requestAnimationFrame(() => requestAnimationFrame(() => tiles.forEach((tile) => tile.removeAttribute('data-instant'))))
+}
+
+export function useTileSelection(resetKey, order = []) {
+  const [selected, setSelected] = useState(() => new Set())
+  const anchorRef = useRef(null)
+  useEffect(() => {
+    setSelected(new Set())
+    anchorRef.current = null
+  }, [resetKey])
+  const hasSelection = selected.size > 0
+  useEffect(() => {
+    if (!hasSelection) return undefined
+    function clear() {
+      settleInstantly()
+      setSelected(new Set())
+    }
+    function handlePointerDown(event) {
+      if (!event.target.closest?.('[data-selectable]')) clear()
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') clear()
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hasSelection])
+
+  function select(key, event) {
+    settleInstantly()
+    const from = order.indexOf(anchorRef.current)
+    const to = order.indexOf(key)
+    if (event.shiftKey && from >= 0 && to >= 0) {
+      const range = order.slice(Math.min(from, to), Math.max(from, to) + 1)
+      setSelected((previous) => new Set([...previous, ...range]))
+      return
+    }
+    anchorRef.current = key
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function tileProps(key) {
+    return {
+      'data-selectable': '',
+      'data-selected': selected.has(key) ? 'true' : undefined,
+      onClick: (event) => {
+        if (event.detail === 0 || event.button !== 0) return
+        if (event.target.closest('[data-tile-hit]')) return
+        event.preventDefault()
+        select(key, event)
+      },
+    }
+  }
+
+  return { selected, tileProps }
 }
 
 // The path to the current folder. Ancestors are { label, to, state } links on a page or
