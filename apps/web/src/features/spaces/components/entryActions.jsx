@@ -1,10 +1,39 @@
 import { providerFileUrl } from '../../../shared/config/routes.js'
 import OpenChoices from './OpenChoices/OpenChoices.jsx'
-import { PixelBookmark, PixelBrush, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelBookmark, PixelBrush, PixelCopy, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
+
+// Creating the link (or asking for the existing one: the call is idempotent) copies its address.
+// The item fills while that runs; the rejection tells the menu to empty it again.
+function publicLinkItems(item, { actions, hasPublicLink, onError }) {
+  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
+  const target = { providerId: item.provider, ref: item.ref }
+  const copyLink = () =>
+    actions
+      .enablePublicLink(target)
+      .then((link) => navigator.clipboard.writeText(link.url))
+      .catch((error) => {
+        onError?.(error)
+        throw error
+      })
+
+  if (!linked) {
+    return [{ id: 'link', label: 'Link público', icon: PixelLink, fill: true, onSelect: copyLink }]
+  }
+  return [
+    { id: 'link', label: 'Copiar link', icon: PixelCopy, fill: true, onSelect: copyLink },
+    {
+      id: 'unlink',
+      label: 'Desativar link',
+      icon: PixelUnlink,
+      onSelect: () => {
+        void actions.disablePublicLink(target).catch((error) => onError?.(error))
+      },
+    },
+  ]
+}
 
 export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, onError }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
-  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
 
   const fileUrl = providerFileUrl(item.provider, item.ref)
 
@@ -73,19 +102,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
           parentRef: item.parentRef ?? undefined,
         }),
     },
-    {
-      id: 'link',
-      label: 'Link público',
-      icon: linked ? PixelUnlink : PixelLink,
-      onSelect: () =>
-        openOverlay({
-          type: 'public-link',
-          kind: 'file',
-          providerId: item.provider,
-          ref: item.ref,
-          name: item.name,
-        }),
-    },
+    ...publicLinkItems(item, { actions, hasPublicLink, onError }),
     {
       id: 'pin',
       label: pinned ? 'Remover atalho' : 'Atalho',
@@ -112,9 +129,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
 }
 
 // colorPicker (optional): { swatch, panel } adds a "Cor da pasta" choice that opens a docked palette.
-export function folderMenuItems(item, { openOverlay, hasPublicLink, colorPicker = null }) {
-  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
-
+export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onError, colorPicker = null }) {
   return [
     {
       id: 'rename',
@@ -154,19 +169,7 @@ export function folderMenuItems(item, { openOverlay, hasPublicLink, colorPicker 
           },
         ]
       : []),
-    {
-      id: 'link',
-      label: 'Link público',
-      icon: linked ? PixelUnlink : PixelLink,
-      onSelect: () =>
-        openOverlay({
-          type: 'public-link',
-          kind: 'folder',
-          providerId: item.provider,
-          ref: item.ref,
-          name: item.name,
-        }),
-    },
+    ...publicLinkItems(item, { actions, hasPublicLink, onError }),
     {
       id: 'delete',
       label: 'Excluir',

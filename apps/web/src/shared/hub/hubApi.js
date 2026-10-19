@@ -28,7 +28,6 @@ import {
   removeShortcut as removeShortcutRequest,
   search as searchRequest,
   updateItem as updateItemRequest,
-  updatePublicLink as updatePublicLinkRequest,
   uploadFile as uploadFileRequest,
 } from '@bridgit/shared-client'
 
@@ -175,7 +174,5 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     getPublicLink: (provider, ref) => call((token) => getPublicLinkRequest(token, provider, ref)),
     enablePublicLink: (provider, ref) => call((token) => enablePublicLinkRequest(token, provider, ref)),
     disablePublicLink: (provider, ref) => call((token) => disablePublicLinkRequest(token, provider, ref)),
-    updatePublicLink: (provider, ref, alias) =>
-      call((token) => updatePublicLinkRequest(token, provider, ref, { alias })),
   }
 }

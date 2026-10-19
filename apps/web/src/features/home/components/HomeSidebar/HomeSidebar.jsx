@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import { PixelCopy, PixelEye, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelCopy, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
@@ -104,7 +104,6 @@ function ProviderLink({ provider }) {
 }
 
 function PublicLinkRow({ link, onError }) {
-  const { openOverlay } = useHub()
   const actions = useHubActions()
   const providerName = PROVIDER_LABELS[link.provider] ?? link.provider
 
@@ -116,19 +115,6 @@ function PublicLinkRow({ link, onError }) {
       onSelect: () => {
         void navigator.clipboard?.writeText(link.url).catch((error) => onError?.(error))
       },
-    },
-    {
-      id: 'manage',
-      label: 'Ver',
-      icon: PixelEye,
-      onSelect: () =>
-        openOverlay({
-          type: 'public-link',
-          kind: link.kind === 'folder' ? 'folder' : 'file',
-          providerId: link.provider,
-          ref: link.ref,
-          name: link.name,
-        }),
     },
     {
       id: 'disable',

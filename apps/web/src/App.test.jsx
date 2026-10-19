@@ -840,12 +840,17 @@ describe('App', () => {
         <App />
       </MemoryRouter>,
     )
+    // userEvent.setup() installs its own clipboard stub, so this spy goes in after it.
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText')
 
     await user.click(await findPageButton('Ações de Relatório 2023'))
+    const trigger = await findPageButton('Ações de Relatório 2023')
     await user.click(screen.getByRole('menuitem', { name: 'Link público' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Link público' })
-    await user.click(within(dialog).getByRole('button', { name: 'Criar link' }))
-    expect(await within(dialog).findByDisplayValue('https://bridgit.test/p/abc123')).toBeInTheDocument()
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://bridgit.test/p/abc123'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The menu stays open, so the filled item stays in view.
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('busca um ticket novo ao clicar em Baixar', async () => {

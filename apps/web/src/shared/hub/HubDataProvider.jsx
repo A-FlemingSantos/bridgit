@@ -1351,12 +1351,6 @@ export function HubDataProvider({ children }) {
         postHubEvent({ type: 'invalidate', scope: 'publicLinks', providerId, keys: [] })
         return link
       },
-      async updatePublicLink({ providerId, ref, alias }) {
-        const link = await hubApiRef.current.updatePublicLink(providerId, ref, alias)
-        void loadPublicLinks({ force: true }).catch(() => {})
-        postHubEvent({ type: 'invalidate', scope: 'publicLinks', providerId, keys: [] })
-        return link
-      },
       async disablePublicLink({ providerId, ref }) {
         const result = await hubApiRef.current.disablePublicLink(providerId, ref)
         setPublicLinksState((prev) => ({

@@ -87,7 +87,6 @@ const hubApiMock = {
   getPublicLink: vi.fn(),
   enablePublicLink: vi.fn(),
   disablePublicLink: vi.fn(),
-  updatePublicLink: vi.fn(),
 }
 
 function seedAuthenticatedSession() {
