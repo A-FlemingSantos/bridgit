@@ -42,8 +42,9 @@ const rise = {
   exit: { opacity: 0, scale: 0.9, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } },
 }
 
-// The name field that replaces a tile's title while a name is typed. Enter or leaving the field
-// confirms, Escape cancels. `suffix` is a fixed ending (a file's extension) kept out of the field.
+// The name field that replaces a tile's title while a name is typed. Enter confirms and Escape cancels.
+// Leaving the field confirms a rename but drops a new item: only Enter creates it.
+// `suffix` is a fixed ending (a file's extension) kept out of the field.
 function InlineName({ initial, label, suffix = '', creating = false, onCommit, onCancel }) {
   const [value, setValue] = useState(initial)
   const inputRef = useRef(null)
@@ -83,7 +84,7 @@ function InlineName({ initial, label, suffix = '', creating = false, onCommit, o
               finish(false)
             }
           }}
-          onBlur={() => finish(true)}
+          onBlur={() => finish(!creating)}
         />
       </span>
       {suffix ? <span className={styles.nameSuffix}>{suffix}</span> : null}
@@ -136,6 +137,8 @@ export default function SpaceBrowsePage() {
   // from name field to pending to created without being remounted.
   const [draftKey, setDraftKey] = useState(null)
   const [renamingRef, setRenamingRef] = useState(null)
+  // A draft belongs to the folder it was opened in; moving to another folder drops it.
+  useEffect(() => { setDraftKey(null) }, [providerId, folderRef])
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
   const knownProvider = providersStatus === 'ready' ? providerMeta : providersStatus === 'loading' ? true : providerMeta
