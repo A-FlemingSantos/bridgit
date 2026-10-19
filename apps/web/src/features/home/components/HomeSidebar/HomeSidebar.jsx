@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import { PixelCopy, PixelEye, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelCopy, PixelEye, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
@@ -122,7 +122,13 @@ function PublicLinkRow({ link, onError }) {
       label: 'Ver',
       icon: PixelEye,
       onSelect: () =>
-        openOverlay({ type: 'public-link', providerId: link.provider, ref: link.ref, name: link.name }),
+        openOverlay({
+          type: 'public-link',
+          kind: link.kind === 'folder' ? 'folder' : 'file',
+          providerId: link.provider,
+          ref: link.ref,
+          name: link.name,
+        }),
     },
     {
       id: 'disable',
@@ -147,7 +153,7 @@ function PublicLinkRow({ link, onError }) {
         aria-label={`Link público de ${link.name}`}
       >
         <span className={styles.itemIcon} aria-hidden="true">
-          <PixelLink />
+          {link.kind === 'folder' ? <PixelFolder /> : <PixelLink />}
         </span>
         <span className={styles.itemMeta}>
           <span className={styles.itemName}>{link.name}</span>
@@ -251,7 +257,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             {hubErrorMessage(linksQuery.error)}
           </p>
         ) : links.length === 0 ? (
-          <p className={styles.empty}>Nenhum link. Publique um arquivo pelo menu ⋯ dele.</p>
+          <p className={styles.empty}>Nenhum link. Publique um arquivo ou uma pasta pelo menu ⋯.</p>
         ) : (
           <div className={styles.list}>
             {links.map((link) => (

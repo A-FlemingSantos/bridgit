@@ -36,6 +36,7 @@ vi.mock('@bridgit/shared-client', async (importOriginal) => ({
   getPublicLink: vi.fn(),
   enablePublicLink: vi.fn(),
   disablePublicLink: vi.fn(),
+  updatePublicLink: vi.fn(),
 }))
 
 async function sessionErrorApi(code, status) {
@@ -124,5 +125,14 @@ describe('hubApi autorizacao', () => {
     requestFns.listProvidersRequest.mockRejectedValue(await sessionErrorApi('ERRO_API', 500))
     await expect(api.listProviders()).rejects.toMatchObject({ status: 500 })
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('updatePublicLink repassa o apelido ao cliente compartilhado', async () => {
+    const { updatePublicLink } = await import('@bridgit/shared-client')
+    updatePublicLink.mockResolvedValue({ url: 'https://x/p/novo-ab12', alias: 'novo', code: 'ab12' })
+    const api = createHubApi(() => 'token', vi.fn())
+
+    await expect(api.updatePublicLink('onedrive', 'ref', 'novo')).resolves.toMatchObject({ alias: 'novo' })
+    expect(updatePublicLink).toHaveBeenCalledWith('token', 'onedrive', 'ref', { alias: 'novo' })
   })
 })

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MAX_LINK_ALIAS_LENGTH, isValidLinkAlias, normalizeLinkAlias } from '@bridgit/shared-client'
 import AppOverlay, { overlayStyles as styles } from '../components/AppOverlay/AppOverlay.jsx'
 import { PixelClose, PixelSave } from '../components/PixelIcons/PixelIcons.jsx'
 import ProviderStrip from '../../features/spaces/components/ProviderStrip/ProviderStrip.jsx'
@@ -382,6 +383,17 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
   )
 }
 
+const ALIAS_INVALID_MESSAGE = 'Apelido inválido. Use letras, números e hífens.'
+const ALIAS_TAKEN_MESSAGE = 'Esse apelido já está em uso. Escolha outro.'
+
+function aliasValidationMessage(raw, normalized) {
+  if (!raw.trim()) return null
+  if (!normalized) return ALIAS_INVALID_MESSAGE
+  if (normalized.length > MAX_LINK_ALIAS_LENGTH) return `Use no máximo ${MAX_LINK_ALIAS_LENGTH} caracteres.`
+  if (!isValidLinkAlias(normalized)) return ALIAS_INVALID_MESSAGE
+  return null
+}
+
 function PublicLinkOverlay({ overlay }) {
   const { closeOverlay } = useHub()
   const actions = useHubActions()
@@ -390,12 +402,30 @@ function PublicLinkOverlay({ overlay }) {
   const [error, setError] = useState(null)
   const [enabled, setEnabled] = useState(false)
   const [url, setUrl] = useState('')
+  const [loadedKind, setLoadedKind] = useState(null)
+  const [code, setCode] = useState('')
+  const [savedAlias, setSavedAlias] = useState('')
+  const [aliasValue, setAliasValue] = useState('')
+  const [aliasSaving, setAliasSaving] = useState(false)
+  const [aliasError, setAliasError] = useState(null)
   const activeRef = useRef(true)
+
+  const kind = overlay.kind ?? loadedKind ?? 'file'
+  const isFolder = kind === 'folder'
 
   useEffect(() => {
     activeRef.current = true
     return () => { activeRef.current = false }
   }, [])
+
+  function applyLink(data) {
+    setUrl(data?.url ?? '')
+    setCode(data?.code ?? '')
+    setSavedAlias(data?.alias ?? '')
+    setAliasValue(data?.alias ?? '')
+    setAliasError(null)
+    if (data?.kind) setLoadedKind(data.kind)
+  }
 
   useEffect(() => {
     let active = true
@@ -407,7 +437,7 @@ function PublicLinkOverlay({ overlay }) {
       .then((data) => {
         if (!active) return
         setEnabled(Boolean(data?.url || data?.suffix))
-        setUrl(data?.url ?? '')
+        applyLink(data)
       })
       .catch((loadError) => {
         if (!active) return
@@ -429,7 +459,7 @@ function PublicLinkOverlay({ overlay }) {
       const data = await actions.enablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
       if (!activeRef.current) return
       setEnabled(true)
-      setUrl(data?.url ?? '')
+      applyLink(data)
     } catch (enableError) {
       if (activeRef.current) setError(hubErrorMessage(enableError))
     } finally {
@@ -444,7 +474,7 @@ function PublicLinkOverlay({ overlay }) {
       await actions.disablePublicLink({ providerId: overlay.providerId, ref: overlay.ref })
       if (!activeRef.current) return
       setEnabled(false)
-      setUrl('')
+      applyLink(null)
     } catch (disableError) {
       if (activeRef.current) setError(hubErrorMessage(disableError))
     } finally {
@@ -452,20 +482,103 @@ function PublicLinkOverlay({ overlay }) {
     }
   }
 
+  const normalizedAlias = normalizeLinkAlias(aliasValue)
+  const localAliasError = aliasValidationMessage(aliasValue, normalizedAlias)
+  const aliasChanged = normalizedAlias !== savedAlias
+  const canSaveAlias = Boolean(normalizedAlias) && !localAliasError && aliasChanged && !aliasSaving && !pending
+  const shownAliasError = localAliasError ?? aliasError
+
+  async function saveAlias() {
+    if (!canSaveAlias) return
+    setAliasSaving(true)
+    setAliasError(null)
+    setError(null)
+    try {
+      const data = await actions.updatePublicLink({
+        providerId: overlay.providerId,
+        ref: overlay.ref,
+        alias: normalizedAlias,
+      })
+      if (!activeRef.current) return
+      applyLink(data)
+    } catch (saveError) {
+      if (!activeRef.current) return
+      if (saveError?.code === 'APELIDO_INDISPONIVEL') setAliasError(ALIAS_TAKEN_MESSAGE)
+      else if (saveError?.code === 'APELIDO_INVALIDO') setAliasError(ALIAS_INVALID_MESSAGE)
+      else setError(hubErrorMessage(saveError))
+    } finally {
+      if (activeRef.current) setAliasSaving(false)
+    }
+  }
+
   return (
-    <AppOverlay title="Link público" onClose={closeOverlay} compact>
+    <AppOverlay title={isFolder ? 'Pasta pública' : 'Link público'} onClose={closeOverlay} compact>
       <p className={styles.lead}>
         {overlay.name}. Sem login, só quem tem o endereço. Não é indexado.
       </p>
       {loading ? (
         <p className={styles.hint}>Carregando…</p>
       ) : enabled ? (
-        <div className={styles.field}>
-          <label htmlFor="public-url">Endereço</label>
-          <input id="public-url" value={url} readOnly />
-        </div>
+        <>
+          <div className={styles.field}>
+            <label htmlFor="public-url">Endereço</label>
+            <input id="public-url" value={url} readOnly />
+          </div>
+          <form
+            className={styles.form}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveAlias()
+            }}
+          >
+            <div className={styles.field}>
+              <label htmlFor="public-alias">Apelido</label>
+              <div className={styles.nameRow}>
+                <span className={styles.nameExtension}>…/p/</span>
+                <input
+                  id="public-alias"
+                  value={aliasValue}
+                  onChange={(event) => {
+                    setAliasValue(event.target.value)
+                    setAliasError(null)
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={aliasSaving}
+                  aria-invalid={shownAliasError ? 'true' : undefined}
+                />
+                {code ? <span className={styles.nameExtension}>{`-${code}`}</span> : null}
+              </div>
+              {normalizedAlias && normalizedAlias !== aliasValue ? (
+                <p className={styles.hint}>
+                  Ficará assim: {`…/p/${normalizedAlias}${code ? `-${code}` : ''}`}
+                </p>
+              ) : null}
+            </div>
+            {shownAliasError ? (
+              <p className={styles.error} role="alert">
+                {shownAliasError}
+              </p>
+            ) : null}
+            <p className={styles.hint}>
+              O código no fim é fixo. Ao salvar um novo apelido, o endereço antigo deixa de funcionar.
+            </p>
+            <button
+              type="submit"
+              className={styles.choose}
+              style={{ alignSelf: 'flex-start' }}
+              disabled={!canSaveAlias}
+            >
+              Salvar
+            </button>
+          </form>
+        </>
       ) : (
-        <p className={styles.hint}>O link ainda não existe.</p>
+        <p className={styles.hint}>
+          {isFolder
+            ? 'O link ainda não existe. Quem abrir poderá navegar pela pasta e pelas subpastas, só para leitura.'
+            : 'O link ainda não existe.'}
+        </p>
       )}
       {error ? (
         <p className={styles.hint} role="alert">

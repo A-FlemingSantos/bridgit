@@ -78,7 +78,13 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
       label: 'Link público',
       icon: linked ? PixelUnlink : PixelLink,
       onSelect: () =>
-        openOverlay({ type: 'public-link', providerId: item.provider, ref: item.ref, name: item.name }),
+        openOverlay({
+          type: 'public-link',
+          kind: 'file',
+          providerId: item.provider,
+          ref: item.ref,
+          name: item.name,
+        }),
     },
     {
       id: 'pin',
@@ -106,7 +112,9 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
 }
 
 // colorPicker (optional): { swatch, panel } adds a "Cor da pasta" choice that opens a docked palette.
-export function folderMenuItems(item, { openOverlay, colorPicker = null }) {
+export function folderMenuItems(item, { openOverlay, hasPublicLink, colorPicker = null }) {
+  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
+
   return [
     {
       id: 'rename',
@@ -146,6 +154,19 @@ export function folderMenuItems(item, { openOverlay, colorPicker = null }) {
           },
         ]
       : []),
+    {
+      id: 'link',
+      label: 'Link público',
+      icon: linked ? PixelUnlink : PixelLink,
+      onSelect: () =>
+        openOverlay({
+          type: 'public-link',
+          kind: 'folder',
+          providerId: item.provider,
+          ref: item.ref,
+          name: item.name,
+        }),
+    },
     {
       id: 'delete',
       label: 'Excluir',
