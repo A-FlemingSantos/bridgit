@@ -18,6 +18,12 @@ import { runOperation } from './operations'
 
 const HubContext = createContext(null)
 
+// A folder's version moves with its own contents and right after creation, so the listed one goes stale
+// at once and would reject the user's own rename or delete as "changed".
+function expectedVersion(entry) {
+  return entry.isFolder ? null : entry.version
+}
+
 // Shares the provider list, the invalidation scopes that tell each screen when to refetch, the
 // event poller and the write actions, so a screen refetches only when something it shows changed.
 export function HubProvider({ children }) {
@@ -106,9 +112,9 @@ export function HubProvider({ children }) {
     createFolder: (providerId, parentRef, name) =>
       operate(providerId, { kind: 'CREATE_FOLDER', parentRef: parentRef ?? '', name }, [folderScope(providerId, parentRef)]),
     rename: (providerId, entry, name) =>
-      operate(providerId, { kind: 'UPDATE', ref: entry.ref, name, version: entry.version }, itemWriteScopes(providerId, entry.ref)),
+      operate(providerId, { kind: 'UPDATE', ref: entry.ref, name, version: expectedVersion(entry) }, itemWriteScopes(providerId, entry.ref)),
     remove: (providerId, entry) =>
-      operate(providerId, { kind: 'DELETE', ref: entry.ref, version: entry.version }, itemWriteScopes(providerId, entry.ref)),
+      operate(providerId, { kind: 'DELETE', ref: entry.ref, version: expectedVersion(entry) }, itemWriteScopes(providerId, entry.ref)),
     upload: (providerId, parentRef, file) =>
       operate(providerId, { kind: 'UPLOAD', parentRef: parentRef ?? '', file }, [folderScope(providerId, parentRef)]),
     // Folder listings carry the pinned flag, so they refetch along with the Home.
