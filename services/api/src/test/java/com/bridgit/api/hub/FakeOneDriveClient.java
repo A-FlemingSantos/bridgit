@@ -15,9 +15,14 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -27,13 +32,30 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class FakeOneDriveClient implements CloudProviderClient {
 
-  private final Map<String, CloudItem> items = new HashMap<>();
+  private final Map<String, CloudItem> items = new LinkedHashMap<>();
+  private int pageSize = Integer.MAX_VALUE;
+  private RuntimeException listFailure;
   private ReadPlan readPlan = new ReadPlan(ReadMode.PDF, ContentVariant.READ, "application/pdf");
   private RuntimeException getFailure;
   private final AtomicBoolean openSawTransaction = new AtomicBoolean(false);
 
   public void putItem(CloudItem item) {
     items.put(item.ref(), item);
+  }
+
+  /** Stores the item under the given parent (null = provider root), knowing its parent. */
+  public void putItem(CloudItem item, String parentRef) {
+    items.put(item.ref(), new CloudItem(item.ref(), item.provider(), item.name(), item.kind(), item.mimeType(),
+        item.extension(), item.size(), item.modifiedAt(), parentRef, true));
+  }
+
+  /** Maximum children per list page; the continuation cursor is the offset of the next page. */
+  public void setPageSize(int pageSize) {
+    this.pageSize = pageSize;
+  }
+
+  public void setListFailure(RuntimeException failure) {
+    this.listFailure = failure;
   }
 
   public void removeItem(String ref) {
@@ -59,7 +81,19 @@ public class FakeOneDriveClient implements CloudProviderClient {
 
   @Override
   public ItemPage list(String accessToken, String parentRef, String cursor) {
-    return new ItemPage(List.of(), null);
+    if (listFailure != null) {
+      throw listFailure;
+    }
+    List<CloudItem> children = new ArrayList<>();
+    for (CloudItem item : items.values()) {
+      if (Objects.equals(item.parentRef(), parentRef)) {
+        children.add(item);
+      }
+    }
+    int offset = cursor == null || cursor.isBlank() ? 0 : Integer.parseInt(cursor);
+    int end = (int) Math.min((long) offset + pageSize, children.size());
+    String next = end < children.size() ? Integer.toString(end) : null;
+    return new ItemPage(offset >= children.size() ? List.of() : children.subList(offset, end), next);
   }
 
   @Override
@@ -80,7 +114,20 @@ public class FakeOneDriveClient implements CloudProviderClient {
 
   @Override
   public List<CloudItem> ancestry(String accessToken, String ref) {
-    return List.of();
+    List<CloudItem> chain = new ArrayList<>();
+    Set<String> seen = new HashSet<>();
+    CloudItem current = items.get(ref);
+    String parent = current == null ? null : current.parentRef();
+    while (parent != null && seen.add(parent)) {
+      CloudItem folder = items.get(parent);
+      if (folder == null) {
+        break;
+      }
+      chain.add(folder);
+      parent = folder.parentRef();
+    }
+    Collections.reverse(chain);
+    return chain;
   }
 
   @Override
@@ -212,5 +259,16 @@ public class FakeOneDriveClient implements CloudProviderClient {
         OffsetDateTime.now(),
         null
     );
+  }
+
+  public static CloudItem fileIn(String parentRef, String ref, String name, String mimeType, String extension,
+      long size) {
+    return new CloudItem(ref, CloudProvider.ONEDRIVE.id(), name, ItemKind.FILE, mimeType, extension, size,
+        OffsetDateTime.now(), parentRef);
+  }
+
+  public static CloudItem folderIn(String parentRef, String ref, String name) {
+    return new CloudItem(ref, CloudProvider.ONEDRIVE.id(), name, ItemKind.FOLDER, null, null, null,
+        OffsetDateTime.now(), parentRef);
   }
 }
