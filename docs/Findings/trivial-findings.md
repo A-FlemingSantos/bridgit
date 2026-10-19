@@ -260,7 +260,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | Mobile: pasta limitada a 20 páginas, sem aviso | `hooks.js` |
 | lacuna | ✅ Mobile: Home e Folder sem indicador de carregamento | telas |
 | risco | ✅ Mobile: cada evento ou escrita recarrega todas as telas e os provedores | `HubContext.js`, `hooks.js` |
-| lacuna | Mobile: sem mover, sem desligar link público; atalhos e links fora da fila de operações | `useItemActions.js`, `HubContext.js` |
+| lacuna | Mobile: sem mover; atalhos e links fora da fila de operações. ✅ Desligar link público resolvido em `feat/public-links` (folha com copiar, compartilhar, editar apelido e desligar) | `useItemActions.js`, `HubContext.js` |
 | inconsistência | Mobile: Home usa `PROVIDER_LABELS` fixo; Folder usa a lista da API | `HomeScreen.js` |
 | lacuna | Mobile: "Notificar falhas" é guardado e nada o lê | `useSettings.js` |
 | inconsistência | Mobile: `useSettings` repete o listener de `AppState` do `HubContext` | `useSettings.js` |
@@ -284,8 +284,9 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 
 | Tipo | Finding | Onde |
 |---|---|---|
-| lacuna | Sem listar todos os links, sem expiração, sem senha, sem revogar todos | `PublicLinkOwnerController` |
-| bug | Slug não muda ao renomear o arquivo; nomes só com caracteres não latinos viram "arquivo" | `LinkSlug` |
+| lacuna | Sem expiração, sem senha, sem revogar todos (✅ listar os links existe) | `PublicLinkOwnerController` |
+| bug | ✅ Slug não muda ao renomear o arquivo; nomes só com caracteres não latinos viram "arquivo". Resolvido em `feat/public-links`: o apelido é editável e o endereço (`/p/<apelido>-<codigo>`) não muda ao renomear. O padrão ainda cai em "arquivo" ou "pasta" quando o nome não tem caracteres latinos | `LinkSlug` |
+| lacuna | Referências de item com barra codificada (`%2F`) são rejeitadas pelo firewall do servidor, nas rotas do dono e nas públicas | firewall padrão do Spring Security |
 | morto | ✅ `accessToken` em `ResolvedPublicLink` e `PublicLinkContext` não é usado no stream (e ainda pode disparar um refresh de token) | `PublicLinkService` |
 | bug | ✅ Web: ativar e desativar link sem proteção contra componente desmontado | `PublicLinkOverlay` |
 

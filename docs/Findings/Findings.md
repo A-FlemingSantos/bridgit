@@ -112,11 +112,24 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 ## 15. Funcionalidade nova: links públicos de pastas
 
-Hoje só arquivos podem ter link público (`LINK_APENAS_ARQUIVO`). Pastas devem poder ser públicas mais para frente. Isso envolve:
-- uma página de navegação pública;
-- a regra de quais subpastas e arquivos entram no link;
-- o comportamento quando o conteúdo muda;
-- o custo de cota do dono a cada acesso, que já é um risco com arquivos.
+> ✅ **Implementado** (`feat/public-links`). Pastas podem ter link público, no web e no mobile. As decisões:
+
+**Endereço do link:** passou a ser `/p/<apelido>-<codigo>`. O código tem 4 caracteres `[a-z0-9]`, é gerado pelo sistema e não muda. O apelido começa com o nome do item e o dono pode editá-lo (1 a 60 caracteres, `a-z 0-9 -`), no web e no mobile. A unicidade é do par (apelido, código), e o acesso exige os dois. Trocar o apelido invalida o endereço antigo. Renomear o arquivo não muda mais o endereço nem o deixa desatualizado. Os links antigos, de 16 caracteres, continuam funcionando.
+
+**Regra de escopo:** o visitante navega pela pasta e por todas as subpastas, só para leitura, e pode visualizar e baixar arquivos. Não há download em ZIP. Todo item filho é conferido como estando dentro da pasta compartilhada, em três passos: o pai direto, depois a ascendência no catálogo, depois a ascendência no provedor. Pai desconhecido é negado. Um item de fora da pasta responde exatamente como um item inexistente (404 `LINK_ITEM_NAO_ENCONTRADO`), para não revelar que ele existe.
+
+**Quando o conteúdo muda:**
+- Uma falha num item filho nunca apaga o link. Só a falha da própria pasta raiz conta contra ele.
+- Os cursores de paginação são selados por link e por pasta. Um cursor que ficou velho responde 409 `PASTA_ALTERADA`, e o visitante recarrega a pasta.
+
+**Custo de cota e limites:** cada visita ainda gasta cota do provedor do dono (consulta da raiz, ascendência e listagem). O que o limita são os limitadores:
+- 20 buscas sem resultado por IP em 15 minutos, depois 429. Isso dificulta adivinhar endereços;
+- 60 acessos por minuto por link e por IP;
+- 600 acessos por minuto por link, somando todos os IPs, para proteger a cota do dono.
+
+**Limitação conhecida:** referências de item com barra codificada (`%2F`) são rejeitadas pelo firewall do servidor, tanto nas rotas do dono quanto nas públicas. Está em `trivial-findings.md`.
+
+**Ainda em aberto:** expiração, senha e revogar todos os links.
 
 ---
 
