@@ -24,8 +24,12 @@ public class ProviderWebhooksController {
   }
   @PostMapping("/onedrive/{connection}")
   public ResponseEntity<String> graph(@PathVariable UUID connection, @RequestParam(required = false) String validationToken,
-      @RequestBody(required = false) JsonNode payload) {
+      @RequestBody(required = false) String body) {
+    // Graph validates with Content-Type and Accept text/plain: binding the body as JSON answered 415 (then 401).
     if (validationToken != null && validationToken.length() <= 2048) return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(validationToken);
+    JsonNode payload;
+    try { payload = body == null || body.isBlank() ? null : json.readTree(body); }
+    catch (Exception ex) { return ResponseEntity.badRequest().build(); }
     if (payload != null) for (JsonNode notification : payload.path("value")) {
       if (watches.matches(connection, notification.path("clientState").asText(null), notification.path("subscriptionId").asText(null), null)) watches.changed(connection);
     }
