@@ -114,7 +114,7 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 > ✅ **Implementado** (`feat/public-links`). Pastas podem ter link público, no web e no mobile. As decisões:
 
-**Endereço do link:** passou a ser `/p/<apelido>-<codigo>`. O código tem 4 caracteres `[a-z0-9]`, é gerado pelo sistema e não muda. O apelido começa com o nome do item e o dono pode editá-lo (1 a 60 caracteres, `a-z 0-9 -`), no web e no mobile. A unicidade é do par (apelido, código), e o acesso exige os dois. Trocar o apelido invalida o endereço antigo. Renomear o arquivo não muda mais o endereço nem o deixa desatualizado. Os links antigos, de 16 caracteres, continuam funcionando.
+**Endereço do link:** passou a ser `/p/<apelido>-<codigo>`. O código tem 4 caracteres `[a-z0-9]`, é gerado pelo sistema e não muda. O apelido é o nome do item no momento da criação (até 60 caracteres, `a-z 0-9 -`) e não pode ser editado; para trocar o endereço, revoga-se o link e cria-se outro. A unicidade é do par (apelido, código), e o acesso exige os dois. Renomear o arquivo não muda o endereço. Os links antigos, de 16 caracteres, continuam funcionando.
 
 **Regra de escopo:** o visitante navega pela pasta e por todas as subpastas, só para leitura, e pode visualizar e baixar arquivos. Não há download em ZIP. Todo item filho é conferido como estando dentro da pasta compartilhada, em três passos: o pai direto, depois a ascendência no catálogo, depois a ascendência no provedor. Pai desconhecido é negado. Um item de fora da pasta responde exatamente como um item inexistente (404 `LINK_ITEM_NAO_ENCONTRADO`), para não revelar que ele existe.
 
