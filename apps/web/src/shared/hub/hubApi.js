@@ -69,7 +69,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     const recovered = options.getUncertainOperation?.(provider, kind, fields)
     const previous = uncertainRequests.get(signature) ?? (recovered ? { request: recovered.request, accepted: recovered } : null)
     const request = previous?.request ?? {
-      clientKey: crypto.randomUUID(), provider, kind,
+      clientKey: hooks.clientKey ?? crypto.randomUUID(), provider, kind,
       connectionId: connection.connectionId, generation: connection.generation,
       ...(fields.ref ? { expectedVersion: options.getItemVersion?.(provider, fields.ref) ?? null } : {}), ...fields,
     }

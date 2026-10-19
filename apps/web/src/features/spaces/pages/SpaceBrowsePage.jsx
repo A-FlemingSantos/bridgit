@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FilePen, FolderPlus, PenLine, Stamp, Upload } from 'lucide-react'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
@@ -38,6 +39,63 @@ const rise = {
     y: 0,
     transition: { duration: 0.4, delay, ease: [0.22, 1, 0.36, 1] },
   }),
+  exit: { opacity: 0, scale: 0.9, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } },
+}
+
+// The name field that replaces a tile's title while a name is typed. Enter or leaving the field
+// confirms, Escape cancels. `suffix` is a fixed ending (a file's extension) kept out of the field.
+function InlineName({ initial, label, suffix = '', creating = false, onCommit, onCancel }) {
+  const [value, setValue] = useState(initial)
+  const inputRef = useRef(null)
+  const doneRef = useRef(false)
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  function finish(commit) {
+    if (doneRef.current) return
+    const name = value.trim()
+    doneRef.current = true
+    // Renaming to the same name changes nothing; a new item keeps its suggested name.
+    if (commit && name && (creating || name !== initial)) onCommit(name)
+    else onCancel()
+  }
+
+  return (
+    <span className={styles.nameRow}>
+      {/* The hidden copy sizes the field to its text, so the extension stays right behind the name. */}
+      <span className={styles.nameSizer}>
+        <span className={styles.nameMirror} aria-hidden="true">{value}</span>
+        <input
+          ref={inputRef}
+          className={styles.nameInput}
+          value={value}
+          aria-label={label}
+          autoComplete="off"
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              finish(true)
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
+              finish(false)
+            }
+          }}
+          onBlur={() => finish(true)}
+        />
+      </span>
+      {suffix ? <span className={styles.nameSuffix}>{suffix}</span> : null}
+    </span>
+  )
+}
+
+// Splits "report.pdf" into the editable "report" and the fixed ".pdf".
+function splitExtension(name) {
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0 || dot === name.length - 1) return { stem: name, extension: '' }
+  return { stem: name.slice(0, dot), extension: name.slice(dot) }
 }
 
 function itemKindLabel(item) {
@@ -74,6 +132,10 @@ export default function SpaceBrowsePage() {
   const operationError = actions.getOperationError?.(providerId) ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
   const [failedUploads, setFailedUploads] = useState([])
+  // The folder being named. Its key is the one its pending entry will carry, so the same row goes
+  // from name field to pending to created without being remounted.
+  const [draftKey, setDraftKey] = useState(null)
+  const [renamingRef, setRenamingRef] = useState(null)
 
   const providerMeta = providers.find((item) => item.id === providerId) ?? null
   const knownProvider = providersStatus === 'ready' ? providerMeta : providersStatus === 'loading' ? true : providerMeta
@@ -95,8 +157,12 @@ export default function SpaceBrowsePage() {
   const expired = connected && providerMeta?.lastError === 'RECONEXAO_NECESSARIA'
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
   const files = folderQuery.items.filter((item) => item.kind === 'file')
+  const folderRows = draftKey
+    ? [{ draft: true, uiKey: `operation-${draftKey}` }, ...folders]
+    : folders
   const staleNotice = staleCatalogNotice(folderQuery.catalog, { reconnectShown: expired })
-  const empty = folderQuery.status === 'ready' && folders.length === 0 && files.length === 0
+  const empty =
+    folderQuery.status === 'ready' && folders.length === 0 && files.length === 0 && !draftKey
   const pendingFolder = folderRef
     ? {
         ref: folderRef,
@@ -109,13 +175,27 @@ export default function SpaceBrowsePage() {
     ? buildProviderBreadcrumbItems({ provider: providerMeta, folder: headerFolder })
     : null
 
-  function nameOverlay() {
-    openOverlay({
-      type: 'name',
-      kind: 'folder',
-      providerId,
-      folderRef: folderRef ?? null,
-    })
+  async function renameEntry(item, name) {
+    setRenamingRef(null)
+    setActionError(null)
+    const { extension } = item.kind === 'file' ? splitExtension(item.name) : { extension: '' }
+    const finalName = extension && !name.toLowerCase().endsWith(extension.toLowerCase()) ? `${name}${extension}` : name
+    try {
+      await actions.renameItem({ providerId, ref: item.ref, name: finalName })
+    } catch (error) {
+      setActionError(hubErrorMessage(error))
+    }
+  }
+
+  async function createFolder(name) {
+    const clientKey = draftKey
+    setDraftKey(null)
+    setActionError(null)
+    try {
+      await actions.createFolder({ providerId, parentRef: folderRef ?? null, name, clientKey })
+    } catch (error) {
+      setActionError(hubErrorMessage(error))
+    }
   }
 
   async function onUpload(event) {
@@ -159,6 +239,7 @@ export default function SpaceBrowsePage() {
       navigate,
       providerName: providerMeta?.name ?? '',
       onError: (error) => setActionError(hubErrorMessage(error)),
+      onRename: (target) => setRenamingRef(target.ref),
     }
   }
 
@@ -255,35 +336,70 @@ export default function SpaceBrowsePage() {
           </div>
         ) : null}
 
-        {folders.length > 0 ? (
+        {folderRows.length > 0 ? (
           <ItemGrid label="Pastas">
-              {folders.map((item, index) => (
+              <AnimatePresence mode="popLayout">
+              {folderRows.map((item, index) => (
                 <StaggerItem
                   key={item.uiKey ?? item.ref}
                   index={index}
-                  base={0.06}
+                  base={item.draft ? 0.3 : 0.06}
                   step={0.04}
                   variants={rise}
+                  layout
                   className={folderViewStyles.wrap}
                 >
+                  {item.draft ? (
+                    <div className={folderViewStyles.tile}>
+                      <TileContent
+                        art={<FolderArt color={folderColors.colorOf(providerId, null).hex} />}
+                        title={
+                          <InlineName
+                            initial="Nova pasta"
+                            label="Nome da nova pasta"
+                            creating
+                            onCommit={(name) => void createFolder(name)}
+                            onCancel={() => setDraftKey(null)}
+                          />
+                        }
+                        subtitle="Pasta"
+                      />
+                    </div>
+                  ) : (
+                  <>
                   <PendingAware
                     pending={item.pending}
                     className={folderViewStyles.tile}
-                    render={(props) => (
-                      <Link
-                        {...props}
-                        to={providerFolderUrl(providerId, item.ref)}
-                        state={{ folderName: item.name, folderTrail: childFolderTrail(folderQuery.folder) }}
-                      />
-                    )}
+                    render={(props) =>
+                      renamingRef === item.ref ? (
+                        <div {...props} />
+                      ) : (
+                        <Link
+                          {...props}
+                          to={providerFolderUrl(providerId, item.ref)}
+                          state={{ folderName: item.name, folderTrail: childFolderTrail(folderQuery.folder) }}
+                        />
+                      )
+                    }
                   >
                     <TileContent
                       art={<FolderArt color={folderColors.colorOf(providerId, item.ref).hex} />}
-                      title={item.name}
+                      title={
+                        renamingRef === item.ref ? (
+                          <InlineName
+                            initial={item.name}
+                            label={`Novo nome de ${item.name}`}
+                            onCommit={(name) => void renameEntry(item, name)}
+                            onCancel={() => setRenamingRef(null)}
+                          />
+                        ) : (
+                          item.name
+                        )
+                      }
                       subtitle={formatItemDate(item.modifiedAt) || 'Pasta'}
                     />
                   </PendingAware>
-                  {item.pending ? null : (
+                  {item.pending || renamingRef === item.ref ? null : (
                     <OverflowMenu
                       floating
                       hoverReveal
@@ -292,13 +408,17 @@ export default function SpaceBrowsePage() {
                       items={folderMenuItems(item, folderMenuContext(item))}
                     />
                   )}
+                  </>
+                  )}
                 </StaggerItem>
               ))}
+              </AnimatePresence>
           </ItemGrid>
         ) : null}
 
         {files.length > 0 ? (
           <ItemGrid label="Arquivos">
+              <AnimatePresence mode="popLayout">
               {files.map((item, index) => (
                 <StaggerItem
                   key={item.uiKey ?? item.ref}
@@ -306,27 +426,44 @@ export default function SpaceBrowsePage() {
                   base={0.14}
                   step={0.03}
                   variants={rise}
+                  layout
                   className={folderViewStyles.wrap}
                 >
                   <PendingAware
                     pending={item.pending}
                     className={folderViewStyles.tile}
-                    render={(props) => (
-                      <a
-                        {...props}
-                        href={providerFileUrl(providerId, item.ref)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    )}
+                    render={(props) =>
+                      renamingRef === item.ref ? (
+                        <div {...props} />
+                      ) : (
+                        <a
+                          {...props}
+                          href={providerFileUrl(providerId, item.ref)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        />
+                      )
+                    }
                   >
                     <TileContent
                       art={<FileSheet file={item} />}
-                      title={item.name}
+                      title={
+                        renamingRef === item.ref ? (
+                          <InlineName
+                            initial={splitExtension(item.name).stem}
+                            suffix={splitExtension(item.name).extension}
+                            label={`Novo nome de ${item.name}`}
+                            onCommit={(name) => void renameEntry(item, name)}
+                            onCancel={() => setRenamingRef(null)}
+                          />
+                        ) : (
+                          item.name
+                        )
+                      }
                       subtitle={formatItemDate(item.modifiedAt) || itemKindLabel(item)}
                     />
                   </PendingAware>
-                  {item.pending ? null : (
+                  {item.pending || renamingRef === item.ref ? null : (
                     <OverflowMenu
                       floating
                       hoverReveal
@@ -337,6 +474,7 @@ export default function SpaceBrowsePage() {
                   )}
                 </StaggerItem>
               ))}
+              </AnimatePresence>
           </ItemGrid>
         ) : null}
 
@@ -376,7 +514,7 @@ export default function SpaceBrowsePage() {
                       id: 'folder',
                       label: 'Nova pasta',
                       icon: FolderPlus,
-                      onSelect: nameOverlay,
+                      onSelect: () => setDraftKey(crypto.randomUUID()),
                     },
                     { id: 'edit', label: 'Editar PDF', icon: FilePen },
                     { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp },

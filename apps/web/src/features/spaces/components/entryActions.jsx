@@ -32,7 +32,7 @@ function publicLinkItems(item, { actions, hasPublicLink, onError }) {
   ]
 }
 
-export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, onError }) {
+export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, onError, onRename }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
 
   const fileUrl = providerFileUrl(item.provider, item.ref)
@@ -61,7 +61,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
       label: 'Renomear',
       icon: PixelPencil,
       onSelect: () =>
-        openOverlay({
+        onRename ? onRename(item) : openOverlay({
           type: 'name',
           kind: 'file',
           mode: 'rename',
@@ -129,14 +129,14 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
 }
 
 // colorPicker (optional): { swatch, panel } adds a "Cor da pasta" choice that opens a docked palette.
-export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onError, colorPicker = null }) {
+export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onError, onRename, colorPicker = null }) {
   return [
     {
       id: 'rename',
       label: 'Renomear',
       icon: PixelPencil,
       onSelect: () =>
-        openOverlay({
+        onRename ? onRename(item) : openOverlay({
           type: 'name',
           kind: 'folder',
           mode: 'rename',

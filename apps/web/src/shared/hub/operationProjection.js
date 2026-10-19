@@ -2,6 +2,18 @@ import { folderCacheKey, itemCacheKey } from './hubCache.js'
 
 const pending = new Set(['SUBMITTING', 'QUEUED', 'EXECUTING', 'VERIFYING', 'WAITING_RECONNECT', 'NEEDS_ATTENTION'])
 
+// The catalog lists folders first, then by name. A created item takes that place once it is really
+// created; while it is still pending it stays at the start as a ghost.
+export function insertSorted(list, created) {
+  const rank = (item) => (item.kind === 'folder' ? 0 : 1)
+  const after = (item) =>
+    rank(item) > rank(created) ||
+    (rank(item) === rank(created) &&
+      String(item.name ?? '').localeCompare(String(created.name ?? ''), undefined, { sensitivity: 'base' }) > 0)
+  const index = list.findIndex(after)
+  return index === -1 ? [...list, created] : [...list.slice(0, index), created, ...list.slice(index)]
+}
+
 /** Project durable intent over confirmed snapshots. Neither input is mutated. */
 export function projectOperations(folderCache, itemCache, operations, providers) {
   let folders = folderCache
@@ -44,10 +56,13 @@ export function projectOperations(folderCache, itemCache, operations, providers)
       }
       if (creation && key === folderCacheKey(provider, request.parentRef || null)) {
         const exists = next.some((item) => item._operationId === op.id || item.ref === `temp-operation-${request.clientKey ?? op.id}`)
-        if (!exists) next = [...next, { ...op.localItem, ref: `temp-operation-${request.clientKey ?? op.id}`, uiKey: `operation-${request.clientKey ?? op.id}`, provider,
+        if (!exists) {
+          const ghost = { ...op.localItem, ref: `temp-operation-${request.clientKey ?? op.id}`, uiKey: `operation-${request.clientKey ?? op.id}`, provider,
           name: request.name, parentRef: request.parentRef || null, parentKnown: true,
           kind: request.kind === 'CREATE_FOLDER' ? 'folder' : 'file', mimeType: request.contentType,
-          pending: true, unconfirmed: attention, _operationId: op.id }]
+          pending: true, unconfirmed: attention, _operationId: op.id }
+          next = request.kind === 'CREATE_FOLDER' ? [ghost, ...next] : [...next, ghost]
+        }
       }
       if (moving && key === folderCacheKey(provider, request.parentRef || null) && !next.some((item) => item.provider === provider && item.ref === moving.ref)) next = [projected(moving), ...next]
       folders[key] = { ...entry, items: next }

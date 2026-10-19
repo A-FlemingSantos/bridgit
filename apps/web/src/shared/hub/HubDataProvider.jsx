@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
 import { loadCatalog, saveCatalog, clearConnectionStorage, putContent } from './storage/index.js'
-import { projectOperations } from './operationProjection.js'
+import { insertSorted, projectOperations } from './operationProjection.js'
 import { mergeRefreshPlans, planEventRefresh } from './hubEventPlan.js'
 import { subscribeServerEvents } from './hubEvents.js'
 import { prefetchContent } from './content/index.js'
@@ -116,7 +116,11 @@ export function HubDataProvider({ children }) {
       getConnection: (provider) => providersRef.current.providers.find((item) => item.id === provider),
       getItemVersion: (provider, ref) => {
         const pending = [...observedOperationsRef.current.values()].some((operation) => operation.request?.provider === provider && operation.request?.ref === ref && !['SUCCEEDED', 'REJECTED'].includes(operation.status))
-        return pending ? null : findCachedItem(folderCacheRef.current, itemCacheRef.current, provider, ref)?.remoteVersion
+        if (pending) return null
+        const cached = findCachedItem(folderCacheRef.current, itemCacheRef.current, provider, ref)
+        // A folder's version moves with its own contents and right after creation, so the cached one
+        // goes stale at once and would reject the user's own rename or delete as "changed".
+        return cached?.kind === 'folder' ? null : cached?.remoteVersion
       },
       getUncertainOperation: (provider, kind, fields) => [...observedOperationsRef.current.values()].find((operation) => {
         const request = operation.request
@@ -724,12 +728,15 @@ export function HubDataProvider({ children }) {
         }).sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
         return errors[0]?.errorMessage ?? null
       },
-      async createFolder({ providerId, parentRef, name, onAccepted }) {
-        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name, { onAccepted })
+      async createFolder({ providerId, parentRef, name, onAccepted, clientKey }) {
+        if (durableEnabled(providerId)) return hubApiRef.current.createFolder(providerId, parentRef, name, { onAccepted, clientKey })
         const folderKey = folderCacheKey(providerId, parentRef)
         keyMetaRef.current[folderKey] = { providerId, folderRef: parentRef ?? null }
         const opId = nextOpId()
-        const placeholder = { ...createTempItem({ provider: providerId, name, kind: 'folder', parentRef }), _op: opId }
+        const placeholder = {
+          ...createTempItem({ provider: providerId, name, kind: 'folder', parentRef }, clientKey ? `operation-${clientKey}` : null),
+          _op: opId,
+        }
 
         setFolderCache((prev) => {
           const entry = prev[folderKey]
@@ -1541,7 +1548,7 @@ export function HubDataProvider({ children }) {
       const entry = previousFolders[key]
       if (!entry?.items) return previousFolders
       let matched = false
-      const next = entry.items.flatMap((item) => {
+      let next = entry.items.flatMap((item) => {
         const own = item._operationId === operation.id || !matched && !item._operationId && item.pending && item.provider === request.provider && item.name === request.name
         if (!own) return [item]
         matched = true
@@ -1550,7 +1557,7 @@ export function HubDataProvider({ children }) {
         return [{ ...item, _operationId: operation.id, unconfirmed: operation.status === 'NEEDS_ATTENTION' }]
       })
       if (!matched && operation.status === 'SUCCEEDED' && operation.item && !next.some((item) => item.ref === operation.item.ref)) {
-        next.push(withUiKey(operation.item, `operation-${request.clientKey ?? operation.id}`))
+        next = insertSorted(next, withUiKey(operation.item, `operation-${request.clientKey ?? operation.id}`))
       }
       return { ...previousFolders, [key]: { ...entry, items: dedupeItemsByRef(next) } }
     })
@@ -1569,8 +1576,11 @@ export function HubDataProvider({ children }) {
           if (!entry?.items) return [key, entry]
           const old = entry.items.find((item) => item.provider === request.provider && item.ref === request.ref)
           const remaining = entry.items.filter((item) => item.provider !== request.provider || item.ref !== request.ref)
-          if (key === folderCacheKey(request.provider, updated.parentRef)) remaining.push(withUiKey(updated, old?.uiKey))
-          return [key, { ...entry, items: remaining }]
+          // The renamed or moved item takes its sorted place once the change is real, not the end of the list.
+          const placed = key === folderCacheKey(request.provider, updated.parentRef)
+            ? insertSorted(remaining, withUiKey(updated, old?.uiKey))
+            : remaining
+          return [key, { ...entry, items: placed }]
         })))
       }
     }

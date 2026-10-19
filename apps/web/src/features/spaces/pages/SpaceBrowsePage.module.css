@@ -57,3 +57,44 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+.nameSizer {
+  display: inline-grid;
+  min-width: 0;
+}
+
+.nameMirror,
+.nameInput {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding: 0 2px;
+  font: inherit;
+  letter-spacing: inherit;
+  white-space: pre;
+}
+
+.nameMirror {
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.nameInput {
+  /* The field's own default width must not count: the hidden copy alone sizes the column. */
+  width: 0;
+  min-width: 100%;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.nameRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 0;
+}
+
+.nameSuffix {
+  flex: none;
+}

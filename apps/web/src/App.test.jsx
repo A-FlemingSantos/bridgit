@@ -672,11 +672,9 @@ describe('App', () => {
 
     await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
-    const dialog = screen.getByRole('dialog', { name: 'Renomear' })
-    const input = within(dialog).getByLabelText('Nome do arquivo')
+    const input = screen.getByLabelText('Novo nome de Relatório 2023')
     await user.clear(input)
-    await user.type(input, 'Relatório final')
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
+    await user.type(input, 'Relatório final{Enter}')
     await waitFor(() => {
       expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório final/ })).toBeInTheDocument()
     })
@@ -695,12 +693,10 @@ describe('App', () => {
 
     await user.click(await findPageButton('Ações de Relatório 2023'))
     await user.click(screen.getByRole('menuitem', { name: 'Renomear' }))
-    const dialog = screen.getByRole('dialog', { name: 'Renomear' })
-    const input = within(dialog).getByLabelText('Nome do arquivo')
+    const input = screen.getByLabelText('Novo nome de Relatório 2023')
     await user.clear(input)
-    await user.type(input, 'Relatório final')
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }))
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Falhou')
+    await user.type(input, 'Relatório final{Enter}')
+    expect(await within(screen.getByRole('main')).findByRole('alert')).toHaveTextContent('Falhou')
     expect(within(screen.getByRole('main')).getByRole('link', { name: /Relatório 2023/ })).toBeInTheDocument()
   })
 
@@ -722,7 +718,10 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Mover' })).not.toBeInTheDocument()
     })
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    // The moved file leaves with an exit animation, so it goes away a moment later.
+    await waitFor(() => {
+      expect(within(screen.getByRole('main')).queryByRole('link', { name: /Relatório 2023/ })).not.toBeInTheDocument()
+    })
 
     await user.click(within(screen.getByRole('main')).getByRole('link', { name: /Referências de código/ }))
     await waitFor(() => {
@@ -747,7 +746,10 @@ describe('App', () => {
     const dialog = screen.getByRole('dialog', { name: 'Excluir pasta' })
     expect(within(dialog).getByText('"Inovações técnicas" e tudo o que está dentro dela vão para a lixeira do provedor.')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Excluir' }))
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
+    // The folder leaves with an exit animation, so it goes away a moment later.
+    await waitFor(() => {
+      expect(within(screen.getByRole('main')).queryByRole('link', { name: /Inovações técnicas/ })).not.toBeInTheDocument()
+    })
   })
 
   it('mostra a página não encontrada em rotas desconhecidas', async () => {

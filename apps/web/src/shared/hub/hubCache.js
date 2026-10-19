@@ -34,8 +34,10 @@ export function isTempRef(ref) {
   return typeof ref === 'string' && ref.startsWith('temp-')
 }
 
-export function createTempItem(fields) {
-  const uiKey = `temp-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`
+// `uiKey` lets a caller that already shows the item (a name field being typed) hand its key over,
+// so the row is kept instead of remounted when the placeholder takes its place.
+export function createTempItem(fields, uiKey = null) {
+  const ref = `temp-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`
   return withUiKey(
     {
       mimeType: null,
@@ -44,9 +46,9 @@ export function createTempItem(fields) {
       modifiedAt: new Date().toISOString(),
       pending: true,
       ...fields,
-      ref: uiKey,
+      ref,
     },
-    uiKey,
+    uiKey ?? ref,
   )
 }
 
