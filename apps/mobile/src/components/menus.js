@@ -25,6 +25,7 @@ const FILE_ACTIONS = [
 
 const FOLDER_ACTIONS = [
   { id: 'rename', key: 'rename', label: 'Renomear', icon: PixelPencil },
+  { id: 'link', key: 'link', label: 'Link público', icon: PixelLink },
   { id: 'delete', key: 'remove', label: 'Excluir', icon: PixelTrash, danger: true },
 ]
 

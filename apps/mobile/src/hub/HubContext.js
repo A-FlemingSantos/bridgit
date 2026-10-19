@@ -6,9 +6,11 @@ import {
   enablePublicLink,
   getHubEventHead,
   getHubEvents,
+  getPublicLink,
   isSessionFailure,
   listProviders,
   removeShortcut,
+  updatePublicLink,
 } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
 import { createEventPoller } from './eventPoller'
@@ -115,9 +117,11 @@ export function HubProvider({ children }) {
     setShortcut: (providerId, ref, pinned) => write((accessToken) => (
       pinned ? addShortcut(accessToken, providerId, ref) : removeShortcut(accessToken, providerId, ref)
     ), [HOME, foldersScope(providerId), fileScope(providerId, ref)]),
-    // A public link changes nothing the screens show; the server event refreshes the Home.
-    publicLink: (providerId, ref) => write((accessToken) => enablePublicLink(accessToken, providerId, ref)),
-    // The Home lists the public links, so it refetches after one is turned off.
+    // The Home lists the public links, so it refetches after one is created, renamed or turned off.
+    getPublicLink: (providerId, ref) => write((accessToken) => getPublicLink(accessToken, providerId, ref)),
+    publicLink: (providerId, ref) => write((accessToken) => enablePublicLink(accessToken, providerId, ref), [HOME]),
+    updatePublicLinkAlias: (providerId, ref, alias) =>
+      write((accessToken) => updatePublicLink(accessToken, providerId, ref, { alias }), [HOME]),
     disablePublicLink: (providerId, ref) =>
       write((accessToken) => disablePublicLink(accessToken, providerId, ref), [HOME]),
   }), [operate, write])

@@ -21,7 +21,7 @@ import { useNativeDriver } from '../theme/motion'
 import { SheetHeader } from './ActionSheet'
 import FileSheet from './FileSheet'
 import HoldMenu from './OverflowMenu'
-import { PixelGear, PixelHome, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
+import { PixelFolder, PixelGear, PixelHome, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
 import ProviderMark from './ProviderMark'
 import { Overlay } from './OverlayHost'
 import { useSlideModal } from './useSlideModal'
@@ -90,6 +90,11 @@ function Item({ icon, title, subtitle = null, active = false, ghost = false, onP
       ) : null}
     </View>
   )
+}
+
+// A folder link shows a folder; a file link shows the link icon.
+function LinkIcon({ kind, ...props }) {
+  return kind === 'folder' ? <PixelFolder {...props} /> : <PixelLink {...props} />
 }
 
 function Empty({ children, onPress = null }) {
@@ -189,7 +194,7 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
               <Empty onPress={linksQuery.reload}>{errorMessage(linksQuery.error, 'Não foi possível carregar.')}</Empty>
             ) : null}
             {linksQuery.status === 'ready' && linksQuery.links.length === 0 ? (
-              <Empty>Nenhum link. Publique um arquivo pelo menu dele.</Empty>
+              <Empty>Nenhum link. Publique um arquivo ou uma pasta pelo menu.</Empty>
             ) : null}
             {linksQuery.links.map((link) => {
               const providerName = PROVIDER_LABELS[link.providerId] ?? link.providerId
@@ -197,17 +202,18 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
               return (
                 <HoldMenu
                   key={`${link.providerId}-${link.ref}`}
-                  header={<SheetHeader leading={<PixelLink size={24} color={theme.colors.mute} />} title={link.name} subtitle={subtitle} />}
+                  header={<SheetHeader leading={<LinkIcon kind={link.kind} size={24} color={theme.colors.mute} />} title={link.name} subtitle={subtitle} />}
                   items={[
+                    { id: 'view', label: 'Ver link', icon: PixelLink, onSelect: () => actions.manageLink(link) },
                     { id: 'share', label: 'Compartilhar link', icon: PixelLink, onSelect: () => actions.shareUrl(link.url) },
                     { id: 'disable', label: 'Desativar link', icon: PixelUnlink, danger: true, onSelect: () => actions.disableLink(link) },
                   ]}
                 >
                   {({ openMenu }) => (
                     <Item
-                      icon={<PixelLink size={18} color={theme.colors.mute} />}
+                      icon={<LinkIcon kind={link.kind} size={18} color={theme.colors.mute} />}
                       title={link.name}
-                      label={`Link público de ${link.name}`}
+                      label={`${link.kind === 'folder' ? 'Pasta pública' : 'Link público'} de ${link.name}`}
                       subtitle={subtitle}
                       onPress={() => Linking.openURL(link.url).catch(() => {})}
                       onMore={openMenu}

@@ -1,48 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { easeOut, useNativeDriver } from '../theme/motion'
-import ActionSheet, { useSheetKeyboard } from './ActionSheet'
+import ActionSheet from './ActionSheet'
 import { Overlay } from './OverlayHost'
-import { TextField } from './SettingsParts'
 import { errorMessage } from '../api/errorMessage'
+import PublicLinkSheet from './PublicLinkSheet'
+import { NameField, SheetButton } from './SheetControls'
 
-// The name field grows the sheet before its keyboard opens (see ActionSheet `prepare`). A tap counts
-// too: after Android's back button hides the keyboard the field keeps its focus, so tapping it
-// again brings the keyboard back without a new focus event.
-export function NameField(props) {
-  const sheetKeyboard = useSheetKeyboard()
-  return <TextField {...props} onFocus={sheetKeyboard?.prepare} onPressIn={sheetKeyboard?.prepare} />
-}
+export { NameField, SheetButton }
 
-export function SheetButton({ label, onPress, variant = 'plain', disabled = false }) {
-  const { theme } = useMobileTheme()
-  const background = variant === 'solid'
-    ? theme.colors.ink
-    : variant === 'danger'
-      ? theme.colors.danger
-      : theme.colors.raise
-  const color = variant === 'plain' ? theme.colors.ink : theme.colors.paper
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        { backgroundColor: background, opacity: disabled ? 0.45 : pressed ? 0.86 : 1 },
-      ]}
-    >
-      <AppText weight="500" style={[styles.buttonLabel, { color }]}>{label}</AppText>
-    </Pressable>
-  )
-}
-
-// Name and confirm prompts, as bottom sheets like the rest of the app.
+// Name and confirm prompts, as bottom sheets like the rest of the app; `public-link` hands over to
+// PublicLinkSheet ({ type: 'public-link', providerId, ref, name, kind }).
 // dialog: { type: 'name' | 'confirm', title, message?, label?, initial?, suffix?, confirmLabel, danger?, onSubmit(value) }
 // `suffix` (a file extension) is shown after the field and is not part of the value.
 // onSubmit may return a promise; the sheet stays open and shows the error message if it rejects.
@@ -80,6 +51,8 @@ export default function ActionDialog({ dialog, onClose }) {
       setBusy(false)
     }
   }
+
+  if (current?.type === 'public-link') return <PublicLinkSheet dialog={dialog} onClose={onClose} />
 
   return (
     <ActionSheet open={Boolean(dialog)} onClose={close}>
@@ -204,17 +177,6 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 8,
-  },
-  button: {
-    flex: 1,
-    minHeight: 50,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonLabel: {
-    fontSize: 15,
-    letterSpacing: -0.3,
   },
   noticeWrap: {
     position: 'absolute',
