@@ -22,9 +22,7 @@ Os achados dos testes manuais de 2026-10-13 estão em `Findings.md`.
 
 ### Login sem proteção contra força bruta
 
-> ✅ **Resolvido** (`fix/seguranca`). 5 falhas por usuário ou 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente leva o mesmo tempo que senha errada; excluir a conta pede a senha.
->
-> ⚠️ **Pendente no deploy:** os limites contam pelo endereço da conexão. Atrás do proxy (Caddy), todos parecem um só; configurar a API para ler `X-Forwarded-For` (`server.forward-headers-strategy`).
+> ✅ **Resolvido** (`fix/seguranca`; endereço real no `deploy/azure`). 5 falhas por usuário ou 20 por endereço em 15 minutos dão 429 `MUITAS_TENTATIVAS`; usuário inexistente leva o mesmo tempo que senha errada; excluir a conta pede a senha. Atrás do Caddy, a API lê o `X-Forwarded-For` (`SERVER_FORWARD_HEADERS_STRATEGY=native`).
 
 ### Falha de banco vira "sessão inválida"
 

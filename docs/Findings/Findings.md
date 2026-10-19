@@ -32,15 +32,7 @@ Os itens resolvidos ficam só com o título e um resumo. Os findings estão em o
 
 ## 5. Retorno do OAuth aponta para `localhost`
 
-**Peso:** alto para o produto, mas é configuração e decisão, não código. Tarefa "[TESTAR] OAuth com retorno por deep link" e pendência "[DECIDIR] Pendências".
-
-O endereço de retorno cadastrado nos provedores é `http://localhost:8080/api/providers/{provedor}/callback`. No web isso funciona, porque navegador e API estão no mesmo PC. No celular, `localhost` é o próprio aparelho. O login no Google funciona, mas o redirecionamento com o código nunca chega à API. Confirmado no banco: a tentativa ficou registrada em `provider_oauth_states` e não foi usada.
-
-**Para destravar:**
-- Um endereço HTTPS público, por ngrok ou pelo deploy no Azure, em `APP_ONEDRIVE_REDIRECT_URI`, `APP_GOOGLE_DRIVE_REDIRECT_URI` e `APP_DROPBOX_REDIRECT_URI`, cadastrado no Azure, no Google Cloud e no Dropbox.
-- No Expo Go, incluir `exp://` em `APP_MOBILE_REDIRECT_PREFIXES`. Sem isso, o retorno cai na página do web sem erro.
-
-Enquanto isso, reconectar pelo web no PC resolve, porque a conexão é da conta e não do aparelho.
+> ✅ **Resolvido** (`deploy/azure`). Os três provedores retornam para `https://api.bridgit-cloud.duckdns.org/api/providers/{provedor}/callback`, cadastrado no Entra, no Google Cloud e no Dropbox. O APK volta ao app por `bridgit://`. Só o Expo Go, em desenvolvimento, ainda precisaria de `exp://` em `APP_MOBILE_REDIRECT_PREFIXES`.
 
 ---
 
@@ -56,9 +48,7 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 ## 7. Endereço dos links públicos usa o endereço do web configurado
 
-**Peso:** baixo agora, obrigatório no deploy.
-
-O link público é montado com o endereço do web configurado na API, que em desenvolvimento é `localhost`. Funciona no PC, mas não em outro aparelho. Resolve-se no deploy, junto com o retorno do OAuth.
+> ✅ **Resolvido** (`deploy/azure`). Em produção, `APP_FRONTEND_BASE_URL` é `https://app.bridgit-cloud.duckdns.org`, e os links públicos abrem em qualquer aparelho.
 
 ---
 
