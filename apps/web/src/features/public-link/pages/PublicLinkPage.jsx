@@ -1,4 +1,4 @@
-import { ApiClientError, apiRequest } from '@bridgit/shared-client'
+import { ApiClientError, getPublicLinkMetadata, parseLinkRef } from '@bridgit/shared-client'
 import { Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -6,7 +6,7 @@ import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
 import { resolveApiUrl } from '../../../shared/config/apiBase.js'
 import { ROUTES } from '../../../shared/config/routes.js'
 import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
-import { parseLinkSuffix } from '../parseLinkSuffix.js'
+import PublicFolderBrowser from '../components/PublicFolderBrowser.jsx'
 import styles from './PublicLinkPage.module.css'
 
 const DEFAULT_TITLE = 'Bridgit'
@@ -41,7 +41,7 @@ function errorState(err) {
 
 export default function PublicLinkPage() {
   const { linkRef } = useParams()
-  const suffix = useMemo(() => parseLinkSuffix(linkRef), [linkRef])
+  const validRef = useMemo(() => parseLinkRef(linkRef) !== null, [linkRef])
   const [meta, setMeta] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -75,7 +75,7 @@ export default function PublicLinkPage() {
       setMeta(null)
 
       try {
-        const data = await apiRequest(`/api/public/links/${suffix}`)
+        const data = await getPublicLinkMetadata(linkRef)
         if (cancelled) return
         setMeta({
           ...data,
@@ -93,7 +93,7 @@ export default function PublicLinkPage() {
       }
     }
 
-    if (suffix) {
+    if (validRef) {
       loadLink()
     } else {
       setLoading(false)
@@ -103,9 +103,16 @@ export default function PublicLinkPage() {
     return () => {
       cancelled = true
     }
-  }, [suffix, reloadTick])
+  }, [linkRef, validRef, reloadTick])
 
-  const file = meta
+  const isFolder = meta?.kind === 'folder'
+
+  function handleLinkGone() {
+    setMeta(null)
+    setError(UNAVAILABLE_STATE)
+  }
+
+  const file = meta && !isFolder
     ? {
         name: meta.name,
         extension: meta.extension,
@@ -115,7 +122,7 @@ export default function PublicLinkPage() {
     : null
 
   const source =
-    meta && !error
+    meta && !isFolder && !error
       ? {
           mode: meta.mode,
           url: meta.readUrl,
@@ -158,7 +165,11 @@ export default function PublicLinkPage() {
           </div>
         ) : null}
 
-        {!loading && meta ? (
+        {!loading && meta && isFolder ? (
+          <PublicFolderBrowser linkRef={linkRef} meta={meta} onLinkGone={handleLinkGone} />
+        ) : null}
+
+        {!loading && meta && !isFolder ? (
           <>
             <div className={styles.intro}>
               <h1 className={styles.fileName}>{meta.name}</h1>

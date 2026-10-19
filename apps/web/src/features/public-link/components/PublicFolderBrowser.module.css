@@ -1,0 +1,168 @@
+.browser {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 1120px;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
+}
+
+/* Empty folder: the open folder drawing with a title, centered in the page. */
+.emptyState {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 16px;
+  color: var(--mute);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
+.loadMore {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.loadMore:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* File view */
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.fileName {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+}
+
+.fileMeta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+  letter-spacing: -0.02em;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--wash));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.download:hover {
+  background: color-mix(in srgb, var(--ink) 12%, var(--wash));
+}
+
+.download:focus-visible,
+.back:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  outline-offset: 2px;
+}
+
+.back {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  color: var(--soft);
+  text-decoration: underline;
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.readerWrap {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  width: 100%;
+}
+
+.state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 40vh;
+  text-align: center;
+}
+
+.stateTitle {
+  margin: 0;
+  font-size: clamp(24px, 3.6vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.stateCopy {
+  margin: 0;
+  max-width: 36ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--mute);
+}
