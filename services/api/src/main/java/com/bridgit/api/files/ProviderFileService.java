@@ -239,7 +239,9 @@ public class ProviderFileService {
       String ref,
       String disposition
   ) {
-    String resolvedDisposition = "attachment".equalsIgnoreCase(disposition) ? "attachment" : "inline";
+    // "archive" asks for a folder packed as .zip (see FolderArchiveService).
+    String resolvedDisposition = "attachment".equalsIgnoreCase(disposition) ? "attachment"
+        : "archive".equalsIgnoreCase(disposition) ? "archive" : "inline";
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
 

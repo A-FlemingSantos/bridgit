@@ -16,15 +16,18 @@ public class ContentController {
   private final ProviderFileService providerFileService;
   private final ContentTicketService contentTicketService;
   private final ContentStreamResponder contentStreamResponder;
+  private final FolderArchiveService folderArchiveService;
 
   public ContentController(
       ProviderFileService providerFileService,
       ContentTicketService contentTicketService,
-      ContentStreamResponder contentStreamResponder
+      ContentStreamResponder contentStreamResponder,
+      FolderArchiveService folderArchiveService
   ) {
     this.providerFileService = providerFileService;
     this.contentTicketService = contentTicketService;
     this.contentStreamResponder = contentStreamResponder;
+    this.folderArchiveService = folderArchiveService;
   }
 
   @GetMapping("/{ticket}")
@@ -34,6 +37,10 @@ public class ContentController {
       HttpServletResponse response
   ) throws Exception {
     ContentTicketService.ContentTicket parsed = contentTicketService.parseTicket(ticket);
+    if (parsed.archive()) {
+      folderArchiveService.write(parsed, response);
+      return;
+    }
     ContentStream stream = providerFileService.openTicketContent(parsed, range);
     try (stream) {
       contentStreamResponder.write(stream, response, parsed.attachment());

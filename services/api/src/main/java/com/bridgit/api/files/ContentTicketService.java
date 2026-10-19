@@ -124,5 +124,8 @@ public class ContentTicketService {
     public boolean attachment() {
       return "attachment".equalsIgnoreCase(disposition);
     }
+    public boolean archive() {
+      return "archive".equalsIgnoreCase(disposition);
+    }
   }
 }
