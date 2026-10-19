@@ -21,6 +21,7 @@ import FolderArt from '../components/FolderArt/FolderArt.jsx'
 import { folderViewStyles, ItemGrid, TileContent, useTileSelection } from '../components/FolderView/FolderView.jsx'
 import FolderColorPalette from '../components/FolderColorPalette/FolderColorPalette.jsx'
 import { useFolderColors } from '../folderColors.js'
+import SelectionActions from '../components/SelectionActions/SelectionActions.jsx'
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProviderBreadcrumb.js'
@@ -553,6 +554,19 @@ export default function SpaceBrowsePage() {
       }
     >
       <main className={styles.main}>
+        {connected && !expired ? (
+          <SelectionActions
+            entries={folderQuery.items.filter((item) => !item.pending && selection.selected.has(item.ref))}
+            providerId={providerId}
+            gap={40}
+            openOverlay={openOverlay}
+            actions={actions}
+            isShortcut={isShortcut}
+            colorOf={folderColors.colorOf}
+            setColor={folderColors.setColor}
+            onError={(error) => setActionError(hubErrorMessage(error))}
+          />
+        ) : null}
         <input ref={uploadRef} type="file" hidden multiple onChange={(event) => void onUpload(event)} />
         {actionError ? (
           <>

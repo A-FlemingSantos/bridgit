@@ -1,0 +1,112 @@
+/* Same cards as the actions on Início, in a strip above the selected folders and files. */
+
+.strip {
+  position: relative;
+  z-index: 2;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 164px);
+  gap: 12px;
+}
+
+.dock {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  height: 88px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.card:hover {
+  background: var(--wash);
+  border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
+}
+
+.card:active {
+  transform: translateY(1px);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Baixar leads, filled like Criar on Início. */
+.cardPrimary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.cardPrimary:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  opacity: 0.88;
+}
+
+/* Excluir takes the red the menus use for it. */
+.cardDanger {
+  color: var(--danger);
+}
+
+/* Highlighted or focused, it fills with that red and the label and icon take the theme's paper color. */
+.cardDanger:hover,
+.cardDanger:focus-visible {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--paper);
+}
+
+/* The pixel icons keep a 16px footprint for menus; here they get their full 24px. */
+.cardIcon {
+  display: block;
+  padding: 4px;
+}
+
+.cardLabel {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--overlay);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, #000 8%, transparent),
+    0 12px 32px -8px color-mix(in srgb, #000 28%, transparent);
+}
+
+@media (max-width: 560px) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

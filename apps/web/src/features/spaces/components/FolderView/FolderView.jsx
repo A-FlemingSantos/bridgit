@@ -40,7 +40,8 @@ export function TileContent({ art, title, subtitle }) {
 // A click on a tile's drawing or name opens it; a click elsewhere in its highlight selects it, or
 // unselects it if it already was, so several tiles can be picked one by one. Shift adds the range from
 // the last one clicked (`order` is the tiles' order on screen). Keyboard activation keeps opening.
-// Pressing outside the tiles, Escape or a new `resetKey` (another folder) clears the selection.
+// Pressing outside the tiles (the selection's own actions, marked `data-selection-keep`, count as inside),
+// Escape or a new `resetKey` (another folder) clears the selection.
 // The fill and the colors on it swap in one frame: the tiles skip their transitions until it is painted.
 function settleInstantly() {
   const tiles = document.querySelectorAll('[data-selectable]')
@@ -63,7 +64,7 @@ export function useTileSelection(resetKey, order = []) {
       setSelected(new Set())
     }
     function handlePointerDown(event) {
-      if (!event.target.closest?.('[data-selectable]')) clear()
+      if (!event.target.closest?.('[data-selectable], [data-selection-keep]')) clear()
     }
     function handleKeyDown(event) {
       if (event.key === 'Escape') clear()
@@ -107,7 +108,12 @@ export function useTileSelection(resetKey, order = []) {
     }
   }
 
-  return { selected, tileProps }
+  function clear() {
+    settleInstantly()
+    setSelected(new Set())
+  }
+
+  return { selected, tileProps, clear }
 }
 
 // The path to the current folder. Ancestors are { label, to, state } links on a page or

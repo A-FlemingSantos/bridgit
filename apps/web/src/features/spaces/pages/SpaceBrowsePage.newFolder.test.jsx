@@ -193,3 +193,32 @@ describe('SpaceBrowsePage multiple selection', () => {
     expect(selected()).toEqual([anexos, documentos])
   })
 })
+
+describe('SpaceBrowsePage selection actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('a faixa de ações só abre depois de a seleção se firmar, e some quando ela acaba', async () => {
+    const user = userEvent.setup()
+    setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('link', { name: /Anexos/ }))
+    expect(screen.queryByRole('region', { name: 'Ações da seleção' })).toBeNull()
+
+    const strip = await screen.findByRole('region', { name: 'Ações da seleção' }, { timeout: 2000 })
+    expect(within(strip).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Baixar',
+      'Mover',
+      'Cor',
+      'Excluir',
+    ])
+
+    await user.click(within(strip).getByRole('button', { name: 'Cor' }))
+    expect(screen.getByRole('link', { name: /Anexos/ }).getAttribute('data-selected')).toBe('true')
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Ações da seleção' })).toBeNull())
+  })
+})

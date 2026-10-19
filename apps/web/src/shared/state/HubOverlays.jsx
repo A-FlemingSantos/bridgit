@@ -235,7 +235,12 @@ function MoveOverlay({ overlay }) {
     return () => { activeRef.current = false }
   }, [])
 
-  const blockedRefs = overlay.kind === 'folder' ? [overlay.ref] : [overlay.parentRef].filter(Boolean)
+  // `items` moves several entries of one folder together; a single entry is described on the overlay itself.
+  const entries = overlay.items ?? [overlay]
+  const blockedRefs = [
+    ...entries.filter((entry) => entry.kind === 'folder').map((entry) => entry.ref),
+    ...(entries.some((entry) => entry.kind !== 'folder') ? [entries[0].parentRef] : []),
+  ].filter(Boolean)
 
   const picker = useLocationPicker({
     source: 'api',
@@ -244,7 +249,7 @@ function MoveOverlay({ overlay }) {
     allowRoot: true,
     disabledFolderRefs: blockedRefs,
     blockedHint: 'Não dá para mover para cá',
-    resetKey: `${overlay.kind}-${overlay.ref}`,
+    resetKey: entries.map((entry) => `${entry.kind}-${entry.ref}`).join(','),
     onChoose: (location) => {
       void handleMove(location)
     },
@@ -258,12 +263,12 @@ function MoveOverlay({ overlay }) {
     setError(null)
 
     try {
-      await actions.moveItem({
+      await Promise.all(entries.map((entry) => actions.moveItem({
         providerId: overlay.providerId,
-        ref: overlay.ref,
-        fromParentRef: overlay.parentRef ?? undefined,
+        ref: entry.ref,
+        fromParentRef: entry.parentRef ?? undefined,
         parentRef,
-      })
+      })))
       closeOverlay()
     } catch (moveError) {
       if (activeRef.current) setError(hubErrorMessage(moveError))
@@ -327,9 +332,13 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
     activeRef.current = true
     return () => { activeRef.current = false }
   }, [])
+  // `items` deletes several entries together; a single entry is described on the overlay itself.
+  const entries = overlay.items ?? [overlay]
+  const several = entries.length > 1
   const name = overlay.name ? `"${overlay.name}"` : 'este item'
-  const deleteLead =
-    overlay.kind === 'folder'
+  const deleteLead = several
+    ? `${entries.length} itens${entries.some((entry) => entry.kind === 'folder') ? ', com tudo o que está dentro das pastas,' : ''} vão para a lixeira do provedor.`
+    : overlay.kind === 'folder'
       ? `${name} e tudo o que está dentro dela vão para a lixeira do provedor.`
       : `${name} vai para a lixeira do provedor.`
 
@@ -339,11 +348,17 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
     setError(null)
 
     try {
-      await actions.deleteItem({
+      // The form closes once the server has accepted every entry.
+      let accepted = 0
+      const onAccepted = () => {
+        accepted += 1
+        if (accepted === entries.length) closeOnce()
+      }
+      await Promise.all(entries.map((entry) => actions.deleteItem({
         providerId: overlay.providerId,
-        ref: overlay.ref,
-        onAccepted: closeOnce,
-      })
+        ref: entry.ref,
+        onAccepted,
+      })))
       closeOnce()
     } catch (deleteError) {
       if (activeRef.current) setError(hubErrorMessage(deleteError))
@@ -354,7 +369,7 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
 
   return (
     <AppOverlay
-      title={overlay.kind === 'folder' ? 'Excluir pasta' : 'Excluir arquivo'}
+      title={several ? 'Excluir itens' : overlay.kind === 'folder' ? 'Excluir pasta' : 'Excluir arquivo'}
       onClose={closeOverlay}
       compact
     >
