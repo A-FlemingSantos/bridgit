@@ -9,7 +9,6 @@ public final class LinkSlug {
 
   private static final Pattern NON_ALNUM = Pattern.compile("[^a-z0-9]+");
   private static final Pattern COLLAPSED_DASHES = Pattern.compile("-{2,}");
-  private static final Pattern COMBINING_MARKS = Pattern.compile("\\p{M}+");
   private static final Pattern VALID = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
   static final int MAX_LENGTH = 60;
   private static final String FILE_FALLBACK = "arquivo";
@@ -38,23 +37,6 @@ public final class LinkSlug {
       return FOLDER_FALLBACK;
     }
     return slugify(folderName.trim(), FOLDER_FALLBACK);
-  }
-
-  /**
-   * Normalizes what the owner typed into a valid alias, or null when nothing usable is left or it would
-   * be longer than the maximum (rejected, never truncated). Accents are stripped, letters lowercased and
-   * every other character becomes a dash, with repeated and surrounding dashes removed.
-   */
-  public static String normalizeAlias(String raw) {
-    if (raw == null) {
-      return null;
-    }
-    String decomposed = Normalizer.normalize(raw, Normalizer.Form.NFKD);
-    String stripped = COMBINING_MARKS.matcher(decomposed).replaceAll("");
-    String slug = NON_ALNUM.matcher(stripped.toLowerCase(Locale.ROOT)).replaceAll("-");
-    slug = COLLAPSED_DASHES.matcher(slug).replaceAll("-");
-    slug = slug.replaceAll("^-+|-+$", "");
-    return isValidAlias(slug) ? slug : null;
   }
 
   public static boolean isValidAlias(String alias) {

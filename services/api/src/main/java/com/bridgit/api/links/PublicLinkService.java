@@ -169,35 +169,6 @@ public class PublicLinkService {
     return toOwnerResponse(link);
   }
 
-  /** Changes the alias of the item's link; the code stays, so the old URL stops working. */
-  @Transactional
-  public OwnerPublicLink updateOwnerAlias(CloudProvider provider, String ref, String rawAlias) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    String alias = LinkSlug.normalizeAlias(rawAlias);
-    if (alias == null) {
-      throw new BadRequestException(
-          "APELIDO_INVALIDO", "O apelido deve ter de 1 a " + LinkSlug.MAX_LENGTH + " letras, números ou hífens.");
-    }
-    PublicLinkEntity link = linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref)
-        .orElseThrow(() -> new NotFoundException(
-            PublicLinkErrors.LINK_NOT_FOUND_CODE, "Este item não tem link público."));
-    if (alias.equals(link.getSlug())) {
-      return toOwnerResponse(link);
-    }
-    if (linkRepository.existsBySlugAndSuffix(alias, link.getSuffix())) {
-      throw aliasUnavailable();
-    }
-    link.setSlug(alias);
-    try {
-      linkRepository.saveAndFlush(link);
-    } catch (DataIntegrityViolationException ex) {
-      throw aliasUnavailable();
-    }
-    notifyLink(userId, connection, ref, false);
-    return toOwnerResponse(link);
-  }
-
   @Transactional
   public void deleteOwnerLink(CloudProvider provider, String ref) {
     UUID userId = authenticatedUserService.requireUserId();
@@ -505,10 +476,6 @@ public class PublicLinkService {
 
   private String buildPublicUrl(PublicLinkEntity link) {
     return frontendBaseUrl + "/p/" + canonicalRef(link);
-  }
-
-  private static ConflictException aliasUnavailable() {
-    return new ConflictException("APELIDO_INDISPONIVEL", "Este apelido não está disponível para este link.");
   }
 
   private static String trimTrailingSlash(String value) {

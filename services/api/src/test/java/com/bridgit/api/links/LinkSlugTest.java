@@ -39,23 +39,6 @@ class LinkSlugTest {
   }
 
   @Test
-  void normalizeAliasStripsAccentsLowercasesAndJoinsWithSingleDashes() {
-    assertThat(LinkSlug.normalizeAlias("  Relatório  Final!! ")).isEqualTo("relatorio-final");
-    assertThat(LinkSlug.normalizeAlias("--Meu__Arquivo--")).isEqualTo("meu-arquivo");
-    assertThat(LinkSlug.normalizeAlias("ABC123")).isEqualTo("abc123");
-    assertThat(LinkSlug.normalizeAlias("a-b")).isEqualTo("a-b");
-  }
-
-  @Test
-  void normalizeAliasRejectsEmptyOrTooLongInsteadOfTruncating() {
-    assertThat(LinkSlug.normalizeAlias(null)).isNull();
-    assertThat(LinkSlug.normalizeAlias("")).isNull();
-    assertThat(LinkSlug.normalizeAlias("  ---  ")).isNull();
-    assertThat(LinkSlug.normalizeAlias("a".repeat(60))).isEqualTo("a".repeat(60));
-    assertThat(LinkSlug.normalizeAlias("a".repeat(61))).isNull();
-  }
-
-  @Test
   void isValidAliasAcceptsOnlyTheCanonicalForm() {
     assertThat(LinkSlug.isValidAlias("relatorio-final")).isTrue();
     assertThat(LinkSlug.isValidAlias("a")).isTrue();

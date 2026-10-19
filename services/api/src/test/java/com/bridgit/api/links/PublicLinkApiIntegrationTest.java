@@ -7,7 +7,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -220,104 +219,6 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
     mockMvc.perform(get("/api/public/links/" + linkRef + "/content?variant=read"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
-  }
-
-  @Test
-  void patchChangesTheAliasKeepsTheCodeAndInvalidatesTheOldUrl() throws Exception {
-    String oldRef = createLinkRef();
-    String code = oldRef.substring(oldRef.lastIndexOf('-') + 1);
-
-    mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"alias\":\"  Relatório Final!! \"}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.alias").value("relatorio-final"))
-        .andExpect(jsonPath("$.data.code").value(code))
-        .andExpect(jsonPath("$.data.suffix").value(code))
-        .andExpect(jsonPath("$.data.url").value(org.hamcrest.Matchers.endsWith("/p/relatorio-final-" + code)));
-
-    String newRef = "relatorio-final-" + code;
-    mockMvc.perform(get("/api/public/links/" + newRef))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.name").value("Relatorio.pdf"))
-        .andExpect(jsonPath("$.data.contentUrl").value("/api/public/links/" + newRef + "/content"))
-        .andExpect(jsonPath("$.data.readUrl").value("/api/public/links/" + newRef + "/content?variant=read"));
-    // an uppercase alias in the URL resolves too: the alias part is looked up in lowercase
-    mockMvc.perform(get("/api/public/links/Relatorio-Final-" + code)).andExpect(status().isOk());
-    mockMvc.perform(get("/api/public/links/" + oldRef).with(remoteAddr("198.51.100.6")))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
-  }
-
-  @Test
-  void patchWithTheSameAliasIsANoOp() throws Exception {
-    String ref = createLinkRef();
-    OffsetDateTime before = findLink(ref).orElseThrow().getUpdatedAt();
-
-    mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"alias\":\"RELATORIO\"}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.alias").value("relatorio"));
-
-    assertThat(findLink(ref).orElseThrow().getUpdatedAt()).isEqualTo(before);
-  }
-
-  @Test
-  void patchRejectsInvalidAliases() throws Exception {
-    createLinkRef();
-
-    for (String body : new String[] {
-        "{\"alias\":\"\"}", "{\"alias\":\"  --  \"}", "{\"alias\":null}", "{}",
-        "{\"alias\":\"" + "a".repeat(61) + "\"}"}) {
-      mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-              .header("Authorization", "Bearer " + accessToken)
-              .contentType(MediaType.APPLICATION_JSON)
-              .content(body))
-          .andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.error.code").value("APELIDO_INVALIDO"));
-    }
-  }
-
-  @Test
-  void patchWithoutALinkIs404() throws Exception {
-    mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"alias\":\"qualquer\"}"))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.error.code").value("LINK_NAO_ENCONTRADO"));
-  }
-
-  @Test
-  void patchToAnAliasAndCodeTakenByAnotherLinkIs409() throws Exception {
-    createLinkRef();
-    String otherRef = createLinkRefFor("file-2");
-    String otherCode = otherRef.substring(otherRef.lastIndexOf('-') + 1);
-    // the other link is "outro-<code>"; give file-1 the same code so that moving it to "outro" collides
-    PublicLinkEntity first = publicLinkRepository.findAll().stream()
-        .filter(link -> "file-1".equals(link.getItemRef())).findFirst().orElseThrow();
-    first.setSuffix(otherCode);
-    publicLinkRepository.save(first);
-
-    mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-            .header("Authorization", "Bearer " + accessToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"alias\":\"outro\"}"))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.error.code").value("APELIDO_INDISPONIVEL"));
-
-    assertThat(publicLinkRepository.findBySlugAndSuffix("relatorio", otherCode)).isPresent();
-  }
-
-  @Test
-  void patchRequiresAuthentication() throws Exception {
-    mockMvc.perform(patch("/api/providers/onedrive/items/file-1/public-link")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"alias\":\"x\"}"))
-        .andExpect(status().isUnauthorized());
   }
 
   @Test
