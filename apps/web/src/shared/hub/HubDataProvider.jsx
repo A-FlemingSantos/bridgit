@@ -1421,6 +1421,11 @@ export function HubDataProvider({ children }) {
         const ticket = await hubApiRef.current.createContentTicket(providerId, ref, 'attachment')
         return ticket.url
       },
+      // A folder downloads packed as .zip, assembled by the API while it streams.
+      async getFolderDownloadUrl({ providerId, ref }) {
+        const ticket = await hubApiRef.current.createContentTicket(providerId, ref, 'archive')
+        return ticket.url
+      },
     }),
     [
       loadItem,

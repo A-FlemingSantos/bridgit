@@ -2,6 +2,26 @@ import { providerFileUrl } from '../../../shared/config/routes.js'
 import OpenChoices from './OpenChoices/OpenChoices.jsx'
 import { PixelBookmark, PixelBrush, PixelCopy, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 
+// Hands a ready download address to the browser, which saves it under `name`.
+export function startDownload(url, name = '') {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  anchor.rel = 'noopener'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
+// A file downloads as it is; a folder comes packed as .zip.
+export function downloadEntry(item, { actions, onError }) {
+  const target = { providerId: item.provider, ref: item.ref }
+  const url = item.kind === 'folder' ? actions.getFolderDownloadUrl(target) : actions.getDownloadUrl(target)
+  return url
+    .then((ready) => startDownload(ready, item.kind === 'folder' ? `${item.name ?? 'pasta'}.zip` : item.name ?? ''))
+    .catch((error) => onError?.(error))
+}
+
 // Creating the link (or asking for the existing one: the call is idempotent) copies its address.
 // The item fills while that runs; the rejection tells the menu to empty it again.
 function publicLinkItems(item, { actions, hasPublicLink, onError }) {
@@ -75,18 +95,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
       label: 'Baixar',
       icon: PixelDownload,
       onSelect: () => {
-        void actions
-          .getDownloadUrl({ providerId: item.provider, ref: item.ref })
-          .then((url) => {
-            const anchor = document.createElement('a')
-            anchor.href = url
-            anchor.download = item.name ?? ''
-            anchor.rel = 'noopener'
-            document.body.appendChild(anchor)
-            anchor.click()
-            anchor.remove()
-          })
-          .catch((error) => onError?.(error))
+        void downloadEntry({ ...item, kind: 'file' }, { actions, onError })
       },
     },
     {
@@ -144,6 +153,14 @@ export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onE
           ref: item.ref,
           name: item.name,
         }),
+    },
+    {
+      id: 'download',
+      label: 'Baixar',
+      icon: PixelDownload,
+      onSelect: () => {
+        void downloadEntry({ ...item, kind: 'folder' }, { actions, onError })
+      },
     },
     {
       id: 'move',

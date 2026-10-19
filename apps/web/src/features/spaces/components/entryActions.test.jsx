@@ -20,6 +20,22 @@ function context(overrides = {}) {
 const ids = (items) => items.map((entry) => entry.id)
 const byId = (items, id) => items.find((entry) => entry.id === id)
 
+describe('entryActions folder download', () => {
+  it('offers Baixar right after Renomear and fetches the folder as .zip', async () => {
+    const getFolderDownloadUrl = vi.fn().mockResolvedValue('https://api.test/api/content/t')
+    const ctx = context({ actions: { getFolderDownloadUrl } })
+    const items = folderMenuItems(folder, ctx)
+    expect(ids(items).slice(0, 2)).toEqual(['rename', 'download'])
+
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    byId(items, 'download').onSelect()
+    await vi.waitFor(() => expect(click).toHaveBeenCalled())
+    expect(getFolderDownloadUrl).toHaveBeenCalledWith({ providerId: 'onedrive', ref: 'folder-1' })
+    expect(click.mock.contexts[0].download).toBe('Docs.zip')
+    click.mockRestore()
+  })
+})
+
 describe('entryActions public link items', () => {
   let writeText
 
