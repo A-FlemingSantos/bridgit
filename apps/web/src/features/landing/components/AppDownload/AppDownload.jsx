@@ -4,7 +4,7 @@ import { QR_PATH, QR_VIEWBOX } from './qrPath.js'
 import styles from './AppDownload.module.css'
 
 const APK_URL =
-  'https://expo.dev/accounts/a-flemingsantos/projects/bridgit-mobile/builds/eb8d17bd-cb3c-4685-b328-188ed63d8aea'
+  'https://expo.dev/accounts/a-flemingsantos/projects/bridgit-mobile/builds/b25965d8-32d4-452f-aa75-d3966dcb2cb1'
 
 export default function AppDownload() {
   return (
