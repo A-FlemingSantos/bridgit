@@ -84,6 +84,14 @@ app:
     # Time budget (ms) for one cross-provider search.
     budget-ms: ${APP_SEARCH_BUDGET_MS:8000}
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  public-links:
+    # Per link and visitor address, metadata and content together.
+    max-accesses-per-minute: ${APP_PUBLIC_LINKS_MAX_ACCESSES_PER_MINUTE:60}
+    # Per link across all visitors, to protect the owner's provider quota.
+    max-accesses-per-link-per-minute: ${APP_PUBLIC_LINKS_MAX_ACCESSES_PER_LINK_PER_MINUTE:600}
+    # Lookups from one address that matched no link, against guessing aliases and codes.
+    max-failed-lookups: ${APP_PUBLIC_LINKS_MAX_FAILED_LOOKUPS:20}
+    failed-lookup-window-minutes: ${APP_PUBLIC_LINKS_FAILED_LOOKUP_WINDOW_MINUTES:15}
   # Comma-separated URL prefixes the OAuth flow may return to. Expo Go needs its exp:// address added in development.
   mobile-redirect-prefixes: ${APP_MOBILE_REDIRECT_PREFIXES:bridgit://}
   cors:

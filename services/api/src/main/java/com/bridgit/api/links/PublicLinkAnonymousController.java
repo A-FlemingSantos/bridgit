@@ -27,25 +27,25 @@ public class PublicLinkAnonymousController {
     this.publicLinkService = publicLinkService;
   }
 
-  @GetMapping("/{suffix}")
+  @GetMapping("/{linkRef}")
   public ResponseEntity<ApiEnvelope<PublicLinkMetadata>> getMetadata(
-      @PathVariable String suffix,
+      @PathVariable String linkRef,
       HttpServletRequest request
   ) {
     return ResponseEntity.ok()
         .header("X-Robots-Tag", NO_INDEX)
-        .body(ApiEnvelope.ok(publicLinkService.getPublicMetadata(suffix, request.getRemoteAddr())));
+        .body(ApiEnvelope.ok(publicLinkService.getPublicMetadata(linkRef, request.getRemoteAddr())));
   }
 
-  @GetMapping("/{suffix}/content")
+  @GetMapping("/{linkRef}/content")
   public void streamContent(
-      @PathVariable String suffix,
+      @PathVariable String linkRef,
       @RequestParam(required = false) String variant,
       @RequestHeader(value = "Range", required = false) String range,
       HttpServletRequest request,
       HttpServletResponse response
   ) throws IOException {
     response.setHeader("X-Robots-Tag", NO_INDEX);
-    publicLinkService.streamPublicContent(suffix, variant, range, request.getRemoteAddr(), response);
+    publicLinkService.streamPublicContent(linkRef, variant, range, request.getRemoteAddr(), response);
   }
 }

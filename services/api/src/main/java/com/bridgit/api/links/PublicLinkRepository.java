@@ -12,11 +12,12 @@ public interface PublicLinkRepository extends JpaRepository<PublicLinkEntity, UU
 
   Optional<PublicLinkEntity> findByConnectionIdAndItemRef(UUID connectionId, String itemRef);
 
-  Optional<PublicLinkEntity> findBySuffix(String suffix);
+  // slug is the alias and suffix is the code; both columns compare case-sensitively (BIN2).
+  Optional<PublicLinkEntity> findBySlugAndSuffix(String slug, String suffix);
 
   List<PublicLinkEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
-  boolean existsBySuffix(String suffix);
+  boolean existsBySlugAndSuffix(String slug, String suffix);
 
   void deleteByConnectionIdAndItemRef(UUID connectionId, String itemRef);
 

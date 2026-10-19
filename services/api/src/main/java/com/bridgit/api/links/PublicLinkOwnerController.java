@@ -1,13 +1,15 @@
 package com.bridgit.api.links;
 
 import com.bridgit.api.common.api.ApiEnvelope;
-import com.bridgit.api.links.LinkDtos.OwnerPublicLinkResponse;
+import com.bridgit.api.links.LinkDtos.OwnerPublicLink;
 import com.bridgit.api.providers.CloudProvider;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/providers/{provider}/items/{ref}/public-link")
 public class PublicLinkOwnerController {
 
+  public record UpdatePublicLinkRequest(String alias) {
+  }
+
   private final PublicLinkService publicLinkService;
 
   public PublicLinkOwnerController(PublicLinkService publicLinkService) {
@@ -23,7 +28,7 @@ public class PublicLinkOwnerController {
   }
 
   @GetMapping
-  public ApiEnvelope<OwnerPublicLinkResponse> getPublicLink(
+  public ApiEnvelope<OwnerPublicLink> getPublicLink(
       @PathVariable CloudProvider provider,
       @PathVariable String ref
   ) {
@@ -31,11 +36,20 @@ public class PublicLinkOwnerController {
   }
 
   @PutMapping
-  public ApiEnvelope<OwnerPublicLinkResponse> createPublicLink(
+  public ApiEnvelope<OwnerPublicLink> createPublicLink(
       @PathVariable CloudProvider provider,
       @PathVariable String ref
   ) {
     return ApiEnvelope.ok(publicLinkService.createOrGetOwnerLink(provider, ref));
+  }
+
+  @PatchMapping
+  public ApiEnvelope<OwnerPublicLink> updatePublicLink(
+      @PathVariable CloudProvider provider,
+      @PathVariable String ref,
+      @RequestBody UpdatePublicLinkRequest request
+  ) {
+    return ApiEnvelope.ok(publicLinkService.updateOwnerAlias(provider, ref, request.alias()));
   }
 
   @DeleteMapping

@@ -11,6 +11,9 @@ import java.util.UUID;
 @Table(name = "public_links")
 public class PublicLinkEntity extends BaseEntity {
 
+  public static final String KIND_FILE = "file";
+  public static final String KIND_FOLDER = "folder";
+
   @Column(name = "user_id", nullable = false)
   private UUID userId;
 
@@ -20,11 +23,16 @@ public class PublicLinkEntity extends BaseEntity {
   @Column(name = "item_ref", nullable = false, length = 400)
   private String itemRef;
 
-  @Column(nullable = false, length = 32, unique = true)
+  // The link's code. Unique only together with the alias (slug).
+  @Column(nullable = false, length = 32)
   private String suffix;
 
+  // The link's alias, editable by the owner.
   @Column(nullable = false, length = 120)
   private String slug;
+
+  @Column(nullable = false, length = 16)
+  private String kind = KIND_FILE;
 
   @Column(nullable = false, length = 400)
   private String name;
@@ -79,6 +87,18 @@ public class PublicLinkEntity extends BaseEntity {
 
   public void setSlug(String slug) {
     this.slug = slug;
+  }
+
+  public String getKind() {
+    return kind;
+  }
+
+  public void setKind(String kind) {
+    this.kind = kind;
+  }
+
+  public boolean isFolder() {
+    return KIND_FOLDER.equals(kind);
   }
 
   public String getName() {
