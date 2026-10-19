@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Keyboard, PanResponder, Platform, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, Dimensions, Keyboard, PanResponder, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
@@ -18,6 +18,9 @@ export function useSheetKeyboard() {
 }
 
 const KEYBOARD_MS = 250
+// Share of the window an Android keyboard takes (navigation bar included), used before the first one
+// has reported its real height. Slightly high on purpose: a gap under the buttons beats covering them.
+const FIRST_KEYBOARD_RATIO = 0.4
 
 // How far the body grows for the keyboard. Android sends one event when the keyboard shows, with
 // its height minus the system bars (and only one: later height changes are not reported), so the
@@ -144,8 +147,11 @@ export default function ActionSheet({ open, onClose, header = null, tiles = [], 
   // Called when a field in the sheet takes focus. A field that is on screen but covered when its
   // keyboard opens makes Android pan the whole window up, and that pan stays on top of the body's own
   // growth; growing first by the last known height keeps the field clear, so Android never pans.
+  // The first time in the session no height is known yet, so an estimate stands in until the
+  // keyboard's own event arrives and corrects it.
   const prepare = useCallback(() => {
-    if (Platform.OS === 'android' && lastKeyboardGrowth) move(lastKeyboardGrowth)
+    if (Platform.OS !== 'android') return
+    move(lastKeyboardGrowth || Math.round(Dimensions.get('window').height * FIRST_KEYBOARD_RATIO))
   }, [move])
   const keyboardContext = useMemo(() => ({ prepare }), [prepare])
 
