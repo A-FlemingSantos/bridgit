@@ -82,24 +82,15 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     }
   }
 
-  // Opens the link sheet, which loads the link and creates, edits, shares or disables it.
-  const openLinkSheet = (target) => setDialog({
-    type: 'public-link',
-    providerId: target.providerId,
-    ref: target.ref,
-    name: target.name,
-    kind: target.kind,
-  })
-
-  const linkSheet = (entry) => openLinkSheet({
-    providerId: providerOf(entry),
-    ref: entry.ref,
-    name: entry.name,
-    kind: entry.isFolder ? 'folder' : 'file',
-  })
-
-  // A row of the side panel's public links.
-  const manageLink = (link) => openLinkSheet(link)
+  // Creates the link (or gets the existing one: the call is idempotent) and opens the share sheet.
+  const shareLink = async (entry) => {
+    try {
+      const link = await hub.publicLink(providerOf(entry), entry.ref)
+      await Share.share({ message: link?.url ?? '' })
+    } catch (error) {
+      say(failureMessage(error))
+    }
+  }
 
   // Downloads the file and hands it to the system "Abrir com…" (the share sheet on iOS).
   const download = async (entry) => {
@@ -317,13 +308,13 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
       download: () => download(entry),
       remove: () => remove(entry),
       pin: () => togglePin(entry),
-      link: () => linkSheet(entry),
+      link: () => shareLink(entry),
     }, { pinned: entry.pinned }),
     folderMenu: (entry) => {
       const color = folderColors.colorOf(providerOf(entry), entry.ref)
       return folderMenuItems({
         rename: () => rename(entry),
-        link: () => linkSheet(entry),
+        link: () => shareLink(entry),
         remove: () => remove(entry),
       }, {
         colorPicker: {
@@ -357,6 +348,5 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     newFileIn: (target) => newFile(target),
     shareUrl,
     disableLink,
-    manageLink,
   }
 }

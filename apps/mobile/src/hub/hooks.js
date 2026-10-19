@@ -124,8 +124,6 @@ export function usePublicLinks() {
       name: link.name,
       kind: link.kind === 'folder' ? 'folder' : 'file',
       url: link.url,
-      alias: link.alias ?? null,
-      code: link.code ?? null,
       when: link.createdAt ? formatWhen(link.createdAt) : null,
     }))
   }, 'public-links', [HOME])

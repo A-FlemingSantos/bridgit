@@ -204,7 +204,6 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
                   key={`${link.providerId}-${link.ref}`}
                   header={<SheetHeader leading={<LinkIcon kind={link.kind} size={24} color={theme.colors.mute} />} title={link.name} subtitle={subtitle} />}
                   items={[
-                    { id: 'view', label: 'Ver link', icon: PixelLink, onSelect: () => actions.manageLink(link) },
                     { id: 'share', label: 'Compartilhar link', icon: PixelLink, onSelect: () => actions.shareUrl(link.url) },
                     { id: 'disable', label: 'Desativar link', icon: PixelUnlink, danger: true, onSelect: () => actions.disableLink(link) },
                   ]}
