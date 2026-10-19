@@ -25,12 +25,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,7 +59,8 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   private static final String DRIVE_BASE = "https://graph.microsoft.com/v1.0/me/drive";
   private static final String SELECT =
       "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag";
-  private static final String ROOT_DELTA_URL = DRIVE_BASE + "/root/delta?$select=" + SELECT;
+  // Without "deleted" the projection strips the facet and a removal reads as an ordinary item.
+  private static final String ROOT_DELTA_URL = DRIVE_BASE + "/root/delta?$select=" + SELECT + ",deleted";
   private static final String SUBSCRIPTIONS_URL = "https://graph.microsoft.com/v1.0/subscriptions";
   private static final int PAGE_SIZE = 200;
   private static final long SIMPLE_UPLOAD_MAX = 4L * 1024L * 1024L;
@@ -101,6 +104,8 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
           rootId = state.path("rootRef").asText(null);
         } catch (Exception ex) { throw new SyncResetException("Checkpoint OneDrive invalido."); }
       } else url = requireDeltaUrl(checkpoint); // Existing raw checkpoints remain readable.
+      // Graph keeps the original projection in every link, so an old checkpoint never sees removals again.
+      if (selectsWithoutDeleted(url)) throw new SyncResetException("Checkpoint OneDrive sem a faceta deleted.");
     }
     if (!StringUtils.hasText(rootId)) rootId = fetchRootId(accessToken);
     JsonNode json = authorizedDeltaGet(accessToken, url);
@@ -183,6 +188,19 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
       throw cursorInvalid();
     }
     return graphUrl;
+  }
+
+  static boolean selectsWithoutDeleted(String url) {
+    String query = URI.create(url).getRawQuery();
+    if (query == null) return false;
+    for (String part : query.split("&")) {
+      int eq = part.indexOf('=');
+      String key = URLDecoder.decode(eq < 0 ? part : part.substring(0, eq), StandardCharsets.UTF_8);
+      if (!"$select".equalsIgnoreCase(key)) continue;
+      String value = eq < 0 ? "" : URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8);
+      return Arrays.stream(value.split(",")).map(String::trim).noneMatch("deleted"::equalsIgnoreCase);
+    }
+    return false;
   }
 
   private static ProviderApiException cursorInvalid() {

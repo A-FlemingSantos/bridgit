@@ -66,8 +66,10 @@ public class CatalogWorker {
       List<CloudChange> reconciled = new ArrayList<>();
       for (CloudChange change : page.changes()) {
         CatalogStore.Entry local = change.ref() != null ? store.entry(c, change.ref()) : change.path() == null ? null : store.entryByPath(c, change.path());
+        // An entry with neither name nor kind is how a removal looks once the deleted facet is lost; confirm it.
         boolean incomplete = !change.deleted() && change.ref() != null && (change.item() == null
-            || local == null && (!change.knownFields().contains("kind") || !change.knownFields().contains("name")));
+            || local == null && (!change.knownFields().contains("kind") || !change.knownFields().contains("name"))
+            || !change.knownFields().contains("kind") && !change.knownFields().contains("name"));
         if (incomplete || local != null && local.fenced() && (change.deleted() || change.item() == null || local.item().remoteVersion() == null
             || !Objects.equals(local.item().remoteVersion(), change.item().remoteVersion()))) {
           String ref = change.ref() != null ? change.ref() : local.item().ref();

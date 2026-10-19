@@ -41,7 +41,7 @@ class GraphSyncClientTest {
   @Test
   void syncPagesReplayTheNextLinkAndRetainTheFinalDeltaLink() {
     String first = "https://graph.microsoft.com/v1.0/me/drive/root/delta?$select="
-        + "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag";
+        + "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag,deleted";
     String next = "https://graph.microsoft.com/v1.0/me/drive/delta?$skiptoken=next";
     String delta = "https://graph.microsoft.com/v1.0/me/drive/root/delta?$deltatoken=done";
     expectRoot();
@@ -79,7 +79,7 @@ class GraphSyncClientTest {
   void syncMapsDeletedAndPartialDeltaEntriesWithoutInventingKnownFields() {
     expectRoot();
     server.expect(requestTo("https://graph.microsoft.com/v1.0/me/drive/root/delta?$select="
-        + "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag"))
+        + "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag,deleted"))
         .andRespond(withSuccess("""
             {"value":[
               {"id":"gone","deleted":{}},
@@ -96,6 +96,35 @@ class GraphSyncClientTest {
     assertEquals(java.util.Set.of("name", "extension", "remoteVersion"), page.changes().get(1).knownFields());
     assertFalse(page.changes().get(1).item().parentKnown());
     assertEquals("etag-2", page.changes().get(1).item().remoteVersion());
+    server.verify();
+  }
+
+  @Test
+  void deltaSelectsTheDeletedFacetSoRemovalsAreNotReadAsUpserts() {
+    expectRoot();
+    server.expect(requestTo("https://graph.microsoft.com/v1.0/me/drive/root/delta?$select="
+        + "id,name,size,file,folder,lastModifiedDateTime,parentReference,eTag,cTag,deleted"))
+        .andRespond(withSuccess("""
+            {"value":[
+              {"id":"folder-1","name":"Nova pasta","folder":{"childCount":0},"deleted":{"state":"deleted"},
+               "parentReference":{"id":"root-id","path":"/drive/root:"}}
+            ],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/me/drive/root/delta?$deltatoken=done"}
+            """, MediaType.APPLICATION_JSON));
+
+    SyncPage page = client.syncPage("token", null);
+
+    assertTrue(page.changes().getFirst().deleted());
+    assertEquals("folder-1", page.changes().getFirst().ref());
+    server.verify();
+  }
+
+  @Test
+  void checkpointProjectedWithoutDeletedRequestsAnInventoryReset() {
+    String checkpoint = "{\"url\":\"https://graph.microsoft.com/v1.0/me/drive/root/delta?$select="
+        + "id%2cname%2csize%2cfile%2cfolder%2clastModifiedDateTime%2cparentReference%2ceTag%2ccTag&token=abc\","
+        + "\"rootRef\":\"root-id\"}";
+
+    assertThrows(SyncResetException.class, () -> client.syncPage("token", checkpoint));
     server.verify();
   }
 
