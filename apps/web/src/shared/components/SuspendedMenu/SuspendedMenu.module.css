@@ -212,6 +212,40 @@
   background: transparent;
 }
 
+/* Fill: the opposite theme color sweeps across the item from the left. */
+.itemFill {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.itemFill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* Only the way in sweeps; the way out fades, then the layer resets unseen. */
+.itemFilled::before {
+  transform: scaleX(1);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.itemFilled:not(.itemFading),
+.itemFilled:not(.itemFading) .icon {
+  color: var(--paper);
+  transition: color 200ms ease 140ms;
+}
+
+.itemFading::before {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
 .divider {
   height: 1px;
   margin: 4px 4px;
@@ -237,6 +271,11 @@
   .flyout,
   .flyoutShown {
     transform: none;
+    transition: none;
+  }
+
+  .itemFilled::before,
+  .itemFading::before {
     transition: none;
   }
 

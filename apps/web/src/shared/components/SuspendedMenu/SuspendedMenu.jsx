@@ -5,6 +5,11 @@ import styles from './SuspendedMenu.module.css'
 
 const FLYOUT_GAP = 4
 const VIEW_PAD = 8
+// Keep in sync with the .itemFilled / .itemFading transitions in SuspendedMenu.module.css.
+const FILL_MS = 420
+const FADE_MS = 260
+
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms) })
 
 // A single card that unrolls from its top edge. Destructive items sit after a
 // divider at the end, so they are never the first thing under the pointer.
@@ -25,6 +30,7 @@ export default function SuspendedMenu({
   style,
 }) {
   const [expandedId, setExpandedId] = useState(null)
+  const [filled, setFilled] = useState(null)
   const [flyoutPlace, setFlyoutPlace] = useState(null)
   const rootRef = useRef(null)
   const itemRefs = useRef(new Map())
@@ -32,8 +38,24 @@ export default function SuspendedMenu({
   const expandedItem = items.find((item) => item.id === expandedId && typeof item.panel === 'function') ?? null
 
   useEffect(() => {
-    if (!open) setExpandedId(null)
+    if (!open) {
+      setExpandedId(null)
+      setFilled(null)
+    }
   }, [open])
+
+  // A `fill` item keeps the menu open and fills while its action runs. Once both the fill and the
+  // action are done it fades back to its resting look; a failure empties it at once.
+  function selectFill(item) {
+    const clear = () => setFilled((current) => (current?.id === item.id ? null : current))
+    setFilled({ id: item.id, fading: false })
+    Promise.all([Promise.resolve().then(() => item.onSelect?.()), wait(FILL_MS)])
+      .then(() => {
+        setFilled((current) => (current?.id === item.id ? { id: item.id, fading: true } : current))
+        return wait(FADE_MS).then(clear)
+      })
+      .catch(clear)
+  }
 
   // Dock the flyout on the side with room, level with its item, kept inside the viewport.
   useLayoutEffect(() => {
@@ -99,13 +121,22 @@ export default function SuspendedMenu({
           styles.item,
           item.danger ? styles.itemDanger : '',
           expanded ? styles.itemActive : '',
+          item.fill ? styles.itemFill : '',
+          item.fill && filled?.id === item.id ? styles.itemFilled : '',
+          item.fill && filled?.id === item.id && filled.fading ? styles.itemFading : '',
         ].filter(Boolean).join(' ')}
         tabIndex={open ? 0 : -1}
         disabled={item.disabled}
         aria-haspopup={expandable ? 'true' : undefined}
         aria-expanded={expandable ? expanded : undefined}
         aria-controls={expanded ? `${id}-flyout` : undefined}
-        onClick={expandable ? () => setExpandedId(expanded ? null : item.id) : item.onSelect}
+        onClick={
+          expandable
+            ? () => setExpandedId(expanded ? null : item.id)
+            : item.fill
+              ? () => selectFill(item)
+              : item.onSelect
+        }
       >
         <span className={styles.icon} aria-hidden="true">
           {Icon ? <Icon size={15} strokeWidth={1.7} /> : null}

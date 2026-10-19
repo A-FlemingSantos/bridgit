@@ -31,4 +31,49 @@ describe('SuspendedMenu', () => {
     await user.click(trigger)
     expect(screen.queryByText('Paleta')).not.toBeInTheDocument()
   })
+
+  it('preenche um item `fill` ao acioná-lo e esvazia se a ação falhar', async () => {
+    const user = userEvent.setup()
+    let fail
+    const onSelect = vi.fn(() => new Promise((_, reject) => { fail = reject }))
+    render(
+      <SuspendedMenu
+        id="menu"
+        open
+        closing={false}
+        items={[{ id: 'link', label: 'Link público', fill: true, onSelect }]}
+      />,
+    )
+
+    const item = screen.getByRole('menuitem', { name: 'Link público' })
+    expect(item.className).not.toMatch(/itemFilled/)
+
+    await user.click(item)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(item.className).toMatch(/itemFilled/)
+
+    fail(new Error('falhou'))
+    await vi.waitFor(() => expect(item.className).not.toMatch(/itemFilled/))
+  })
+
+  it('esvazia o item `fill` depois que a ação termina, sem fechar o menu', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn().mockResolvedValue(undefined)
+    render(
+      <SuspendedMenu
+        id="menu"
+        open
+        closing={false}
+        items={[{ id: 'link', label: 'Link público', fill: true, onSelect }]}
+      />,
+    )
+
+    const item = screen.getByRole('menuitem', { name: 'Link público' })
+    await user.click(item)
+    expect(item.className).toMatch(/itemFilled/)
+
+    await vi.waitFor(() => expect(item.className).toMatch(/itemFading/))
+    await vi.waitFor(() => expect(item.className).not.toMatch(/itemFilled/))
+    expect(screen.getByRole('menuitem', { name: 'Link público' })).toBeInTheDocument()
+  })
 })

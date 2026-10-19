@@ -19,16 +19,19 @@ export default function OverflowMenu({
   const menu = useSuspendedMenu(items.length, { menuRef })
 
   // Expandable items keep the menu open; their panel gets `close` to finish the choice.
+  // `fill` items also keep it open, so their fill stays in view.
   const wrappedItems = items.map((item) =>
     typeof item.panel === 'function'
       ? { ...item, panel: () => item.panel({ close: menu.closeMenu }) }
-      : {
-          ...item,
-          onSelect: () => {
-            menu.closeMenu()
-            item.onSelect?.()
+      : item.fill
+        ? item
+        : {
+            ...item,
+            onSelect: () => {
+              menu.closeMenu()
+              item.onSelect?.()
+            },
           },
-        },
   )
 
   return (
