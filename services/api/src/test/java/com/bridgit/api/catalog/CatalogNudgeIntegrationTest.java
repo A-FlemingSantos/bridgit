@@ -25,6 +25,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -35,7 +37,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Using a connection, or finding the catalog wrong while opening a file, pulls an idle sync forward. */
 @TestPropertySource(properties = {"app.hub.catalog-enabled=true", "app.hub.operations-enabled=true",
     "app.hub.worker-enabled=false", "app.hub.direct-read-enabled=false"})
+@RecordApplicationEvents
 class CatalogNudgeIntegrationTest extends ApiIntegrationTestSupport {
+  @Autowired ApplicationEvents syncEvents;
+  @Autowired CatalogService service;
   @Autowired CatalogStore catalog;
   @Autowired CatalogWorker worker;
   @Autowired ReadAuthorizationService reads;
@@ -93,6 +98,54 @@ class CatalogNudgeIntegrationTest extends ApiIntegrationTestSupport {
     assertThat(nextRun()).isBeforeOrEqualTo(OffsetDateTime.now());
   }
 
+  @Test void openingAFileTheProviderNoLongerHasDropsItRightAway() throws Exception {
+    when(remote.get(any(), eq("file-1"))).thenThrow(new ProviderApiException(HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Não encontrado."));
+    long before = latestEvent();
+    assertThatThrownBy(() -> reads.describe(connection, remote, "file-1")).isInstanceOf(ProviderApiException.class);
+
+    assertThat(catalog.entry(connection, "file-1").deleted()).isTrue();
+    assertThat(latestEvent()).isGreaterThan(before);
+    mockMvc.perform(get("/api/providers/onedrive/items").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.items").isEmpty());
+  }
+
+  @Test void openingTheDetailsOfAnItemTheProviderNoLongerHasDropsIt() {
+    catalog.rememberItem(connection, folder("folder-9", false));
+    when(remote.get(any(), eq("folder-9"))).thenThrow(new ProviderApiException(HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Não encontrado."));
+
+    assertThatThrownBy(() -> service.get(connection, remote, "folder-9")).isInstanceOf(ProviderApiException.class);
+    assertThat(catalog.entry(connection, "folder-9").deleted()).isTrue();
+  }
+
+  @Test void listingAFolderTheProviderNoLongerHasDropsIt() {
+    catalog.rememberItem(connection, folder("folder-9", true));
+    jdbc.update("UPDATE cloud_catalog_state SET complete=0 WHERE connection_id=?", connection.getId().toString());
+    when(remote.list(any(), eq("folder-9"), any())).thenThrow(new ProviderApiException(HttpStatus.NOT_FOUND, "ITEM_NAO_ENCONTRADO", "Não encontrado."));
+
+    assertThatThrownBy(() -> service.list(connection, remote, "folder-9", null)).isInstanceOf(ProviderApiException.class);
+    assertThat(catalog.entry(connection, "folder-9").deleted()).isTrue();
+  }
+
+  @Test void pullingASyncForwardWakesTheWorker() {
+    syncedAgo(60);
+    syncEvents.clear();
+    catalog.nudge(connection);
+    assertThat(syncEvents.stream(CatalogStore.SyncDue.class)).containsExactly(new CatalogStore.SyncDue(connection.getId()));
+  }
+
+  @Test void aNudgeHeldBackByTheLimitDoesNotWakeTheWorker() {
+    syncEvents.clear();
+    catalog.nudge(connection);
+    assertThat(syncEvents.stream(CatalogStore.SyncDue.class)).isEmpty();
+  }
+
+  @Test void aFailureOtherThanNotFoundKeepsTheItem() {
+    when(remote.get(any(), eq("file-1"))).thenThrow(new ProviderApiException(HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "Fora do ar."));
+    assertThatThrownBy(() -> reads.describe(connection, remote, "file-1")).isInstanceOf(ProviderApiException.class);
+    assertThat(catalog.entry(connection, "file-1").deleted()).isFalse();
+  }
+
   @Test void openingAFileThatChangedPullsTheNextSyncForward() {
     syncedAgo(60);
     when(remote.get(any(), eq("file-1"))).thenReturn(file("etag-2"));
@@ -107,6 +160,10 @@ class CatalogNudgeIntegrationTest extends ApiIntegrationTestSupport {
     assertThat(nextRun()).isAfter(OffsetDateTime.now().plusMinutes(1));
   }
 
+  private static CloudItem folder(String ref, boolean parentKnown) {
+    return new CloudItem(ref, "onedrive", "Fotos", ItemKind.FOLDER, null, null, null, OffsetDateTime.now(), null, parentKnown, "etag-f", null);
+  }
+
   private static CloudItem file(String version) {
     return new CloudItem("file-1", "onedrive", "Example.txt", ItemKind.FILE, "text/plain", "txt", 8L,
         OffsetDateTime.now(), null, true, version, "content-" + version);
@@ -118,6 +175,11 @@ class CatalogNudgeIntegrationTest extends ApiIntegrationTestSupport {
 
   private void syncedAgo(long seconds) {
     jdbc.update("UPDATE cloud_catalog_state SET synced_at=? WHERE connection_id=?", OffsetDateTime.now().minusSeconds(seconds), connection.getId().toString());
+  }
+
+  private long latestEvent() {
+    Long id = jdbc.queryForObject("SELECT MAX(sequence) FROM cloud_events WHERE connection_id=? AND event_type='catalog'", Long.class, connection.getId().toString());
+    return id == null ? 0 : id;
   }
 
   private OffsetDateTime nextRun() {

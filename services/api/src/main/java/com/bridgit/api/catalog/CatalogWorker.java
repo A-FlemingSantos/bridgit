@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 public class CatalogWorker {
@@ -48,6 +49,10 @@ public class CatalogWorker {
       executor.submit(() -> { try { sync(c); } finally { running.remove(c.getId()); } });
     }
   }
+
+  // Runs once the change that made the sync due is committed; the poll above stays as the fallback.
+  @TransactionalEventListener(fallbackExecution = true)
+  public void onSyncDue(CatalogStore.SyncDue due) { tick(); }
 
   public void sync(ProviderConnectionEntity c) {
     ReentrantLock lock = work.lock(c.getId());

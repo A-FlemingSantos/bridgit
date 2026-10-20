@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,11 +25,12 @@ public class CatalogStore {
   private final HubEventStore events;
   private final Clock clock;
   private final TransactionTemplate tx;
+  private final ApplicationEventPublisher publisher;
 
   public CatalogStore(JdbcTemplate jdbc, HubJson json, HubEventStore events, Clock clock,
-      PlatformTransactionManager transactions) {
+      PlatformTransactionManager transactions, ApplicationEventPublisher publisher) {
     this.jdbc = jdbc; this.json = json; this.events = events; this.clock = clock;
-    this.tx = new TransactionTemplate(transactions);
+    this.tx = new TransactionTemplate(transactions); this.publisher = publisher;
   }
 
   // One failed round is retried within seconds; only a sync that keeps failing makes the catalog stale.
@@ -84,19 +86,35 @@ public class CatalogStore {
   }
 
   /**
+   * The provider answered 404 for an item the catalog still lists. That is proof enough to drop it now (the event
+   * makes open screens hide it); the sync pulled forward picks up whatever else changed with it.
+   */
+  public void vanished(ProviderConnectionEntity c, String ref) {
+    Entry known = entry(c, ref);
+    if (known == null || known.deleted()) return;
+    confirmed(c, null, ref);
+    nudge(c);
+  }
+
+  /**
    * Someone is looking at this connection: pull an idle connection's next sync forward instead of waiting out
    * the poll interval, so a change a webhook missed still shows within seconds. At most once per NUDGE_AFTER
    * since the last sync, and never past a failure backoff (a 429 must keep its wait).
    */
   public void nudge(ProviderConnectionEntity c) {
     OffsetDateTime now = now();
-    jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=? AND generation=? AND next_run>? AND failures=0 AND (synced_at IS NULL OR synced_at<?)",
-        now, c.getId().toString(), c.getGeneration(), now, now.minus(NUDGE_AFTER));
+    if (jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=? AND generation=? AND next_run>? AND failures=0 AND (synced_at IS NULL OR synced_at<?)",
+        now, c.getId().toString(), c.getGeneration(), now, now.minus(NUDGE_AFTER)) > 0) publisher.publishEvent(new SyncDue(c.getId()));
   }
 
   public void schedule(UUID connection) {
-    jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=?", now(), connection.toString());
+    if (jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=?", now(), connection.toString()) > 0) {
+      publisher.publishEvent(new SyncDue(connection));
+    }
   }
+
+  /** A sync was just made due; the worker starts it now instead of on its next poll. */
+  public record SyncDue(UUID connection) {}
 
   public boolean claim(ProviderConnectionEntity c, String owner) {
     ensure(c);

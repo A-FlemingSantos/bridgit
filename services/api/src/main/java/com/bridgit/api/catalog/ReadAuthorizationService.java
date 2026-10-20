@@ -60,8 +60,7 @@ public class ReadAuthorizationService {
         CloudItem item;
         try { item = retry.withRetry(c, token -> client.get(token, ref)); }
         catch (ProviderApiException ex) {
-          // The catalog listed something the provider no longer has: the next sync is overdue.
-          if (ex.getStatus() == HttpStatus.NOT_FOUND && known != null && !known.deleted()) catalog.nudge(c);
+          if (ex.getStatus() == HttpStatus.NOT_FOUND) catalog.vanished(c, ref);
           throw ex;
         }
         if (known != null && !known.deleted() && known.item().remoteVersion() != null && item.remoteVersion() != null

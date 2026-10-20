@@ -50,7 +50,8 @@ public class CatalogService {
       continuation = raw.substring(prefix.length());
     }
     String nextRemote = continuation;
-    ItemPage page = retry.withRetry(c, token -> client.list(token, parent, nextRemote));
+    ItemPage page = parent == null ? retry.withRetry(c, token -> client.list(token, null, nextRemote))
+        : forgetIfGone(c, parent, () -> retry.withRetry(c, token -> client.list(token, parent, nextRemote)));
     store.remember(c, page.items(), parent, page.nextCursor() == null);
     CatalogStore.State s = store.ensure(c);
     return new FilesDtos.ListItemsResponse(folderContext(c, client, parent), page.items(),
@@ -67,11 +68,20 @@ public class CatalogService {
         return new FilesDtos.ItemWithAncestry(cached.item(), ancestry, store.metadata(c, store.ensure(c), true, true));
       }
     }
-    CloudItem item = retry.withRetry(c, token -> client.get(token, ref));
-    List<CloudItem> parents = retry.withRetry(c, token -> client.ancestry(token, ref));
+    CloudItem item = forgetIfGone(c, ref, () -> retry.withRetry(c, token -> client.get(token, ref)));
+    List<CloudItem> parents = forgetIfGone(c, ref, () -> retry.withRetry(c, token -> client.ancestry(token, ref)));
     for (CloudItem folder : parents) store.rememberItem(c, folder);
     store.rememberItem(c, item);
     return new FilesDtos.ItemWithAncestry(item, parents.stream().map(p -> new FilesDtos.FolderRef(p.ref(), p.name())).toList(), store.metadata(c, store.ensure(c), true, false));
+  }
+
+  /** A 404 for something the catalog still lists drops it on the spot, so it leaves every open screen. */
+  private <T> T forgetIfGone(ProviderConnectionEntity c, String ref, java.util.function.Supplier<T> call) {
+    try { return call.get(); }
+    catch (ProviderApiException ex) {
+      if (ex.getStatus() == org.springframework.http.HttpStatus.NOT_FOUND) store.vanished(c, ref);
+      throw ex;
+    }
   }
 
   private FilesDtos.FolderContext folderContext(ProviderConnectionEntity c, CloudProviderClient client, String parent) {
