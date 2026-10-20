@@ -57,7 +57,15 @@ public class ReadAuthorizationService {
       if (old != null && old.until().isAfter(clock.instant()) && (known == null || !known.deleted()
           && Objects.equals(known.item().contentRevision(), old.item().contentRevision()))) return old;
       try {
-        CloudItem item = retry.withRetry(c, token -> client.get(token, ref));
+        CloudItem item;
+        try { item = retry.withRetry(c, token -> client.get(token, ref)); }
+        catch (ProviderApiException ex) {
+          // The catalog listed something the provider no longer has: the next sync is overdue.
+          if (ex.getStatus() == HttpStatus.NOT_FOUND && known != null && !known.deleted()) catalog.nudge(c);
+          throw ex;
+        }
+        if (known != null && !known.deleted() && known.item().remoteVersion() != null && item.remoteVersion() != null
+            && !known.item().remoteVersion().equals(item.remoteVersion())) catalog.nudge(c);
         catalog.rememberItem(c, item);
         String direct = properties.isDirectReadEnabled() ? retry.withRetry(c, token -> client.directReadUrl(token, ref)) : null;
         Validated valid = new Validated(item, clock.instant().plusSeconds(60), direct);

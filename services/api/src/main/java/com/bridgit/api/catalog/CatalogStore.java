@@ -8,6 +8,7 @@ import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.sync.CloudChange;
 import com.bridgit.api.providers.sync.SyncPage;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,6 +33,8 @@ public class CatalogStore {
 
   // One failed round is retried within seconds; only a sync that keeps failing makes the catalog stale.
   private static final int STALE_AFTER_FAILURES = 2;
+  // Every listing touches the connection; this keeps a busy screen from turning into one sync per request.
+  static final Duration NUDGE_AFTER = Duration.ofSeconds(15);
 
   public record State(long generation, long activeScan, long buildingScan, long revision,
       boolean complete, String checkpoint, String rootRef, OffsetDateTime syncedAt,
@@ -77,6 +80,18 @@ public class CatalogStore {
   public void touch(ProviderConnectionEntity c) {
     ensure(c);
     jdbc.update("UPDATE cloud_catalog_state SET active_at=? WHERE connection_id=? AND generation=?", now(), c.getId().toString(), c.getGeneration());
+    nudge(c);
+  }
+
+  /**
+   * Someone is looking at this connection: pull an idle connection's next sync forward instead of waiting out
+   * the poll interval, so a change a webhook missed still shows within seconds. At most once per NUDGE_AFTER
+   * since the last sync, and never past a failure backoff (a 429 must keep its wait).
+   */
+  public void nudge(ProviderConnectionEntity c) {
+    OffsetDateTime now = now();
+    jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=? AND generation=? AND next_run>? AND failures=0 AND (synced_at IS NULL OR synced_at<?)",
+        now, c.getId().toString(), c.getGeneration(), now, now.minus(NUDGE_AFTER));
   }
 
   public void schedule(UUID connection) {
