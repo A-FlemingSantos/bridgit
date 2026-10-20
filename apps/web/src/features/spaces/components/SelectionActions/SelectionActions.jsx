@@ -10,6 +10,34 @@ export const SELECTION_ACTIONS_DELAY_MS = 600
 
 const EASE = [0.22, 1, 0.36, 1]
 
+// Opening, the strip makes room (the tiles slide down) as its cards appear; closing runs it
+// backwards: the cards go first, and only then do the tiles slide back up.
+const stripMotion = {
+  closed: (gap) => ({
+    height: 0,
+    marginBottom: -gap,
+    transition: { duration: 0.32, ease: EASE, when: 'afterChildren' },
+  }),
+  open: {
+    height: 'auto',
+    marginBottom: 0,
+    transition: { duration: 0.32, ease: EASE },
+  },
+}
+
+const cardMotion = {
+  closed: (index) => ({
+    opacity: 0,
+    y: -6,
+    transition: { duration: 0.18, delay: index * 0.02, ease: EASE },
+  }),
+  open: (index) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.28, delay: 0.06 + index * 0.03, ease: EASE },
+  }),
+}
+
 // Waits until `active` has held still for `delay` before turning on; turns off at once.
 // Any change in `key` while it waits starts the wait again.
 function useSettled(active, key, delay) {
@@ -124,10 +152,11 @@ export default function SelectionActions({
           aria-label="Ações da seleção"
           data-selection-keep=""
           className={styles.strip}
-          initial={{ height: 0, opacity: 0, marginBottom: -gap }}
-          animate={{ height: 'auto', opacity: 1, marginBottom: 0 }}
-          exit={{ height: 0, opacity: 0, marginBottom: -gap }}
-          transition={{ duration: 0.32, ease: EASE }}
+          custom={gap}
+          variants={stripMotion}
+          initial="closed"
+          animate="open"
+          exit="closed"
           style={{ overflow: resting ? 'visible' : 'hidden' }}
           onAnimationStart={() => setResting(false)}
           onAnimationComplete={() => setResting(true)}
@@ -138,9 +167,8 @@ export default function SelectionActions({
                 key={item.id}
                 className={styles.dock}
                 ref={item.id === 'color' ? colorRef : undefined}
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, delay: 0.06 + index * 0.03, ease: EASE }}
+                custom={index}
+                variants={cardMotion}
               >
                 <button
                   type="button"
