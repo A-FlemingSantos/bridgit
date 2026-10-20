@@ -286,8 +286,9 @@ export default function SpaceBrowsePage() {
   }
 
   function renderBody() {
+    // While the folder loads the page stays empty: no loading text.
     if (providersStatus === 'loading' || folderQuery.status === 'loading' || folderQuery.status === 'idle') {
-      return <p className={styles.empty}>Carregando…</p>
+      return null
     }
 
     if (providersStatus === 'error' || folderQuery.status === 'error') {
@@ -512,7 +513,7 @@ export default function SpaceBrowsePage() {
   }
 
   if (!knownProvider && providersStatus === 'idle') {
-    return <p className={styles.empty}>Carregando…</p>
+    return null
   }
 
   return (
