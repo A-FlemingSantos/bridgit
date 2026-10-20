@@ -199,15 +199,16 @@ describe('SpaceBrowsePage selection actions', () => {
     vi.clearAllMocks()
   })
 
-  it('a faixa de ações só abre depois de a seleção se firmar, e some quando ela acaba', async () => {
+  it('a faixa de ações abre junto com a seleção e some quando ela acaba', async () => {
     const user = userEvent.setup()
     setup()
     renderPage()
 
-    await user.click(await screen.findByRole('link', { name: /Anexos/ }))
+    expect(await screen.findByRole('link', { name: /Anexos/ })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Ações da seleção' })).toBeNull()
 
-    const strip = await screen.findByRole('region', { name: 'Ações da seleção' }, { timeout: 2000 })
+    await user.click(screen.getByRole('link', { name: /Anexos/ }))
+    const strip = screen.getByRole('region', { name: 'Ações da seleção' })
     expect(within(strip).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Baixar',
       'Mover',

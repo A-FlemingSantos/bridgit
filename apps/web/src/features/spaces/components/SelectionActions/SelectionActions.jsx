@@ -5,9 +5,6 @@ import FolderColorPalette from '../FolderColorPalette/FolderColorPalette.jsx'
 import { downloadEntry } from '../entryActions.jsx'
 import styles from './SelectionActions.module.css'
 
-// How long a selection must hold before the strip opens, so a quick click does not set the page moving.
-export const SELECTION_ACTIONS_DELAY_MS = 250
-
 const EASE = [0.22, 1, 0.36, 1]
 
 // Same order as a new folder in the grid: opening, the tiles first slide down to make room and only
@@ -40,24 +37,8 @@ const cardMotion = {
   }),
 }
 
-// Waits until `active` has held still for `delay` before turning on; turns off at once.
-// Any change in `key` while it waits starts the wait again.
-function useSettled(active, key, delay) {
-  const [settled, setSettled] = useState(false)
-  useEffect(() => {
-    if (!active) {
-      setSettled(false)
-      return undefined
-    }
-    if (settled) return undefined
-    const timer = setTimeout(() => setSettled(true), delay)
-    return () => clearTimeout(timer)
-  }, [active, key, delay, settled])
-  return active && settled
-}
-
-// The actions for the selected folders and files, in a strip of cards above them. It opens a moment
-// after the selection starts, growing from nothing so the tiles below slide down to make room.
+// The actions for the selected folders and files, in a strip of cards above them. It opens as the
+// selection starts, growing from nothing so the tiles below slide down to make room.
 // Folders get baixar | mover | cor | excluir, files baixar | mover | atalho | link público | excluir;
 // a mixed selection keeps what both share. Baixar leads, filled like the first action on Início. `gap` is the page's spacing, kept out while it is closed.
 export default function SelectionActions({
@@ -71,7 +52,7 @@ export default function SelectionActions({
   setColor,
   onError,
 }) {
-  const shown = useSettled(entries.length > 0, entries.map((entry) => entry.ref).join(','), SELECTION_ACTIONS_DELAY_MS)
+  const shown = entries.length > 0
   const [paletteOpen, setPaletteOpen] = useState(false)
   // The strip clips its cards only while it grows or shrinks, so the color palette can hang out of it.
   const [resting, setResting] = useState(false)
