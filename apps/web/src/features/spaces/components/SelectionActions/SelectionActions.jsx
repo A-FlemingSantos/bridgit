@@ -10,33 +10,33 @@ export const SELECTION_ACTIONS_DELAY_MS = 250
 
 const EASE = [0.22, 1, 0.36, 1]
 
-// Opening, the strip makes room (the tiles slide down) as its cards appear; closing runs it
-// backwards: the cards go first, and only then do the tiles slide back up.
+// Same order as a new folder in the grid: opening, the tiles first slide down to make room and only
+// once that is done do the cards appear; closing, the cards go first, then the tiles slide back up.
 const stripMotion = {
-  closed: (gap) => ({
+  hidden: (gap) => ({ height: 0, marginBottom: -gap }),
+  gone: (gap) => ({
     height: 0,
-    opacity: 0,
     marginBottom: -gap,
     transition: { duration: 0.32, ease: EASE, when: 'afterChildren' },
   }),
-  open: {
+  show: {
     height: 'auto',
-    opacity: 1,
     marginBottom: 0,
-    transition: { duration: 0.32, ease: EASE },
+    transition: { duration: 0.24, ease: EASE, when: 'beforeChildren' },
   },
 }
 
 const cardMotion = {
-  closed: (index) => ({
+  hidden: { opacity: 0, y: -6 },
+  show: (index) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, delay: index * 0.025, ease: EASE },
+  }),
+  gone: (index) => ({
     opacity: 0,
     y: -6,
     transition: { duration: 0.18, delay: index * 0.02, ease: EASE },
-  }),
-  open: (index) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.28, delay: 0.06 + index * 0.03, ease: EASE },
   }),
 }
 
@@ -156,9 +156,9 @@ export default function SelectionActions({
           className={styles.strip}
           custom={gap}
           variants={stripMotion}
-          initial="closed"
-          animate="open"
-          exit="closed"
+          initial="hidden"
+          animate="show"
+          exit="gone"
           style={{ overflow: resting ? 'visible' : 'hidden' }}
           onAnimationStart={() => setResting(false)}
           onAnimationComplete={() => setResting(true)}
