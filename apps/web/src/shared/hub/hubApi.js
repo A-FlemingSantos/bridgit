@@ -38,10 +38,12 @@ export { isApiClientError, isHubSessionFailure }
 // A picked file can stop being readable before it is sent: a shortcut whose target is gone, or a file moved
 // or deleted after it was chosen. The browser then drops the request mid-body, which reads as a lost upload
 // and gets retried; reading one byte first turns it into a definite refusal that names the file.
+// A missing target is picked with size 0, and an empty slice never touches the disk, so an empty file is
+// read whole instead (zero bytes, still opened).
 async function assertReadable(file) {
-  if (!(file instanceof Blob) || file.size === 0) return
+  if (!(file instanceof Blob)) return
   try {
-    await file.slice(0, 1).arrayBuffer()
+    await (file.size === 0 ? file : file.slice(0, 1)).arrayBuffer()
   } catch {
     throw new ApiClientError(`Não foi possível ler ${file.name || 'o arquivo'}.`, { code: 'ARQUIVO_ILEGIVEL', status: 400 })
   }

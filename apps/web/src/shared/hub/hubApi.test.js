@@ -116,6 +116,25 @@ describe('hubApi autorizacao', () => {
     expect(uploadFile).not.toHaveBeenCalled()
   })
 
+  it('recusa um arquivo vazio cujo destino sumiu (atalho quebrado)', async () => {
+    const { uploadFile } = await import('@bridgit/shared-client')
+    uploadFile.mockReset()
+    const api = createHubApi(() => 'token', vi.fn())
+    const shortcut = new File([], 'Hub-nuvem.md')
+    shortcut.arrayBuffer = () => Promise.reject(new DOMException('A requested file could not be found.', 'NotFoundError'))
+
+    await expect(api.uploadFile('dropbox', null, shortcut)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL' })
+    expect(uploadFile).not.toHaveBeenCalled()
+  })
+
+  it('envia um arquivo vazio legível', async () => {
+    const { uploadFile } = await import('@bridgit/shared-client')
+    uploadFile.mockReset().mockResolvedValue({ ref: 'r2' })
+    const api = createHubApi(() => 'token', vi.fn())
+
+    await expect(api.uploadFile('dropbox', null, new File([], 'novo.txt'))).resolves.toEqual({ ref: 'r2' })
+  })
+
   it('envia um arquivo legível depois de ler o primeiro byte', async () => {
     const { uploadFile } = await import('@bridgit/shared-client')
     uploadFile.mockReset().mockResolvedValue({ ref: 'r1' })
