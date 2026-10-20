@@ -173,6 +173,57 @@ describe('hub hooks', () => {
     expect(hubApiMock.getReadSource).toHaveBeenCalledTimes(2)
   })
 
+  it('pasta que o provedor diz não existir sai da lista na hora e aponta para onde voltar', async () => {
+    const folder = { ...sampleItem, ref: 'folder-1', name: 'Fotos', kind: 'folder', parentRef: null, parentKnown: true }
+    hubApiMock.listFolder.mockImplementation(async (_provider, ref) => {
+      if (ref === 'folder-1') throw new ApiClientError('Item não encontrado.', { code: 'ITEM_NAO_ENCONTRADO', status: 404 })
+      return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [folder, sampleItem], nextCursor: null }
+    })
+
+    const { result } = renderHook(
+      () => ({ root: useFolder('onedrive', null), gone: useFolder('onedrive', 'folder-1') }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => expect(result.current.gone.status).toBe('gone'))
+    expect(result.current.gone.parentRef).toBeNull()
+    await waitFor(() => expect(result.current.root.items.map((item) => item.ref)).toEqual(['file-1']))
+  })
+
+  it('arquivo que o provedor diz não existir sai da lista ao tentar abrir', async () => {
+    hubApiMock.listFolder.mockResolvedValue({ folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [sampleItem], nextCursor: null })
+    hubApiMock.getReadSource.mockRejectedValue(new ApiClientError('Item não encontrado.', { code: 'ITEM_NAO_ENCONTRADO', status: 404 }))
+
+    const { result } = renderHook(
+      () => ({ root: useFolder('onedrive', null), item: useItem('onedrive', 'file-1'), actions: useHubActions() }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(result.current.root.items).toHaveLength(1))
+
+    await act(async () => {
+      await expect(result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })).rejects.toBeInstanceOf(ApiClientError)
+    })
+
+    expect(result.current.root.items).toHaveLength(0)
+    expect(result.current.item.status).toBe('gone')
+  })
+
+  it('outras falhas ao abrir uma pasta não a tiram da lista', async () => {
+    const folder = { ...sampleItem, ref: 'folder-1', name: 'Fotos', kind: 'folder' }
+    hubApiMock.listFolder.mockImplementation(async (_provider, ref) => {
+      if (ref === 'folder-1') throw badGateway()
+      return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [folder], nextCursor: null }
+    })
+
+    const { result } = renderHook(
+      () => ({ root: useFolder('onedrive', null), other: useFolder('onedrive', 'folder-1') }),
+      { wrapper: createWrapper() },
+    )
+
+    await waitFor(() => expect(result.current.other.status).toBe('error'))
+    expect(result.current.root.items.map((item) => item.ref)).toEqual(['folder-1'])
+  })
+
   it('reverte rename otimista quando a API falha', async () => {
     hubApiMock.listFolder.mockResolvedValue({
       folder: { ref: null, name: 'OneDrive', ancestry: [] },

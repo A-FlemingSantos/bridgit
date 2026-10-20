@@ -16,6 +16,8 @@ export function subscribeServerEvents(getToken, onEvent, { signal, fetchImpl = g
   }
   async function connect() {
     if (closed || !getToken()) return
+    const startedAt = Date.now()
+    let failed = false
     try {
       const response = await fetchImpl(resolveApiUrl(`/api/hub/events/stream?after=${sequence}`), {
         headers: { Authorization: `Bearer ${getToken()}` }, signal: abort.signal,
@@ -38,11 +40,14 @@ export function subscribeServerEvents(getToken, onEvent, { signal, fetchImpl = g
         }
       }
     } catch {
+      failed = true
       if (!closed) {
         try { for (const event of await getHubEvents(getToken(), sequence, abort.signal) ?? []) deliver(event) } catch { /* retry below */ }
       }
     }
-    if (!closed) timer = setTimeout(connect, 3000)
+    // The server closes every stream on purpose after a while; waiting before reopening it left a window
+    // where changes arrived late. Only a failure, or a stream that ends at once, waits before trying again.
+    if (!closed) timer = setTimeout(connect, failed || Date.now() - startedAt < 1000 ? 3000 : 0)
   }
   async function bootstrap() {
     if (closed || !getToken()) return

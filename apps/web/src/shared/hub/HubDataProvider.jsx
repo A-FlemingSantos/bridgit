@@ -19,6 +19,7 @@ import {
   folderCacheKey,
   folderKeysContaining,
   isAmbiguousError,
+  isGoneError,
   isStaleEntry,
   isTempRef,
   itemCacheKey,
@@ -95,6 +96,7 @@ export function HubDataProvider({ children }) {
   const inFlightFolderRef = useRef(new Map())
   const inFlightNextRef = useRef(new Map())
   const inFlightItemRef = useRef(new Map())
+  const removeItemFromCachesRef = useRef(null)
   const opSeqRef = useRef(0)
   const instanceIdRef = useRef(null)
   if (!instanceIdRef.current) {
@@ -263,6 +265,29 @@ export function HubDataProvider({ children }) {
     return promise
   }, [upsertItemsCache])
 
+  // Where an open item that turned out to be gone sends the user: its folder if any screen knows it,
+  // otherwise the provider root.
+  const knownParentRef = (providerId, ref) => {
+    const item = itemCacheRef.current[itemCacheKey(providerId, ref)]?.item
+    if (item?.parentKnown) return item.parentRef ?? null
+    const folder = folderCacheRef.current[folderCacheKey(providerId, ref)]?.folder
+    if (Array.isArray(folder?.ancestry)) return folder.ancestry.at(-1)?.ref ?? null
+    for (const [key, entry] of Object.entries(folderCacheRef.current)) {
+      if (entry?.items?.some((candidate) => candidate.provider === providerId && candidate.ref === ref)) {
+        return (keyMetaRef.current[key] ?? splitFolderKey(key))?.folderRef ?? null
+      }
+    }
+    return null
+  }
+
+  // The provider confirmed the item no longer exists: it leaves every list now, without waiting for the
+  // server's event, and the page showing it learns where to go.
+  const markItemGone = (providerId, ref, error) => {
+    const parentRef = knownParentRef(providerId, ref)
+    removeItemFromCachesRef.current?.(providerId, ref)
+    setItemCache((prev) => ({ ...prev, [itemCacheKey(providerId, ref)]: { status: 'gone', item: null, parentRef, error } }))
+  }
+
   const loadFolder = useCallback(async (providerId, folderRef, cursor = null, opts = {}) => {
     if (cursor) return loadFolderNext(providerId, folderRef, cursor)
     const key = folderCacheKey(providerId, folderRef)
@@ -325,6 +350,15 @@ export function HubDataProvider({ children }) {
         upsertItemsCache(mappedItems)
       } catch (error) {
         if ((folderGenerationsRef.current[key] ?? 0) !== captured) return
+        if (folderRef && isGoneError(error)) {
+          const parentRef = knownParentRef(providerId, folderRef)
+          removeItemFromCachesRef.current?.(providerId, folderRef)
+          setFolderCache((prevCache) => ({
+            ...prevCache,
+            [key]: { ...(prevCache[key] ?? {}), status: 'gone', items: [], nextCursor: null, parentRef, error, revalidating: false, isFetchingNextPage: false },
+          }))
+          return
+        }
         setFolderCache((prevCache) => {
           const entry = prevCache[key]
           if (!entry) return prevCache
@@ -365,6 +399,10 @@ export function HubDataProvider({ children }) {
         }))
       } catch (error) {
         if ((itemGenerationsRef.current[key] ?? 0) !== captured) return
+        if (isGoneError(error)) {
+          markItemGone(providerId, ref, error)
+          return
+        }
         setItemCache((prev) => ({
           ...prev,
           [key]: { ...(prev[key] ?? {}), status: prev[key]?.item ? 'ready' : 'error', revalidating: false, error, fetchedAt: Date.now() },
@@ -663,6 +701,7 @@ export function HubDataProvider({ children }) {
       results: (prev.results ?? []).filter((item) => !(item.provider === providerId && item.ref === ref)),
     }))
   }, [])
+  removeItemFromCachesRef.current = removeItemFromCaches
 
   const replaceOptimisticItem = useCallback((folderKey, uiKey, serverItem) => {
     const nextItem = withUiKey(serverItem, uiKey)
@@ -1403,9 +1442,15 @@ export function HubDataProvider({ children }) {
         if (!refresh && cached && Date.parse(cached.authorizedUntil) > Date.now()
             && Date.parse(cached.expiresAt) > Date.now() + 5000
             && (!known?.contentRevision || known.contentRevision === cached.revision)) return cached
-        const source = refresh
-          ? await hubApiRef.current.getReadSource(providerId, ref, true)
-          : await hubApiRef.current.getReadSource(providerId, ref)
+        let source
+        try {
+          source = refresh
+            ? await hubApiRef.current.getReadSource(providerId, ref, true)
+            : await hubApiRef.current.getReadSource(providerId, ref)
+        } catch (error) {
+          if (isGoneError(error)) markItemGone(providerId, ref, error)
+          throw error
+        }
         const descriptor = { ...source, userId: sessionRef.current?.user?.id, providerId,
           verifyRevision: async (target) => {
             const verified = await hubApiRef.current.getReadSource(providerId, ref, true)

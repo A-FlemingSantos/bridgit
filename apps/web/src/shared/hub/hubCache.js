@@ -171,6 +171,12 @@ export function isExplicitRejection(error) {
   return false
 }
 
+// The provider says the item no longer exists: a definite answer, unlike a network or server failure,
+// so the item can leave the screen at once.
+export function isGoneError(error) {
+  return isApiClientError(error) && error.code === 'ITEM_NAO_ENCONTRADO'
+}
+
 export function isAmbiguousError(error) {
   return !isExplicitRejection(error)
 }

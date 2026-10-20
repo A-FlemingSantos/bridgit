@@ -162,6 +162,11 @@ export default function SpaceBrowsePage() {
     return <Navigate to={providerUrl(providerId)} replace />
   }
 
+  if (folderRef && folderQuery.status === 'gone') {
+    const to = folderQuery.parentRef ? providerFolderUrl(providerId, folderQuery.parentRef) : providerUrl(providerId)
+    return <Navigate to={to} replace state={{ notice: 'Essa pasta não existe mais.' }} />
+  }
+
   if (folderRef && folderQuery.status === 'ready' && folderQuery.folder === null && folderQuery.items.length === 0) {
     return <Navigate to={providerUrl(providerId)} replace />
   }
@@ -343,6 +348,7 @@ export default function SpaceBrowsePage() {
             </button>
           </>
         ) : null}
+        {location.state?.notice ? <p className={styles.empty} role="status">{location.state.notice}</p> : null}
         {staleNotice ? <p className={styles.empty} role="status">{staleNotice}</p> : null}
         {empty && !expired && !staleNotice ? (
           <div className={styles.emptyState}>

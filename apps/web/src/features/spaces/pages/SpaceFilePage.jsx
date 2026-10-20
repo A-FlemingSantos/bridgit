@@ -179,6 +179,11 @@ export default function SpaceFilePage() {
     return <Navigate to={providerUrl(providerId)} replace />
   }
 
+  if (itemQuery.status === 'gone') {
+    const to = itemQuery.parentRef ? providerFolderUrl(providerId, itemQuery.parentRef) : providerUrl(providerId)
+    return <Navigate to={to} replace state={{ notice: 'Esse arquivo não existe mais.' }} />
+  }
+
   if (itemQuery.status === 'ready' && !item) {
     return <Navigate to={providerMeta ? providerUrl(providerMeta.id) : ROUTES.home} replace />
   }

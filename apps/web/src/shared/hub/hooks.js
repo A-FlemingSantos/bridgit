@@ -66,6 +66,8 @@ export function useFolder(providerId, folderRef) {
     isFetchingNextPage: entry?.isFetchingNextPage ?? false,
     revalidating: entry?.revalidating ?? false,
     error: entry?.error ?? null,
+    // Set when the folder turned out to be gone ('gone' status): where the page should send the user.
+    parentRef: entry?.parentRef ?? null,
     catalog: entry?.catalog ?? null,
     loadMore() {
       if (!entry?.nextCursor || entry?.isFetchingNextPage) return Promise.resolve()
@@ -96,6 +98,7 @@ export function useItem(providerId, ref) {
     status: entry?.status ?? 'idle',
     item: entry?.item ?? null,
     error: entry?.error ?? null,
+    parentRef: entry?.parentRef ?? null,
     reload() {
       if (!providerId || !ref) return
       void loadItem(providerId, ref)
