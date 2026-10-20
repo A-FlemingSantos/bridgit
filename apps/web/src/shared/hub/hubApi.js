@@ -35,6 +35,18 @@ import { resolveContentUrls } from '../config/apiBase.js'
 
 export { isApiClientError, isHubSessionFailure }
 
+// A picked file can stop being readable before it is sent: a shortcut whose target is gone, or a file moved
+// or deleted after it was chosen. The browser then drops the request mid-body, which reads as a lost upload
+// and gets retried; reading one byte first turns it into a definite refusal that names the file.
+async function assertReadable(file) {
+  if (!(file instanceof Blob) || file.size === 0) return
+  try {
+    await file.slice(0, 1).arrayBuffer()
+  } catch {
+    throw new ApiClientError(`Não foi possível ler ${file.name || 'o arquivo'}.`, { code: 'ARQUIVO_ILEGIVEL', status: 400 })
+  }
+}
+
 export function createHubApi(getToken, onUnauthorized, options = {}) {
   const uncertainRequests = new Map()
   const uncertainLegacyRequests = new Map()
@@ -148,6 +160,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
         (token, requestOptions) => createFolderRequest(token, provider, parentRef, name, requestOptions)),
     uploadFile: async (provider, parentRef, file) => {
       if (exceedsUploadLimit(file)) throw uploadTooLargeError()
+      await assertReadable(file)
       return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(provider, 'UPLOAD',
         { parentRef, name: file.name, contentType: file.type }, file,
         (token, requestOptions) => uploadFileRequest(token, provider, parentRef, file, requestOptions))

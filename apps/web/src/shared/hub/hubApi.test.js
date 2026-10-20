@@ -105,6 +105,26 @@ describe('hubApi autorizacao', () => {
     }
   })
 
+  it('recusa sem enviar um arquivo que não pode mais ser lido', async () => {
+    const { uploadFile } = await import('@bridgit/shared-client')
+    uploadFile.mockReset()
+    const api = createHubApi(() => 'token', vi.fn())
+    const gone = new File(['conteudo'], 'atalho.md')
+    gone.slice = () => ({ arrayBuffer: () => Promise.reject(new DOMException('A requested file could not be found.', 'NotFoundError')) })
+
+    await expect(api.uploadFile('dropbox', null, gone)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL', status: 400 })
+    expect(uploadFile).not.toHaveBeenCalled()
+  })
+
+  it('envia um arquivo legível depois de ler o primeiro byte', async () => {
+    const { uploadFile } = await import('@bridgit/shared-client')
+    uploadFile.mockReset().mockResolvedValue({ ref: 'r1' })
+    const api = createHubApi(() => 'token', vi.fn())
+
+    await expect(api.uploadFile('dropbox', null, new File(['conteudo'], 'nota.md'))).resolves.toEqual({ ref: 'r1' })
+    expect(uploadFile).toHaveBeenCalledTimes(1)
+  })
+
   it('F18 nunca desloga em erro de provedor', async () => {
     const onUnauthorized = vi.fn()
     const api = createHubApi(() => 'token', onUnauthorized)
