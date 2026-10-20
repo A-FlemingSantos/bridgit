@@ -6,7 +6,7 @@ import { downloadEntry } from '../entryActions.jsx'
 import styles from './SelectionActions.module.css'
 
 // How long a selection must hold before the strip opens, so a quick click does not set the page moving.
-export const SELECTION_ACTIONS_DELAY_MS = 600
+export const SELECTION_ACTIONS_DELAY_MS = 250
 
 const EASE = [0.22, 1, 0.36, 1]
 
