@@ -15,11 +15,13 @@ const EASE = [0.22, 1, 0.36, 1]
 const stripMotion = {
   closed: (gap) => ({
     height: 0,
+    opacity: 0,
     marginBottom: -gap,
     transition: { duration: 0.32, ease: EASE, when: 'afterChildren' },
   }),
   open: {
     height: 'auto',
+    opacity: 1,
     marginBottom: 0,
     transition: { duration: 0.32, ease: EASE },
   },
