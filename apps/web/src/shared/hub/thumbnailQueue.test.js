@@ -24,4 +24,12 @@ describe('thumbnailQueue', () => {
     await loadThumbnail('k', fetchBlob)
     expect(fetchBlob).toHaveBeenCalledTimes(2)
   })
+
+  it('asks again for a preview it was told not to keep', async () => {
+    const fetchBlob = vi.fn(async () => jpeg())
+
+    expect(await loadThumbnail('settling', fetchBlob, null, null, { keep: false })).toMatch(/^blob:/)
+    await loadThumbnail('settling', fetchBlob, null, null, { keep: false })
+    expect(fetchBlob).toHaveBeenCalledTimes(2)
+  })
 })

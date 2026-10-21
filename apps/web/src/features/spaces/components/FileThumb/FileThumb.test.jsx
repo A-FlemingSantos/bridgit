@@ -53,7 +53,7 @@ describe('FileThumb', () => {
     )
 
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
-    expect(getThumbnail).toHaveBeenCalledWith('onedrive', 'p', null)
+    expect(getThumbnail).toHaveBeenCalledWith('onedrive', 'p', null, { keep: true })
     expect(container.querySelector('[data-type]')).toBeNull()
   })
 
@@ -163,5 +163,16 @@ describe('FileThumb', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(getThumbnail).not.toHaveBeenCalled()
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('shows a native Google preview fetched right after an edit without keeping it', async () => {
+    const getThumbnail = mockThumbnail(async () => jpeg())
+    const modifiedAt = new Date(Date.now() - 60 * 1000).toISOString()
+    const { container } = render(
+      <FileThumb file={{ ref: 'fresh', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: modifiedAt, modifiedAt }} providerId="google-drive" />,
+    )
+
+    await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
+    expect(getThumbnail).toHaveBeenCalledWith('google-drive', 'fresh', modifiedAt, { keep: false })
   })
 })

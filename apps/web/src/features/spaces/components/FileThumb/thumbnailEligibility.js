@@ -45,3 +45,13 @@ export function thumbnailEligible(providerId, file) {
   if (officeBadge(file)) return true
   return TEXT_EXTENSIONS[providerId]?.has(extension) === true
 }
+
+// Drive draws a native Google file's thumbnail a little after each edit and serves the old or a blank one
+// meanwhile, so a preview fetched this soon is shown but not kept.
+const NATIVE_PREVIEW_SETTLE_MS = 10 * 60 * 1000
+
+export function previewSettling(file, now = Date.now()) {
+  if (!mimeOf(file).startsWith('application/vnd.google-apps.')) return false
+  const modified = Date.parse(file?.modifiedAt ?? '')
+  return Number.isFinite(modified) && now - modified < NATIVE_PREVIEW_SETTLE_MS
+}

@@ -1451,8 +1451,9 @@ export function HubDataProvider({ children }) {
         const descriptor = thumbnailDescriptor(providerId, ref, revision)
         return descriptor ? getStoredThumbnail(descriptor) : null
       },
-      async getThumbnail(providerId, ref, revision) {
-        const descriptor = thumbnailDescriptor(providerId, ref, revision)
+      // keep: false shows a preview the cloud may still be redrawing without storing it under this revision.
+      async getThumbnail(providerId, ref, revision, { keep = true } = {}) {
+        const descriptor = keep ? thumbnailDescriptor(providerId, ref, revision) : null
         try {
           const blob = await hubApiRef.current.getThumbnail(providerId, ref)
           if (descriptor) void putThumbnail(descriptor, blob)

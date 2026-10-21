@@ -64,9 +64,10 @@ export function clearThumbnailCache() {
 /**
  * Resolves the object URL of a preview, or null without one. What the browser kept (`readStored`)
  * is read right away; only the trip to the cloud (`fetchBlob`) waits for a free slot. `transform` reshapes
- * the bytes for display only; what is kept stays the cloud's own image.
+ * the bytes for display only; what is kept stays the cloud's own image. `keep: false` leaves the page
+ * session's cache alone, for a preview the cloud may still be redrawing.
  */
-export async function loadThumbnail(key, fetchBlob, readStored, transform) {
+export async function loadThumbnail(key, fetchBlob, readStored, transform, { keep = true } = {}) {
   const known = cachedUrl(key)
   if (known !== undefined) return known
 
@@ -80,7 +81,10 @@ export async function loadThumbnail(key, fetchBlob, readStored, transform) {
     const again = cachedUrl(key)
     if (again !== undefined) return again
     try {
-      return remember(key, await shape(await fetchBlob()))
+      const blob = await shape(await fetchBlob())
+      // A preview that may still change is shown once and asked for again next time.
+      if (!keep) return blob && blob.size > 0 ? URL.createObjectURL(blob) : null
+      return remember(key, blob)
     } catch (error) {
       if (error?.status === 404) remember(key, null)
       return null
