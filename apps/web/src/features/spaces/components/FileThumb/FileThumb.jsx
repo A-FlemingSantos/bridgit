@@ -4,7 +4,7 @@ import FileSheet from '../FileSheet/FileSheet.jsx'
 import FileTypeIcon from '../FileTypeIcon/FileTypeIcon.jsx'
 import styles from './FileThumb.module.css'
 import { officeBadge, thumbnailEligible } from './thumbnailEligibility.js'
-import { loadThumbnail } from './thumbnailQueue.js'
+import { loadThumbnail } from '../../../../shared/hub/thumbnailQueue.js'
 import { fitThumbnail } from './thumbnailResize.js'
 
 export default function FileThumb({ file, providerId, showTypeIcon = false, align = 'end', fit = 'contain' }) {

@@ -1,7 +1,7 @@
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import FileThumb from './FileThumb.jsx'
-import { clearThumbnailCache } from './thumbnailQueue.js'
+import { clearThumbnailCache } from '../../../../shared/hub/thumbnailQueue.js'
 
 vi.mock('../../../../shared/hub/index.js', () => ({
   useHubActions: vi.fn(),

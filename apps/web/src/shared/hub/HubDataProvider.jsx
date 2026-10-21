@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
 import { loadCatalog, saveCatalog, clearConnectionStorage, putContent, getThumbnail as getStoredThumbnail, putThumbnail } from './storage/index.js'
+import { clearThumbnailCache } from './thumbnailQueue.js'
 import { insertSorted, projectOperations } from './operationProjection.js'
 import { mergeRefreshPlans, planEventRefresh } from './hubEventPlan.js'
 import { subscribeServerEvents } from './hubEvents.js'
@@ -155,7 +156,8 @@ export function HubDataProvider({ children }) {
         setShortcutsState(snapshot.shortcutsState ?? emptyListState)
       }
     }).catch(() => {}).finally(() => { if (active) setHydrated(true) })
-    return () => { active = false; lifecycleRef.current += 1; readDescriptorsRef.current.clear() }
+    // Previews shown this page session leave with the user too, not only the ones kept in IndexedDB.
+    return () => { active = false; lifecycleRef.current += 1; readDescriptorsRef.current.clear(); clearThumbnailCache() }
   }, [userId])
 
   useEffect(() => {

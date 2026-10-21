@@ -8,6 +8,7 @@ import { useFolder, useHubActions, useItem, useProviders, useRecents, useSearch,
 import { HubUploadError } from './hubErrors.js'
 import { hubErrorMessage } from '../state/hubErrorMessage.js'
 import { createHubApi } from './hubApi.js'
+import { loadThumbnail } from './thumbnailQueue.js'
 
 function deferred() {
   let resolve
@@ -1216,5 +1217,21 @@ describe('hub findings', () => {
     expect(result.current.recents.entries.map((entry) => entry.ref)).toEqual(['b', 'a'])
     expect(hubApiMock.listRecents.mock.calls.length).toBe(calls)
   })
-})
 
+  it('signing out drops the previews shown this page session', async () => {
+    if (typeof URL.createObjectURL !== 'function') URL.createObjectURL = () => 'blob:preview'
+    if (typeof URL.revokeObjectURL !== 'function') URL.revokeObjectURL = () => {}
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:signed-in')
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const { result } = renderHook(() => useProviders(), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    await loadThumbnail('preview', async () => new Blob([Uint8Array.from([1])], { type: 'image/jpeg' }))
+
+    act(() => {
+      localStorage.removeItem('bridgit.session')
+      window.dispatchEvent(new StorageEvent('storage', { key: 'bridgit.session', newValue: null }))
+    })
+
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:signed-in'))
+  })
+})
