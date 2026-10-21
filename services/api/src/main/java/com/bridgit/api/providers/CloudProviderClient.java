@@ -91,5 +91,13 @@ public interface CloudProviderClient {
     return open(accessToken, item, variant);
   }
 
+  /**
+   * Thumbnail bytes when the provider has one. The default is no thumbnail.
+   * A provider that looked and found none throws {@link ProviderApiException} with status 404.
+   */
+  default ContentStream openThumbnail(String accessToken, CloudItem item) {
+    return null;
+  }
+
   List<CloudItem> search(String accessToken, String query, int limit);
 }

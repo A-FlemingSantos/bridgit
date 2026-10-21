@@ -13,6 +13,7 @@ import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ProviderHttpSupport;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
+import com.bridgit.api.providers.ThumbnailSupport;
 import com.bridgit.api.providers.sync.CloudChange;
 import com.bridgit.api.providers.sync.CloudSyncClient;
 import com.bridgit.api.providers.sync.CloudWatchClient;
@@ -373,6 +374,12 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
         accessToken, url, item.name(), contentTypeFor(item, variant), range.headerValue());
   }
 
+  @Override
+  public ContentStream openThumbnail(String accessToken, CloudItem item) {
+    String url = DRIVE_BASE + "/items/" + item.ref() + "/thumbnails/0/medium/content";
+    return followRedirectStream(accessToken, url, item.name(), "image/jpeg", null, true);
+  }
+
   static ContentStream unsatisfiableRange(CloudItem item, ContentRange range) {
     Long size = item.size();
     if (size == null || size < 0) {
@@ -526,6 +533,17 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
       String contentType,
       String rangeHeader
   ) {
+    return followRedirectStream(accessToken, url, fileName, contentType, rangeHeader, false);
+  }
+
+  private ContentStream followRedirectStream(
+      String accessToken,
+      String url,
+      String fileName,
+      String contentType,
+      String rangeHeader,
+      boolean useResponseImageType
+  ) {
     RedirectResult redirect = noRedirectClient.get()
         .uri(URI.create(url))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
@@ -560,9 +578,17 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
             ensureSuccessOrRange(response);
             return response;
           }, false);
-      return toContentStream(finalResponse, fileName, contentType);
+      return toContentStream(finalResponse, fileName, streamType(finalResponse, contentType, useResponseImageType));
     }
-    return toContentStream(redirect.response(), fileName, contentType);
+    return toContentStream(
+        redirect.response(), fileName, streamType(redirect.response(), contentType, useResponseImageType));
+  }
+
+  private static String streamType(ClientHttpResponse response, String fallback, boolean useResponseImageType) {
+    if (!useResponseImageType || response == null) {
+      return fallback;
+    }
+    return ThumbnailSupport.imageContentType(response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
   }
 
   private JsonNode authorizedGet(String accessToken, String url) {

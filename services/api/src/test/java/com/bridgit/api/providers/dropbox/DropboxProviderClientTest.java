@@ -1,16 +1,23 @@
 package com.bridgit.api.providers.dropbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.bridgit.api.providers.CloudItem;
+import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
+import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -111,6 +118,42 @@ class DropboxProviderClientTest {
 
     assertEquals(ItemKind.FOLDER, folder.kind());
     assertEquals("3a", folder.remoteVersion());
+    server.verify();
+  }
+
+  @Test
+  void thumbnailRequestsAStrictFit() throws Exception {
+    server.expect(requestTo("https://content.dropboxapi.com/2/files/get_thumbnail_v2"))
+        .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token"))
+        .andExpect(header("Dropbox-API-Arg", org.hamcrest.Matchers.allOf(
+            org.hamcrest.Matchers.containsString("\"mode\":\"strict\""),
+            org.hamcrest.Matchers.containsString("\"size\":\"w640h480\""),
+            org.hamcrest.Matchers.containsString("id:photo")
+        )))
+        .andRespond(withSuccess(new byte[] {1}, MediaType.IMAGE_JPEG));
+
+    ContentStream stream = client.openThumbnail("token", new CloudItem(
+        "id:photo", "dropbox", "a.jpg", ItemKind.FILE, "image/jpeg", "jpg", 4L, null, null
+    ));
+
+    assertEquals(1, stream.body().read());
+    stream.close();
+    server.verify();
+  }
+
+  @Test
+  void officeAndPdfThumbnailsAreUnavailableWithoutARequest() {
+    CloudItem pdf = new CloudItem("id:pdf", "dropbox", "a.pdf", ItemKind.FILE, "application/pdf", "pdf", 4L, null, null);
+    CloudItem docx = new CloudItem(
+        "id:doc", "dropbox", "a.docx", ItemKind.FILE,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx", 4L, null, null
+    );
+
+    ProviderApiException pdfError = assertThrows(ProviderApiException.class, () -> client.openThumbnail("token", pdf));
+    ProviderApiException docxError = assertThrows(ProviderApiException.class, () -> client.openThumbnail("token", docx));
+
+    assertEquals(HttpStatus.NOT_FOUND, pdfError.getStatus());
+    assertEquals(HttpStatus.NOT_FOUND, docxError.getStatus());
     server.verify();
   }
 }

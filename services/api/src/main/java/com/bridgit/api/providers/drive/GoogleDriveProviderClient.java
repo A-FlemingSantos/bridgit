@@ -13,6 +13,7 @@ import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ProviderHttpSupport;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
+import com.bridgit.api.providers.ThumbnailSupport;
 import com.bridgit.api.providers.graph.NoRedirectClientHttpRequestFactory;
 import com.bridgit.api.providers.sync.CloudChange;
 import com.bridgit.api.providers.sync.CloudSyncClient;
@@ -492,6 +493,28 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       return unsatisfiable;
     }
     return mediaStream(accessToken, item.ref(), item.name(), item.mimeType(), range.headerValue());
+  }
+
+  @Override
+  public ContentStream openThumbnail(String accessToken, CloudItem item) {
+    JsonNode json = authorizedGet(
+        accessToken,
+        DRIVE_BASE + "/files/" + pathSegment(item.ref())
+            + "?fields=" + urlEncode("thumbnailLink") + "&supportsAllDrives=true"
+    );
+    String link = json.path("thumbnailLink").asText("");
+    if (!StringUtils.hasText(link)) {
+      throw new ProviderApiException(HttpStatus.NOT_FOUND, "MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+    }
+    ClientHttpResponse response = restClient.get()
+        .uri(URI.create(link))
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .exchange((request, resp) -> {
+          ensureSuccess(resp);
+          return resp;
+        }, false);
+    String type = ThumbnailSupport.imageContentType(response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
+    return toContentStream(response, item.name(), type);
   }
 
   static ContentStream unsatisfiableRange(CloudItem item, ContentRange range) {

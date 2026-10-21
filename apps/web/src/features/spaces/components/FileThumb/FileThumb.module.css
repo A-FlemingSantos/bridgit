@@ -1,0 +1,55 @@
+.root {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  pointer-events: none;
+  container-type: size;
+}
+
+.root[data-align='center'] {
+  align-items: center;
+}
+
+.imageFrame,
+.fallback,
+.sheet {
+  position: relative;
+  pointer-events: auto;
+}
+
+.sheet {
+  width: min(72px, 42%);
+  aspect-ratio: 1;
+}
+
+.sheet svg {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+.imageFrame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.preview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100cqw;
+  max-height: 100cqh;
+  object-fit: contain;
+}
+
+.badge {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+}

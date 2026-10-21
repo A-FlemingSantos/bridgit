@@ -19,6 +19,7 @@ import {
   getItem as getItemRequest,
   getPublicLink as getPublicLinkRequest,
   getReadSource as getReadSourceRequest,
+  getThumbnail as getThumbnailRequest,
   listFolder as listFolderRequest,
   listProviders as listProvidersRequest,
   listPublicLinks as listPublicLinksRequest,
@@ -175,6 +176,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       (token, requestOptions) => deleteItemRequest(token, provider, ref, requestOptions)),
     getReadSource: async (provider, ref, refresh = false) =>
       resolveContentUrls(await call((token) => getReadSourceRequest(token, provider, ref, refresh))),
+    getThumbnail: (provider, ref) => call((token) => getThumbnailRequest(token, provider, ref)),
     listOperations: () => call(listOperations),
     retryOperation: (id) => call((token) => retryOperation(token, id)),
     createContentTicket: async (provider, ref, disposition) =>

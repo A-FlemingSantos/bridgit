@@ -4,7 +4,12 @@ import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.hub.LocalSyncFlag;
 import com.bridgit.api.providers.CloudItem;
 import com.bridgit.api.providers.CloudProvider;
+import com.bridgit.api.providers.ContentStream;
+import com.bridgit.api.providers.ContentStreamResponder;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -24,9 +29,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class FilesController {
 
   private final ProviderFileService providerFileService;
+  private final ContentStreamResponder contentStreamResponder;
 
-  public FilesController(ProviderFileService providerFileService) {
+  public FilesController(ProviderFileService providerFileService, ContentStreamResponder contentStreamResponder) {
     this.providerFileService = providerFileService;
+    this.contentStreamResponder = contentStreamResponder;
   }
 
   @GetMapping("/items")
@@ -94,6 +101,16 @@ public class FilesController {
   ) {
     FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(provider, ref, clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(response));
+  }
+
+  @GetMapping("/items/{ref}/thumbnail")
+  public void thumbnail(
+      @PathVariable CloudProvider provider,
+      @PathVariable String ref,
+      HttpServletResponse response
+  ) throws IOException {
+    ContentStream stream = providerFileService.openThumbnail(provider, ref);
+    contentStreamResponder.write(stream, response, false, Map.of("Cache-Control", "private"));
   }
 
   @GetMapping("/items/{ref}/read")

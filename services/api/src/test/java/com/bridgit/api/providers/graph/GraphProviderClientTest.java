@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.bridgit.api.providers.CloudItem;
+import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ContentVariant;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
@@ -165,6 +166,22 @@ class GraphProviderClientTest {
     ), ContentVariant.ORIGINAL);
 
     assertEquals('h', (char) stream.body().read());
+    stream.close();
+    server.verify();
+  }
+
+  @Test
+  void thumbnailUsesMediumContent() throws Exception {
+    server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.containsString("/items/item-1/thumbnails/0/medium/content")))
+        .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token"))
+        .andRespond(withSuccess(new byte[] {(byte) 0xff, (byte) 0xd8}, MediaType.IMAGE_JPEG));
+
+    ContentStream stream = client.openThumbnail("token", new CloudItem(
+        "item-1", "onedrive", "photo.jpg", ItemKind.FILE, "image/jpeg", "jpg", 5L, null, null
+    ));
+
+    assertEquals("image/jpeg", stream.contentType());
+    assertEquals(0xff, stream.body().read());
     stream.close();
     server.verify();
   }

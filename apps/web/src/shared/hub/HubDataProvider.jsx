@@ -1435,6 +1435,9 @@ export function HubDataProvider({ children }) {
           throw error
         }
       },
+      async getThumbnail(providerId, ref) {
+        return hubApiRef.current.getThumbnail(providerId, ref)
+      },
       async getReadSource({ providerId, ref, refresh = false }) {
         const key = itemCacheKey(providerId, ref)
         const cached = readDescriptorsRef.current.get(key)

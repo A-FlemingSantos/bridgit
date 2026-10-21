@@ -16,7 +16,7 @@ import { useFolder, useHubActions, useProviders, usePublicLinks, useShortcuts } 
 import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
-import FileSheet from '../components/FileSheet/FileSheet.jsx'
+import FileThumb from '../components/FileThumb/FileThumb.jsx'
 import FolderArt from '../components/FolderArt/FolderArt.jsx'
 import { folderViewStyles, ItemGrid, TileContent, useTileSelection } from '../components/FolderView/FolderView.jsx'
 import FolderColorPalette from '../components/FolderColorPalette/FolderColorPalette.jsx'
@@ -478,7 +478,7 @@ export default function SpaceBrowsePage() {
                     }
                   >
                     <TileContent
-                      art={<FileSheet file={item} />}
+                      art={<FileThumb file={item} providerId={providerId} showTypeIcon />}
                       title={
                         renamingRef === item.ref ? (
                           <InlineName

@@ -1,5 +1,6 @@
 package com.bridgit.api.files;
 
+import com.bridgit.api.common.error.NotFoundException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionService;
@@ -15,13 +16,16 @@ import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ContentVariant;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.ItemPage;
+import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ReadMode;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.SealedCursorService;
+import com.bridgit.api.providers.ThumbnailSupport;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.InputStreamSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -232,6 +236,28 @@ public class ProviderFileService {
         "inline"
     );
     return new FilesDtos.ReadResponse(plan.mode(), "/api/content/" + issued.ticket(), issued.expiresAt());
+  }
+
+  public ContentStream openThumbnail(CloudProvider provider, String ref) {
+    UUID userId = authenticatedUserService.requireUserId();
+    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
+    CloudProviderClient client = clients.get(provider);
+    CloudItem item = retryService.withRetry(connection, token -> client.get(token, ref));
+    if (!ThumbnailSupport.eligible(provider, item)) {
+      throw new NotFoundException("MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+    }
+    try {
+      ContentStream stream = retryService.withRetry(connection, token -> client.openThumbnail(token, item));
+      if (stream == null) {
+        throw new NotFoundException("MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+      }
+      return stream;
+    } catch (ProviderApiException ex) {
+      if (ex.getStatus() == HttpStatus.NOT_FOUND) {
+        throw new NotFoundException("MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+      }
+      throw ex;
+    }
   }
 
   public FilesDtos.TicketResponse createDownloadTicket(

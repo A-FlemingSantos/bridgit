@@ -11,6 +11,7 @@ import {
   getItem,
   getPublicLink,
   getReadSource,
+  getThumbnail,
   listFolder,
   listProviders,
   listRecents,
@@ -218,6 +219,13 @@ describe('hub api', () => {
       method: 'POST',
       token,
       body: { disposition: 'attachment' },
+    })
+
+    apiRequest.mockResolvedValue(new Blob(['img']))
+    await getThumbnail(token, 'onedrive', 'photo.jpg')
+    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/photo.jpg/thumbnail', {
+      token,
+      responseType: 'blob',
     })
   })
 

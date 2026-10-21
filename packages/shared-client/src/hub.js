@@ -107,6 +107,10 @@ export function getReadSource(token, provider, ref, refresh = false) {
   return apiRequest(`${itemPath(provider, ref)}/read`, { token, query: refresh ? { refresh: true } : undefined })
 }
 
+export function getThumbnail(token, provider, ref) {
+  return apiRequest(`${itemPath(provider, ref)}/thumbnail`, { token, responseType: 'blob' })
+}
+
 export function createContentTicket(token, provider, ref, disposition) {
   return apiRequest(`${itemPath(provider, ref)}/ticket`, {
     method: 'POST',

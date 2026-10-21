@@ -13,6 +13,7 @@ import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ProviderHttpSupport;
 import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.ReadPlanSupport;
+import com.bridgit.api.providers.ThumbnailSupport;
 import com.bridgit.api.providers.graph.NoRedirectClientHttpRequestFactory;
 import com.bridgit.api.providers.sync.CloudChange;
 import com.bridgit.api.providers.sync.CloudSyncClient;
@@ -29,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
@@ -310,6 +313,41 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
         StringUtils.hasText(item.mimeType()) ? item.mimeType() : "application/octet-stream",
         range.headerValue()
     );
+  }
+
+  @Override
+  public ContentStream openThumbnail(String accessToken, CloudItem item) {
+    if (!ThumbnailSupport.eligible(CloudProvider.DROPBOX, item)) {
+      throw new ProviderApiException(HttpStatus.NOT_FOUND, "MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+    }
+    Map<String, Object> resource = new LinkedHashMap<>();
+    resource.put(".tag", "path");
+    resource.put("path", item.ref());
+    Map<String, Object> arg = new LinkedHashMap<>();
+    arg.put("resource", resource);
+    arg.put("format", "jpeg");
+    arg.put("size", "w640h480");
+    arg.put("mode", "strict");
+    ClientHttpResponse response = contentClient.post()
+        .uri(CONTENT_BASE + "/files/get_thumbnail_v2")
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .header("Dropbox-API-Arg", apiArg(arg))
+        .exchange((request, resp) -> {
+          int status;
+          try {
+            status = resp.getStatusCode().value();
+          } catch (Exception ex) {
+            throw new ProviderApiException("Não foi possível obter a miniatura.");
+          }
+          if (status == 404 || status == 409) {
+            resp.close();
+            throw new ProviderApiException(HttpStatus.NOT_FOUND, "MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
+          }
+          ensureSuccess(resp);
+          return resp;
+        }, false);
+    String type = ThumbnailSupport.imageContentType(response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
+    return toContentStream(response, item.name(), type);
   }
 
   static ContentStream unsatisfiableRange(CloudItem item, ContentRange range) {

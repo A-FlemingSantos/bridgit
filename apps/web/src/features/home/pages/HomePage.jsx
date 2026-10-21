@@ -20,6 +20,7 @@ import {
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
+import FileThumb from '../../spaces/components/FileThumb/FileThumb.jsx'
 import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import ProviderStrip from '../../spaces/components/ProviderStrip/ProviderStrip.jsx'
@@ -485,7 +486,7 @@ export default function HomePage() {
                       aria-label={file.name}
                     >
                       <span className={styles.tileFace} aria-hidden="true">
-                        <FileSheet file={file} />
+                        <FileThumb file={file} providerId={file.provider} align="center" />
                         <span className={styles.tileMark}>
                           <ProviderMark id={file.provider} size={14} />
                         </span>
