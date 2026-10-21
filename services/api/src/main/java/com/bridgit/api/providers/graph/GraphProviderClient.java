@@ -376,7 +376,8 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
 
   @Override
   public ContentStream openThumbnail(String accessToken, CloudItem item) {
-    String url = DRIVE_BASE + "/items/" + item.ref() + "/thumbnails/0/medium/content";
+    // medium stops at 176 px and blurs once the home grid fills its tile; large fits in 800 px.
+    String url = DRIVE_BASE + "/items/" + item.ref() + "/thumbnails/0/large/content";
     return followRedirectStream(accessToken, url, item.name(), "image/jpeg", null, true);
   }
 

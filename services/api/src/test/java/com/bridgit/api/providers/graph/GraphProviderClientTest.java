@@ -171,8 +171,8 @@ class GraphProviderClientTest {
   }
 
   @Test
-  void thumbnailUsesMediumContent() throws Exception {
-    server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.containsString("/items/item-1/thumbnails/0/medium/content")))
+  void thumbnailUsesLargeContent() throws Exception {
+    server.expect(ExpectedCount.once(), requestTo(org.hamcrest.Matchers.containsString("/items/item-1/thumbnails/0/large/content")))
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token"))
         .andRespond(withSuccess(new byte[] {(byte) 0xff, (byte) 0xd8}, MediaType.IMAGE_JPEG));
 

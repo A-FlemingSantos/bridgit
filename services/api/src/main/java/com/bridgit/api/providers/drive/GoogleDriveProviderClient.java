@@ -507,7 +507,7 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
       throw new ProviderApiException(HttpStatus.NOT_FOUND, "MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
     }
     ClientHttpResponse response = restClient.get()
-        .uri(URI.create(link))
+        .uri(URI.create(sizedThumbnailLink(link)))
         .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
         .exchange((request, resp) -> {
           ensureSuccess(resp);
@@ -515,6 +515,11 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         }, false);
     String type = ThumbnailSupport.imageContentType(response.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE));
     return toContentStream(response, item.name(), type);
+  }
+
+  /** The link ends in a size such as {@code =s220}; that one blurs once the home grid fills its tile. */
+  static String sizedThumbnailLink(String link) {
+    return link.replaceFirst("=s\\d+$", "=s640");
   }
 
   static ContentStream unsatisfiableRange(CloudItem item, ContentRange range) {

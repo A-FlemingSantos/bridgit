@@ -88,8 +88,8 @@ class GoogleDriveProviderClientTest {
   @Test
   void thumbnailDownloadsTheLinkWithTheToken() throws Exception {
     server.expect(requestTo(org.hamcrest.Matchers.containsString("fields=thumbnailLink")))
-        .andRespond(withSuccess("{\"thumbnailLink\":\"https://lh3.googleusercontent.com/thumb\"}", MediaType.APPLICATION_JSON));
-    server.expect(requestTo("https://lh3.googleusercontent.com/thumb"))
+        .andRespond(withSuccess("{\"thumbnailLink\":\"https://lh3.googleusercontent.com/thumb=s220\"}", MediaType.APPLICATION_JSON));
+    server.expect(requestTo("https://lh3.googleusercontent.com/thumb=s640"))
         .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token"))
         .andRespond(withSuccess(new byte[] {1, 2}, MediaType.IMAGE_JPEG));
 
