@@ -98,7 +98,7 @@ describe('FileThumb', () => {
     expect(home.container.querySelector('[data-type]')).toBeNull()
   })
 
-  it('gives each Word mark its own gradient ids', () => {
+  it('gives each document its own Word mark', () => {
     mockThumbnail(async () => new Promise(() => {}))
     const file = { ref: 'd', name: 'a.docx', kind: 'file', extension: 'docx' }
     const { container } = render(
@@ -107,9 +107,7 @@ describe('FileThumb', () => {
         <FileThumb file={{ ...file, ref: 'e' }} providerId="onedrive" showTypeIcon />
       </>,
     )
-    const ids = [...container.querySelectorAll('[id]')].map((node) => node.id).filter(Boolean)
-    expect(ids.length).toBeGreaterThan(0)
-    expect(new Set(ids).size).toBe(ids.length)
+    expect(container.querySelectorAll('[data-type="word"]')).toHaveLength(2)
   })
 
   it('does not ask for a thumbnail of a text file', async () => {
