@@ -133,9 +133,15 @@ public class CatalogStore {
   }
   public Entry entryByPath(ProviderConnectionEntity c, String path) {
     State state = ensure(c);
-    String ref = jdbc.query("SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=?",
+    String ref = jdbc.query("SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=? AND deleted=0",
         (rs, row) -> rs.getString(1), c.getId().toString(), c.getGeneration(), state.activeScan(), pathHash(path)).stream().findFirst().orElse(null);
     return ref == null ? null : entry(c, state.activeScan(), ref);
+  }
+
+  /** Live rows at a path that Bridgit wrote itself and the provider has not reported back yet. */
+  public List<String> fencedAtPath(ProviderConnectionEntity c, long scan, String path) {
+    return jdbc.query("SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=? AND deleted=0 AND mutation_fence=1",
+        (rs, row) -> rs.getString(1), c.getId().toString(), c.getGeneration(), scan, pathHash(path));
   }
 
   private Entry entry(ProviderConnectionEntity c, long scan, String ref) {
@@ -249,8 +255,12 @@ public class CatalogStore {
     if (!change.deleted()) { upsert(c, scan, change, fence); return; }
     String ref = change.ref();
     if (ref == null && change.path() != null) {
-      ref = jdbc.query("SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=?",
-          (rs, row) -> rs.getString(1), c.getId().toString(), c.getGeneration(), scan, pathHash(change.path())).stream().findFirst().orElse(null);
+      // A removal known only by path (Dropbox) means nothing is left there, so every live row at that path goes:
+      // picking one row let re-uploads with the same name pile up. Rows Bridgit wrote itself are left out; the
+      // worker confirms those by id first (fencedAtPath), since one may be newer than this removal.
+      jdbc.update("UPDATE cloud_catalog_items SET deleted=1 WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=? AND deleted=0 AND mutation_fence=0",
+          c.getId().toString(), c.getGeneration(), scan, pathHash(change.path()));
+      return;
     }
     if (ref == null) return;
     jdbc.update("UPDATE cloud_catalog_items SET deleted=1,mutation_fence=? WHERE connection_id=? AND generation=? AND scan_id=? AND item_ref=?",

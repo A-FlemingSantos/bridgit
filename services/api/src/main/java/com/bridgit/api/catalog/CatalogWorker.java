@@ -70,6 +70,18 @@ public class CatalogWorker {
       SyncPage page = retry.withRetry(c, token -> sync.syncPage(token, state.checkpoint()));
       List<CloudChange> reconciled = new ArrayList<>();
       for (CloudChange change : page.changes()) {
+        if (change.deleted() && change.ref() == null && change.path() != null) {
+          // The removal clears the path; a row Bridgit wrote there may be newer than it, so ask the provider by id.
+          reconciled.add(change);
+          for (String ref : store.fencedAtPath(c, state.buildingScan(), change.path())) {
+            try { reconciled.add(CloudChange.upsert(retry.withRetry(c, token -> client.get(token, ref)))); }
+            catch (ProviderApiException ex) {
+              if (ex.getStatus() != HttpStatus.NOT_FOUND) throw ex;
+              reconciled.add(CloudChange.removed(ref));
+            }
+          }
+          continue;
+        }
         CatalogStore.Entry local = change.ref() != null ? store.entry(c, change.ref()) : change.path() == null ? null : store.entryByPath(c, change.path());
         // An entry with neither name nor kind is how a removal looks once the deleted facet is lost; confirm it.
         boolean incomplete = !change.deleted() && change.ref() != null && (change.item() == null
