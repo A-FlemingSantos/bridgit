@@ -19,7 +19,9 @@ public final class HubDtos {
       String mimeType,
       String extension,
       OffsetDateTime openedAt,
-      OffsetDateTime pinnedAt
+      OffsetDateTime pinnedAt,
+      String contentRevision,
+      String remoteVersion
   ) {
   }
 

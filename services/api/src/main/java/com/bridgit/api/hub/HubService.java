@@ -14,7 +14,9 @@ import com.bridgit.api.providers.CloudProviderClients;
 import com.bridgit.api.providers.ItemKind;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -62,7 +64,7 @@ public class HubService {
     this.clock = clock;
   }
 
-  @Transactional(readOnly = true)
+  // No surrounding transaction: a catalog lookup that fails must not roll back the list it decorates.
   public List<HubEntry> listRecents() {
     UUID userId = authenticatedUserService.requireUserId();
     Set<UUID> connectionIds = activeConnectionIds(userId);
@@ -70,9 +72,36 @@ public class HubService {
       return List.of();
     }
 
-    return recentRepository.findTop12ByUserIdAndConnectionIdInOrderByOpenedAtDesc(userId, connectionIds).stream()
-        .map(recent -> toRecentEntry(recent, connectionProvider(recent.getConnectionId())))
+    List<HubRecentEntity> recents =
+        recentRepository.findTop12ByUserIdAndConnectionIdInOrderByOpenedAtDesc(userId, connectionIds);
+    Map<UUID, Map<String, CloudItem>> known = knownItems(userId, recents);
+    return recents.stream()
+        .map(recent -> toRecentEntry(
+            recent,
+            connectionProvider(recent.getConnectionId()),
+            known.getOrDefault(recent.getConnectionId(), Map.of()).get(recent.getItemRef())))
         .toList();
+  }
+
+  // The catalog's revision lets the home grid keep a file's preview across reloads.
+  // A catalog that cannot answer leaves the entry without one; the list itself never fails for it.
+  private Map<UUID, Map<String, CloudItem>> knownItems(UUID userId, List<HubRecentEntity> recents) {
+    if (catalog == null || localHubProperties == null || !localHubProperties.isCatalogEnabled() || recents.isEmpty()) {
+      return Map.of();
+    }
+    Map<UUID, List<String>> refs = recents.stream().collect(Collectors.groupingBy(
+        HubRecentEntity::getConnectionId, Collectors.mapping(HubRecentEntity::getItemRef, Collectors.toList())));
+    Map<UUID, Map<String, CloudItem>> found = new HashMap<>();
+    for (ProviderConnectionEntity connection : connectionRepository.findByUserId(userId)) {
+      List<String> connectionRefs = refs.get(connection.getId());
+      if (connectionRefs == null || !localHubProperties.providerEnabled(connection.getProvider())) continue;
+      try {
+        found.put(connection.getId(), catalog.known(connection, connectionRefs));
+      } catch (RuntimeException ex) {
+        // Stale generation or catalog unavailable: the entries go out without a revision.
+      }
+    }
+    return found;
   }
 
   @Transactional
@@ -96,7 +125,7 @@ public class HubService {
 
     trimRecents(userId);
     notifyEntry(userId, connection, "recent", ref, false);
-    return toRecentEntry(recent, provider.id());
+    return toRecentEntry(recent, provider.id(), item);
   }
 
   @Transactional(readOnly = true)
@@ -197,7 +226,7 @@ public class HubService {
         .orElse(null);
   }
 
-  static HubEntry toRecentEntry(HubRecentEntity entity, String provider) {
+  static HubEntry toRecentEntry(HubRecentEntity entity, String provider, CloudItem known) {
     return new HubEntry(
         provider,
         entity.getItemRef(),
@@ -205,7 +234,9 @@ public class HubService {
         entity.getMimeType(),
         entity.getExtension(),
         entity.getOpenedAt(),
-        null
+        null,
+        known == null ? null : known.contentRevision(),
+        known == null ? null : known.remoteVersion()
     );
   }
 
@@ -217,7 +248,9 @@ public class HubService {
         entity.getMimeType(),
         entity.getExtension(),
         null,
-        entity.getPinnedAt()
+        entity.getPinnedAt(),
+        null,
+        null
     );
   }
 }

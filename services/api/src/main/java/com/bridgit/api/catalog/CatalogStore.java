@@ -147,6 +147,17 @@ public class CatalogStore {
     State state = ensure(c);
     return entry(c, state.activeScan(), ref);
   }
+  /** The live items among {@code refs}, by ref, reading the catalog state once for the batch. */
+  public Map<String, CloudItem> known(ProviderConnectionEntity c, Collection<String> refs) {
+    if (refs.isEmpty()) return Map.of();
+    State state = ensure(c);
+    Map<String, CloudItem> found = new HashMap<>();
+    for (String ref : refs) {
+      Entry entry = entry(c, state.activeScan(), ref);
+      if (entry != null && !entry.deleted()) found.put(ref, entry.item());
+    }
+    return found;
+  }
   public Entry entryByPath(ProviderConnectionEntity c, String path) {
     State state = ensure(c);
     String ref = jdbc.query("SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND path_hash=? AND deleted=0",
