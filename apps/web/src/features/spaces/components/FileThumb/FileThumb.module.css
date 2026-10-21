@@ -48,6 +48,27 @@
   object-fit: contain;
 }
 
+/* The preview fills the whole tile, cropped to it, instead of keeping the file's own shape. */
+.root[data-fit='cover'] {
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.root[data-fit='cover'] .imageFrame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-height: none;
+}
+
+.root[data-fit='cover'] .preview {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+}
+
 .badge {
   position: absolute;
   left: 2px;

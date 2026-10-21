@@ -63,22 +63,24 @@ export function clearThumbnailCache() {
 
 /**
  * Resolves the object URL of a preview, or null without one. What the browser kept (`readStored`)
- * is read right away; only the trip to the cloud (`fetchBlob`) waits for a free slot.
+ * is read right away; only the trip to the cloud (`fetchBlob`) waits for a free slot. `transform` reshapes
+ * the bytes for display only; what is kept stays the cloud's own image.
  */
-export async function loadThumbnail(key, fetchBlob, readStored) {
+export async function loadThumbnail(key, fetchBlob, readStored, transform) {
   const known = cachedUrl(key)
   if (known !== undefined) return known
 
+  const shape = async (blob) => (blob && typeof transform === 'function' ? transform(blob).catch(() => blob) : blob)
   const stored = typeof readStored === 'function' ? await readStored().catch(() => null) : null
   if (stored?.missing) return remember(key, null)
-  if (stored?.blob) return remember(key, stored.blob)
+  if (stored?.blob) return remember(key, await shape(stored.blob))
 
   const slot = await acquire()
   try {
     const again = cachedUrl(key)
     if (again !== undefined) return again
     try {
-      return remember(key, await fetchBlob())
+      return remember(key, await shape(await fetchBlob()))
     } catch (error) {
       if (error?.status === 404) remember(key, null)
       return null

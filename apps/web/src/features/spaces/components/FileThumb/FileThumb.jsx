@@ -5,8 +5,9 @@ import FileTypeIcon from '../FileTypeIcon/FileTypeIcon.jsx'
 import styles from './FileThumb.module.css'
 import { officeBadge, thumbnailEligible } from './thumbnailEligibility.js'
 import { loadThumbnail } from './thumbnailQueue.js'
+import { fitThumbnail } from './thumbnailResize.js'
 
-export default function FileThumb({ file, providerId, showTypeIcon = false, align = 'end' }) {
+export default function FileThumb({ file, providerId, showTypeIcon = false, align = 'end', fit = 'contain' }) {
   const { getThumbnail, getStoredThumbnail } = useHubActions()
   const rootRef = useRef(null)
   const [visible, setVisible] = useState(false)
@@ -34,20 +35,26 @@ export default function FileThumb({ file, providerId, showTypeIcon = false, alig
   useEffect(() => {
     if (!visible || !eligible || typeof getThumbnail !== 'function' || !ref) return undefined
     let cancelled = false
-    const key = `${providerId}\0${ref}\0${revision ?? ''}`
+    // The preview is drawn at the tile's own size, so each size of tile keeps its own copy.
+    const box = rootRef.current?.getBoundingClientRect()
+    const width = Math.round(box?.width ?? 0)
+    const height = Math.round(box?.height ?? 0)
+    const scale = globalThis.devicePixelRatio || 1
+    const key = `${providerId}\0${ref}\0${revision ?? ''}\0${fit}:${width}x${height}@${scale}`
     const readStored = typeof getStoredThumbnail === 'function' ? () => getStoredThumbnail(providerId, ref, revision) : null
-    loadThumbnail(key, () => getThumbnail(providerId, ref, revision), readStored).then((next) => {
+    const transform = (blob) => fitThumbnail(blob, { width, height, fit, scale })
+    loadThumbnail(key, () => getThumbnail(providerId, ref, revision), readStored, transform).then((next) => {
       if (!cancelled) setUrl(next)
     })
     return () => {
       cancelled = true
     }
-  }, [visible, eligible, getThumbnail, getStoredThumbnail, providerId, ref, revision])
+  }, [visible, eligible, getThumbnail, getStoredThumbnail, providerId, ref, revision, fit])
 
   const cornerBadge = url && showTypeIcon ? kind : null
 
   return (
-    <span ref={rootRef} className={styles.root} data-align={align}>
+    <span ref={rootRef} className={styles.root} data-align={align} data-fit={fit}>
       {url ? (
         <span className={styles.imageFrame}>
           <img className={styles.preview} src={url} alt="" />

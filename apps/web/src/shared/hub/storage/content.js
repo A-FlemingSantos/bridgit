@@ -200,7 +200,8 @@ export async function putContent(descriptor, blob) {
   return true
 }
 
-const THUMBNAIL_VARIANT = 'THUMBNAIL'
+// The suffix moves whenever the API asks the clouds for another size, so a smaller kept preview is not reused.
+const THUMBNAIL_VARIANT = 'THUMBNAIL-640'
 const MAX_THUMBNAIL_BYTES = 2 * MIB
 // The cloud may still be drawing a fresh upload's preview; an hour later it is asked again.
 const THUMBNAIL_MISS_TTL_MS = 60 * 60 * 1000

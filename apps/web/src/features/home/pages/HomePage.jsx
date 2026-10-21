@@ -486,7 +486,7 @@ export default function HomePage() {
                       aria-label={file.name}
                     >
                       <span className={styles.tileFace} aria-hidden="true">
-                        <FileThumb file={file} providerId={file.provider} align="center" />
+                        <FileThumb file={file} providerId={file.provider} align="center" fit="cover" />
                         <span className={styles.tileMark}>
                           <ProviderMark id={file.provider} size={14} />
                         </span>
