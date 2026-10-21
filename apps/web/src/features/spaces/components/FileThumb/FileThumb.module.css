@@ -46,6 +46,7 @@
   max-width: 100cqw;
   max-height: 100cqh;
   object-fit: contain;
+  border-radius: 4px;
 }
 
 /* The preview fills the whole tile, cropped to it, instead of keeping the file's own shape. */
@@ -67,6 +68,7 @@
   max-width: none;
   max-height: none;
   object-fit: cover;
+  border-radius: 0;
 }
 
 .badge {
