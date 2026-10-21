@@ -29,7 +29,7 @@ class ProviderFileServiceThumbnailTest {
   @Test
   void ineligibleFileIsNotFoundWithoutAskingForAThumbnail() {
     Harness harness = harness(CloudProvider.ONEDRIVE);
-    when(harness.client.get("token", "note")).thenReturn(file("note.txt", "text/plain", "txt"));
+    when(harness.client.get("token", "note")).thenReturn(file("notes.zip", "application/zip", "zip"));
 
     assertThrows(NotFoundException.class, () -> harness.service.openThumbnail(CloudProvider.ONEDRIVE, "note"));
     verify(harness.client, never()).openThumbnail(any(), any());

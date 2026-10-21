@@ -5,7 +5,8 @@ import java.util.Set;
 
 /**
  * Which catalog items can have a cloud thumbnail. Dropbox only thumbnails images, and only under 20 MB.
- * OneDrive and Google Drive also thumbnail PDF and Office, including native Docs, Sheets and Slides.
+ * OneDrive and Google Drive also thumbnail PDF and Office, including native Docs, Sheets and Slides,
+ * and plain text: .txt and .md on OneDrive, .txt on Drive.
  */
 public final class ThumbnailSupport {
 
@@ -23,6 +24,10 @@ public final class ThumbnailSupport {
   private static final Set<String> EXCEL_EXTENSIONS = Set.of("xls", "xlsx", "xlsm", "xlsb");
   private static final Set<String> POWERPOINT_EXTENSIONS = Set.of("ppt", "pptx", "pptm", "pps", "ppsx");
 
+  // Measured against the clouds: OneDrive draws .txt and .md pages, Drive only .txt, Dropbox neither.
+  private static final Set<String> ONEDRIVE_TEXT_EXTENSIONS = Set.of("txt", "md");
+  private static final Set<String> DRIVE_TEXT_EXTENSIONS = Set.of("txt");
+
   private static final String GOOGLE_DOCUMENT = "application/vnd.google-apps.document";
   private static final String GOOGLE_SPREADSHEET = "application/vnd.google-apps.spreadsheet";
   private static final String GOOGLE_PRESENTATION = "application/vnd.google-apps.presentation";
@@ -37,7 +42,7 @@ public final class ThumbnailSupport {
     if (provider == CloudProvider.DROPBOX) {
       return dropboxImage(item);
     }
-    return image(item) || pdf(item) || office(item) || googleNative(provider, item);
+    return image(item) || pdf(item) || office(item) || googleNative(provider, item) || text(provider, item);
   }
 
   /** Keeps an image media type from the provider; anything else becomes JPEG. */
@@ -85,6 +90,13 @@ public final class ThumbnailSupport {
     }
     String mime = mime(item);
     return GOOGLE_DOCUMENT.equals(mime) || GOOGLE_SPREADSHEET.equals(mime) || GOOGLE_PRESENTATION.equals(mime);
+  }
+
+  private static boolean text(CloudProvider provider, CloudItem item) {
+    if (provider == CloudProvider.ONEDRIVE) {
+      return ONEDRIVE_TEXT_EXTENSIONS.contains(extension(item));
+    }
+    return provider == CloudProvider.GOOGLE_DRIVE && DRIVE_TEXT_EXTENSIONS.contains(extension(item));
   }
 
   private static String extension(CloudItem item) {

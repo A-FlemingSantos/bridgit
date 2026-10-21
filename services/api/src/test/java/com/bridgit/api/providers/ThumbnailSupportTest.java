@@ -9,8 +9,12 @@ import org.junit.jupiter.api.Test;
 class ThumbnailSupportTest {
 
   @Test
-  void plainTextIsNotEligible() {
-    assertFalse(ThumbnailSupport.eligible(CloudProvider.ONEDRIVE, file("note.txt", "text/plain", "txt", 12L)));
+  void plainTextIsEligibleWhereTheCloudDrawsIt() {
+    assertTrue(ThumbnailSupport.eligible(CloudProvider.ONEDRIVE, file("note.txt", "text/plain", "txt", 12L)));
+    assertTrue(ThumbnailSupport.eligible(CloudProvider.ONEDRIVE, file("readme.md", "text/markdown", "md", 12L)));
+    assertTrue(ThumbnailSupport.eligible(CloudProvider.GOOGLE_DRIVE, file("note.txt", "text/plain", "txt", 12L)));
+    assertFalse(ThumbnailSupport.eligible(CloudProvider.GOOGLE_DRIVE, file("readme.md", "text/markdown", "md", 12L)));
+    assertFalse(ThumbnailSupport.eligible(CloudProvider.DROPBOX, file("note.txt", "text/plain", "txt", 12L)));
   }
 
   @Test

@@ -110,14 +110,28 @@ describe('FileThumb', () => {
     expect(container.querySelectorAll('[data-type="word"]')).toHaveLength(2)
   })
 
-  it('does not ask for a thumbnail of a text file', async () => {
+  it('does not ask Dropbox for a thumbnail of a text file', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     const { container } = render(
-      <FileThumb file={{ ref: 't', name: 'a.txt', kind: 'file', mimeType: 'text/plain', extension: 'txt' }} providerId="onedrive" showTypeIcon />,
+      <FileThumb file={{ ref: 't', name: 'a.txt', kind: 'file', mimeType: 'text/plain', extension: 'txt' }} providerId="dropbox" showTypeIcon />,
     )
     expect(container.querySelector('svg[shape-rendering="crispEdges"]')).toBeTruthy()
     expect(container.querySelector('[data-type]')).toBeNull()
     expect(getThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('asks OneDrive for a text preview and Drive only for .txt', async () => {
+    const getThumbnail = mockThumbnail(async () => jpeg())
+    render(
+      <>
+        <FileThumb file={{ ref: 'o', name: 'a.md', kind: 'file', extension: 'md' }} providerId="onedrive" />
+        <FileThumb file={{ ref: 'g', name: 'a.txt', kind: 'file', extension: 'txt' }} providerId="google-drive" />
+        <FileThumb file={{ ref: 'h', name: 'a.md', kind: 'file', extension: 'md' }} providerId="google-drive" />
+      </>,
+    )
+
+    await waitFor(() => expect(getThumbnail).toHaveBeenCalledTimes(2))
+    expect(getThumbnail.mock.calls.map((call) => call[1]).sort()).toEqual(['g', 'o'])
   })
 
   it('shows the preview this browser kept without asking the cloud', async () => {

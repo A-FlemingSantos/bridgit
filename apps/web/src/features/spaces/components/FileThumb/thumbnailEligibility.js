@@ -9,6 +9,11 @@ const GOOGLE_SPREADSHEET = 'application/vnd.google-apps.spreadsheet'
 const GOOGLE_PRESENTATION = 'application/vnd.google-apps.presentation'
 
 const DROPBOX_MAX_BYTES = 20 * 1024 * 1024
+// Measured against the clouds: OneDrive draws .txt and .md pages, Drive only .txt, Dropbox neither.
+const TEXT_EXTENSIONS = {
+  onedrive: new Set(['txt', 'md']),
+  'google-drive': new Set(['txt']),
+}
 
 function extensionOf(file) {
   return String(file?.extension ?? '').toLowerCase()
@@ -38,5 +43,5 @@ export function thumbnailEligible(providerId, file) {
   if (mime.startsWith('image/') || IMAGE_EXTENSIONS.has(extension)) return true
   if (mime === 'application/pdf' || extension === 'pdf') return true
   if (officeBadge(file)) return true
-  return false
+  return TEXT_EXTENSIONS[providerId]?.has(extension) === true
 }
