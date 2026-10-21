@@ -12,6 +12,7 @@ export default function FileThumb({ file, providerId, showTypeIcon = false, alig
   const rootRef = useRef(null)
   const [visible, setVisible] = useState(false)
   const [url, setUrl] = useState(null)
+  const [box, setBox] = useState({ width: 0, height: 0, measured: false })
   const eligible = thumbnailEligible(providerId, file)
   const kind = officeBadge(file)
   // Native Google files carry no content revision; their version is the modification time.
@@ -32,13 +33,27 @@ export default function FileThumb({ file, providerId, showTypeIcon = false, alig
     return () => observer.disconnect()
   }, [eligible, providerId, ref])
 
+  // The preview is drawn at the tile's own size. The same thumb can move from a list row to a grid
+  // tile, so the size is watched (layout size, untouched by entrance transforms) rather than read once.
   useEffect(() => {
-    if (!visible || !eligible || typeof getThumbnail !== 'function' || !ref) return undefined
+    const node = rootRef.current
+    if (!node || !eligible) return undefined
+    setBox({ width: node.offsetWidth, height: node.offsetHeight, measured: true })
+    if (typeof ResizeObserver !== 'function') return undefined
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.round(entry.contentRect.width)
+      const height = Math.round(entry.contentRect.height)
+      setBox((prev) => (prev.width === width && prev.height === height && prev.measured ? prev : { width, height, measured: true }))
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [eligible])
+
+  useEffect(() => {
+    if (!visible || !eligible || !box.measured || typeof getThumbnail !== 'function' || !ref) return undefined
     let cancelled = false
-    // The preview is drawn at the tile's own size, so each size of tile keeps its own copy.
-    const box = rootRef.current?.getBoundingClientRect()
-    const width = Math.round(box?.width ?? 0)
-    const height = Math.round(box?.height ?? 0)
+    // Each size of tile keeps its own copy.
+    const { width, height } = box
     const scale = globalThis.devicePixelRatio || 1
     const key = `${providerId}\0${ref}\0${revision ?? ''}\0${fit}:${width}x${height}@${scale}`
     const readStored = typeof getStoredThumbnail === 'function' ? () => getStoredThumbnail(providerId, ref, revision) : null
@@ -49,7 +64,7 @@ export default function FileThumb({ file, providerId, showTypeIcon = false, alig
     return () => {
       cancelled = true
     }
-  }, [visible, eligible, getThumbnail, getStoredThumbnail, providerId, ref, revision, fit])
+  }, [visible, eligible, box, getThumbnail, getStoredThumbnail, providerId, ref, revision, fit])
 
   const cornerBadge = url && showTypeIcon ? kind : null
 
