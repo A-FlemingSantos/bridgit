@@ -64,6 +64,9 @@ app:
     upload-user-bytes: ${APP_HUB_UPLOAD_USER_BYTES:524288000}
     # Comma-separated provider ids (onedrive, google-drive, dropbox) to turn off.
     disabled-providers: ${APP_HUB_DISABLED_PROVIDERS:}
+    # While someone uses a connection (an open app or a listing), its sync is pulled forward at most this often.
+    # Lower shows outside changes sooner; each pull is one provider call plus a catalog write.
+    nudge-seconds: ${APP_HUB_NUDGE_SECONDS:5}
     # Poll intervals (ms) of the background jobs.
     worker-poll-ms: ${APP_HUB_WORKER_POLL_MS:2000}
     watch-poll-ms: ${APP_HUB_WATCH_POLL_MS:60000}

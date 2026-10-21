@@ -26,17 +26,16 @@ public class CatalogStore {
   private final Clock clock;
   private final TransactionTemplate tx;
   private final ApplicationEventPublisher publisher;
+  private final LocalHubProperties hub;
 
   public CatalogStore(JdbcTemplate jdbc, HubJson json, HubEventStore events, Clock clock,
-      PlatformTransactionManager transactions, ApplicationEventPublisher publisher) {
+      PlatformTransactionManager transactions, ApplicationEventPublisher publisher, LocalHubProperties hub) {
     this.jdbc = jdbc; this.json = json; this.events = events; this.clock = clock;
-    this.tx = new TransactionTemplate(transactions); this.publisher = publisher;
+    this.tx = new TransactionTemplate(transactions); this.publisher = publisher; this.hub = hub;
   }
 
   // One failed round is retried within seconds; only a sync that keeps failing makes the catalog stale.
   private static final int STALE_AFTER_FAILURES = 2;
-  // Every listing touches the connection; this keeps a busy screen from turning into one sync per request.
-  static final Duration NUDGE_AFTER = Duration.ofSeconds(15);
 
   public record State(long generation, long activeScan, long buildingScan, long revision,
       boolean complete, String checkpoint, String rootRef, OffsetDateTime syncedAt,
@@ -98,14 +97,31 @@ public class CatalogStore {
 
   /**
    * Someone is looking at this connection: pull an idle connection's next sync forward instead of waiting out
-   * the poll interval, so a change a webhook missed still shows within seconds. At most once per NUDGE_AFTER
-   * since the last sync, and never past a failure backoff (a 429 must keep its wait).
+   * the poll interval, so a change a webhook missed still shows within seconds. At most once per nudge-seconds
+   * since the last sync (every listing touches the connection, and a busy screen must not mean one sync per
+   * request), and never past a failure backoff (a 429 must keep its wait).
    */
   public void nudge(ProviderConnectionEntity c) {
     OffsetDateTime now = now();
     if (jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=? AND generation=? AND next_run>? AND failures=0 AND (synced_at IS NULL OR synced_at<?)",
-        now, c.getId().toString(), c.getGeneration(), now, now.minus(NUDGE_AFTER)) > 0) publisher.publishEvent(new SyncDue(c.getId()));
+        now, c.getId().toString(), c.getGeneration(), now, nudgeCutoff(now)) > 0) publisher.publishEvent(new SyncDue(c.getId()));
   }
+
+  /**
+   * The user has the app open (an event stream is connected): nudge every connection of theirs, under the same
+   * limits as nudge. Notifications from OneDrive and Google Drive lag by half a minute or more; this keeps what
+   * an open screen shows within about nudge-seconds of the provider.
+   */
+  public void nudgeUser(UUID user) {
+    OffsetDateTime now = now();
+    List<String> nudged = jdbc.queryForList(
+        "UPDATE s SET next_run=? OUTPUT inserted.connection_id FROM cloud_catalog_state s JOIN provider_connections c ON c.id=s.connection_id AND c.generation=s.generation "
+            + "WHERE c.user_id=? AND s.next_run>? AND s.failures=0 AND (s.synced_at IS NULL OR s.synced_at<?)",
+        String.class, now, user.toString(), now, nudgeCutoff(now));
+    for (String connection : nudged) publisher.publishEvent(new SyncDue(UUID.fromString(connection)));
+  }
+
+  private OffsetDateTime nudgeCutoff(OffsetDateTime now) { return now.minus(Duration.ofSeconds(hub.getNudgeSeconds())); }
 
   public void schedule(UUID connection) {
     if (jdbc.update("UPDATE cloud_catalog_state SET next_run=? WHERE connection_id=?", now(), connection.toString()) > 0) {

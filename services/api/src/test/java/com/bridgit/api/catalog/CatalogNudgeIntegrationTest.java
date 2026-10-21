@@ -140,6 +140,30 @@ class CatalogNudgeIntegrationTest extends ApiIntegrationTestSupport {
     assertThat(syncEvents.stream(CatalogStore.SyncDue.class)).isEmpty();
   }
 
+  @Test void anOpenAppPullsTheUsersIdleConnectionsForward() {
+    syncedAgo(60);
+    syncEvents.clear();
+    catalog.nudgeUser(connection.getUserId());
+    assertThat(nextRun()).isBeforeOrEqualTo(OffsetDateTime.now());
+    assertThat(syncEvents.stream(CatalogStore.SyncDue.class)).containsExactly(new CatalogStore.SyncDue(connection.getId()));
+  }
+
+  @Test void anOpenAppRespectsTheLimitAndFailureBackoff() {
+    catalog.nudgeUser(connection.getUserId());
+    assertThat(nextRun()).isAfter(OffsetDateTime.now().plusMinutes(1));
+
+    syncedAgo(60);
+    jdbc.update("UPDATE cloud_catalog_state SET failures=1 WHERE connection_id=?", connection.getId().toString());
+    catalog.nudgeUser(connection.getUserId());
+    assertThat(nextRun()).isAfter(OffsetDateTime.now().plusMinutes(1));
+  }
+
+  @Test void anOpenAppLeavesOtherUsersAlone() {
+    syncedAgo(60);
+    catalog.nudgeUser(UUID.randomUUID());
+    assertThat(nextRun()).isAfter(OffsetDateTime.now().plusMinutes(1));
+  }
+
   @Test void aFailureOtherThanNotFoundKeepsTheItem() {
     when(remote.get(any(), eq("file-1"))).thenThrow(new ProviderApiException(HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "Fora do ar."));
     assertThatThrownBy(() -> reads.describe(connection, remote, "file-1")).isInstanceOf(ProviderApiException.class);

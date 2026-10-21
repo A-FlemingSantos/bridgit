@@ -12,11 +12,15 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RestController
 @RequestMapping("/api/hub/events")
 public class HubEventsController {
+  private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(HubEventsController.class);
   private final HubEventStore events;
   private final AuthenticatedUserService users;
   private final HubJson json;
-  public HubEventsController(HubEventStore events, AuthenticatedUserService users, HubJson json) {
-    this.events = events; this.users = users; this.json = json;
+  private final CatalogStore catalog;
+  private final LocalHubProperties hub;
+  public HubEventsController(HubEventStore events, AuthenticatedUserService users, HubJson json, CatalogStore catalog,
+      LocalHubProperties hub) {
+    this.events = events; this.users = users; this.json = json; this.catalog = catalog; this.hub = hub;
   }
   @GetMapping public ApiEnvelope<List<HubEventStore.Event>> since(@RequestParam(defaultValue = "0") long after) {
     return ApiEnvelope.ok(events.since(users.requireUserId(), Math.max(0, after)));
@@ -29,8 +33,16 @@ public class HubEventsController {
       long cursor = Math.max(0, after);
       // Bound each authenticated stream; reconnection rechecks the session and resumes its sequence.
       long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(25);
+      long nudgeEvery = java.util.concurrent.TimeUnit.SECONDS.toNanos(hub.getNudgeSeconds());
+      long nextNudge = System.nanoTime();
       try {
         while (System.nanoTime() < until && !Thread.currentThread().isInterrupted()) {
+          // An open stream means someone is looking: keep their connections syncing without waiting for a webhook.
+          if (System.nanoTime() >= nextNudge) {
+            try { catalog.nudgeUser(user); }
+            catch (RuntimeException ex) { log.warn("Catalog nudge failed user={}", user, ex); }
+            nextNudge = System.nanoTime() + nudgeEvery;
+          }
           for (HubEventStore.Event event : events.since(user, cursor)) {
             out.write(("id: " + event.sequence() + "\ndata: " + json.write(event) + "\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
             cursor = event.sequence();

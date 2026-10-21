@@ -18,6 +18,10 @@ public class LocalHubProperties {
   private long uploadGlobalBytes = 5L * 1024 * 1024 * 1024;
   private long uploadUserBytes = 500L * 1024 * 1024;
   private java.util.Set<String> disabledProviders = java.util.Set.of();
+  // Shortest gap between two syncs pulled forward because someone is using a connection.
+  private int nudgeSeconds = 5;
+  public int getNudgeSeconds() { return nudgeSeconds; }
+  public void setNudgeSeconds(int value) { nudgeSeconds = Math.max(1, value); }
   public java.util.Set<String> getDisabledProviders() { return disabledProviders; }
   public void setDisabledProviders(java.util.Set<String> providers) { disabledProviders = java.util.Set.copyOf(providers); }
   public boolean providerEnabled(String provider) { return !disabledProviders.contains(provider); }

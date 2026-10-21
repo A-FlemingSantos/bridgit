@@ -8,8 +8,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +23,7 @@ class HubEventsControllerTest {
     HubEventStore events = mock(HubEventStore.class);
     when(users.requireUserId()).thenReturn(user);
     when(events.since(user, 0)).thenReturn(List.of());
-    var stream = new HubEventsController(events, users, mock(HubJson.class)).stream(0);
+    var stream = new HubEventsController(events, users, mock(HubJson.class), mock(CatalogStore.class), new LocalHubProperties()).stream(0);
     var disconnected = new ByteArrayOutputStream() {
       @Override public void flush() throws IOException {
         throw new AsyncRequestNotUsableException("Client closed the response");
@@ -37,8 +39,28 @@ class HubEventsControllerTest {
     HubEventStore events = mock(HubEventStore.class);
     when(users.requireUserId()).thenReturn(user);
     when(events.since(user, 0)).thenThrow(new IllegalStateException("Database unavailable"));
-    var stream = new HubEventsController(events, users, mock(HubJson.class)).stream(0);
+    var stream = new HubEventsController(events, users, mock(HubJson.class), mock(CatalogStore.class), new LocalHubProperties()).stream(0);
     assertThatThrownBy(() -> stream.writeTo(new ByteArrayOutputStream()))
         .isInstanceOf(IllegalStateException.class).hasMessage("Database unavailable");
+  }
+
+  @Test
+  void aFailedNudgeDoesNotEndTheStream() {
+    UUID user = UUID.randomUUID();
+    AuthenticatedUserService users = mock(AuthenticatedUserService.class);
+    HubEventStore events = mock(HubEventStore.class);
+    CatalogStore catalog = mock(CatalogStore.class);
+    when(users.requireUserId()).thenReturn(user);
+    when(events.since(user, 0)).thenReturn(List.of());
+    doThrow(new IllegalStateException("Database unavailable")).when(catalog).nudgeUser(user);
+    var stream = new HubEventsController(events, users, mock(HubJson.class), catalog, new LocalHubProperties()).stream(0);
+    // The first flush ends the stream, after the nudge was tried and its failure swallowed.
+    var closedAfterFirstBeat = new ByteArrayOutputStream() {
+      @Override public void flush() throws IOException {
+        throw new AsyncRequestNotUsableException("Client closed the response");
+      }
+    };
+    assertThatCode(() -> stream.writeTo(closedAfterFirstBeat)).doesNotThrowAnyException();
+    assertThat(closedAfterFirstBeat.toString()).contains(": heartbeat");
   }
 }
