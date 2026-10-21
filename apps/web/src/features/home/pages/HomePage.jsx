@@ -19,7 +19,6 @@ import {
 } from '../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
-import FileSheet from '../../spaces/components/FileSheet/FileSheet.jsx'
 import FileThumb from '../../spaces/components/FileThumb/FileThumb.jsx'
 import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
@@ -445,7 +444,7 @@ export default function HomePage() {
                       aria-label={file.name}
                     >
                       <span className={styles.rowFace} aria-hidden="true">
-                        <FileSheet compact file={file} />
+                        <FileThumb file={file} providerId={file.provider} align="center" fit="cover" />
                       </span>
                       <span className={styles.rowBody}>
                         <span className={styles.rowTitle}>{file.name}</span>

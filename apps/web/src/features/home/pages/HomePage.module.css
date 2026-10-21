@@ -335,7 +335,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 88px 20px;
+  grid-template-columns: 80px minmax(0, 1fr) 88px 20px;
   align-items: center;
   gap: 12px;
   min-height: 52px;
@@ -350,10 +350,12 @@
 }
 
 .rowFace {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 36px;
+  width: 80px;
+  height: 60px;
+  border-radius: 6px;
 }
 
 .rowBody {
