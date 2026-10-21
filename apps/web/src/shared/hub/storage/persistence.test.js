@@ -73,6 +73,27 @@ describe('persistent storage with real IndexedDB transactions', () => {
     expect(await store.loadCatalog('user')).toBeNull()
   })
 
+  it('keeps a revision preview, or that it has none, apart from the file bytes', async () => {
+    const thumb = { userId: 'user', connectionId: 'connection', generation: 1, ref: 'item', revision: 'rev-1' }
+    expect(await store.getThumbnail(thumb)).toBeNull()
+    expect(await store.putThumbnail(thumb, new Blob(['jpg']))).toBe(true)
+    expect((await store.getThumbnail(thumb))?.blob?.size).toBe(3)
+    expect(await store.getContent(descriptor())).toBeNull()
+    expect(await store.getThumbnail({ ...thumb, revision: 'rev-2' })).toBeNull()
+    expect(await store.putThumbnail({ ...thumb, ref: 'other' }, null)).toBe(true)
+    expect(await store.getThumbnail({ ...thumb, ref: 'other' })).toEqual({ missing: true })
+    await store.clearConnectionStorage('user', 'connection', 1)
+    expect(await store.getThumbnail(thumb)).toBeNull()
+  })
+
+  it('asks the cloud again an hour after it said a revision has no preview', async () => {
+    const thumb = { userId: 'user', connectionId: 'connection', generation: 1, ref: 'item', revision: 'rev-1' }
+    await store.putThumbnail(thumb, null)
+    const record = (await idb.readAllRecords('content'))[0]
+    await idb.writeRecords(['content'], (tx) => tx.objectStore('content').put({ ...record, lastAccessed: Date.now() - 61 * 60 * 1000 }))
+    expect(await store.getThumbnail(thumb)).toBeNull()
+  })
+
   it('does not block active reading when browser persistence is unavailable', async () => {
     vi.stubGlobal('indexedDB', undefined)
     await expect(store.withContentLock(descriptor(), async () => 'streamed')).resolves.toBe('streamed')

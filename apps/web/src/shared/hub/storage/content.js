@@ -200,6 +200,69 @@ export async function putContent(descriptor, blob) {
   return true
 }
 
+const THUMBNAIL_VARIANT = 'THUMBNAIL'
+const MAX_THUMBNAIL_BYTES = 2 * MIB
+// The cloud may still be drawing a fresh upload's preview; an hour later it is asked again.
+const THUMBNAIL_MISS_TTL_MS = 60 * 60 * 1000
+
+function thumbnailIdentity(descriptor) {
+  return identity({ ...descriptor, variant: THUMBNAIL_VARIANT })
+}
+
+/**
+ * The stored cloud preview of one revision: `{ blob }`, `{ missing: true }` when the cloud said it has none,
+ * or null when this browser has not asked yet.
+ */
+export async function getThumbnail(descriptor) {
+  const value = thumbnailIdentity(descriptor)
+  if (!value) return null
+  const key = contentKey(value)
+  const record = await readRecord('content', key)
+  if (!record) return null
+  const age = Date.now() - (record.lastAccessed ?? record.createdAt ?? 0)
+  if (age > (record.missing ? THUMBNAIL_MISS_TTL_MS : STALE_AFTER_MS)) return null
+  const epochs = await currentEpochs(record)
+  if (!epochsMatch(record, epochs)) return null
+  if (record.missing) return { missing: true }
+  if (!(record.blob instanceof Blob) || record.blob.size !== record.size) return null
+  void writeRecords(['content'], async (transaction) => {
+    const stored = await requestAsPromise(transaction.objectStore('content').get(key))
+    if (stored && epochsMatch(stored, epochs)) transaction.objectStore('content').put({ ...stored, lastAccessed: Date.now() })
+  })
+  return { blob: record.blob }
+}
+
+/** Keeps the preview of one revision, or a null blob to remember the cloud has none. */
+export async function putThumbnail(descriptor, blob) {
+  const value = thumbnailIdentity(descriptor)
+  if (!value) return false
+  const missing = blob == null
+  if (!missing && (!(blob instanceof Blob) || blob.size === 0 || blob.size > MAX_THUMBNAIL_BYTES)) return false
+  const size = missing ? 0 : blob.size
+  if (!missing && !(await pruneForBudget(size))) return false
+  const epochs = await currentEpochs(value)
+  const record = {
+    ...value,
+    key: contentKey(value),
+    connectionScope: currentConnectionScope(value),
+    backend: 'idb',
+    size,
+    ...(missing ? { missing: true } : { blob }),
+    ...epochs,
+    createdAt: Date.now(),
+    lastAccessed: Date.now(),
+  }
+  const wrote = await writeRecords(['content', 'epochs'], async (transaction) => {
+    const store = transaction.objectStore('epochs')
+    const keys = [userEpochKey(value.userId), connectionEpochKey(value.userId, value.connectionId), connectionEpochKey(value.userId, value.connectionId, value.generation)]
+    const values = await Promise.all(keys.map((epoch) => requestAsPromise(store.get(epoch))))
+    if (!epochsMatch(record, { userEpoch: values[0]?.value ?? 0, connectionEpoch: values[1]?.value ?? 0, generationEpoch: values[2]?.value ?? 0 })) return false
+    transaction.objectStore('content').put(record)
+    return true
+  })
+  return wrote !== false
+}
+
 function throwIfAborted(signal) {
   if (signal?.aborted) throw signal.reason ?? new DOMException('Operation aborted.', 'AbortError')
 }

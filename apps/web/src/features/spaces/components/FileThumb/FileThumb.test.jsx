@@ -25,9 +25,9 @@ class ImmediateObserver {
 
 const jpeg = () => new Blob([Uint8Array.from([1, 2, 3])], { type: 'image/jpeg' })
 
-function mockThumbnail(impl) {
+function mockThumbnail(impl, stored = async () => null) {
   const getThumbnail = vi.fn(impl)
-  useHubActions.mockReturnValue({ getThumbnail })
+  useHubActions.mockReturnValue({ getThumbnail, getStoredThumbnail: vi.fn(stored) })
   return getThumbnail
 }
 
@@ -53,7 +53,7 @@ describe('FileThumb', () => {
     )
 
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
-    expect(getThumbnail).toHaveBeenCalledWith('onedrive', 'p')
+    expect(getThumbnail).toHaveBeenCalledWith('onedrive', 'p', null)
     expect(container.querySelector('[data-type]')).toBeNull()
   })
 
@@ -118,5 +118,36 @@ describe('FileThumb', () => {
     expect(container.querySelector('svg[shape-rendering="crispEdges"]')).toBeTruthy()
     expect(container.querySelector('[data-type]')).toBeNull()
     expect(getThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('shows the preview this browser kept without asking the cloud', async () => {
+    const getThumbnail = mockThumbnail(async () => jpeg(), async () => ({ blob: jpeg() }))
+    const { container } = render(
+      <FileThumb file={{ ref: 'k', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} providerId="onedrive" />,
+    )
+
+    await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
+    expect(getThumbnail).not.toHaveBeenCalled()
+  })
+
+  it('keys a native Google file by its version when it has no content revision', async () => {
+    mockThumbnail(async () => jpeg())
+    render(
+      <FileThumb file={{ ref: 'g', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: '2026-02-01T00:00:00Z' }} providerId="google-drive" />,
+    )
+
+    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('google-drive', 'g', '2026-02-01T00:00:00Z'))
+  })
+
+  it('does not ask the cloud again for a revision it said has no preview', async () => {
+    const getThumbnail = mockThumbnail(async () => jpeg(), async () => ({ missing: true }))
+    const { container } = render(
+      <FileThumb file={{ ref: 'm', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} providerId="onedrive" />,
+    )
+
+    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('onedrive', 'm', 'r1'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getThumbnail).not.toHaveBeenCalled()
+    expect(container.querySelector('img')).toBeNull()
   })
 })

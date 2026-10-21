@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
-import { loadCatalog, saveCatalog, clearConnectionStorage, putContent } from './storage/index.js'
+import { loadCatalog, saveCatalog, clearConnectionStorage, putContent, getThumbnail as getStoredThumbnail, putThumbnail } from './storage/index.js'
 import { insertSorted, projectOperations } from './operationProjection.js'
 import { mergeRefreshPlans, planEventRefresh } from './hubEventPlan.js'
 import { subscribeServerEvents } from './hubEvents.js'
@@ -748,6 +748,15 @@ export function HubDataProvider({ children }) {
     return Boolean(connection?.connectionId && connection.operationsEnabled !== false)
   }
 
+  // Keys a kept preview to the user, the connection and the file revision, so a sign-out,
+  // a reconnect or an edit never shows a stale one. Null when nothing durable can be keyed.
+  function thumbnailDescriptor(providerId, ref, revision) {
+    const connection = providersRef.current.providers.find((provider) => provider.id === providerId)
+    const userId = sessionRef.current?.user?.id
+    if (!userId || !connection?.connectionId || connection.generation == null || !ref || !revision) return null
+    return { userId, connectionId: connection.connectionId, generation: connection.generation, ref, revision }
+  }
+
   async function seedUploadedContent(providerId, item, file) {
     try {
       const descriptor = await hubApiRef.current.getReadSource(providerId, item.ref)
@@ -1435,8 +1444,21 @@ export function HubDataProvider({ children }) {
           throw error
         }
       },
-      async getThumbnail(providerId, ref) {
-        return hubApiRef.current.getThumbnail(providerId, ref)
+      // The preview this browser kept for that revision: { blob }, { missing: true } or null.
+      async getStoredThumbnail(providerId, ref, revision) {
+        const descriptor = thumbnailDescriptor(providerId, ref, revision)
+        return descriptor ? getStoredThumbnail(descriptor) : null
+      },
+      async getThumbnail(providerId, ref, revision) {
+        const descriptor = thumbnailDescriptor(providerId, ref, revision)
+        try {
+          const blob = await hubApiRef.current.getThumbnail(providerId, ref)
+          if (descriptor) void putThumbnail(descriptor, blob)
+          return blob
+        } catch (error) {
+          if (descriptor && error?.status === 404) void putThumbnail(descriptor, null)
+          throw error
+        }
       },
       async getReadSource({ providerId, ref, refresh = false }) {
         const key = itemCacheKey(providerId, ref)

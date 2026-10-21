@@ -7,13 +7,14 @@ import { officeBadge, thumbnailEligible } from './thumbnailEligibility.js'
 import { loadThumbnail } from './thumbnailQueue.js'
 
 export default function FileThumb({ file, providerId, showTypeIcon = false, align = 'end' }) {
-  const { getThumbnail } = useHubActions()
+  const { getThumbnail, getStoredThumbnail } = useHubActions()
   const rootRef = useRef(null)
   const [visible, setVisible] = useState(false)
   const [url, setUrl] = useState(null)
   const eligible = thumbnailEligible(providerId, file)
   const kind = officeBadge(file)
-  const revision = file?.contentRevision ?? ''
+  // Native Google files carry no content revision; their version is the modification time.
+  const revision = file?.contentRevision ?? file?.remoteVersion ?? null
   const ref = file?.ref
 
   useEffect(() => {
@@ -33,14 +34,15 @@ export default function FileThumb({ file, providerId, showTypeIcon = false, alig
   useEffect(() => {
     if (!visible || !eligible || typeof getThumbnail !== 'function' || !ref) return undefined
     let cancelled = false
-    const key = `${providerId}\0${ref}\0${revision}`
-    loadThumbnail(key, () => getThumbnail(providerId, ref)).then((next) => {
+    const key = `${providerId}\0${ref}\0${revision ?? ''}`
+    const readStored = typeof getStoredThumbnail === 'function' ? () => getStoredThumbnail(providerId, ref, revision) : null
+    loadThumbnail(key, () => getThumbnail(providerId, ref, revision), readStored).then((next) => {
       if (!cancelled) setUrl(next)
     })
     return () => {
       cancelled = true
     }
-  }, [visible, eligible, getThumbnail, providerId, ref, revision])
+  }, [visible, eligible, getThumbnail, getStoredThumbnail, providerId, ref, revision])
 
   const cornerBadge = url && showTypeIcon ? kind : null
 
