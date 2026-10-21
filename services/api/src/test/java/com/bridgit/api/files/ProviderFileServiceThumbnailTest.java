@@ -55,6 +55,35 @@ class ProviderFileServiceThumbnailTest {
     assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
   }
 
+  @Test
+  void catalogedItemOpensTheThumbnailWithoutReadingItsMetadataFromTheCloud() {
+    Harness harness = harness(CloudProvider.ONEDRIVE);
+    CloudItem item = file("a.jpg", "image/jpeg", "jpg");
+    ContentStream stream = new ContentStream(new ByteArrayInputStream(new byte[] {1}), "image/jpeg", 1L, "a.jpg");
+    com.bridgit.api.catalog.CatalogService catalog = mock(com.bridgit.api.catalog.CatalogService.class);
+    when(catalog.enabled(harness.client)).thenReturn(true);
+    when(catalog.known(any(), org.mockito.ArgumentMatchers.eq("photo"))).thenReturn(item);
+    harness.service.configureLocalHub(catalog, null, null);
+    when(harness.client.openThumbnail("token", item)).thenReturn(stream);
+
+    assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
+    verify(harness.client, never()).get(any(), any());
+  }
+
+  @Test
+  void itemMissingFromTheCatalogIsReadFromTheCloud() {
+    Harness harness = harness(CloudProvider.ONEDRIVE);
+    CloudItem item = file("a.jpg", "image/jpeg", "jpg");
+    ContentStream stream = new ContentStream(new ByteArrayInputStream(new byte[] {1}), "image/jpeg", 1L, "a.jpg");
+    com.bridgit.api.catalog.CatalogService catalog = mock(com.bridgit.api.catalog.CatalogService.class);
+    when(catalog.enabled(harness.client)).thenReturn(true);
+    harness.service.configureLocalHub(catalog, null, null);
+    when(harness.client.get("token", "photo")).thenReturn(item);
+    when(harness.client.openThumbnail("token", item)).thenReturn(stream);
+
+    assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
+  }
+
   private static CloudItem file(String name, String mime, String extension) {
     return new CloudItem("ref", "provider", name, ItemKind.FILE, mime, extension, 10L, null, null);
   }

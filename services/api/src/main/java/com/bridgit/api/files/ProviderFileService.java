@@ -242,7 +242,8 @@ public class ProviderFileService {
     UUID userId = authenticatedUserService.requireUserId();
     ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
     CloudProviderClient client = clients.get(provider);
-    CloudItem item = retryService.withRetry(connection, token -> client.get(token, ref));
+    CloudItem known = catalog != null && catalog.enabled(client) ? catalog.known(connection, ref) : null;
+    CloudItem item = known != null ? known : retryService.withRetry(connection, token -> client.get(token, ref));
     if (!ThumbnailSupport.eligible(provider, item)) {
       throw new NotFoundException("MINIATURA_INDISPONIVEL", "Miniatura indisponível.");
     }

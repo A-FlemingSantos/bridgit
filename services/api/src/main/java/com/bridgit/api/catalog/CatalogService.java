@@ -59,6 +59,12 @@ public class CatalogService {
         store.metadata(c, s, page.nextCursor() == null, false));
   }
 
+  /** The item as the catalog already has it, or null when only the cloud can tell. */
+  public CloudItem known(ProviderConnectionEntity c, String ref) {
+    CatalogStore.Entry entry = store.entry(c, ref);
+    return entry == null || entry.deleted() ? null : entry.item();
+  }
+
   public FilesDtos.ItemWithAncestry get(ProviderConnectionEntity c, CloudProviderClient client, String ref) {
     store.touch(c);
     CatalogStore.Entry cached = store.entry(c, ref);
