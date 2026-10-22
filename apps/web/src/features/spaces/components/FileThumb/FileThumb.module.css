@@ -21,6 +21,11 @@
   pointer-events: auto;
 }
 
+/* The Word, Excel or PowerPoint mark stands in the middle of the tile, wherever the preview would sit. */
+.fallback {
+  align-self: center;
+}
+
 .sheet {
   width: min(72px, 42%);
   aspect-ratio: 1;
