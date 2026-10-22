@@ -1,6 +1,7 @@
 import * as matchers from '@testing-library/jest-dom/matchers'
 import { afterEach, beforeAll, expect, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import { resetWindowsDevice } from '../features/home/components/HomeSidebar/windowsDevice.jsx'
 
 expect.extend(matchers)
 
@@ -10,6 +11,7 @@ afterEach(() => {
   if (typeof window === 'undefined') return
 
   cleanup()
+  resetWindowsDevice()
   window.localStorage.clear()
   window.sessionStorage.clear()
 })

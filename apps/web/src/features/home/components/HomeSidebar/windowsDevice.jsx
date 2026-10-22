@@ -5,35 +5,38 @@ const STORAGE_KEY = 'bridgit.windowsDevice.linked'
 // A fresh Windows install names the PC DESKTOP- plus seven letters or digits.
 export const WINDOWS_DEVICE_NAME = 'DESKTOP-6K2J8M1'
 
-const listeners = new Set()
-
-export function readWindowsLinked() {
-  try {
-    return sessionStorage.getItem(STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
+// Click is the only way in. A previous build stored the click, which kept the
+// Windows logo on screen after reload; drop that flag.
+try {
+  sessionStorage.removeItem(STORAGE_KEY)
+} catch {
+  // Storage can be unavailable.
 }
 
-export function linkWindowsDevice() {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-    // Storage can be unavailable; the in-memory listeners still update this tab.
-  }
+let linked = false
+const listeners = new Set()
+
+export function resetWindowsDevice() {
+  linked = false
+  listeners.forEach((listener) => listener())
+}
+
+function linkWindowsDevice() {
+  if (linked) return
+  linked = true
   listeners.forEach((listener) => listener())
 }
 
 export function useWindowsDevice() {
-  const [linked, setLinked] = useState(readWindowsLinked)
+  const [isLinked, setLinked] = useState(linked)
 
   useEffect(() => {
-    const listener = () => setLinked(readWindowsLinked())
+    const listener = () => setLinked(linked)
     listeners.add(listener)
     return () => listeners.delete(listener)
   }, [])
 
-  return [linked, linkWindowsDevice]
+  return [isLinked, linkWindowsDevice]
 }
 
 export function LinkWindowsIcon() {

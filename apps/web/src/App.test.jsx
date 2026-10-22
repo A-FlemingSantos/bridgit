@@ -483,6 +483,7 @@ describe('App', () => {
 
     const link = await screen.findByRole('button', { name: 'Vincular ao Windows' })
     expect(link).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
     await user.click(link)
 
     const device = screen.getByRole('button', { name: /Windows 10/ })
