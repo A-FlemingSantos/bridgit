@@ -15,6 +15,46 @@ import styles from './HomeSidebar.module.css'
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
 
+// A fresh Windows install names the PC DESKTOP- plus seven letters or digits.
+const WINDOWS_DEVICE_NAME = 'DESKTOP-6K2J8M1'
+
+function LinkWindowsIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 18h18v-2h2v4H1v-4h2v2Zm2-4h14V6h2v10H3V6h2v8Zm14-8H5V4h14v2Z" />
+    </svg>
+  )
+}
+
+function WindowsLogo() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 4875 4875" aria-hidden="true">
+      <path fill="#0078d4" d="M0 0h2311v2310H0zm2564 0h2311v2310H2564zM0 2564h2311v2311H0zm2564 0h2311v2311H2564" />
+    </svg>
+  )
+}
+
+function WindowsDeviceButton() {
+  const [linked, setLinked] = useState(false)
+
+  return (
+    <button
+      type="button"
+      className={[styles.item, styles.deviceItem].join(' ')}
+      aria-pressed={linked}
+      onClick={() => setLinked(true)}
+    >
+      <span className={styles.deviceMark}>
+        {linked ? <WindowsLogo /> : <LinkWindowsIcon />}
+      </span>
+      <span className={styles.itemMeta}>
+        <span className={styles.itemName}>{linked ? 'Windows 10' : 'Vincular ao Windows'}</span>
+        {linked ? <span className={styles.itemSub}>{WINDOWS_DEVICE_NAME}</span> : null}
+      </span>
+    </button>
+  )
+}
+
 const PROVIDER_LABELS = {
   onedrive: 'OneDrive',
   'google-drive': 'Google Drive',
@@ -209,6 +249,10 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           <span className={styles.itemName}>Visão geral</span>
         </Link>
       </nav>
+
+      <Group title="Dispositivos">
+        <WindowsDeviceButton />
+      </Group>
 
       <Group title="Provedores">
         {providersStatus === 'loading' || providersStatus === 'idle' ? (

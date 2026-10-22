@@ -453,7 +453,10 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    const devicesHeading = screen.getByRole('heading', { name: 'Dispositivos' })
+    const providersHeading = screen.getByRole('heading', { name: 'Provedores' })
+    expect(devicesHeading.compareDocumentPosition(providersHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
@@ -467,6 +470,25 @@ describe('App', () => {
     expect(recentLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_ANALISE}`)
     expect(recentLink).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
+  })
+
+  it('vincula um computador Windows na barra lateral', async () => {
+    const user = userEvent.setup()
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    const link = await screen.findByRole('button', { name: 'Vincular ao Windows' })
+    expect(link).toHaveAttribute('aria-pressed', 'false')
+    await user.click(link)
+
+    const device = screen.getByRole('button', { name: /Windows 10/ })
+    expect(device).toHaveAttribute('aria-pressed', 'true')
+    expect(device).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
   })
 
   it('lista os links públicos na barra lateral da home', async () => {
