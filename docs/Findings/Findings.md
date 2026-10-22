@@ -266,13 +266,30 @@ Falta decidir se as opções atuais de Ajustes bastam ou se faltam opções de p
 
 ## 24. Web: pasta excluída continua sendo recarregada (404 no console)
 
-**Peso:** baixo. Não aparece na tela, mas gera requisições inúteis e erros no console.
+**Peso:** baixo. Sobram dois casos pontuais no web.
 
-Visto em 14/10: depois de excluir a "Pasta sem título" no Google Drive, o console do navegador mostra `GET /api/providers/google-drive/items?parent=<pasta excluída>` com 404. A API está certa: a pasta não existe mais.
+**Status:** resolvido em parte em `fix/onedrive-delta-deletions` (conferido em produção em 21/10); falta o ajuste abaixo. O mobile ainda não trata esse código (finding 27).
 
-**Causa:** o web guarda em cache cada pasta aberta (`folderCache` no `HubDataProvider`). `revalidateStale` roda quando a aba ganha foco ou volta a ficar visível e recarrega toda pasta em cache com mais de 30 s. Abrir o DevTools devolve o foco à aba e dispara isso. Ao excluir uma pasta, `removeItemFromCaches` a tira da lista da pasta-mãe, mas a entrada de cache da própria pasta continua lá. Num 404, o `loadFolder` mantém a entrada e só atualiza o `fetchedAt`, então ela volta a ser pedida a cada foco até a página ser recarregada. O comportamento já existia no `main`.
+### O que foi feito
 
-**Correção escolhida (a mais estável):** quando a recarga de uma pasta responder 404, descartar a entrada de cache dessa pasta e das subpastas guardadas sob ela. A regra fica num ponto só e cobre todos os jeitos de uma pasta sumir: excluída no próprio aparelho, em outro aparelho ou direto no provedor. Limpar o cache só na exclusão feita pelo Bridgit não cobriria os dois últimos casos. Se a pasta excluída estiver aberta na tela, a página deve mostrar "não encontrada" e não ficar tentando de novo.
+Quando a API responde `ITEM_NAO_ENCONTRADO`, a entrada da pasta no cache (`folderCache` no `HubDataProvider`) passa ao estado `gone`, com a lista vazia e a pasta de cima guardada em `parentRef`. O `useFolder` não recarrega uma entrada `gone`, então a pasta não é mais pedida. Ela também sai de todas as listas na hora (`removeItemFromCaches`). Se estiver aberta, a tela volta para a pasta de cima com "Essa pasta não existe mais.". Vale para pasta excluída no próprio aparelho, em outro aparelho ou direto no provedor. Arquivos seguem a mesma regra no `itemCache`, com "Esse arquivo não existe mais.". A API também tira o item do catálogo nesse 404 e avisa as outras telas.
+
+A correção prevista aqui antes era apagar a entrada da pasta e das subpastas guardadas sob ela. A implementação marcou a entrada em vez de apagar. Comparando as duas:
+
+| | Apagar a entrada (previsto) | Marcar como `gone` (implementado) |
+|---|---|---|
+| Pasta aberta na tela | Volta a pedir sem parar: sem entrada, o `useFolder` entende que a pasta ainda não foi carregada, pede de novo e leva outro 404. | Para na hora e volta para a pasta de cima. |
+| Subpastas já abertas antes | Somem junto. | Ficam no cache. Cada uma leva um 404 na próxima recarga ao voltar para a aba (`revalidateStale`) e só então para. É uma requisição inútil por subpasta, uma vez só. |
+| Pasta restaurada da lixeira | Abre normalmente. | Fica `gone` até recarregar a página. O OneDrive e o Google Drive mantêm o mesmo id na restauração, então quem restaura a pasta e tenta abri-la na mesma sessão é mandado de volta para a pasta de cima. |
+
+### O que falta
+
+Juntar as duas abordagens:
+1. **Manter a marca `gone`**, só para a tela aberta parar e voltar à pasta de cima.
+2. **Descartar junto as entradas das subpastas** guardadas sob ela, como previsto antes, para não gerar um 404 por subpasta.
+3. **A marca expira.** Abrir aquela pasta de novo mais tarde consulta o servidor outra vez: se ela foi restaurada, abre normalmente; se não, volta o aviso. O mesmo vale para arquivos no `itemCache`.
+
+É uma mudança só no web (`HubDataProvider` e `useFolder`/`useItem`).
 
 ---
 
@@ -313,6 +330,44 @@ O finding 8 deixou criar pasta e excluir instantâneos no web. As outras ações
    - Atalhos entram e saem da lista na hora, desfeitos em caso de erro, como no web.
 
 **Fica como está:** criar link público, porque o endereço vem do servidor; desconectar provedor; e alterações de conta. São ações raras, em que esperar a confirmação é o esperado.
+
+---
+
+## 27. Mobile: atualização ao vivo e item apagado ficam atrás do web
+
+**Peso:** médio. Percepção de velocidade e uma tela sem saída no mobile.
+
+Visto em 21/10, depois das mudanças de `fix/onedrive-delta-deletions` que deixaram o web refletir em segundos as mudanças feitas direto no provedor. O que mudou no servidor também vale para o mobile:
+- webhook do Dropbox;
+- exclusão por caminho sem cópias para trás e reconstrução do catálogo (migração V9);
+- 404 que tira o item do catálogo;
+- adiantamento do sync ao navegar;
+- worker acordando na hora.
+
+Duas partes ficaram só no web.
+
+### O sync a cada 5 s com o app aberto não dispara no mobile
+
+No web, o servidor adianta o sync de todas as conexões do usuário a cada `app.hub.nudge-seconds` (padrão 5 s) enquanto o stream de eventos (`/api/hub/events/stream`) está aberto. Quem dispara é o `HubEventsController.stream`, que chama `CatalogStore.nudgeUser`. Isso existe porque os avisos dos provedores atrasam: medido em 21/10, o Dropbox avisa em cerca de 1 s, o OneDrive em cerca de 30 s (o Graph agrupa as notificações), e o Google pode levar de segundos a minutos.
+
+O mobile não usa o stream. Ele consulta `GET /api/hub/events` a cada 5 s (`eventPoller.js`), e essa rota não adianta o sync. Com o celular parado numa tela, sem navegar, uma mudança feita direto no OneDrive ou no Google só aparece quando chega o aviso do provedor ou, sem aviso, no sync periódico de até 5 min. Navegar entre pastas adianta o sync, porque a listagem passa pelo `CatalogStore.touch`.
+
+**Correção:** a consulta `GET /api/hub/events` também chama `nudgeUser`, com os mesmos limites: só conexões paradas, com o último sync há mais de `nudge-seconds` e sem falha pendente (um 429 mantém a espera). A mudança é só no servidor e não precisa de build novo do mobile. O fallback do web, que usa a mesma rota quando o stream cai, também passa a contar.
+
+### Abrir um item apagado deixa a tela presa no erro
+
+No web, quando a API responde `ITEM_NAO_ENCONTRADO` ao abrir uma pasta, os detalhes de um item ou o conteúdo de um arquivo:
+- o item sai de todas as listas na hora (`removeItemFromCaches`), sem esperar o evento do servidor;
+- a tela volta para a pasta de cima com "Essa pasta não existe mais." ou "Esse arquivo não existe mais.".
+
+O mobile não trata esse código. Abrir um item apagado mostra o erro e fica nessa tela. O item só some da lista na próxima consulta de eventos, em até 5 s, porque o servidor já o tirou do catálogo e emitiu o evento.
+
+**Correção:**
+- tratar `ITEM_NAO_ENCONTRADO` no mobile como no web: tirar o item das listas na hora e voltar para a pasta de cima com o aviso, nas telas de pasta e de arquivo;
+- tratar só esse código. Falha de rede, 503 ou sessão expirada mantêm o item e a opção de tentar de novo, porque nesses casos ele pode continuar existindo;
+- a mudança é no app e precisa de um build novo do APK, o que também pede atualizar o link e o QR do APK na landing.
+
+**Não se aplica ao mobile:** a checagem de arquivo ilegível antes do envio, feita no web para atalhos quebrados do Windows. O seletor do celular entrega uma cópia do arquivo, então o problema não existe lá.
 
 ---
 
