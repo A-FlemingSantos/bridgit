@@ -4,7 +4,7 @@
   display: block;
   width: 112px;
   height: 82px;
-  --folder-base: #4a4a4a;
+  --folder-base: #333333;
   --folder-tab: color-mix(in srgb, var(--folder-base) 62%, #000);
   --folder-top: var(--folder-base);
   --folder-bottom: color-mix(in srgb, var(--folder-base) 64%, #000);

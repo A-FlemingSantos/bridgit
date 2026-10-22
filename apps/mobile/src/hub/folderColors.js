@@ -5,8 +5,8 @@ import { useSession } from '../auth/SessionContext'
 
 // Same muted tones as the web app; the first one is the default carbon folder.
 export const FOLDER_COLORS = [
-  { id: 'carbon', label: 'Carvão', hex: '#4a4a4a' },
-  { id: 'graphite', label: 'Grafite', hex: '#6e6e6e' },
+  { id: 'carbon', label: 'Carvão', hex: '#333333' },
+  { id: 'graphite', label: 'Grafite', hex: '#4a4a4a' },
   { id: 'stone', label: 'Pedra', hex: '#958f86' },
   { id: 'bone', label: 'Osso', hex: '#c9c2b6', light: true },
   { id: 'slate', label: 'Ardósia', hex: '#5b6672' },
