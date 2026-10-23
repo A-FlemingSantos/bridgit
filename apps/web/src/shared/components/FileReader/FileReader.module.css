@@ -136,9 +136,77 @@
 }
 
 .pageSheet {
+  position: relative;
   overflow: hidden;
   background: var(--paper);
   box-shadow: 0 0 0 1px var(--line);
+}
+
+/* The text layer pdf.js lays over each page (see PdfReader): invisible text the mouse can select. */
+.textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  color-scheme: only light;
+}
+
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+  user-select: text;
+}
+
+.textLayer > :not(:global(.markedContent)),
+.textLayer :global(.markedContent) span:not(:global(.markedContent)) {
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  z-index: 1;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer :global(.markedContent) {
+  display: contents;
+}
+
+.textLayer span[role='img'] {
+  cursor: default;
+  user-select: none;
+}
+
+/* The selected text is already drawn on the canvas: here it only gets a highlight, never a second copy of the glyphs. */
+.textLayer ::selection {
+  background: color-mix(in srgb, AccentColor, transparent 50%);
+  color: transparent;
+}
+
+.textLayer br::selection {
+  background: transparent;
+}
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}
+
+.textLayer.selecting .endOfContent {
+  top: 0;
 }
 
 .pageSheet canvas {
@@ -237,11 +305,16 @@
   width: 100%;
 }
 
-.editorial .sheetShellReading,
-.editorial .pageSheet {
+.editorial .sheetShellReading {
   background: var(--paper);
   box-shadow: none;
   border: 1px solid var(--line);
+}
+
+/* A PDF page is drawn on its own white; an outline around it only shows as a dark edge. */
+.editorial .pageSheet {
+  background: var(--paper);
+  box-shadow: none;
 }
 
 .editorial .download {
@@ -328,4 +401,9 @@
 .imageViewport[data-native='true'] .imageViewer {
   max-width: none;
   max-height: none;
+}
+
+/* PDF viewer: the pages take the width of the main view (up to a limit), times the zoom. */
+.viewer .pdfStack {
+  width: calc(min(100%, 1100px) * var(--zoom, 1));
 }

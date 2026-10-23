@@ -1,6 +1,7 @@
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { getContent, putContent, withContentLock } from '../../hub/storage/index.js'
 import { isCacheableContent, verifyContentRevision } from '../../hub/content/index.js'
 import { useDebouncedCallback } from './useDebouncedCallback.js'
@@ -9,6 +10,27 @@ import styles from './FileReader.module.css'
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 const ROOT_MARGIN = '240px 0px'
+// Pages further than this from the viewport give their pixels back; they render again when it comes close.
+const RELEASE_MARGIN = '2400px 0px'
+// Rendered denser than it is shown, so text stays sharp on a plain display and when the window is large.
+const MIN_OUTPUT_SCALE = 2
+const MAX_OUTPUT_SCALE = 3
+const MAX_PAGE_PIXELS = 16 * 1024 * 1024
+// Zoom, as a multiple of the width the viewer gives the pages; Ctrl (or Cmd) and the wheel move it.
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 4
+const WHEEL_SENSITIVITY = 0.002
+const LINE_HEIGHT_PX = 16
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function outputScaleFor(viewport) {
+  const wanted = Math.min(Math.max(window.devicePixelRatio || 1, MIN_OUTPUT_SCALE), MAX_OUTPUT_SCALE)
+  const fits = Math.sqrt(MAX_PAGE_PIXELS / Math.max(viewport.width * viewport.height, 1))
+  return Math.max(Math.min(wanted, fits), 1)
+}
 
 export class ProgressivePdfTransport extends pdfjs.PDFDataRangeTransport {
   constructor(source, onFailure) {
@@ -188,14 +210,19 @@ export class ProgressivePdfTransport extends pdfjs.PDFDataRangeTransport {
   }
 }
 
-export default function PdfReader({ url, content, source, onFirstPageReady, onError }) {
+export default function PdfReader({ url, content, source, viewer = false, onFirstPageReady, onError }) {
   const containerRef = useRef(null)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
+  const endRefs = useRef(new Map())
   const [pageCount, setPageCount] = useState(0)
   const [renderWidth, setRenderWidth] = useState(0)
   const pdfRef = useRef(null)
   const pageRefs = useRef(new Map())
   const renderedPages = useRef(new Set())
   const renderTasks = useRef(new Map())
+  const textRefs = useRef(new Map())
+  const textLayers = useRef(new Map())
   const firstPageReadyRef = useRef(false)
   const renderWidthRef = useRef(renderWidth)
   const onErrorRef = useRef(onError)
@@ -213,6 +240,45 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
     if (!node) return
     setRenderWidth(node.clientWidth)
   }, 150)
+
+  // The text over the canvas: invisible, but it is what the mouse selects and the browser searches.
+  const renderTextLayer = useCallback(async (pageNumber, page, viewport) => {
+    const container = textRefs.current.get(pageNumber)
+    if (!container || typeof page.streamTextContent !== 'function') return
+    textLayers.current.get(pageNumber)?.cancel()
+    container.replaceChildren()
+    container.style.setProperty('--total-scale-factor', String(viewport.scale))
+    container.style.setProperty('--scale-round-x', '1px')
+    container.style.setProperty('--scale-round-y', '1px')
+    const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container, viewport })
+    textLayers.current.set(pageNumber, layer)
+    try {
+      await layer.render()
+    } catch {
+      // A page without readable text stays an image, as before.
+      return
+    }
+    // Catches a selection dragged over blank space, so it ends at the pointer instead of jumping across the page.
+    const end = document.createElement('div')
+    end.className = styles.endOfContent
+    container.append(end)
+    endRefs.current.set(pageNumber, end)
+  }, [])
+
+  const releasePage = useCallback((pageNumber) => {
+    if (!renderedPages.current.has(pageNumber)) return
+    renderedPages.current.delete(pageNumber)
+    renderTasks.current.get(pageNumber)?.cancel()
+    renderTasks.current.delete(pageNumber)
+    textLayers.current.get(pageNumber)?.cancel()
+    textLayers.current.delete(pageNumber)
+    textRefs.current.get(pageNumber)?.replaceChildren()
+    const canvas = pageRefs.current.get(pageNumber)
+    if (canvas) {
+      canvas.width = 1
+      canvas.height = 1
+    }
+  }, [])
 
   const renderPage = useCallback(
     async (pageNumber) => {
@@ -232,17 +298,20 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
         if (pdfRef.current !== pdfDoc || renderWidthRef.current !== width) return
         const viewport = page.getViewport({ scale: 1 })
         const scale = width / viewport.width
-        const scaledViewport = page.getViewport({ scale })
+        const cssViewport = page.getViewport({ scale })
+        const renderViewport = page.getViewport({ scale: scale * outputScaleFor(cssViewport) })
 
         const context = canvas.getContext('2d')
-        canvas.width = Math.floor(scaledViewport.width)
-        canvas.height = Math.floor(scaledViewport.height)
+        canvas.width = Math.floor(renderViewport.width)
+        canvas.height = Math.floor(renderViewport.height)
         canvas.style.width = '100%'
         canvas.style.height = 'auto'
+        // Keeps the page's height while its pixels are released.
+        canvas.style.aspectRatio = `${cssViewport.width} / ${cssViewport.height}`
 
         const task = page.render({
           canvasContext: context,
-          viewport: scaledViewport,
+          viewport: renderViewport,
         })
         renderTasks.current.set(pageNumber, task)
         try {
@@ -250,6 +319,8 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
         } finally {
           if (renderTasks.current.get(pageNumber) === task) renderTasks.current.delete(pageNumber)
         }
+
+        void renderTextLayer(pageNumber, page, cssViewport)
 
         if (!firstPageReadyRef.current && pageNumber === 1) {
           firstPageReadyRef.current = true
@@ -264,7 +335,7 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
         }
       }
     },
-    [onFirstPageReady, onError],
+    [onFirstPageReady, onError, renderTextLayer],
   )
 
   useEffect(() => {
@@ -283,6 +354,139 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
       observer.disconnect()
     }
   }, [updateWidth])
+
+  // Keeps a selection dragged over blank space from jumping across the page. While one is under way, each
+  // layer's end-of-content element sits right after the selected text (and covers the page), so the pointer
+  // always lands on something selectable; when it ends, the element goes back to the bottom of its layer.
+  useEffect(() => {
+    const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent
+    const chromiumVersion = Number.parseInt(/\bChrome\/(\d+)\b/.exec(userAgent)?.[1] ?? '', 10)
+    // Firefox and recent Chromium keep the selection continuous by themselves.
+    const selfSufficient = /\bFirefox\//.test(userAgent) || chromiumVersion >= 148
+    let prevRange = null
+    let pointerDown = false
+
+    function reset(container, end) {
+      container.append(end)
+      end.style.width = ''
+      end.style.height = ''
+      end.style.userSelect = ''
+      container.classList.remove(styles.selecting)
+    }
+
+    function resetAll() {
+      textRefs.current.forEach((container, pageNumber) => {
+        const end = endRefs.current.get(pageNumber)
+        if (end) reset(container, end)
+      })
+    }
+
+    function handlePointerDown() {
+      pointerDown = true
+    }
+
+    function handlePointerUp() {
+      pointerDown = false
+      resetAll()
+    }
+
+    function handleKeyUp() {
+      if (!pointerDown) resetAll()
+    }
+
+    function handleSelectionChange() {
+      const selection = document.getSelection()
+      if (!selection || selection.rangeCount === 0) {
+        resetAll()
+        return
+      }
+
+      const active = new Set()
+      for (let index = 0; index < selection.rangeCount; index += 1) {
+        const range = selection.getRangeAt(index)
+        textRefs.current.forEach((container) => {
+          if (!active.has(container) && range.intersectsNode(container)) active.add(container)
+        })
+      }
+      textRefs.current.forEach((container, pageNumber) => {
+        const end = endRefs.current.get(pageNumber)
+        if (!end) return
+        if (active.has(container)) container.classList.add(styles.selecting)
+        else reset(container, end)
+      })
+      if (selfSufficient) return
+
+      const range = selection.getRangeAt(0)
+      const modifyStart = prevRange
+        && (range.compareBoundaryPoints(Range.END_TO_END, prevRange) === 0
+          || range.compareBoundaryPoints(Range.START_TO_END, prevRange) === 0)
+      let anchor = modifyStart ? range.startContainer : range.endContainer
+      if (anchor.nodeType === Node.TEXT_NODE) anchor = anchor.parentNode
+      if (!modifyStart && range.endOffset === 0) {
+        do {
+          while (!anchor.previousSibling) anchor = anchor.parentNode
+          anchor = anchor.previousSibling
+        } while (!anchor.childNodes.length)
+      }
+      const container = anchor.parentElement?.closest(`.${styles.textLayer}`)
+      const entry = container
+        ? [...textRefs.current].find(([, node]) => node === container)
+        : null
+      const end = entry ? endRefs.current.get(entry[0]) : null
+      if (container && end) {
+        end.style.width = container.style.width || '100%'
+        end.style.height = container.style.height || '100%'
+        end.style.userSelect = 'text'
+        anchor.parentElement.insertBefore(end, modifyStart ? anchor : anchor.nextSibling)
+      }
+      prevRange = range.cloneRange()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('pointerup', handlePointerUp)
+    document.addEventListener('keyup', handleKeyUp)
+    document.addEventListener('selectionchange', handleSelectionChange)
+    window.addEventListener('blur', resetAll)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('pointerup', handlePointerUp)
+      document.removeEventListener('keyup', handleKeyUp)
+      document.removeEventListener('selectionchange', handleSelectionChange)
+      window.removeEventListener('blur', resetAll)
+    }
+  }, [])
+
+  useEffect(() => {
+    const stack = containerRef.current
+    if (!viewer || !stack) return undefined
+    const scroller = stack.closest('[data-custom-scroll-viewport]')
+    const target = scroller ?? stack
+
+    function handleWheel(event) {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+
+      const delta = event.deltaY * (event.deltaMode === 1 ? LINE_HEIGHT_PX : 1)
+      const current = zoomRef.current
+      const next = clamp(current * Math.exp(-delta * WHEEL_SENSITIVITY), MIN_ZOOM, MAX_ZOOM)
+      if (Math.abs(next - current) < 1e-4) return
+
+      // The point of the pages under the pointer stays under it.
+      const rect = stack.getBoundingClientRect()
+      const fx = clamp((event.clientX - rect.left) / rect.width, 0, 1)
+      const fy = clamp((event.clientY - rect.top) / rect.height, 0, 1)
+      zoomRef.current = next
+      flushSync(() => setZoom(next))
+      const after = stack.getBoundingClientRect()
+      if (scroller) {
+        scroller.scrollLeft += after.left + fx * after.width - event.clientX
+        scroller.scrollTop += after.top + fy * after.height - event.clientY
+      }
+    }
+
+    target.addEventListener('wheel', handleWheel, { passive: false })
+    return () => target.removeEventListener('wheel', handleWheel)
+  }, [viewer])
 
   useEffect(() => {
     let cancelled = false
@@ -327,6 +531,8 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
       pdfRef.current = null
       renderTasks.current.forEach((task) => task.cancel())
       renderTasks.current.clear()
+      textLayers.current.forEach((layer) => layer.cancel())
+      textLayers.current.clear()
       transport?.abort()
       void loadingTask?.destroy()
     }
@@ -341,8 +547,23 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
     renderPage(1)
 
     const observers = []
+    // The margins only reach past the edge of the scroll area that holds the pages, when that area is the root.
+    const root = containerRef.current?.closest('[data-custom-scroll-viewport]') ?? null
 
     pageRefs.current.forEach((node, pageNumber) => {
+      if (!node) return
+
+      const releaser = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting && pageNumber !== 1) releasePage(pageNumber)
+          })
+        },
+        { root, rootMargin: RELEASE_MARGIN },
+      )
+      releaser.observe(node)
+      observers.push(releaser)
+
       if (!node) return
 
       const observer = new IntersectionObserver(
@@ -353,7 +574,7 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
             renderPage(pageNumber)
           })
         },
-        { rootMargin: ROOT_MARGIN },
+        { root, rootMargin: ROOT_MARGIN },
       )
 
       observer.observe(node)
@@ -363,10 +584,14 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
     return () => {
       observers.forEach((observer) => observer.disconnect())
     }
-  }, [pageCount, renderWidth, renderPage])
+  }, [pageCount, renderWidth, renderPage, releasePage])
 
   return (
-    <div ref={containerRef} className={styles.pdfStack}>
+    <div
+      ref={containerRef}
+      className={styles.pdfStack}
+      style={viewer ? { '--zoom': zoom } : undefined}
+    >
       {Array.from({ length: pageCount }, (_, index) => {
         const pageNumber = index + 1
 
@@ -378,6 +603,17 @@ export default function PdfReader({ url, content, source, onFirstPageReady, onEr
                   pageRefs.current.set(pageNumber, node)
                 } else {
                   pageRefs.current.delete(pageNumber)
+                }
+              }}
+            />
+            <div
+              className={styles.textLayer}
+              onMouseDown={(event) => event.currentTarget.classList.add(styles.selecting)}
+              ref={(node) => {
+                if (node) {
+                  textRefs.current.set(pageNumber, node)
+                } else {
+                  textRefs.current.delete(pageNumber)
                 }
               }}
             />

@@ -27,8 +27,8 @@ export default function FileReader({
   onContentError,
   // 'editorial' is a left-aligned reading column; the host page shows the name and meta, so none here.
   variant = 'default',
-  // An image fills the space around it (see ImageReader) instead of the reading column.
-  imageViewer = false,
+  // Images and PDFs use the space around them (see ImageReader, PdfReader) instead of the reading column.
+  viewer: viewerRequested = false,
 }) {
   const editorial = variant === 'editorial'
   const [contentReady, setContentReady] = useState(false)
@@ -43,7 +43,8 @@ export default function FileReader({
   const unreadable = Boolean(displayError) || mode === 'none'
   const readable = Boolean(source && isReadableMode(mode) && !displayError)
   const isPdf = mode === 'pdf'
-  const viewer = imageViewer && mode === 'image'
+  const viewer = viewerRequested && mode === 'image'
+  const pdfViewer = viewerRequested && mode === 'pdf'
   const readerIdentity = source?.revision
     ? [source.userId, source.connectionId, source.generation, source.ref ?? file?.ref, source.variant, source.revision].join('|')
     : source?.url ?? null
@@ -201,7 +202,7 @@ export default function FileReader({
 
   return (
     <section
-      className={[styles.reader, editorial ? styles.editorial : '', viewer ? styles.viewer : ''].filter(Boolean).join(' ')}
+      className={[styles.reader, editorial ? styles.editorial : '', viewer || pdfViewer ? styles.viewer : ''].filter(Boolean).join(' ')}
       aria-labelledby={editorial ? undefined : 'file-reader-title'}
       aria-label={editorial ? file?.name ?? 'Arquivo' : undefined}
     >
@@ -224,6 +225,7 @@ export default function FileReader({
                 url={source.url}
                 content={content}
                 source={source}
+                viewer={pdfViewer}
                 onFirstPageReady={handleContentReady}
                 onError={handleContentError}
               />

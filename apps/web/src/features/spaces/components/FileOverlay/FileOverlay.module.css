@@ -33,6 +33,11 @@
   height: 100%;
 }
 
+/* A zoomed PDF is wider than the view: it moves sideways with the trackpad or Shift and the wheel. */
+.scroll [data-custom-scroll-viewport] {
+  overflow-x: auto;
+}
+
 .content {
   display: flex;
   flex-direction: column;

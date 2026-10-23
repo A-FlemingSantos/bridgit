@@ -20,6 +20,7 @@ export default function FileOverlay({ title, meta, actions, children, onClose, r
   const [visible, setVisible] = useState(true)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const pressRef = useRef(null)
   const blockedRef = useRef(false)
   blockedRef.current = Boolean(state.overlay)
 
@@ -76,7 +77,12 @@ export default function FileOverlay({ title, meta, actions, children, onClose, r
           >
             <motion.div
               className={styles.content}
+              onPointerDown={(event) => {
+                pressRef.current = event.target
+              }}
               onClick={(event) => {
+                // A selection that ends on a blank spot is not a click on it.
+                if (pressRef.current !== event.target) return
                 if (event.target === event.currentTarget || event.target.hasAttribute('data-dismiss')) close()
               }}
               initial={{ opacity: 0, y: 12 }}

@@ -1,12 +1,17 @@
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const pdfjsMock = vi.hoisted(() => ({ getDocument: vi.fn() }))
+const pdfjsMock = vi.hoisted(() => ({ getDocument: vi.fn(), textLayers: [] }))
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
   PDFDataRangeTransport: class {},
   getDocument: pdfjsMock.getDocument,
+  TextLayer: class {
+    constructor(options) { pdfjsMock.textLayers.push(options) }
+    render() { return Promise.resolve() }
+    cancel() {}
+  },
 }))
 
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '/pdf.worker.min.mjs' }))
@@ -23,7 +28,8 @@ function pdfDocument(numPages, render) {
   return {
     numPages,
     getPage: vi.fn(async () => ({
-      getViewport: ({ scale }) => ({ width: 100 * scale, height: 140 * scale }),
+      getViewport: ({ scale }) => ({ width: 100 * scale, height: 140 * scale, scale }),
+      streamTextContent: () => 'text-content',
       render,
     })),
   }
@@ -32,6 +38,7 @@ function pdfDocument(numPages, render) {
 describe('PdfReader', () => {
   beforeEach(() => {
     pdfjsMock.getDocument.mockReset()
+    pdfjsMock.textLayers.length = 0
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(720)
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({})
   })
@@ -57,6 +64,24 @@ describe('PdfReader', () => {
     expect(renderTask).toHaveBeenCalledTimes(1)
     expect(onError).not.toHaveBeenCalled()
     expect(view.container.querySelectorAll('canvas')).toHaveLength(38)
+  })
+
+  it('draws each page denser than it is shown and lays selectable text over it', async () => {
+    const renderTask = vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() }))
+    pdfjsMock.getDocument.mockReturnValue({ promise: Promise.resolve(pdfDocument(1, renderTask)), destroy: vi.fn(async () => {}) })
+
+    const view = renderReader({ onFirstPageReady: vi.fn(), onError: vi.fn() })
+
+    await waitFor(() => expect(pdfjsMock.textLayers).toHaveLength(1))
+    const canvas = view.container.querySelector('canvas')
+    // 720px of column, rendered at twice that.
+    expect(canvas.width).toBe(1440)
+    expect(canvas.style.width).toBe('100%')
+    const { container, viewport, textContentSource } = pdfjsMock.textLayers[0]
+    expect(textContentSource).toBe('text-content')
+    expect(viewport.scale).toBe(7.2)
+    expect(container.style.getPropertyValue('--total-scale-factor')).toBe('7.2')
+    expect(view.container.contains(container)).toBe(true)
   })
 
   it('treats a render replaced by a newer width as cancelled, not as a failure', async () => {

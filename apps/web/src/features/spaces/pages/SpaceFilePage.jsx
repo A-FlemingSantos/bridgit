@@ -256,7 +256,7 @@ export default function SpaceFilePage({ overlay = false }) {
               providerName: providerMeta?.name ?? '',
             }}
             variant="editorial"
-            imageViewer={overlay}
+            viewer={overlay}
             source={readerSource}
             error={readError}
             downloadUrl={null}
