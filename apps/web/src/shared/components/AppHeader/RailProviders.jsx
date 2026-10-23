@@ -1,4 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
+import {
+  LinkWindowsIcon,
+  useWindowsDevice,
+  WindowsLogo,
+  WINDOWS_DEVICE_NAME,
+} from '../../../features/home/components/HomeSidebar/windowsDevice.jsx'
 import ProviderMark from '../../../features/spaces/components/ProviderMark.jsx'
 import { providerUrl, ROUTES } from '../../config/routes.js'
 import { useProviders } from '../../hub/index.js'
@@ -7,18 +13,46 @@ import styles from './AppHeader.module.css'
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
 
-// Icon-only provider list shown under the home button while the side panel is
-// collapsed. Mirrors the panel's links: connected providers open their root,
-// expired or disconnected ones lead to the providers settings.
-export default function RailProviders() {
-  const location = useLocation()
-  const { providers, status } = useProviders()
-
-  if (status !== 'ready') return null
+// Icon-only devices and providers shown under the home button while the side
+// panel is collapsed. The Windows link is the same one as the open panel.
+// Connected providers open their root; expired or disconnected ones lead to settings.
+function WindowsRailButton() {
+  const [linked, link] = useWindowsDevice()
+  const label = linked ? `Windows 10 ${WINDOWS_DEVICE_NAME}` : 'Vincular ao Windows'
 
   return (
-    <nav className={styles.railProviders} aria-label="Provedores">
+    <button
+      type="button"
+      className={styles.iconButton}
+      aria-pressed={linked}
+      aria-label={label}
+      title={linked ? 'Windows 10' : 'Vincular ao Windows'}
+      onClick={link}
+    >
+      {linked ? <WindowsLogo /> : <LinkWindowsIcon />}
+    </button>
+  )
+}
+
+export default function RailProviders() {
+  const { providers, status } = useProviders()
+
+  return (
+    <div className={styles.railProviders}>
       <hr className={styles.divider} />
+      <nav className={styles.railGroup} aria-label="Dispositivos">
+        <WindowsRailButton />
+      </nav>
+      {status === 'ready' ? <ProviderLinks providers={providers} /> : null}
+    </div>
+  )
+}
+
+function ProviderLinks({ providers }) {
+  const location = useLocation()
+
+  return (
+    <nav className={styles.railGroup} aria-label="Provedores">
       {providers.map((provider) => {
         const expired = provider.connected && provider.lastError === EXPIRED
         const connected = provider.connected && !expired

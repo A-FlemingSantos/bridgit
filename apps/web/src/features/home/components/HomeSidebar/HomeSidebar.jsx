@@ -12,8 +12,30 @@ import ProviderMark from '../../../spaces/components/ProviderMark.jsx'
 import { fileMenuItems } from '../../../spaces/components/entryActions.jsx'
 import { formatRelativeTime } from '../../formatRelativeTime.js'
 import styles from './HomeSidebar.module.css'
+import { LinkWindowsIcon, useWindowsDevice, WindowsLogo, WINDOWS_DEVICE_NAME } from './windowsDevice.jsx'
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
+
+function WindowsDeviceButton() {
+  const [linked, link] = useWindowsDevice()
+
+  return (
+    <button
+      type="button"
+      className={[styles.item, styles.deviceItem].join(' ')}
+      aria-pressed={linked}
+      onClick={link}
+    >
+      <span className={styles.deviceMark}>
+        {linked ? <WindowsLogo /> : <LinkWindowsIcon />}
+      </span>
+      <span className={styles.itemMeta}>
+        <span className={styles.itemName}>{linked ? 'Windows 10' : 'Vincular ao Windows'}</span>
+        {linked ? <span className={styles.itemSub}>{WINDOWS_DEVICE_NAME}</span> : null}
+      </span>
+    </button>
+  )
+}
 
 const PROVIDER_LABELS = {
   onedrive: 'OneDrive',
@@ -209,6 +231,10 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           <span className={styles.itemName}>Visão geral</span>
         </Link>
       </nav>
+
+      <Group title="Dispositivos">
+        <WindowsDeviceButton />
+      </Group>
 
       <Group title="Provedores">
         {providersStatus === 'loading' || providersStatus === 'idle' ? (
