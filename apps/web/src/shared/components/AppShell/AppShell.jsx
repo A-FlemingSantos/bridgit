@@ -188,7 +188,7 @@ export default function AppShell({ children, refreshKey, subheader = null, sideb
           onClick={sidebarState.close}
         />
       ) : null}
-      <div className={styles.body} ref={bodyRef}>
+      <div className={styles.body} ref={bodyRef} data-overlay-host="">
         {subheader ? (
           <div
             ref={subheaderRef}

@@ -468,8 +468,37 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Dropbox Desconectado' })).toBeInTheDocument()
     const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
     expect(recentLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_ANALISE}`)
-    expect(recentLink).toHaveAttribute('target', '_blank')
+    expect(recentLink).not.toHaveAttribute('target')
     expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
+  })
+
+  it('abre um arquivo acima da home, sem trocar de tela', async () => {
+    const user = userEvent.setup()
+    let lastLocation = null
+    function LocationProbe() {
+      lastLocation = useLocation()
+      return null
+    }
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/home']}>
+        <App />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    await user.click(await screen.findByRole('link', { name: 'Análise de desempenho' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Análise de desempenho' })).toBeInTheDocument()
+    expect(lastLocation?.pathname).toBe(`/providers/onedrive/file/${FILE_ANALISE}`)
+    expect(lastLocation?.state?.backgroundLocation?.pathname).toBe('/home')
+    expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Fechar' }))
+
+    await waitFor(() => expect(lastLocation?.pathname).toBe('/home'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
   })
 
   it('vincula um computador Windows na barra lateral', async () => {
@@ -886,7 +915,7 @@ describe('App', () => {
     )
     const fileLink = await within(screen.getByRole('main')).findByRole('link', { name: /Relatório 2023/ })
     expect(fileLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_REL}`)
-    expect(fileLink).toHaveAttribute('target', '_blank')
+    expect(fileLink).not.toHaveAttribute('target')
   })
 
   it('habilita link publico e copia endereco', async () => {

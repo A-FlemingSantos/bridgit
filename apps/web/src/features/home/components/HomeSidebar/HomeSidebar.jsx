@@ -7,6 +7,7 @@ import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
+import { fileNavState, usePageLocation } from '../../../../shared/utils/fileOverlay.js'
 import { settingsNavState } from '../../../../shared/utils/settingsOverlay.js'
 import ProviderMark from '../../../spaces/components/ProviderMark.jsx'
 import { fileMenuItems } from '../../../spaces/components/entryActions.jsx'
@@ -195,7 +196,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
   const [localError, setLocalError] = useState(null)
   const shortcuts = shortcutsQuery.entries
   const links = linksQuery.entries
-  const homeActive = location.pathname === ROUTES.home
+  const homeActive = usePageLocation().pathname === ROUTES.home
 
   const handleError = onError ?? ((error) => setLocalError(hubErrorMessage(error)))
   const handleConnect = onConnect
@@ -207,6 +208,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
       isShortcut: shortcutsQuery.isShortcut,
       hasPublicLink: linksQuery.isPublic,
       navigate,
+      location,
       providerName: PROVIDER_LABELS[file.provider] ?? file.provider,
       onError: handleError,
     }))
@@ -292,16 +294,15 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           <div className={styles.list}>
             {shortcuts.map((file) => (
               <div key={`${file.provider}-${file.ref}`} className={styles.itemWrap}>
-                <a
-                  href={providerFileUrl(file.provider, file.ref)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to={providerFileUrl(file.provider, file.ref)}
+                  state={fileNavState(location)}
                   className={styles.item}
                   aria-label={file.name}
                 >
                   <FileText className={styles.itemIcon} size={16} strokeWidth={1.6} aria-hidden="true" />
                   <span className={styles.itemName}>{file.name}</span>
-                </a>
+                </Link>
                 <OverflowMenu
                   ghost
                   hoverReveal

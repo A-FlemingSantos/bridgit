@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import {
-  isSettingsPath,
-  resolveSettingsBackground,
-} from '../../../../shared/utils/settingsOverlay.js'
+import { Link } from 'react-router-dom'
+import { usePageLocation } from '../../../../shared/utils/fileOverlay.js'
 import {
   getFile,
   getFolder,
@@ -26,11 +23,8 @@ export default function SpaceViewHeader({
   trail = false,
   className = '',
 }) {
-  const location = useLocation()
+  const pagePathname = usePageLocation().pathname
   const { state } = useHub()
-  const pagePathname = isSettingsPath(location.pathname)
-    ? resolveSettingsBackground(location).pathname
-    : location.pathname
   const catalog = {
     getFile: (fileRef) => getFile(state, fileRef),
     getFolder: (folderRef) => getFolder(state, folderRef),

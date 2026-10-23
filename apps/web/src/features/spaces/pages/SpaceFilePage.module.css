@@ -89,3 +89,8 @@ header.subheader p {
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* In the overlay the stage spans the main view, so an image can use all of it; other readers keep their own column. */
+.stageWide {
+  width: 100%;
+}

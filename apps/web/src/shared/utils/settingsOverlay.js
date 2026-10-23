@@ -11,7 +11,7 @@ export function isSettingsPath(pathname) {
   return pathname === ROUTES.settings || pathname.startsWith(`${ROUTES.settings}/`)
 }
 
-function toBackgroundLocation(location) {
+export function toBackgroundLocation(location) {
   return {
     pathname: location.pathname,
     search: location.search ?? '',

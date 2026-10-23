@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import FileReader from '../../../shared/components/FileReader/FileReader.jsx'
 import Spinner from '../../../shared/components/Spinner/Spinner.jsx'
+import FileOverlay from '../components/FileOverlay/FileOverlay.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import {
   ROUTES,
@@ -16,13 +17,18 @@ import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { formatFileMeta } from '../../../shared/components/FileReader/formatFileMeta.js'
+import { resolveFileBackground } from '../../../shared/utils/fileOverlay.js'
 import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
 import { fileMenuItems } from '../components/entryActions.jsx'
 import styles from './SpaceFilePage.module.css'
 
-export default function SpaceFilePage() {
+// `overlay`: the file opens above the page it was opened from, as the settings panel does.
+export default function SpaceFilePage({ overlay = false }) {
   const { fileRef, provider: providerId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backgroundRef = useRef(null)
+  backgroundRef.current = resolveFileBackground(location) ?? ROUTES.home
   const { openOverlay } = useHub()
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
@@ -209,8 +215,91 @@ export default function SpaceFilePage() {
     isShortcut,
     hasPublicLink,
     navigate,
+    location,
     providerName: providerMeta?.name ?? '',
     onError: (error) => setActionError(hubErrorMessage(error)),
+  }
+
+  const stage = (
+    <div className={[styles.stage, overlay ? styles.stageWide : ''].filter(Boolean).join(' ')} data-dismiss={overlay ? '' : undefined}>
+      {itemQuery.status === 'loading' || itemQuery.status === 'idle' ? (
+        <>
+          <FileSheet large />
+          <Spinner label="Carregando arquivo" />
+        </>
+      ) : itemQuery.status === 'error' ? (
+        <>
+          <p className={styles.status} role="alert">
+            {hubErrorMessage(itemQuery.error)}
+          </p>
+          <button type="button" className={styles.retry} onClick={() => itemQuery.reload()}>
+            Tentar novamente
+          </button>
+        </>
+      ) : item ? (
+        <>
+          {actionError ? (
+            <p className={styles.status} role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          {downloadError ? (
+            <p className={styles.status} role="alert">
+              {downloadError}
+            </p>
+          ) : null}
+          <FileReader
+            file={{
+              name: item.name,
+              extension: item.extension,
+              mimeType: item.mimeType,
+              providerName: providerMeta?.name ?? '',
+            }}
+            variant="editorial"
+            imageViewer={overlay}
+            source={readerSource}
+            error={readError}
+            downloadUrl={null}
+            onDownload={() => void handleDownload()}
+            onRetry={() => void refreshSource()}
+            onContentError={handleContentError}
+          />
+        </>
+      ) : null}
+    </div>
+  )
+
+  const headerActions = item ? (
+    <div className={styles.headerActions}>
+      <button
+        type="button"
+        className={styles.download}
+        disabled={downloadPending}
+        onClick={() => void handleDownload()}
+      >
+        {downloadPending ? 'Baixando…' : 'Baixar'}
+      </button>
+      <OverflowMenu
+        ghost
+        label={`Ações de ${item.name}`}
+        title={item.name}
+        items={fileMenuItems(item, menuContext)}
+      />
+    </div>
+  ) : null
+
+  if (overlay) {
+    return (
+      <FileOverlay
+        title={item?.name ?? 'Arquivo'}
+        meta={metaLine}
+        actions={headerActions}
+        refreshKey={fileRef}
+        onClose={() => navigate(backgroundRef.current)}
+      >
+        {stage}
+      </FileOverlay>
+    )
   }
 
   return (
@@ -222,77 +311,14 @@ export default function SpaceFilePage() {
             className={styles.subheader}
             items={titleItems}
             subtitle={metaLine || null}
-            trailing={
-              <div className={styles.headerActions}>
-                <button
-                  type="button"
-                  className={styles.download}
-                  disabled={downloadPending}
-                  onClick={() => void handleDownload()}
-                >
-                  {downloadPending ? 'Baixando…' : 'Baixar'}
-                </button>
-                <OverflowMenu
-                  ghost
-                  label={`Ações de ${item.name}`}
-                  title={item.name}
-                  items={fileMenuItems(item, menuContext)}
-                />
-              </div>
-            }
+            trailing={headerActions}
           />
         ) : (
           <SpaceViewHeader className={styles.subheader} items={[]} trailing={null} />
         )
       }
     >
-      <main className={styles.main}>
-        <div className={styles.stage}>
-          {itemQuery.status === 'loading' || itemQuery.status === 'idle' ? (
-            <>
-              <FileSheet large />
-              <Spinner label="Carregando arquivo" />
-            </>
-          ) : itemQuery.status === 'error' ? (
-            <>
-              <p className={styles.status} role="alert">
-                {hubErrorMessage(itemQuery.error)}
-              </p>
-              <button type="button" className={styles.retry} onClick={() => itemQuery.reload()}>
-                Tentar novamente
-              </button>
-            </>
-          ) : item ? (
-            <>
-              {actionError ? (
-                <p className={styles.status} role="alert">
-                  {actionError}
-                </p>
-              ) : null}
-              {downloadError ? (
-                <p className={styles.status} role="alert">
-                  {downloadError}
-                </p>
-              ) : null}
-              <FileReader
-                file={{
-                  name: item.name,
-                  extension: item.extension,
-                  mimeType: item.mimeType,
-                  providerName: providerMeta?.name ?? '',
-                }}
-                variant="editorial"
-                source={readerSource}
-                error={readError}
-                downloadUrl={null}
-                onDownload={() => void handleDownload()}
-                onRetry={() => void refreshSource()}
-                onContentError={handleContentError}
-              />
-            </>
-          ) : null}
-        </div>
-      </main>
+      <main className={styles.main}>{stage}</main>
     </AppShell>
   )
 }

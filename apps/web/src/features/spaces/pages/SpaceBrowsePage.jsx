@@ -11,6 +11,7 @@ import {
   providerFolderUrl,
   providerUrl,
 } from '../../../shared/config/routes.js'
+import { fileNavState, usePageLocation } from '../../../shared/utils/fileOverlay.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import { useFolder, useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
 import { isTempRef } from '../../../shared/hub/hubCache.js'
@@ -123,6 +124,7 @@ function PendingAware({ pending, className, render, children }) {
 export default function SpaceBrowsePage() {
   const { folderRef, provider: providerId } = useParams()
   const location = useLocation()
+  const pageLocation = usePageLocation()
   const navigate = useNavigate()
   const { openOverlay } = useHub()
   const actions = useHubActions()
@@ -185,8 +187,8 @@ export default function SpaceBrowsePage() {
   const pendingFolder = folderRef
     ? {
         ref: folderRef,
-        name: location.state?.folderName ?? null,
-        ancestry: location.state?.folderTrail ?? [],
+        name: pageLocation.state?.folderName ?? null,
+        ancestry: pageLocation.state?.folderTrail ?? [],
       }
     : null
   const headerFolder = folderQuery.status === 'ready' ? folderQuery.folder : pendingFolder
@@ -265,6 +267,7 @@ export default function SpaceBrowsePage() {
       isShortcut,
       hasPublicLink,
       navigate,
+      location,
       providerName: providerMeta?.name ?? '',
       onError: (error) => setActionError(hubErrorMessage(error)),
       onRename: (target) => setRenamingRef(target.ref),
@@ -348,7 +351,7 @@ export default function SpaceBrowsePage() {
             </button>
           </>
         ) : null}
-        {location.state?.notice ? <p className={styles.empty} role="status">{location.state.notice}</p> : null}
+        {pageLocation.state?.notice ? <p className={styles.empty} role="status">{pageLocation.state.notice}</p> : null}
         {staleNotice ? <p className={styles.empty} role="status">{staleNotice}</p> : null}
         {empty && !expired && !staleNotice ? (
           <div className={styles.emptyState}>
@@ -467,12 +470,11 @@ export default function SpaceBrowsePage() {
                       renamingRef === item.ref ? (
                         <div {...props} />
                       ) : (
-                        <a
+                        <Link
                           {...props}
                           {...selection.tileProps(item.ref)}
-                          href={providerFileUrl(providerId, item.ref)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          to={providerFileUrl(providerId, item.ref)}
+                          state={fileNavState(location)}
                         />
                       )
                     }

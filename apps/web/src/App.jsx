@@ -16,6 +16,7 @@ import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import OperationNotices from './shared/components/OperationNotices/OperationNotices.jsx'
+import { resolveFileBackground } from './shared/utils/fileOverlay.js'
 import { isSettingsPath, resolveSettingsBackground } from './shared/utils/settingsOverlay.js'
 import styles from './App.module.css'
 
@@ -31,7 +32,8 @@ function AppShell() {
   const { status, session, shouldDiscardReturnPath, acknowledgeDiscardReturnPath } = useSession()
   const location = useLocation()
   const settingsOpen = isSettingsPath(location.pathname)
-  const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : location
+  const fileBackground = resolveFileBackground(location)
+  const backgroundLocation = settingsOpen ? resolveSettingsBackground(location) : (fileBackground ?? location)
 
   if (matchPath(ROUTES.publicLink, location.pathname)) {
     return (
@@ -84,6 +86,11 @@ function AppShell() {
       {settingsOpen ? (
         <Routes>
           <Route path={`${ROUTES.settings}/*`} element={<SettingsPage />} />
+        </Routes>
+      ) : null}
+      {fileBackground ? (
+        <Routes>
+          <Route path={ROUTES.providerFile} element={<SpaceFilePage overlay />} />
         </Routes>
       ) : null}
       <HubOverlays />

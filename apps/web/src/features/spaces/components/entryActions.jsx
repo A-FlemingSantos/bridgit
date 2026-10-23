@@ -1,4 +1,5 @@
 import { providerFileUrl } from '../../../shared/config/routes.js'
+import { fileNavState } from '../../../shared/utils/fileOverlay.js'
 import OpenChoices from './OpenChoices/OpenChoices.jsx'
 import { PixelBookmark, PixelBrush, PixelCopy, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 
@@ -52,7 +53,7 @@ function publicLinkItems(item, { actions, hasPublicLink, onError }) {
   ]
 }
 
-export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, onError, onRename }) {
+export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, location, onError, onRename }) {
   const pinned = isShortcut?.(item.provider, item.ref) ?? false
 
   const fileUrl = providerFileUrl(item.provider, item.ref)
@@ -70,7 +71,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
           }}
           onHere={() => {
             close()
-            if (navigate) navigate(fileUrl)
+            if (navigate) navigate(fileUrl, { state: location ? fileNavState(location) : null })
             else window.location.assign(fileUrl)
           }}
         />

@@ -8,6 +8,7 @@ import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.j
 import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
 import { providerFileUrl, providerFolderUrl, ROUTES } from '../../../shared/config/routes.js'
+import { fileNavState } from '../../../shared/utils/fileOverlay.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import {
   useHubActions,
@@ -141,6 +142,7 @@ export default function HomePage() {
       isShortcut: shortcutsQuery.isShortcut,
       hasPublicLink: publicLinksQuery.isPublic,
       navigate,
+      location,
       providerName: providerLabel(item.provider),
       onError: (error) => setActionError(hubErrorMessage(error)),
     }
@@ -323,15 +325,14 @@ export default function HomePage() {
                               <span className={styles.rowTitle}>{item.name}</span>
                             </Link>
                           ) : (
-                            <a
+                            <Link
                               key={item.uiKey ?? item.ref}
-                              href={providerFileUrl(group.id, item.ref)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              to={providerFileUrl(group.id, item.ref)}
+                              state={fileNavState(location)}
                               className={styles.row}
                             >
                               <span className={styles.rowTitle}>{item.name}</span>
-                            </a>
+                            </Link>
                           ),
                         )}
                       </div>
@@ -436,10 +437,9 @@ export default function HomePage() {
                     variants={rise}
                     className={styles.rowWrap}
                   >
-                    <a
-                      href={providerFileUrl(file.provider, file.ref)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      to={providerFileUrl(file.provider, file.ref)}
+                      state={fileNavState(location)}
                       className={styles.row}
                       aria-label={file.name}
                     >
@@ -456,7 +456,7 @@ export default function HomePage() {
                       <span className={styles.rowMark}>
                         <ProviderMark id={file.provider} size={16} />
                       </span>
-                    </a>
+                    </Link>
                     <OverflowMenu
                       contextual
                       label={`Ações de ${file.name}`}
@@ -477,10 +477,9 @@ export default function HomePage() {
                     variants={rise}
                     className={styles.cardWrap}
                   >
-                    <a
-                      href={providerFileUrl(file.provider, file.ref)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      to={providerFileUrl(file.provider, file.ref)}
+                      state={fileNavState(location)}
                       className={styles.tile}
                       aria-label={file.name}
                     >
@@ -496,7 +495,7 @@ export default function HomePage() {
                           {itemKindLabel(file)} · {formatRelativeTime(file.openedAt)}
                         </span>
                       </span>
-                    </a>
+                    </Link>
                     <OverflowMenu
                       contextual
                       label={`Ações de ${file.name}`}
