@@ -27,6 +27,8 @@ export default function FileReader({
   onContentError,
   // 'editorial' is a left-aligned reading column; the host page shows the name and meta, so none here.
   variant = 'default',
+  // An image fills the space around it (see ImageReader) instead of the reading column.
+  imageViewer = false,
 }) {
   const editorial = variant === 'editorial'
   const [contentReady, setContentReady] = useState(false)
@@ -41,6 +43,7 @@ export default function FileReader({
   const unreadable = Boolean(displayError) || mode === 'none'
   const readable = Boolean(source && isReadableMode(mode) && !displayError)
   const isPdf = mode === 'pdf'
+  const viewer = imageViewer && mode === 'image'
   const readerIdentity = source?.revision
     ? [source.userId, source.connectionId, source.generation, source.ref ?? file?.ref, source.variant, source.revision].join('|')
     : source?.url ?? null
@@ -159,6 +162,7 @@ export default function FileReader({
           content={content}
           deferNetwork={cacheable}
           alt={file?.name ?? 'Imagem do arquivo'}
+          viewer={viewer}
           onReady={handleContentReady}
           onError={handleContentError}
         />
@@ -197,7 +201,7 @@ export default function FileReader({
 
   return (
     <section
-      className={[styles.reader, editorial ? styles.editorial : ''].filter(Boolean).join(' ')}
+      className={[styles.reader, editorial ? styles.editorial : '', viewer ? styles.viewer : ''].filter(Boolean).join(' ')}
       aria-labelledby={editorial ? undefined : 'file-reader-title'}
       aria-label={editorial ? file?.name ?? 'Arquivo' : undefined}
     >
@@ -228,7 +232,7 @@ export default function FileReader({
         ) : (
           <>
             <motion.div
-              className={`${styles.sheetShell} ${contentReady && readable ? styles.sheetShellReading : styles.sheetShellCover}`}
+              className={`${styles.sheetShell} ${contentReady && readable ? (viewer ? styles.sheetShellViewer : styles.sheetShellReading) : styles.sheetShellCover}`}
               layout
               transition={TRANSITION}
             >

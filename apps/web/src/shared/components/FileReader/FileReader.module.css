@@ -261,3 +261,71 @@
   border-color: var(--ink);
   background: transparent;
 }
+
+/* Image viewer: the image takes the room around it, up to its own size. A click shows it at its native size,
+   scrolling inside the same box. The host sets --file-viewer-height to the height it can give. */
+.editorial.viewer {
+  width: 100%;
+}
+
+.sheetShellViewer {
+  width: 100%;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.imageViewport {
+  display: flex;
+  width: 100%;
+  max-height: var(--file-viewer-height, 80dvh);
+  overflow: hidden;
+}
+
+.imageToggle {
+  display: block;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+.imageToggle[data-scalable='true'] {
+  cursor: zoom-in;
+}
+
+.imageViewport[data-native='true'] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.imageViewport[data-native='true'][data-dragging='true'] {
+  cursor: grabbing;
+}
+
+.imageViewport[data-native='true'] .imageToggle {
+  max-width: none;
+  cursor: inherit;
+}
+
+.imageToggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.imageViewer {
+  display: block;
+  max-width: 100%;
+  max-height: var(--file-viewer-height, 80dvh);
+  object-fit: contain;
+}
+
+.imageViewport[data-native='true'] .imageViewer {
+  max-width: none;
+  max-height: none;
+}
