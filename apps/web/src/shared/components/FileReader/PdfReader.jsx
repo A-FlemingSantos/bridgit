@@ -596,7 +596,7 @@ export default function PdfReader({ url, content, source, viewer = false, onFirs
         const pageNumber = index + 1
 
         return (
-          <div key={pageNumber} className={styles.pageSheet} aria-label={`Pagina ${pageNumber}`}>
+          <div key={pageNumber} className={styles.pageSheet} aria-label={`Pagina ${pageNumber}`} data-overlay-surface="">
             <canvas
               ref={(node) => {
                 if (node) {

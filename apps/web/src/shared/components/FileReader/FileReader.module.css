@@ -87,6 +87,7 @@
 }
 
 .textContent {
+  user-select: text;
   margin: 0;
   padding: clamp(20px, 4vw, 32px);
   overflow-wrap: anywhere;
@@ -144,6 +145,7 @@
 
 /* The text layer pdf.js lays over each page (see PdfReader): invisible text the mouse can select. */
 .textLayer {
+  user-select: text;
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));

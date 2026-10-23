@@ -221,7 +221,7 @@ export default function SpaceFilePage({ overlay = false }) {
   }
 
   const stage = (
-    <div className={[styles.stage, overlay ? styles.stageWide : ''].filter(Boolean).join(' ')} data-dismiss={overlay ? '' : undefined}>
+    <div className={[styles.stage, overlay ? styles.stageWide : ''].filter(Boolean).join(' ')}>
       {itemQuery.status === 'loading' || itemQuery.status === 'idle' ? (
         <>
           <FileSheet large />
@@ -229,22 +229,22 @@ export default function SpaceFilePage({ overlay = false }) {
         </>
       ) : itemQuery.status === 'error' ? (
         <>
-          <p className={styles.status} role="alert">
+          <p className={styles.status} role="alert" data-overlay-surface="">
             {hubErrorMessage(itemQuery.error)}
           </p>
-          <button type="button" className={styles.retry} onClick={() => itemQuery.reload()}>
+          <button type="button" className={styles.retry} onClick={() => itemQuery.reload()} data-overlay-surface="">
             Tentar novamente
           </button>
         </>
       ) : item ? (
         <>
           {actionError ? (
-            <p className={styles.status} role="alert">
+            <p className={styles.status} role="alert" data-overlay-surface="">
               {actionError}
             </p>
           ) : null}
           {downloadError ? (
-            <p className={styles.status} role="alert">
+            <p className={styles.status} role="alert" data-overlay-surface="">
               {downloadError}
             </p>
           ) : null}

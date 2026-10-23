@@ -237,6 +237,7 @@ export default function FileReader({
               className={`${styles.sheetShell} ${contentReady && readable ? (viewer ? styles.sheetShellViewer : styles.sheetShellReading) : styles.sheetShellCover}`}
               layout
               transition={TRANSITION}
+              data-overlay-surface=""
             >
               {readable ? (
                 <div
@@ -280,6 +281,7 @@ export default function FileReader({
       {statusMessage ? (
         <p
           className={`${styles.message} ${displayError ? styles.messageError : ''}`}
+          data-overlay-surface=""
           role={displayError ? 'alert' : 'status'}
         >
           {statusMessage}
@@ -287,7 +289,7 @@ export default function FileReader({
       ) : null}
 
       {showRetry ? (
-        <button type="button" className={styles.download} onClick={handleRetry}>
+        <button type="button" className={styles.download} onClick={handleRetry} data-overlay-surface="">
           Tentar novamente
         </button>
       ) : null}

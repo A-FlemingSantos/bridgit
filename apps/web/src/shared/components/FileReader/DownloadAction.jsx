@@ -18,7 +18,7 @@ export default function DownloadAction({ onDownload, downloadUrl, label = 'Baixa
   }
 
   return (
-    <button type="button" className={styles.download} onClick={handleClick}>
+    <button type="button" className={styles.download} onClick={handleClick} data-overlay-surface="">
       <Download size={15} aria-hidden="true" />
       {label}
     </button>

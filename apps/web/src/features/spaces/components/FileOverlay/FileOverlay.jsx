@@ -10,6 +10,15 @@ const ease = [0.22, 1, 0.36, 1]
 const fade = { duration: 0.22, ease }
 const rise = { duration: 0.32, ease }
 
+// The file and its controls say so themselves (data-overlay-surface); a press anywhere else is on blank space.
+const SURFACE = '[data-overlay-surface]'
+// A click that moved further than this between press and release was a drag.
+const CLICK_SLOP_PX = 6
+
+function isBlank(element) {
+  return element instanceof Element && !element.closest(SURFACE)
+}
+
 // An open file, shown over the main view only: the sidebar and the rail stay as they are.
 // It mounts inside the shell's main area (`data-overlay-host`); a page without a shell gets the whole window.
 export default function FileOverlay({ title, meta, actions, children, onClose, refreshKey }) {
@@ -70,34 +79,35 @@ export default function FileOverlay({ title, meta, actions, children, onClose, r
             className={styles.scroll}
             refreshKey={refreshKey}
             viewportProps={{
+              // Closing takes a press and a release on blank space, in the same spot: a selection that ends
+              // there, or a drag that started on the file, leaves it open.
+              onPointerDown: (event) => {
+                pressRef.current = isBlank(event.target) ? { x: event.clientX, y: event.clientY } : null
+              },
               onClick: (event) => {
-                if (event.target === event.currentTarget) close()
+                const press = pressRef.current
+                pressRef.current = null
+                if (!press || !isBlank(event.target)) return
+                if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP_PX) return
+                close()
               },
             }}
           >
             <motion.div
               className={styles.content}
-              onPointerDown={(event) => {
-                pressRef.current = event.target
-              }}
-              onClick={(event) => {
-                // A selection that ends on a blank spot is not a click on it.
-                if (pressRef.current !== event.target) return
-                if (event.target === event.currentTarget || event.target.hasAttribute('data-dismiss')) close()
-              }}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
               transition={rise}
             >
               <header className={styles.bar}>
-                <div className={styles.heading}>
+                <div className={styles.heading} data-overlay-surface="">
                   <h2 id={titleId} className={styles.title}>
                     {title}
                   </h2>
                   {meta ? <p className={styles.meta}>{meta}</p> : null}
                 </div>
-                <div className={styles.tools}>
+                <div className={styles.tools} data-overlay-surface="">
                   {actions}
                   <button type="button" className={styles.close} onClick={close} aria-label="Fechar">
                     <PixelClose size={24} />

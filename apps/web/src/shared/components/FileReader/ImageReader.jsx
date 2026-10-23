@@ -179,7 +179,6 @@ export default function ImageReader({ url, content, deferNetwork = false, alt, v
     <div
       ref={viewportRef}
       className={styles.imageViewport}
-      data-dismiss={zoomed ? undefined : ''}
       data-native={zoomed ? 'true' : 'false'}
       data-dragging={dragging ? 'true' : 'false'}
       onClickCapture={(event) => {
@@ -194,6 +193,7 @@ export default function ImageReader({ url, content, deferNetwork = false, alt, v
       <button
         type="button"
         className={styles.imageToggle}
+        data-overlay-surface=""
         data-scalable={scalable || zoomed ? 'true' : 'false'}
         aria-pressed={zoomed}
         aria-label={zoomed ? 'Ajustar imagem à tela' : 'Ver imagem em tamanho original'}
