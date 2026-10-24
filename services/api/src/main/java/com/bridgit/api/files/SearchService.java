@@ -60,44 +60,45 @@ public class SearchService {
     }
 
     UUID userId = authenticatedUserService.requireUserId();
-    List<ProviderConnectionEntity> connections = connectionRepository.findByUserId(userId);
+    List<ProviderConnectionEntity> connections = connectionRepository.findByUserIdOrderByCreatedAtAscIdAsc(userId);
 
     List<Future<ProviderSearchResult>> futures = new ArrayList<>();
-    List<String> providerIds = new ArrayList<>();
     for (ProviderConnectionEntity connection : connections) {
-      providerIds.add(connection.getProvider());
       futures.add(executor.submit(searchProvider(connection, trimmed)));
     }
 
-    List<CloudItem> allResults = new ArrayList<>();
+    List<FilesDtos.SearchResult> allResults = new ArrayList<>();
     List<FilesDtos.SearchProviderStatus> statuses = new ArrayList<>();
     long deadlineNanos = System.nanoTime() + searchBudget.toNanos();
 
     for (int i = 0; i < futures.size(); i++) {
       Future<ProviderSearchResult> future = futures.get(i);
-      String providerId = providerIds.get(i);
+      ProviderConnectionEntity connection = connections.get(i);
+      String providerId = connection.getProvider();
+      UUID connectionId = connection.getId();
       long remainingNanos = deadlineNanos - System.nanoTime();
       if (remainingNanos <= 0) {
         future.cancel(true);
-        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO"));
+        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO", connectionId));
         continue;
       }
       try {
         ProviderSearchResult result = future.get(remainingNanos, TimeUnit.NANOSECONDS);
-        statuses.add(new FilesDtos.SearchProviderStatus(result.providerId(), result.ok(), result.error()));
+        statuses.add(new FilesDtos.SearchProviderStatus(result.providerId(), result.ok(), result.error(), connectionId));
         if (result.ok()) {
-          allResults.addAll(result.items());
+          result.items().forEach(item -> allResults.add(new FilesDtos.SearchResult(item, connectionId)));
         }
       } catch (TimeoutException ex) {
         future.cancel(true);
-        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO"));
+        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_TEMPO_ESGOTADO", connectionId));
       } catch (Exception ex) {
-        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_FALHOU"));
+        statuses.add(new FilesDtos.SearchProviderStatus(providerId, false, "PROVEDOR_FALHOU", connectionId));
       }
     }
 
-    List<CloudItem> sorted = allResults.stream()
-        .sorted(Comparator.comparing(item -> item.name() == null ? "" : item.name(), String.CASE_INSENSITIVE_ORDER))
+    List<FilesDtos.SearchResult> sorted = allResults.stream()
+        .sorted(Comparator.comparing(
+            result -> result.item().name() == null ? "" : result.item().name(), String.CASE_INSENSITIVE_ORDER))
         .toList();
 
     return new FilesDtos.SearchResponse(sorted, statuses);

@@ -54,12 +54,12 @@ public class OperationService {
   public OperationDtos.View retry(UUID id) { store.retry(users.requireUserId(), id); return get(id); }
 
   /** Legacy routes retain their response shape, but use exactly the same journal and executor. */
-  public CloudItem runLegacy(CloudProvider provider, OperationDtos.Kind kind, String ref, String parent, String name,
+  public CloudItem runLegacy(ConnectionScope scope, OperationDtos.Kind kind, String ref, String parent, String name,
       String contentType, long size, InputStreamSource content, String clientKey) {
     if (clientKey == null || clientKey.isBlank() || clientKey.length() > 100) {
       throw new BadRequestException("IDEMPOTENCIA_OBRIGATORIA", "Envie Idempotency-Key (até 100 caracteres) e reutilize a mesma chave ao repetir esta ação.");
     }
-    OperationDtos.Request request = new OperationDtos.Request(clientKey, provider.id(), null, null, kind, ref, parent, name, contentType, null, null);
+    OperationDtos.Request request = new OperationDtos.Request(clientKey, scope.provider().id(), scope.connectionId(), null, kind, ref, parent, name, contentType, null, null);
     OperationDtos.View accepted = kind == OperationDtos.Kind.UPLOAD ? upload(request, size, content) : submit(request);
     worker.execute(accepted.id());
     OperationDtos.View result = get(accepted.id());
@@ -69,13 +69,24 @@ public class OperationService {
   }
   private ProviderConnectionEntity validateConnection(UUID user, OperationDtos.Request request) {
     if (!enabled()) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACOES_INDISPONIVEIS", "Operações temporariamente indisponíveis.");
-    if (request.provider() == null || request.kind() == null) throw new BadRequestException("OPERACAO_INVALIDA", "Informe a operação e o provedor.");
-    if (!properties.providerEnabled(request.provider())) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACOES_INDISPONIVEIS", "Operações temporariamente indisponíveis.");
-    ProviderConnectionEntity c = connections.requireConnection(user, CloudProvider.fromId(request.provider()));
-    if (request.connectionId() != null && !request.connectionId().equals(c.getId()) || request.generation() != null && request.generation() != c.getGeneration()) {
-      throw new ConflictException("CONEXAO_ALTERADA", "A conexão foi alterada. Atualize antes de tentar novamente.");
+    if (request.kind() == null || request.connectionId() == null && request.provider() == null) throw new BadRequestException("OPERACAO_INVALIDA", "Informe a operação e o provedor.");
+    ProviderConnectionEntity c;
+    if (request.connectionId() != null) {
+      c = connections.findOwned(user, request.connectionId()).orElseThrow(OperationService::connectionChanged);
+      if (request.provider() != null && !request.provider().equals(c.getProvider())) throw connectionChanged();
+      requireProviderEnabled(c.getProvider());
+    } else {
+      requireProviderEnabled(request.provider());
+      c = connections.requireDefaultConnection(user, CloudProvider.fromId(request.provider()));
     }
+    if (request.generation() != null && request.generation() != c.getGeneration()) throw connectionChanged();
     return c;
+  }
+  private void requireProviderEnabled(String providerId) {
+    if (!properties.providerEnabled(providerId)) throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "OPERACOES_INDISPONIVEIS", "Operações temporariamente indisponíveis.");
+  }
+  private static ConflictException connectionChanged() {
+    return new ConflictException("CONEXAO_ALTERADA", "A conexão foi alterada. Atualize antes de tentar novamente.");
   }
   private OperationDtos.Request validate(OperationDtos.Request r, ProviderConnectionEntity c) {
     if (r.clientKey() == null || r.clientKey().isBlank() || r.clientKey().length() > 100) throw new BadRequestException("OPERACAO_INVALIDA", "Identificador de operação inválido.");

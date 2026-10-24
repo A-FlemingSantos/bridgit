@@ -4,6 +4,9 @@ import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -16,12 +19,22 @@ public class DropboxOAuthClient extends AbstractProviderOAuthClient {
   private static final String ACCOUNT_URL = "https://api.dropboxapi.com/2/users/get_current_account";
   private static final String REVOKE_URL = "https://api.dropboxapi.com/2/auth/token/revoke";
 
+  @Autowired
   public DropboxOAuthClient(
       CloudProvidersProperties properties,
       RestClient.Builder restClientBuilder,
       ObjectMapper objectMapper
   ) {
-    super(properties, restClientBuilder.build(), objectMapper);
+    super(properties, restClientBuilder.build(), objectMapper, noRedirectClient());
+  }
+
+  DropboxOAuthClient(
+      CloudProvidersProperties properties,
+      RestClient.Builder restClientBuilder,
+      ObjectMapper objectMapper,
+      RestClient downloadClient
+  ) {
+    super(properties, restClientBuilder.build(), objectMapper, downloadClient);
   }
 
   @Override
@@ -33,6 +46,12 @@ public class DropboxOAuthClient extends AbstractProviderOAuthClient {
   // the app secret authenticates the code exchange instead.
   @Override
   public String authorizationUrl(String state, String codeChallenge) {
+    return authorizationUrl(state, codeChallenge, false);
+  }
+
+  // Dropbox reuses the browser's signed-in account; force_reauthentication makes it ask which one.
+  @Override
+  public String authorizationUrl(String state, String codeChallenge, boolean addAccount) {
     CloudProvidersProperties.ProviderCredentials credentials = credentials();
     return buildQueryUrl(AUTHORIZE_URL, buildMap(map -> {
       map.put("client_id", credentials.getClientId());
@@ -40,6 +59,9 @@ public class DropboxOAuthClient extends AbstractProviderOAuthClient {
       map.put("redirect_uri", credentials.getRedirectUri());
       map.put("state", state);
       map.put("token_access_type", "offline");
+      if (addAccount) {
+        map.put("force_reauthentication", "true");
+      }
     }));
   }
 
@@ -91,6 +113,30 @@ public class DropboxOAuthClient extends AbstractProviderOAuthClient {
     } catch (Exception ex) {
       throw new ProviderApiException("Não foi possível obter os dados da conta Dropbox.");
     }
+  }
+
+  @Override
+  public Optional<AvatarImage> fetchAvatar(String accessToken) {
+    String body = restClient.post()
+        .uri(ACCOUNT_URL)
+        .header("Authorization", "Bearer " + accessToken)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body("null")
+        .retrieve()
+        .body(String.class);
+
+    String photoUrl;
+    try {
+      photoUrl = optionalText(objectMapper.readTree(body), "profile_photo_url");
+    } catch (Exception ex) {
+      throw new ProviderApiException("Não foi possível obter os dados da conta Dropbox.");
+    }
+    URI uri = photoUrl == null ? null : httpsUriOnHost(photoUrl, ".dropbox.com", ".dropboxusercontent.com");
+    if (uri == null) {
+      return Optional.empty();
+    }
+    // The photo URL is public: the access token must not travel to it.
+    return downloadImage(downloadClient, uri, null, status -> status == 404 || status == 403);
   }
 
   @Override

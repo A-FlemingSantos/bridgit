@@ -3,12 +3,19 @@ package com.bridgit.api.integrations;
 import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
@@ -16,8 +23,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 abstract class AbstractProviderOAuthClient implements ProviderOAuthClient {
 
+  /** Largest profile photo accepted from a provider. */
+  static final int MAX_AVATAR_BYTES = 1024 * 1024;
+
   protected final CloudProvidersProperties properties;
   protected final RestClient restClient;
+  /** Fetches photos from provider CDN URLs: carries no credentials and never follows redirects. */
+  protected final RestClient downloadClient;
   protected final ObjectMapper objectMapper;
 
   protected AbstractProviderOAuthClient(
@@ -25,9 +37,94 @@ abstract class AbstractProviderOAuthClient implements ProviderOAuthClient {
       RestClient restClient,
       ObjectMapper objectMapper
   ) {
+    this(properties, restClient, objectMapper, restClient);
+  }
+
+  protected AbstractProviderOAuthClient(
+      CloudProvidersProperties properties,
+      RestClient restClient,
+      ObjectMapper objectMapper,
+      RestClient downloadClient
+  ) {
     this.properties = properties;
     this.restClient = restClient;
+    this.downloadClient = downloadClient;
     this.objectMapper = objectMapper;
+  }
+
+  /** A client that does not follow redirects, so a CDN URL cannot bounce the request to another host. */
+  protected static RestClient noRedirectClient() {
+    HttpClient httpClient = HttpClient.newBuilder()
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
+    JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+    factory.setReadTimeout(Duration.ofSeconds(10));
+    return RestClient.builder().requestFactory(factory).build();
+  }
+
+  /**
+   * The URL as a {@link URI} only when it is plain https (default port, no credentials) on a host
+   * under one of the dot-prefixed suffixes; null otherwise. Provider-supplied URLs are untrusted.
+   */
+  protected static URI httpsUriOnHost(String url, String... hostSuffixes) {
+    try {
+      URI uri = new URI(url);
+      String host = uri.getHost();
+      if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null || uri.getUserInfo() != null
+          || (uri.getPort() != -1 && uri.getPort() != 443)) {
+        return null;
+      }
+      String lowerHost = host.toLowerCase(java.util.Locale.ROOT);
+      for (String suffix : hostSuffixes) {
+        if (lowerHost.endsWith(suffix)) {
+          return uri;
+        }
+      }
+      return null;
+    } catch (java.net.URISyntaxException ex) {
+      return null;
+    }
+  }
+
+  /**
+   * GETs an image. Empty when the provider has none: a status accepted by {@code absentStatus}, a
+   * redirect, or a body over {@link #MAX_AVATAR_BYTES}. Any other failure is thrown, so the caller
+   * can tell "no photo" from "could not find out".
+   */
+  protected Optional<AvatarImage> downloadImage(
+      RestClient client,
+      URI uri,
+      String bearerToken,
+      IntPredicate absentStatus
+  ) {
+    return client.get()
+        .uri(uri)
+        .headers(headers -> {
+          if (bearerToken != null) {
+            headers.setBearerAuth(bearerToken);
+          }
+        })
+        .exchange((request, response) -> {
+          HttpStatusCode status = response.getStatusCode();
+          if (absentStatus.test(status.value()) || status.is3xxRedirection()) {
+            return Optional.<AvatarImage>empty();
+          }
+          if (status.isError()) {
+            throw transientFailure();
+          }
+          try (InputStream in = response.getBody()) {
+            byte[] bytes = in.readNBytes(MAX_AVATAR_BYTES + 1);
+            if (bytes.length == 0 || bytes.length > MAX_AVATAR_BYTES) {
+              return Optional.<AvatarImage>empty();
+            }
+            MediaType contentType = response.getHeaders().getContentType();
+            return Optional.of(new AvatarImage(
+                bytes,
+                contentType == null ? null : contentType.getType() + "/" + contentType.getSubtype()
+            ));
+          }
+        });
   }
 
   protected CloudProvidersProperties.ProviderCredentials credentials() {

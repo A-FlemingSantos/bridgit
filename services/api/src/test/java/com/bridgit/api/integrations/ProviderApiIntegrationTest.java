@@ -2,7 +2,9 @@ package com.bridgit.api.integrations;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -99,6 +101,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   private String accessToken;
   private UUID userId;
+  private int connectionSequence;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -123,12 +126,15 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(jsonPath("$.data[1].id").value("google-drive"))
         .andExpect(jsonPath("$.data[2].id").value("dropbox"))
         .andExpect(jsonPath("$.data[0].configured").value(true))
-        .andExpect(jsonPath("$.data[0].connected").value(false));
+        .andExpect(jsonPath("$.data[0].connected").value(false))
+        .andExpect(jsonPath("$.data[0].connections.length()").value(0))
+        .andExpect(jsonPath("$.data[1].connections.length()").value(0))
+        .andExpect(jsonPath("$.data[2].connections.length()").value(0));
   }
 
   @Test
   void connectReturnsAuthorizationUrlWithPkce() throws Exception {
-    when(microsoftOAuthClient.authorizationUrl(anyString(), anyString()))
+    when(microsoftOAuthClient.authorizationUrl(anyString(), anyString(), anyBoolean()))
         .thenAnswer(invocation -> "https://login.example/authorize?state="
             + invocation.getArgument(0)
             + "&code_challenge="
@@ -254,7 +260,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   private String startAuthorizationWithBody(String jsonBody) throws Exception {
-    when(microsoftOAuthClient.authorizationUrl(anyString(), anyString()))
+    when(microsoftOAuthClient.authorizationUrl(anyString(), anyString(), anyBoolean()))
         .thenAnswer(invocation -> "https://login.example/authorize?state=" + invocation.getArgument(0));
 
     MvcResult result = mockMvc.perform(post("/api/providers/onedrive/connect")
@@ -379,6 +385,8 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
     connection.setAccountEmail(accountId + "@example.com");
     connection.setEncryptedRefreshToken(tokenCipher.encrypt("old-refresh-token"));
     connection.setConnectedAt(java.time.OffsetDateTime.now());
+    // Each call is one second newer than the last, so "oldest first" is deterministic.
+    connection.setCreatedAt(java.time.OffsetDateTime.now().minusHours(1).plusSeconds(connectionSequence++));
     return connectionRepository.save(connection);
   }
 
@@ -390,72 +398,100 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
-  void connectStoresAllowAccountChangeOnTheState() throws Exception {
-    String withPermission = startAuthorizationWithBody("{\"allowAccountChange\":true}");
-    assertThat(oauthStateRepository.findByStateToken(withPermission).orElseThrow().isAllowAccountChange()).isTrue();
+  void connectPassesAddAccountToTheClient() throws Exception {
+    startAuthorizationWithBody("{\"addAccount\":true}");
+    verify(microsoftOAuthClient).authorizationUrl(anyString(), anyString(), org.mockito.ArgumentMatchers.eq(true));
 
-    String withoutPermission = startAuthorizationWithBody("{\"redirectTo\":\"/home\"}");
-    assertThat(oauthStateRepository.findByStateToken(withoutPermission).orElseThrow().isAllowAccountChange())
-        .isFalse();
+    startAuthorizationWithBody("{\"redirectTo\":\"/home\"}");
+    verify(microsoftOAuthClient).authorizationUrl(anyString(), anyString(), org.mockito.ArgumentMatchers.eq(false));
   }
 
   @Test
-  void differentAccountWithoutPermissionKeepsTheOldConnection() throws Exception {
+  void connectIgnoresAllowAccountChange() throws Exception {
+    String stateToken = startAuthorizationWithBody("{\"allowAccountChange\":true}");
+
+    assertThat(oauthStateRepository.findByStateToken(stateToken).orElseThrow().isAllowAccountChange()).isFalse();
+    verify(microsoftOAuthClient).authorizationUrl(anyString(), anyString(), org.mockito.ArgumentMatchers.eq(false));
+  }
+
+  @Test
+  void differentAccountAddsASecondConnection() throws Exception {
     ProviderConnectionEntity old = saveConnection("account-old");
     saveState("state-different", "verifier-different", false);
     stubExchangeForAccount("code-different", "verifier-different", "account-new");
 
-    mockMvc.perform(get("/api/providers/onedrive/callback")
+    MvcResult result = mockMvc.perform(get("/api/providers/onedrive/callback")
             .param("state", "state-different")
             .param("code", "code-different"))
         .andExpect(status().isFound())
-        .andExpect(header().string("Location", Matchers.containsString("status=error")))
-        .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_CONTA_DIFERENTE")));
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")))
+        .andExpect(header().string("Location", Matchers.not(Matchers.containsString("OAUTH_CONTA_DIFERENTE"))))
+        .andReturn();
 
-    ProviderConnectionEntity kept = connectionRepository
-        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
-    assertThat(kept.getId()).isEqualTo(old.getId());
-    assertThat(kept.getAccountId()).isEqualTo("account-old");
-    assertThat(tokenCipher.decrypt(kept.getEncryptedRefreshToken())).isEqualTo("old-refresh-token");
-    // The state stays consumed: the user has to start again, now with the confirmation.
-    assertThat(oauthStateRepository.findByStateToken("state-different").orElseThrow().getUsedAt()).isNotNull();
+    List<ProviderConnectionEntity> all = connectionRepository
+        .findByUserIdAndProviderOrderByCreatedAtAscIdAsc(userId, CloudProvider.ONEDRIVE.id());
+    assertThat(all).hasSize(2);
+    ProviderConnectionEntity oldest = all.get(0);
+    ProviderConnectionEntity added = all.get(1);
+    assertThat(oldest.getId()).isEqualTo(old.getId());
+    assertThat(oldest.getAccountId()).isEqualTo("account-old");
+    assertThat(tokenCipher.decrypt(oldest.getEncryptedRefreshToken())).isEqualTo("old-refresh-token");
+    assertThat(added.getAccountId()).isEqualTo("account-new");
+    assertThat(tokenCipher.decrypt(added.getEncryptedRefreshToken())).isEqualTo("refresh-account-new");
+
+    String location = result.getResponse().getHeader("Location");
+    assertThat(UriComponentsBuilder.fromUriString(location).build().getQueryParams().getFirst("connection"))
+        .isEqualTo(added.getId().toString());
+
+    mockMvc.perform(get("/api/providers")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(3))
+        .andExpect(jsonPath("$.data[0].connected").value(true))
+        .andExpect(jsonPath("$.data[0].connectionId").value(old.getId().toString()))
+        .andExpect(jsonPath("$.data[0].account.email").value("account-old@example.com"))
+        .andExpect(jsonPath("$.data[0].connections.length()").value(2))
+        .andExpect(jsonPath("$.data[0].connections[0].connectionId").value(old.getId().toString()))
+        .andExpect(jsonPath("$.data[0].connections[0].provider").value("onedrive"))
+        .andExpect(jsonPath("$.data[0].connections[1].connectionId").value(added.getId().toString()))
+        .andExpect(jsonPath("$.data[0].connections[1].account.email").value("account-new@example.com"))
+        .andExpect(jsonPath("$.data[0].connections[1].generation").value(1))
+        .andExpect(jsonPath("$.data[0].connections[1].syncState").value("scheduled"))
+        .andExpect(jsonPath("$.data[1].connected").value(false))
+        .andExpect(jsonPath("$.data[1].connections.length()").value(0));
   }
 
   @Test
-  void differentAccountWithPermissionReplacesTheConnection() throws Exception {
-    ProviderConnectionEntity old = saveConnection("account-old");
-    saveState("state-replace", "verifier-replace", true);
-    stubExchangeForAccount("code-replace", "verifier-replace", "account-new");
-
-    mockMvc.perform(get("/api/providers/onedrive/callback")
-            .param("state", "state-replace")
-            .param("code", "code-replace"))
-        .andExpect(status().isFound())
-        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
-
-    ProviderConnectionEntity replaced = connectionRepository
-        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
-    assertThat(replaced.getId()).isNotEqualTo(old.getId());
-    assertThat(replaced.getAccountId()).isEqualTo("account-new");
-    assertThat(tokenCipher.decrypt(replaced.getEncryptedRefreshToken())).isEqualTo("refresh-account-new");
-  }
-
-  @Test
-  void sameAccountReconnectsWithoutPermission() throws Exception {
+  void sameAccountRefreshesInPlaceAndBumpsTheGeneration() throws Exception {
     ProviderConnectionEntity old = saveConnection("account-same");
     saveState("state-same", "verifier-same", false);
     stubExchangeForAccount("code-same", "verifier-same", "account-same");
 
-    mockMvc.perform(get("/api/providers/onedrive/callback")
+    MvcResult result = mockMvc.perform(get("/api/providers/onedrive/callback")
             .param("state", "state-same")
             .param("code", "code-same"))
         .andExpect(status().isFound())
-        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")))
+        .andExpect(header().string("Location", Matchers.containsString("connection=" + old.getId())))
+        .andReturn();
+    assertThat(result.getResponse().getHeader("Location")).doesNotContain("error=");
 
-    ProviderConnectionEntity updated = connectionRepository
-        .findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id()).orElseThrow();
+    List<ProviderConnectionEntity> all = connectionRepository
+        .findByUserIdAndProviderOrderByCreatedAtAscIdAsc(userId, CloudProvider.ONEDRIVE.id());
+    assertThat(all).hasSize(1);
+    ProviderConnectionEntity updated = all.get(0);
     assertThat(updated.getId()).isEqualTo(old.getId());
+    assertThat(updated.getGeneration()).isEqualTo(old.getGeneration() + 1);
     assertThat(tokenCipher.decrypt(updated.getEncryptedRefreshToken())).isEqualTo("refresh-account-same");
+  }
+
+  @Test
+  void failedCallbackRedirectsWithoutConnection() throws Exception {
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "missing-state")
+            .param("code", "auth-code"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.not(Matchers.containsString("connection="))));
   }
 
   @Test
@@ -559,21 +595,75 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
-  void disconnectRemovesConnection() throws Exception {
-    ProviderConnectionEntity connection = new ProviderConnectionEntity();
-    connection.setUserId(userId);
-    connection.setProvider(CloudProvider.ONEDRIVE.id());
-    connection.setAccountId("account-1");
-    connection.setEncryptedRefreshToken(tokenCipher.encrypt("refresh-token"));
-    connection.setConnectedAt(java.time.OffsetDateTime.now());
-    connectionRepository.save(connection);
+  void disconnectProviderRemovesEveryConnectionOfThatProvider() throws Exception {
+    saveConnection("account-a");
+    saveConnection("account-b");
 
     mockMvc.perform(delete("/api/providers/onedrive")
             .header("Authorization", "Bearer " + accessToken))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data[0].connected").value(false));
+        .andExpect(jsonPath("$.data.length()").value(3))
+        .andExpect(jsonPath("$.data[0].connected").value(false))
+        .andExpect(jsonPath("$.data[0].connections.length()").value(0));
 
-    assertThat(connectionRepository.findByUserIdAndProvider(userId, CloudProvider.ONEDRIVE.id())).isEmpty();
+    assertThat(connectionRepository.findByUserIdAndProviderOrderByCreatedAtAscIdAsc(
+        userId, CloudProvider.ONEDRIVE.id())).isEmpty();
+    org.mockito.Mockito.verify(microsoftOAuthClient, org.mockito.Mockito.times(2))
+        .revoke(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("old-refresh-token"));
+  }
+
+  @Test
+  void disconnectConnectionRemovesOnlyThatAccount() throws Exception {
+    ProviderConnectionEntity first = saveConnection("account-a");
+    ProviderConnectionEntity second = saveConnection("account-b");
+
+    mockMvc.perform(delete("/api/connections/" + first.getId())
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(3))
+        .andExpect(jsonPath("$.data[0].connected").value(true))
+        .andExpect(jsonPath("$.data[0].connectionId").value(second.getId().toString()))
+        .andExpect(jsonPath("$.data[0].connections.length()").value(1))
+        .andExpect(jsonPath("$.data[0].connections[0].connectionId").value(second.getId().toString()));
+
+    assertThat(connectionRepository.findById(first.getId())).isEmpty();
+    assertThat(connectionRepository.findById(second.getId())).isPresent();
+
+    mockMvc.perform(delete("/api/connections/" + second.getId())
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].connected").value(false));
+    assertThat(connectionRepository.findById(second.getId())).isEmpty();
+  }
+
+  @Test
+  void disconnectForeignOrUnknownConnectionAnswers409() throws Exception {
+    JsonNode other = registerUser("other_provider_user", "password123", UUID.randomUUID());
+    UUID otherUserId = UUID.fromString(other.path("data").path("user").path("id").asText());
+    ProviderConnectionEntity foreign = new ProviderConnectionEntity();
+    foreign.setUserId(otherUserId);
+    foreign.setProvider(CloudProvider.ONEDRIVE.id());
+    foreign.setAccountId("foreign-account");
+    foreign.setEncryptedRefreshToken(tokenCipher.encrypt("foreign-refresh-token"));
+    foreign.setConnectedAt(OffsetDateTime.now());
+    foreign = connectionRepository.save(foreign);
+
+    mockMvc.perform(delete("/api/connections/" + foreign.getId())
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+    assertThat(connectionRepository.findById(foreign.getId())).isPresent();
+
+    mockMvc.perform(delete("/api/connections/" + UUID.randomUUID())
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+  }
+
+  @Test
+  void disconnectConnectionWithoutJwtReturns401() throws Exception {
+    mockMvc.perform(delete("/api/connections/" + UUID.randomUUID()))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

@@ -68,9 +68,14 @@ public final class FilesDtos {
     }
   }
 
-  public record SearchProviderStatus(String id, boolean ok, String error) {
+  // One entry per connection: `id` is the provider id, `connectionId` tells apart two accounts of it.
+  public record SearchProviderStatus(String id, boolean ok, String error, java.util.UUID connectionId) {
   }
 
-  public record SearchResponse(List<CloudItem> results, List<SearchProviderStatus> providers) {
+  // Serialized as the flat CloudItem plus connectionId.
+  public record SearchResult(@JsonUnwrapped CloudItem item, java.util.UUID connectionId) {
+  }
+
+  public record SearchResponse(List<SearchResult> results, List<SearchProviderStatus> providers) {
   }
 }

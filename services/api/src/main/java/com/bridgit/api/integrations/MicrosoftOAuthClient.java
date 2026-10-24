@@ -4,6 +4,8 @@ import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -15,6 +17,8 @@ public class MicrosoftOAuthClient extends AbstractProviderOAuthClient {
   private static final String TOKEN_URL =
       "https://login.microsoftonline.com/common/oauth2/v2.0/token";
   private static final String ACCOUNT_URL = "https://graph.microsoft.com/v1.0/me";
+  private static final URI SIZED_PHOTO_URI = URI.create(ACCOUNT_URL + "/photos/96x96/$value");
+  private static final URI PHOTO_URI = URI.create(ACCOUNT_URL + "/photo/$value");
   private static final String SCOPE =
       "offline_access openid profile email User.Read Files.ReadWrite";
 
@@ -95,6 +99,23 @@ public class MicrosoftOAuthClient extends AbstractProviderOAuthClient {
     } catch (Exception ex) {
       throw new ProviderApiException("Não foi possível obter os dados da conta Microsoft.");
     }
+  }
+
+  @Override
+  public Optional<AvatarImage> fetchAvatar(String accessToken) {
+    // A 96x96 rendition is not always available: fall back to the original photo.
+    Optional<AvatarImage> sized =
+        downloadImage(restClient, SIZED_PHOTO_URI, accessToken, status -> status == 404 || status == 400);
+    if (sized.isPresent()) {
+      return sized;
+    }
+    // Accounts without a mailbox or photo answer 404/400, and personal accounts may answer 403.
+    return downloadImage(
+        restClient,
+        PHOTO_URI,
+        accessToken,
+        status -> status == 404 || status == 400 || status == 403
+    );
   }
 
   @Override

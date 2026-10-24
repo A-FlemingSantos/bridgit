@@ -1,7 +1,7 @@
 package com.bridgit.api.files;
 
 import com.bridgit.api.common.error.NotFoundException;
-import com.bridgit.api.common.security.AuthenticatedUserService;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionService;
 import com.bridgit.api.integrations.ProviderRetryService;
@@ -22,7 +22,6 @@ import com.bridgit.api.providers.ReadPlan;
 import com.bridgit.api.providers.SealedCursorService;
 import com.bridgit.api.providers.ThumbnailSupport;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.io.InputStreamSource;
 import org.springframework.http.HttpStatus;
@@ -45,7 +44,6 @@ public class ProviderFileService {
     this.readAuthorization = readAuthorization;
   }
 
-  private final AuthenticatedUserService authenticatedUserService;
   private final ProviderConnectionService connectionService;
   private final ProviderRetryService retryService;
   private final CloudProviderClients clients;
@@ -54,7 +52,6 @@ public class ProviderFileService {
   private final ApplicationEventPublisher eventPublisher;
 
   public ProviderFileService(
-      AuthenticatedUserService authenticatedUserService,
       ProviderConnectionService connectionService,
       ProviderRetryService retryService,
       CloudProviderClients clients,
@@ -62,7 +59,6 @@ public class ProviderFileService {
       SealedCursorService sealedCursorService,
       ApplicationEventPublisher eventPublisher
   ) {
-    this.authenticatedUserService = authenticatedUserService;
     this.connectionService = connectionService;
     this.retryService = retryService;
     this.clients = clients;
@@ -71,9 +67,9 @@ public class ProviderFileService {
     this.eventPublisher = eventPublisher;
   }
 
-  public FilesDtos.ListItemsResponse listItems(CloudProvider provider, String parentRef, String cursor) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
+  public FilesDtos.ListItemsResponse listItems(ConnectionScope scope, String parentRef, String cursor) {
+    CloudProvider provider = scope.provider();
+    ProviderConnectionEntity connection = scope.connection();
     CloudProviderClient client = clients.get(provider);
     String normalizedParent = normalizeParent(parentRef);
 
@@ -94,10 +90,9 @@ public class ProviderFileService {
     return new FilesDtos.ListItemsResponse(folder, page.items(), sealedNext);
   }
 
-  public FilesDtos.ItemWithAncestry getItem(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+  public FilesDtos.ItemWithAncestry getItem(ConnectionScope scope, String ref) {
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     if (catalog != null && catalog.enabled(client)) return catalog.get(connection, client, ref);
 
@@ -106,17 +101,16 @@ public class ProviderFileService {
     return new FilesDtos.ItemWithAncestry(item, ancestry);
   }
 
-  public CloudItem createFolder(CloudProvider provider, String parentRef, String name) {
-    return createFolder(provider, parentRef, name, null);
+  public CloudItem createFolder(ConnectionScope scope, String parentRef, String name) {
+    return createFolder(scope, parentRef, name, null);
   }
 
-  public CloudItem createFolder(CloudProvider provider, String parentRef, String name, String clientKey) {
-    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+  public CloudItem createFolder(ConnectionScope scope, String parentRef, String name, String clientKey) {
+    if (operations != null && operations.enabled(scope.provider())) return operations.runLegacy(scope,
         com.bridgit.api.operations.OperationDtos.Kind.CREATE_FOLDER, null, parentRef, name, null, 0, null, clientKey);
     String validName = ItemNameValidator.requireValidName(name);
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     CloudItem item = retryService.withRetry(
         connection,
@@ -127,24 +121,23 @@ public class ProviderFileService {
   }
 
   public CloudItem uploadFile(
-      CloudProvider provider,
+      ConnectionScope scope,
       String parentRef,
       String name,
       String contentType,
       long size,
       InputStreamSource content
   ) {
-    return uploadFile(provider, parentRef, name, contentType, size, content, null);
+    return uploadFile(scope, parentRef, name, contentType, size, content, null);
   }
 
-  public CloudItem uploadFile(CloudProvider provider, String parentRef, String name, String contentType,
+  public CloudItem uploadFile(ConnectionScope scope, String parentRef, String name, String contentType,
       long size, InputStreamSource content, String clientKey) {
-    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+    if (operations != null && operations.enabled(scope.provider())) return operations.runLegacy(scope,
         com.bridgit.api.operations.OperationDtos.Kind.UPLOAD, null, parentRef, name, contentType, size, content, clientKey);
     String validName = ItemNameValidator.requireValidName(name);
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     CloudItem item = retryService.withRetry(
         connection,
@@ -154,17 +147,16 @@ public class ProviderFileService {
     return item;
   }
 
-  public CloudItem updateItem(CloudProvider provider, String ref, String newName, String newParentRef) {
-    return updateItem(provider, ref, newName, newParentRef, null);
+  public CloudItem updateItem(ConnectionScope scope, String ref, String newName, String newParentRef) {
+    return updateItem(scope, ref, newName, newParentRef, null);
   }
 
-  public CloudItem updateItem(CloudProvider provider, String ref, String newName, String newParentRef, String clientKey) {
-    if (operations != null && operations.enabled(provider)) return operations.runLegacy(provider,
+  public CloudItem updateItem(ConnectionScope scope, String ref, String newName, String newParentRef, String clientKey) {
+    if (operations != null && operations.enabled(scope.provider())) return operations.runLegacy(scope,
         com.bridgit.api.operations.OperationDtos.Kind.UPDATE, ref, newParentRef, newName, null, 0, null, clientKey);
     String validatedName = newName == null ? null : ItemNameValidator.requireValidName(newName);
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     String finalName = validatedName == null
         ? null
@@ -187,18 +179,17 @@ public class ProviderFileService {
     return hasExtension ? newName : newName + "." + extension;
   }
 
-  public FilesDtos.DeleteItemResponse deleteItem(CloudProvider provider, String ref) {
-    return deleteItem(provider, ref, null);
+  public FilesDtos.DeleteItemResponse deleteItem(ConnectionScope scope, String ref) {
+    return deleteItem(scope, ref, null);
   }
 
-  public FilesDtos.DeleteItemResponse deleteItem(CloudProvider provider, String ref, String clientKey) {
-    if (operations != null && operations.enabled(provider)) {
-      operations.runLegacy(provider, com.bridgit.api.operations.OperationDtos.Kind.DELETE, ref, null, null, null, 0, null, clientKey);
+  public FilesDtos.DeleteItemResponse deleteItem(ConnectionScope scope, String ref, String clientKey) {
+    if (operations != null && operations.enabled(scope.provider())) {
+      operations.runLegacy(scope, com.bridgit.api.operations.OperationDtos.Kind.DELETE, ref, null, null, null, 0, null, clientKey);
       return new FilesDtos.DeleteItemResponse(true);
     }
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     retryService.withRetry(connection, token -> {
       client.delete(token, ref);
@@ -208,14 +199,13 @@ public class ProviderFileService {
     return new FilesDtos.DeleteItemResponse(true);
   }
 
-  public FilesDtos.ReadResponse readItem(CloudProvider provider, String ref) {
-    return readItem(provider, ref, false);
+  public FilesDtos.ReadResponse readItem(ConnectionScope scope, String ref) {
+    return readItem(scope, ref, false);
   }
 
-  public FilesDtos.ReadResponse readItem(CloudProvider provider, String ref, boolean refresh) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudProviderClient client = clients.get(provider);
+  public FilesDtos.ReadResponse readItem(ConnectionScope scope, String ref, boolean refresh) {
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
 
     if (readAuthorization != null) {
       if (refresh) readAuthorization.invalidate(connection.getId(), ref);
@@ -229,7 +219,7 @@ public class ProviderFileService {
     }
 
     ContentTicketService.IssuedTicket issued = contentTicketService.createTicket(
-        userId,
+        scope.userId(),
         connection.getId(),
         ref,
         plan.variant(),
@@ -238,9 +228,9 @@ public class ProviderFileService {
     return new FilesDtos.ReadResponse(plan.mode(), "/api/content/" + issued.ticket(), issued.expiresAt());
   }
 
-  public ContentStream openThumbnail(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
+  public ContentStream openThumbnail(ConnectionScope scope, String ref) {
+    CloudProvider provider = scope.provider();
+    ProviderConnectionEntity connection = scope.connection();
     CloudProviderClient client = clients.get(provider);
     CloudItem known = catalog != null && catalog.enabled(client) ? catalog.known(connection, ref) : null;
     CloudItem item = known != null ? known : retryService.withRetry(connection, token -> client.get(token, ref));
@@ -262,18 +252,17 @@ public class ProviderFileService {
   }
 
   public FilesDtos.TicketResponse createDownloadTicket(
-      CloudProvider provider,
+      ConnectionScope scope,
       String ref,
       String disposition
   ) {
     // "archive" asks for a folder packed as .zip (see FolderArchiveService).
     String resolvedDisposition = "attachment".equalsIgnoreCase(disposition) ? "attachment"
         : "archive".equalsIgnoreCase(disposition) ? "archive" : "inline";
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
+    ProviderConnectionEntity connection = scope.connection();
 
     ContentTicketService.IssuedTicket issued = contentTicketService.createTicket(
-        userId,
+        scope.userId(),
         connection.getId(),
         ref,
         ContentVariant.ORIGINAL,

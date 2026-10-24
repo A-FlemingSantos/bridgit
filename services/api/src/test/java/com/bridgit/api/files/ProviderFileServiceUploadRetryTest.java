@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.bridgit.api.common.security.AuthenticatedUserService;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionService;
 import com.bridgit.api.integrations.ProviderRetryService;
@@ -32,16 +32,12 @@ class ProviderFileServiceUploadRetryTest {
   @Test
   void retryAfter401ResendsFullContent() throws Exception {
     UUID userId = UUID.randomUUID();
-    AuthenticatedUserService auth = mock(AuthenticatedUserService.class);
-    when(auth.requireUserId()).thenReturn(userId);
-
     ProviderConnectionEntity connection = new ProviderConnectionEntity();
     connection.setId(UUID.randomUUID());
     connection.setUserId(userId);
     connection.setProvider(CloudProvider.ONEDRIVE.id());
 
     ProviderConnectionService connections = mock(ProviderConnectionService.class);
-    when(connections.requireConnection(userId, CloudProvider.ONEDRIVE)).thenReturn(connection);
     when(connections.accessToken(connection)).thenReturn("token-1", "token-2");
 
     byte[] data = new byte[4096];
@@ -65,7 +61,6 @@ class ProviderFileServiceUploadRetryTest {
     when(clients.get(CloudProvider.ONEDRIVE)).thenReturn(client);
 
     ProviderFileService service = new ProviderFileService(
-        auth,
         connections,
         new ProviderRetryService(connections),
         clients,
@@ -75,7 +70,7 @@ class ProviderFileServiceUploadRetryTest {
     );
 
     CloudItem item = service.uploadFile(
-        CloudProvider.ONEDRIVE, null, "a.bin", "application/octet-stream", data.length,
+        ConnectionScope.of(userId, connection), null, "a.bin", "application/octet-stream", data.length,
         new ByteArrayResource(data));
 
     assertEquals("up", item.ref());

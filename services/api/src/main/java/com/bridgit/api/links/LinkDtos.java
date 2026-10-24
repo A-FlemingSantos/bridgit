@@ -3,6 +3,7 @@ package com.bridgit.api.links;
 import com.bridgit.api.providers.ReadMode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public final class LinkDtos {
 
@@ -22,6 +23,7 @@ public final class LinkDtos {
   // One of the owner's links as listed in the hub.
   public record OwnerPublicLinkSummary(
       String provider,
+      UUID connectionId,
       String ref,
       String kind,
       String name,

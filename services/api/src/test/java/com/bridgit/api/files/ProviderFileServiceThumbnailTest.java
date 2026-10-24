@@ -9,7 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bridgit.api.common.error.NotFoundException;
-import com.bridgit.api.common.security.AuthenticatedUserService;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionService;
 import com.bridgit.api.integrations.ProviderRetryService;
@@ -31,7 +31,7 @@ class ProviderFileServiceThumbnailTest {
     Harness harness = harness(CloudProvider.ONEDRIVE);
     when(harness.client.get("token", "note")).thenReturn(file("notes.zip", "application/zip", "zip"));
 
-    assertThrows(NotFoundException.class, () -> harness.service.openThumbnail(CloudProvider.ONEDRIVE, "note"));
+    assertThrows(NotFoundException.class, () -> harness.service.openThumbnail(harness.scope, "note"));
     verify(harness.client, never()).openThumbnail(any(), any());
   }
 
@@ -40,7 +40,7 @@ class ProviderFileServiceThumbnailTest {
     Harness harness = harness(CloudProvider.DROPBOX);
     when(harness.client.get("token", "doc")).thenReturn(file("a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"));
 
-    assertThrows(NotFoundException.class, () -> harness.service.openThumbnail(CloudProvider.DROPBOX, "doc"));
+    assertThrows(NotFoundException.class, () -> harness.service.openThumbnail(harness.scope, "doc"));
     verify(harness.client, never()).openThumbnail(any(), any());
   }
 
@@ -52,7 +52,7 @@ class ProviderFileServiceThumbnailTest {
     when(harness.client.get("token", "photo")).thenReturn(item);
     when(harness.client.openThumbnail("token", item)).thenReturn(stream);
 
-    assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
+    assertSame(stream, harness.service.openThumbnail(harness.scope, "photo"));
   }
 
   @Test
@@ -66,7 +66,7 @@ class ProviderFileServiceThumbnailTest {
     harness.service.configureLocalHub(catalog, null, null);
     when(harness.client.openThumbnail("token", item)).thenReturn(stream);
 
-    assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
+    assertSame(stream, harness.service.openThumbnail(harness.scope, "photo"));
     verify(harness.client, never()).get(any(), any());
   }
 
@@ -81,7 +81,7 @@ class ProviderFileServiceThumbnailTest {
     when(harness.client.get("token", "photo")).thenReturn(item);
     when(harness.client.openThumbnail("token", item)).thenReturn(stream);
 
-    assertSame(stream, harness.service.openThumbnail(CloudProvider.ONEDRIVE, "photo"));
+    assertSame(stream, harness.service.openThumbnail(harness.scope, "photo"));
   }
 
   private static CloudItem file(String name, String mime, String extension) {
@@ -90,20 +90,16 @@ class ProviderFileServiceThumbnailTest {
 
   private static Harness harness(CloudProvider provider) {
     UUID userId = UUID.randomUUID();
-    AuthenticatedUserService auth = mock(AuthenticatedUserService.class);
-    when(auth.requireUserId()).thenReturn(userId);
     ProviderConnectionEntity connection = new ProviderConnectionEntity();
     connection.setId(UUID.randomUUID());
     connection.setUserId(userId);
     connection.setProvider(provider.id());
     ProviderConnectionService connections = mock(ProviderConnectionService.class);
-    when(connections.requireConnection(userId, provider)).thenReturn(connection);
     when(connections.accessToken(connection)).thenReturn("token");
     CloudProviderClient client = mock(CloudProviderClient.class);
     CloudProviderClients clients = mock(CloudProviderClients.class);
     when(clients.get(provider)).thenReturn(client);
     ProviderFileService service = new ProviderFileService(
-        auth,
         connections,
         new ProviderRetryService(connections),
         clients,
@@ -111,9 +107,9 @@ class ProviderFileServiceThumbnailTest {
         mock(com.bridgit.api.providers.SealedCursorService.class),
         mock(ApplicationEventPublisher.class)
     );
-    return new Harness(service, client);
+    return new Harness(service, client, ConnectionScope.of(userId, connection));
   }
 
-  private record Harness(ProviderFileService service, CloudProviderClient client) {
+  private record Harness(ProviderFileService service, CloudProviderClient client, ConnectionScope scope) {
   }
 }

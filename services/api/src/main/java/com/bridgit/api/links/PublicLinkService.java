@@ -10,6 +10,7 @@ import com.bridgit.api.common.error.NotFoundException;
 import com.bridgit.api.common.error.TooManyRequestsException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.common.security.RateLimiter;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
@@ -113,10 +114,8 @@ public class PublicLinkService {
   }
 
   @Transactional(readOnly = true)
-  public OwnerPublicLink getOwnerLink(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    return linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref)
+  public OwnerPublicLink getOwnerLink(ConnectionScope scope, String ref) {
+    return linkRepository.findByConnectionIdAndItemRef(scope.connectionId(), ref)
         .map(this::toOwnerResponse)
         .orElse(null);
   }
@@ -133,6 +132,7 @@ public class PublicLinkService {
         .filter(link -> providerByConnection.containsKey(link.getConnectionId()))
         .map(link -> new OwnerPublicLinkSummary(
             providerByConnection.get(link.getConnectionId()),
+            link.getConnectionId(),
             link.getItemRef(),
             link.getKind(),
             link.getName(),
@@ -151,10 +151,10 @@ public class PublicLinkService {
   private com.bridgit.api.catalog.HubEventStore events;
 
   @Transactional
-  public OwnerPublicLink createOrGetOwnerLink(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudItem item = fetchPublishableItem(provider, connection, ref);
+  public OwnerPublicLink createOrGetOwnerLink(ConnectionScope scope, String ref) {
+    UUID userId = scope.userId();
+    ProviderConnectionEntity connection = scope.connection();
+    CloudItem item = fetchPublishableItem(scope.provider(), connection, ref);
 
     PublicLinkEntity link = linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref)
         .orElseGet(() -> createLink(userId, connection, ref, item));
@@ -170,13 +170,11 @@ public class PublicLinkService {
   }
 
   @Transactional
-  public void deleteOwnerLink(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    connectionRepository.findByUserIdAndProvider(userId, provider.id()).ifPresent(connection ->
-        linkRepository.findByConnectionIdAndItemRef(connection.getId(), ref).ifPresent(link -> {
-          linkRepository.delete(link);
-          notifyLink(userId, connection, ref, true);
-        }));
+  public void deleteOwnerLink(ConnectionScope scope, String ref) {
+    linkRepository.findByConnectionIdAndItemRef(scope.connectionId(), ref).ifPresent(link -> {
+      linkRepository.delete(link);
+      notifyLink(scope.userId(), scope.connection(), ref, true);
+    });
   }
 
   // Other devices refresh on hub events; without one a link toggled elsewhere stays stale there.

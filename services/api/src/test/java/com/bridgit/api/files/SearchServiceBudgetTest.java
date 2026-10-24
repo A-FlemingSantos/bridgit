@@ -45,7 +45,7 @@ class SearchServiceBudgetTest {
     AuthenticatedUserService auth = mock(AuthenticatedUserService.class);
     when(auth.requireUserId()).thenReturn(UUID.randomUUID());
     ProviderConnectionRepository repository = mock(ProviderConnectionRepository.class);
-    when(repository.findByUserId(any())).thenReturn(connections);
+    when(repository.findByUserIdOrderByCreatedAtAscIdAsc(any())).thenReturn(connections);
     ProviderRetryService retry = mock(ProviderRetryService.class);
     when(retry.withRetry(any(), any())).thenAnswer(invocation -> {
       ProviderRetryService.TokenCall<?> call = invocation.getArgument(1);
@@ -106,7 +106,8 @@ class SearchServiceBudgetTest {
     FilesDtos.SearchResponse response = service.search("relatorio");
 
     assertEquals(1, response.results().size());
-    assertEquals("f1", response.results().get(0).ref());
+    assertEquals("f1", response.results().get(0).item().ref());
+    assertEquals(connections.get(0).getId(), response.results().get(0).connectionId());
     assertEquals(3, response.providers().size());
   }
 }

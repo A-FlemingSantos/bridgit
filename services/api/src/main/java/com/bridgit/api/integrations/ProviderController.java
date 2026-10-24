@@ -39,8 +39,9 @@ public class ProviderController {
       @RequestBody(required = false) ProviderConnectionDtos.ConnectRequest request
   ) {
     String redirectTo = request == null ? null : request.redirectTo();
-    boolean allowAccountChange = request != null && Boolean.TRUE.equals(request.allowAccountChange());
-    String authorizationUrl = providerConnectionService.startAuthorization(provider, redirectTo, allowAccountChange);
+    // allowAccountChange is still accepted from older clients, but no longer means anything.
+    boolean addAccount = request != null && Boolean.TRUE.equals(request.addAccount());
+    String authorizationUrl = providerConnectionService.startAuthorization(provider, redirectTo, addAccount);
     return ApiEnvelope.ok(new ProviderConnectionDtos.AuthorizationResponse(authorizationUrl));
   }
 

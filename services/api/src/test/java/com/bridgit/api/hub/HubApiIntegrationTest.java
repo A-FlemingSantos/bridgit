@@ -153,6 +153,64 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
+  void recentsAndShortcutsOfTwoAccountsOfTheSameProviderStayApart() throws Exception {
+    ProviderConnectionEntity second = new ProviderConnectionEntity();
+    second.setUserId(userId);
+    second.setProvider(CloudProvider.ONEDRIVE.id());
+    second.setAccountId("account-2");
+    second.setEncryptedRefreshToken(tokenCipher.encrypt("refresh-token"));
+    second.setConnectedAt(OffsetDateTime.now());
+    second = connectionRepository.save(second);
+    String firstId = connection.getId().toString();
+    String secondId = second.getId().toString();
+
+    // A recent is filed under the connection named in the body, which wins over the provider.
+    mockMvc.perform(post("/api/hub/recents")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"connectionId\":\"%s\",\"provider\":\"onedrive\",\"ref\":\"file-1\"}".formatted(secondId)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.connectionId").value(secondId));
+    assertThat(recentRepository.findByConnectionIdAndItemRef(connection.getId(), "file-1")).isEmpty();
+    assertThat(recentRepository.findByConnectionIdAndItemRef(second.getId(), "file-1")).isPresent();
+
+    mockMvc.perform(post("/api/hub/recents")
+            .header("Authorization", "Bearer " + accessToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{}"))
+        .andExpect(status().isBadRequest());
+
+    mockMvc.perform(put("/api/connections/" + firstId + "/items/file-1/shortcut")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.connectionId").value(firstId));
+    mockMvc.perform(put("/api/connections/" + secondId + "/items/file-1/shortcut")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(delete("/api/connections/" + secondId + "/items/file-1/shortcut")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/hub/shortcuts").header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
+        .andExpect(jsonPath("$.data[0].connectionId").value(firstId));
+    mockMvc.perform(get("/api/hub/recents").header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
+        .andExpect(jsonPath("$.data[0].connectionId").value(secondId));
+
+    // Another user cannot reach the connection at all.
+    String otherToken = registerUser("hub_stranger", "password123", UUID.randomUUID())
+        .path("data").path("accessToken").asText();
+    mockMvc.perform(put("/api/connections/" + firstId + "/items/file-1/shortcut")
+            .header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+  }
+
+  @Test
   void addRecentRejectsFolders() throws Exception {
     mockMvc.perform(post("/api/hub/recents")
             .header("Authorization", "Bearer " + accessToken)

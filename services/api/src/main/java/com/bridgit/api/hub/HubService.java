@@ -3,6 +3,7 @@ package com.bridgit.api.hub;
 import com.bridgit.api.common.error.BadRequestException;
 import com.bridgit.api.common.security.AuthenticatedUserService;
 import com.bridgit.api.hub.HubDtos.HubEntry;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
@@ -104,10 +105,19 @@ public class HubService {
     return found;
   }
 
+  /** The connection wins when both are given; a provider alone means that provider's oldest connection. */
   @Transactional
-  public HubEntry addRecent(CloudProvider provider, String ref) {
+  public HubEntry addRecent(UUID connectionId, CloudProvider provider, String ref) {
     UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
+    ProviderConnectionEntity connection;
+    if (connectionId != null) {
+      connection = connectionService.requireOwnedConnection(userId, connectionId);
+      provider = CloudProvider.fromId(connection.getProvider());
+    } else if (provider != null) {
+      connection = connectionService.requireDefaultConnection(userId, provider);
+    } else {
+      throw new BadRequestException("CONEXAO_OBRIGATORIA", "Informe a conexão ou o provedor.");
+    }
     CloudItem item = fetchFileItem(provider, connection, ref, "RECENTE_APENAS_ARQUIVO", "Somente arquivos podem ser adicionados aos recentes.");
 
     OffsetDateTime now = OffsetDateTime.now(clock);
@@ -125,7 +135,7 @@ public class HubService {
 
     trimRecents(userId);
     notifyEntry(userId, connection, "recent", ref, false);
-    return toRecentEntry(recent, provider.id(), item);
+    return toRecentEntry(recent, connection.getProvider(), item);
   }
 
   @Transactional(readOnly = true)
@@ -137,10 +147,10 @@ public class HubService {
   }
 
   @Transactional
-  public HubEntry upsertShortcut(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    ProviderConnectionEntity connection = connectionService.requireConnection(userId, provider);
-    CloudItem item = fetchItem(provider, connection, ref);
+  public HubEntry upsertShortcut(ConnectionScope scope, String ref) {
+    UUID userId = scope.userId();
+    ProviderConnectionEntity connection = scope.connection();
+    CloudItem item = fetchItem(scope.provider(), connection, ref);
 
     OffsetDateTime now = OffsetDateTime.now(clock);
 
@@ -158,17 +168,15 @@ public class HubService {
     shortcutRepository.save(shortcut);
     notifyShortcut(userId, connection, ref, false);
 
-    return toShortcutEntry(shortcut, provider.id());
+    return toShortcutEntry(shortcut, connection.getProvider());
   }
 
   @Transactional
-  public void deleteShortcut(CloudProvider provider, String ref) {
-    UUID userId = authenticatedUserService.requireUserId();
-    connectionRepository.findByUserIdAndProvider(userId, provider.id()).ifPresent(connection ->
-        shortcutRepository.findByConnectionIdAndItemRef(connection.getId(), ref).ifPresent(shortcut -> {
-          shortcutRepository.delete(shortcut);
-          notifyShortcut(userId, connection, ref, true);
-        }));
+  public void deleteShortcut(ConnectionScope scope, String ref) {
+    shortcutRepository.findByConnectionIdAndItemRef(scope.connectionId(), ref).ifPresent(shortcut -> {
+      shortcutRepository.delete(shortcut);
+      notifyShortcut(scope.userId(), scope.connection(), ref, true);
+    });
   }
 
   private void notifyShortcut(UUID userId, ProviderConnectionEntity connection, String ref, boolean removed) {
@@ -229,6 +237,7 @@ public class HubService {
   static HubEntry toRecentEntry(HubRecentEntity entity, String provider, CloudItem known) {
     return new HubEntry(
         provider,
+        entity.getConnectionId(),
         entity.getItemRef(),
         entity.getName(),
         entity.getMimeType(),
@@ -243,6 +252,7 @@ public class HubService {
   static HubEntry toShortcutEntry(HubShortcutEntity entity, String provider) {
     return new HubEntry(
         provider,
+        entity.getConnectionId(),
         entity.getItemRef(),
         entity.getName(),
         entity.getMimeType(),

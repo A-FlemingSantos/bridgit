@@ -1,6 +1,7 @@
 package com.bridgit.api.files;
 
 import com.bridgit.api.ApiIntegrationTestSupport;
+import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.integrations.ProviderConnectionRepository;
 import com.bridgit.api.integrations.ProviderConnectionService;
@@ -31,6 +32,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,11 +62,17 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @BeforeEach
   void stubProviderConnectionService() {
-    when(providerConnectionService.requireConnection(any(), any())).thenAnswer(invocation -> {
+    when(providerConnectionService.requireDefaultConnection(any(), any())).thenAnswer(invocation -> {
       UUID userId = invocation.getArgument(0);
       CloudProvider provider = invocation.getArgument(1);
       return connectionRepository.findByUserIdAndProvider(userId, provider.id())
-          .orElseThrow();
+          .orElseThrow(() -> new ConflictException("PROVEDOR_NAO_CONECTADO", "Conecte este provedor de nuvem antes de continuar."));
+    });
+    when(providerConnectionService.requireOwnedConnection(any(), any())).thenAnswer(invocation -> {
+      UUID userId = invocation.getArgument(0);
+      UUID connectionId = invocation.getArgument(1);
+      return connectionRepository.findByIdAndUserId(connectionId, userId)
+          .orElseThrow(() -> new ConflictException("PROVEDOR_NAO_CONECTADO", "Conecte este provedor de nuvem antes de continuar."));
     });
     when(providerConnectionService.accessToken(any())).thenReturn("fake-token");
   }
@@ -92,13 +100,58 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   private void seedConnection(UUID userId, CloudProvider provider) {
+    seedConnection(userId, provider, "acct");
+  }
+
+  private UUID seedConnection(UUID userId, CloudProvider provider, String accountId) {
     ProviderConnectionEntity connection = new ProviderConnectionEntity();
     connection.setUserId(userId);
     connection.setProvider(provider.id());
-    connection.setAccountId("acct");
+    connection.setAccountId(accountId);
     connection.setEncryptedRefreshToken("enc");
     connection.setConnectedAt(OffsetDateTime.now());
-    connectionRepository.save(connection);
+    return connectionRepository.save(connection).getId();
+  }
+
+  @Test
+  void itemsOfTwoAccountsOfTheSameProviderStayApart() throws Exception {
+    var register = registerUser("files-" + UUID.randomUUID().toString().substring(0, 8), "Password123!", UUID.randomUUID());
+    String token = register.path("data").path("accessToken").asText();
+    UUID userId = UUID.fromString(register.path("data").path("user").path("id").asText());
+    UUID accountA = seedConnection(userId, CloudProvider.ONEDRIVE, "acct-a");
+    UUID accountB = seedConnection(userId, CloudProvider.ONEDRIVE, "acct-b");
+    // The fake provider names its folder after the account whose token it was given.
+    doAnswer(invocation -> "acct:" + ((ProviderConnectionEntity) invocation.getArgument(0)).getAccountId())
+        .when(providerConnectionService).accessToken(any());
+
+    mockMvc.perform(get("/api/connections/" + accountA + "/items").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.items.length()").value(1))
+        .andExpect(jsonPath("$.data.items[0].name").value("Alpha@acct-a"));
+    mockMvc.perform(get("/api/connections/" + accountB + "/items").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.items.length()").value(1))
+        .andExpect(jsonPath("$.data.items[0].name").value("Alpha@acct-b"));
+    mockMvc.perform(get("/api/connections/" + accountB + "/items/folder-1").header("Authorization", "Bearer " + token))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("Alpha@acct-b"));
+
+    // A cursor sealed for one account is refused by the other.
+    String cursorOfA = sealedCursorService.seal(accountA, null, "raw-continuation");
+    mockMvc.perform(get("/api/connections/" + accountB + "/items").param("cursor", cursorOfA)
+            .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("CURSOR_INVALIDO"));
+
+    // Another user's connection, or one that does not exist, is not connected as far as the caller can tell.
+    String otherToken = registerUser("files-" + UUID.randomUUID().toString().substring(0, 8), "Password123!", UUID.randomUUID())
+        .path("data").path("accessToken").asText();
+    mockMvc.perform(get("/api/connections/" + accountA + "/items").header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+    mockMvc.perform(get("/api/connections/" + UUID.randomUUID() + "/items").header("Authorization", "Bearer " + token))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
   }
 
   @Test
@@ -188,8 +241,11 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
 
         @Override
         public ItemPage list(String accessToken, String parentRef, String cursor) {
+          String account = accessToken != null && accessToken.startsWith("acct:")
+              ? "@" + accessToken.substring("acct:".length())
+              : "";
           CloudItem folder = new CloudItem(
-              "folder-1", provider.id(), "Alpha", ItemKind.FOLDER, null, null, null, null, null
+              "folder-1", provider.id(), "Alpha" + account, ItemKind.FOLDER, null, null, null, null, null
           );
           return new ItemPage(List.of(folder), null);
         }

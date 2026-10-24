@@ -3,7 +3,7 @@ package com.bridgit.api.hub;
 import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.hub.HubDtos.AddRecentRequest;
 import com.bridgit.api.hub.HubDtos.HubEntry;
-import com.bridgit.api.providers.CloudProvider;
+import com.bridgit.api.integrations.ConnectionScope;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@RequestMapping("/api/hub")
+@RequestMapping("/api")
 public class HubController {
 
   private final HubService hubService;
@@ -27,35 +27,35 @@ public class HubController {
     this.hubService = hubService;
   }
 
-  @GetMapping("/recents")
+  @GetMapping("/hub/recents")
   public ApiEnvelope<List<HubEntry>> listRecents() {
     return ApiEnvelope.ok(hubService.listRecents());
   }
 
-  @PostMapping("/recents")
+  @PostMapping("/hub/recents")
   public ApiEnvelope<HubEntry> addRecent(@Valid @RequestBody AddRecentRequest request) {
-    return ApiEnvelope.ok(hubService.addRecent(request.provider(), request.ref()));
+    return ApiEnvelope.ok(hubService.addRecent(request.connectionId(), request.provider(), request.ref()));
   }
 
-  @GetMapping("/shortcuts")
+  @GetMapping("/hub/shortcuts")
   public ApiEnvelope<List<HubEntry>> listShortcuts() {
     return ApiEnvelope.ok(hubService.listShortcuts());
   }
 
-  @PutMapping("/shortcuts/{provider}/{ref}")
+  @PutMapping({"/hub/shortcuts/{provider}/{ref}", "/connections/{connectionId}/items/{ref}/shortcut"})
   public ApiEnvelope<HubEntry> upsertShortcut(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    return ApiEnvelope.ok(hubService.upsertShortcut(provider, ref));
+    return ApiEnvelope.ok(hubService.upsertShortcut(scope, ref));
   }
 
-  @DeleteMapping("/shortcuts/{provider}/{ref}")
+  @DeleteMapping({"/hub/shortcuts/{provider}/{ref}", "/connections/{connectionId}/items/{ref}/shortcut"})
   public ApiEnvelope<Void> deleteShortcut(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    hubService.deleteShortcut(provider, ref);
+    hubService.deleteShortcut(scope, ref);
     return ApiEnvelope.ok(null);
   }
 }

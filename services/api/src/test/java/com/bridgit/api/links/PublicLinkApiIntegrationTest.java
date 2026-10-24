@@ -164,6 +164,53 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
+  void linksOfTwoAccountsOfTheSameProviderStayApart() throws Exception {
+    ProviderConnectionEntity first = connectionRepository.findByUserId(userId).getFirst();
+    ProviderConnectionEntity second = new ProviderConnectionEntity();
+    second.setUserId(userId);
+    second.setProvider(CloudProvider.ONEDRIVE.id());
+    second.setAccountId("account-2");
+    second.setEncryptedRefreshToken(tokenCipher.encrypt("refresh-token"));
+    second.setConnectedAt(OffsetDateTime.now());
+    second = connectionRepository.save(second);
+    String firstLink = "/api/connections/" + first.getId() + "/items/file-1/public-link";
+    String secondLink = "/api/connections/" + second.getId() + "/items/file-1/public-link";
+
+    mockMvc.perform(put(firstLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+
+    // The link made under the first account is not visible under the second.
+    mockMvc.perform(get(secondLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+
+    mockMvc.perform(put(secondLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+
+    mockMvc.perform(get("/api/hub/public-links").header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(2))
+        .andExpect(jsonPath("$.data[?(@.connectionId == '" + first.getId() + "')]", org.hamcrest.Matchers.hasSize(1)))
+        .andExpect(jsonPath("$.data[?(@.connectionId == '" + second.getId() + "')]", org.hamcrest.Matchers.hasSize(1)));
+
+    mockMvc.perform(delete(secondLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+    mockMvc.perform(get(firstLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.code").isNotEmpty());
+    mockMvc.perform(get(secondLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").value(org.hamcrest.Matchers.nullValue()));
+
+    // Another user cannot reach the connection at all.
+    String otherToken = registerUser("link_stranger", "password123", UUID.randomUUID())
+        .path("data").path("accessToken").asText();
+    mockMvc.perform(get(firstLink).header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+  }
+
+  @Test
   void listPublicLinksRequiresAuthentication() throws Exception {
     mockMvc.perform(get("/api/hub/public-links"))
         .andExpect(status().isUnauthorized());

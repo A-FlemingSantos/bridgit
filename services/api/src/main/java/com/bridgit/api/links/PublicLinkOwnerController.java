@@ -1,8 +1,8 @@
 package com.bridgit.api.links;
 
 import com.bridgit.api.common.api.ApiEnvelope;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.links.LinkDtos.OwnerPublicLink;
-import com.bridgit.api.providers.CloudProvider;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Validated
-@RequestMapping("/api/providers/{provider}/items/{ref}/public-link")
+@RequestMapping({
+    "/api/providers/{provider}/items/{ref}/public-link",
+    "/api/connections/{connectionId}/items/{ref}/public-link"
+})
 public class PublicLinkOwnerController {
 
   private final PublicLinkService publicLinkService;
@@ -24,26 +27,26 @@ public class PublicLinkOwnerController {
 
   @GetMapping
   public ApiEnvelope<OwnerPublicLink> getPublicLink(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    return ApiEnvelope.ok(publicLinkService.getOwnerLink(provider, ref));
+    return ApiEnvelope.ok(publicLinkService.getOwnerLink(scope, ref));
   }
 
   @PutMapping
   public ApiEnvelope<OwnerPublicLink> createPublicLink(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    return ApiEnvelope.ok(publicLinkService.createOrGetOwnerLink(provider, ref));
+    return ApiEnvelope.ok(publicLinkService.createOrGetOwnerLink(scope, ref));
   }
 
   @DeleteMapping
   public ApiEnvelope<Void> deletePublicLink(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    publicLinkService.deleteOwnerLink(provider, ref);
+    publicLinkService.deleteOwnerLink(scope, ref);
     return ApiEnvelope.ok(null);
   }
 }

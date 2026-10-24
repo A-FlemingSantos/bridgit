@@ -4,6 +4,10 @@ import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ProviderApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -20,12 +24,25 @@ public class GoogleOAuthClient extends AbstractProviderOAuthClient {
           + "https://www.googleapis.com/auth/userinfo.profile "
           + "https://www.googleapis.com/auth/drive";
 
+  private static final Pattern PHOTO_SIZE_SUFFIX = Pattern.compile("=s\\d+(-c)?$");
+  private static final String PHOTO_HOST_SUFFIX = ".googleusercontent.com";
+
+  @Autowired
   public GoogleOAuthClient(
       CloudProvidersProperties properties,
       RestClient.Builder restClientBuilder,
       ObjectMapper objectMapper
   ) {
-    super(properties, restClientBuilder.build(), objectMapper);
+    super(properties, restClientBuilder.build(), objectMapper, noRedirectClient());
+  }
+
+  GoogleOAuthClient(
+      CloudProvidersProperties properties,
+      RestClient.Builder restClientBuilder,
+      ObjectMapper objectMapper,
+      RestClient downloadClient
+  ) {
+    super(properties, restClientBuilder.build(), objectMapper, downloadClient);
   }
 
   @Override
@@ -45,7 +62,7 @@ public class GoogleOAuthClient extends AbstractProviderOAuthClient {
       map.put("code_challenge", codeChallenge);
       map.put("code_challenge_method", "S256");
       map.put("access_type", "offline");
-      map.put("prompt", "consent");
+      map.put("prompt", "select_account consent");
       map.put("include_granted_scopes", "true");
     }));
   }
@@ -93,6 +110,31 @@ public class GoogleOAuthClient extends AbstractProviderOAuthClient {
     } catch (Exception ex) {
       throw new ProviderApiException("Não foi possível obter os dados da conta Google.");
     }
+  }
+
+  @Override
+  public Optional<AvatarImage> fetchAvatar(String accessToken) {
+    String body = restClient.get()
+        .uri(ACCOUNT_URL)
+        .header("Authorization", "Bearer " + accessToken)
+        .retrieve()
+        .body(String.class);
+
+    String picture;
+    try {
+      picture = optionalText(objectMapper.readTree(body), "picture");
+    } catch (Exception ex) {
+      throw new ProviderApiException("Não foi possível obter os dados da conta Google.");
+    }
+    URI uri = picture == null ? null : httpsUriOnHost(
+        PHOTO_SIZE_SUFFIX.matcher(picture).replaceFirst("=s128-c"),
+        PHOTO_HOST_SUFFIX
+    );
+    if (uri == null) {
+      return Optional.empty();
+    }
+    // The CDN URL is public: the access token must not travel to it.
+    return downloadImage(downloadClient, uri, null, status -> status == 404 || status == 403);
   }
 
   @Override

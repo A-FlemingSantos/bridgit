@@ -2,8 +2,8 @@ package com.bridgit.api.files;
 
 import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.hub.LocalSyncFlag;
+import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.providers.CloudItem;
-import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ContentStream;
 import com.bridgit.api.providers.ContentStreamResponder;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/providers/{provider}")
+@RequestMapping({"/api/providers/{provider}", "/api/connections/{connectionId}"})
 public class FilesController {
 
   private final ProviderFileService providerFileService;
@@ -38,40 +38,40 @@ public class FilesController {
 
   @GetMapping("/items")
   public ApiEnvelope<FilesDtos.ListItemsResponse> listItems(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @RequestParam(required = false) String parent,
       @RequestParam(required = false) String cursor
   ) {
-    return ApiEnvelope.ok(providerFileService.listItems(provider, parent, cursor));
+    return ApiEnvelope.ok(providerFileService.listItems(scope, parent, cursor));
   }
 
   @GetMapping("/items/{ref}")
   public ApiEnvelope<FilesDtos.ItemWithAncestry> getItem(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref
   ) {
-    return ApiEnvelope.ok(providerFileService.getItem(provider, ref));
+    return ApiEnvelope.ok(providerFileService.getItem(scope, ref));
   }
 
   @PostMapping("/folders")
   public ResponseEntity<ApiEnvelope<CloudItem>> createFolder(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @Valid @RequestBody FilesDtos.CreateFolderRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    CloudItem item = providerFileService.createFolder(provider, request.parentRef(), request.name(), clientKey);
+    CloudItem item = providerFileService.createFolder(scope, request.parentRef(), request.name(), clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<ApiEnvelope<CloudItem>> uploadFile(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @RequestParam(required = false) String parentRef,
       @RequestParam("file") MultipartFile file,
       @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) throws Exception {
     CloudItem item = providerFileService.uploadFile(
-        provider,
+        scope,
         parentRef,
         file.getOriginalFilename(),
         file.getContentType(),
@@ -84,51 +84,51 @@ public class FilesController {
 
   @PatchMapping("/items/{ref}")
   public ResponseEntity<ApiEnvelope<CloudItem>> updateItem(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref,
       @RequestBody FilesDtos.UpdateItemRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    CloudItem item = providerFileService.updateItem(provider, ref, request.name(), request.parentRef(), clientKey);
+    CloudItem item = providerFileService.updateItem(scope, ref, request.name(), request.parentRef(), clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
   @DeleteMapping("/items/{ref}")
   public ResponseEntity<ApiEnvelope<FilesDtos.DeleteItemResponse>> deleteItem(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref,
       @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
   ) {
-    FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(provider, ref, clientKey);
+    FilesDtos.DeleteItemResponse response = providerFileService.deleteItem(scope, ref, clientKey);
     return withLocalSyncHeader(ApiEnvelope.ok(response));
   }
 
   @GetMapping("/items/{ref}/thumbnail")
   public void thumbnail(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref,
       HttpServletResponse response
   ) throws IOException {
-    ContentStream stream = providerFileService.openThumbnail(provider, ref);
+    ContentStream stream = providerFileService.openThumbnail(scope, ref);
     contentStreamResponder.write(stream, response, false, Map.of("Cache-Control", "private"));
   }
 
   @GetMapping("/items/{ref}/read")
   public ApiEnvelope<FilesDtos.ReadResponse> readItem(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref,
       @RequestParam(defaultValue = "false") boolean refresh
   ) {
-    return ApiEnvelope.ok(providerFileService.readItem(provider, ref, refresh));
+    return ApiEnvelope.ok(providerFileService.readItem(scope, ref, refresh));
   }
 
   @PostMapping("/items/{ref}/ticket")
   public ApiEnvelope<FilesDtos.TicketResponse> createTicket(
-      @PathVariable CloudProvider provider,
+      ConnectionScope scope,
       @PathVariable String ref,
       @RequestBody FilesDtos.TicketRequest request
   ) {
-    return ApiEnvelope.ok(providerFileService.createDownloadTicket(provider, ref, request.disposition()));
+    return ApiEnvelope.ok(providerFileService.createDownloadTicket(scope, ref, request.disposition()));
   }
 
   private static <T> ResponseEntity<ApiEnvelope<T>> withLocalSyncHeader(ApiEnvelope<T> body) {
