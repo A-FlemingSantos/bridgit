@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useSession } from '../../shared/auth/SessionContext.jsx'
 import { useConnections } from '../../shared/hub/index.js'
 import { oldestConnectionOf } from './connectionLabel.js'
@@ -65,6 +65,27 @@ function subscribe(listener) {
   return () => listeners.delete(listener)
 }
 
+const LEGACY_PROVIDERS = new Set(['onedrive', 'google-drive', 'dropbox'])
+
+// Moves colors still kept under `${provider}:${ref}` to the key of that provider's oldest account, so later
+// reads find them without waiting for the accounts to load. `oldestOf(provider)` returns that connection id,
+// or null when the provider has no account yet (its colors wait for it). Returns null when nothing moves.
+export function migrateLegacyColors(colors, oldestOf) {
+  let next = null
+  for (const [key, id] of Object.entries(colors)) {
+    const split = key.indexOf(':')
+    const provider = split > 0 ? key.slice(0, split) : null
+    if (!LEGACY_PROVIDERS.has(provider)) continue
+    const connectionId = oldestOf(provider)
+    if (!connectionId) continue
+    next ??= { ...colors }
+    const target = entryKey(connectionId, key.slice(split + 1))
+    if (next[target] === undefined) next[target] = id
+    delete next[key]
+  }
+  return next
+}
+
 export function findFolderColor(id) {
   return FOLDER_COLORS.find((color) => color.id === id) ?? DEFAULT_FOLDER_COLOR
 }
@@ -74,7 +95,15 @@ export function useFolderColors() {
   const userId = user?.id ?? null
   const colors = useSyncExternalStore(subscribe, () => read(userId), () => EMPTY)
 
-  const { connections } = useConnections()
+  const { status: connectionsStatus, connections } = useConnections()
+
+  // Once the accounts are known, legacy keys move to their account for good.
+  useEffect(() => {
+    if (!userId || connectionsStatus !== 'ready' || connections.length === 0) return
+    const migrated = migrateLegacyColors(colors, (provider) =>
+      oldestConnectionOf(provider, connections)?.connectionId ?? null)
+    if (migrated) write(userId, migrated)
+  }, [userId, colors, connectionsStatus, connections])
 
   // Colors saved before accounts were told apart were keyed by provider ("onedrive:ref"). Only the
   // provider's oldest account inherits them; any other account starts with the default color.

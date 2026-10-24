@@ -41,19 +41,6 @@ export function driveFileUrl(connectionId, fileRef) {
   return `/drives/${connectionId}/file/${encodeURIComponent(fileRef)}`
 }
 
-// Legacy provider-keyed URLs: they redirect to the provider's oldest account.
-export function providerUrl(provider) {
-  return `/providers/${provider}`
-}
-
-export function providerFolderUrl(provider, folderRef) {
-  return `/providers/${provider}/folder/${encodeURIComponent(folderRef)}`
-}
-
-export function providerFileUrl(provider, fileRef) {
-  return `/providers/${provider}/file/${encodeURIComponent(fileRef)}`
-}
-
 export const PUBLIC_ROUTES = new Set([
   ROUTES.landing,
   ROUTES.login,

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useHubActions } from '../../hub/index.js'
 
-// `${connectionId}:${generation}` -> object URL of a loaded photo.
+// `${connectionId}:${generation}` -> object URL of a loaded photo, or null when the account has none.
 // A new generation means the provider photo may have changed, so it is a new key.
 const MAX_ENTRIES = 100
 const cache = new Map()
@@ -32,8 +32,8 @@ function loadAvatar(connectionId, generation, getConnectionAvatar) {
   const pending = inflight.get(key)
   if (pending) return pending
 
-  // A failed request is not remembered: the API answers 404 both for "no photo" and for a
-  // transient failure, and the browser's HTTP cache already holds the cacheable "no photo".
+  // 404 means the account has no photo, which is remembered; any other failure (503 while the provider
+  // is unavailable, the network) is not, so the next mount asks again.
   const request = Promise.resolve()
     .then(() => getConnectionAvatar(connectionId, generation))
     .then((blob) => {
@@ -41,7 +41,10 @@ function loadAvatar(connectionId, generation, getConnectionAvatar) {
       remember(connectionId, key, url)
       return url
     })
-    .catch(() => null)
+    .catch((error) => {
+      if (error?.status === 404) remember(connectionId, key, null)
+      return null
+    })
     .finally(() => {
       inflight.delete(key)
     })

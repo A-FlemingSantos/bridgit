@@ -19,7 +19,8 @@ function providerCrumb(catalog, connectionId, { current = false } = {}) {
   return item(resolved?.name ?? 'Provedor', {
     to: current ? null : driveUrl(connectionId),
     current,
-    providerId: resolved?.id ?? connectionId,
+    // A provider id only: a connection id would not name any provider mark.
+    providerId: resolved?.id ?? null,
   })
 }
 

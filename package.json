@@ -34,6 +34,7 @@
     "api:test": "cd services/api && mvn test"
   },
   "lint-staged": {
-    "apps/mobile/**/*.js": "eslint --config apps/mobile/eslint.config.js --max-warnings=0"
+    "apps/mobile/**/*.js": "eslint --config apps/mobile/eslint.config.js --max-warnings=0",
+    "apps/web/**/*.{js,jsx}": "eslint --config apps/web/eslint.config.js"
   }
 }

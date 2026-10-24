@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_FOLDER_COLOR, findFolderColor, useFolderColors } from './folderColors.js'
+import { DEFAULT_FOLDER_COLOR, findFolderColor, migrateLegacyColors, useFolderColors } from './folderColors.js'
 
 // Colors are cached per user at module level, so each test gets its own user.
 const session = vi.hoisted(() => ({ userId: 'user-colors-0' }))
@@ -70,5 +70,20 @@ describe('folderColors', () => {
     act(() => result.current.setColor('od-1', 'f1', 'carbon'))
     expect(result.current.colorOf('od-1', 'f1').id).toBe('carbon')
     expect(JSON.parse(window.localStorage.getItem(storageKey()))).toEqual({})
+  })
+})
+
+describe('migrateLegacyColors', () => {
+  const oldestOf = (provider) => ({ onedrive: 'od-1', 'google-drive': 'gd-1' })[provider] ?? null
+
+  it('moves provider keys to the oldest account and keeps account keys that already exist', () => {
+    const colors = { 'onedrive:a': 'sage', 'onedrive:b': 'clay', 'od-1:b': 'plum', 'gd-9:c': 'moss' }
+
+    expect(migrateLegacyColors(colors, oldestOf)).toEqual({ 'od-1:a': 'sage', 'od-1:b': 'plum', 'gd-9:c': 'moss' })
+  })
+
+  it('leaves the colors of a provider without accounts for later, and returns null when nothing moves', () => {
+    expect(migrateLegacyColors({ 'dropbox:a': 'sage' }, oldestOf)).toBeNull()
+    expect(migrateLegacyColors({ 'od-1:a': 'sage' }, oldestOf)).toBeNull()
   })
 })

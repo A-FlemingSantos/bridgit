@@ -1137,7 +1137,7 @@ export function HubDataProvider({ children }) {
         }
       },
 
-      async moveItem({ connectionId, ref, fromParentRef, parentRef }) {
+      async moveItem({ connectionId, ref, parentRef }) {
         if (durableEnabled(connectionId)) return hubApiRef.current.updateItem(connectionId, ref, { parentRef })
         const opId = nextOpId()
         const destKey = parentRef === undefined ? null : folderCacheKey(connectionId, parentRef)

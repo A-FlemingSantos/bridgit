@@ -27,12 +27,6 @@ vi.mock('@bridgit/shared-client', async (importOriginal) => {
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
-// The side panel lists the same files, so page buttons are looked up inside the
-// page's <main>, re-queried because the page swaps it out once data loads.
-function findPageButton(name) {
-  return waitFor(() => within(screen.getByRole('main')).getByRole('button', { name }))
-}
-
 // Items have no "..." button: their menu opens with a right click on the tile.
 async function openItemMenu(name) {
   const tile = await waitFor(() => within(screen.getByRole('main')).getByRole('link', { name: new RegExp(name) }))
@@ -766,7 +760,6 @@ describe('App', () => {
   })
 
   it('mostra as ações de um arquivo no provedor', async () => {
-    const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>

@@ -32,7 +32,9 @@ export function useLocationPicker({
   onChoose,
   resetKey,
 } = {}) {
+  // `source` is fixed for each place that opens a picker, so the same hook runs on every render.
   if (source === 'api') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useApiLocationPicker({
       disabledFolderRef,
       disabledFolderRefs,
@@ -44,6 +46,7 @@ export function useLocationPicker({
     })
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useMockLocationPicker({
     excludeConnectionId,
     disabledFolderRef,

@@ -1,5 +1,5 @@
 import { clearConnectionStorage as clearCatalogConnectionStorage, clearUserStorage as clearCatalogUserStorage, connectionEpochKey, userEpochKey } from './catalog.js'
-import { openHubDatabase, readAllRecords, readRecord, requestAsPromise, transactionDone, writeRecords } from './idb.js'
+import { openHubDatabase, readAllRecords, readRecord, requestAsPromise, writeRecords } from './idb.js'
 
 const MIB = 1024 * 1024
 const MAX_CONTENT_BYTES = 50 * MIB
@@ -113,7 +113,8 @@ async function readOpfsBlob(path) {
   try {
     const root = await globalThis.navigator?.storage?.getDirectory?.()
     const directory = await root?.getDirectoryHandle('bridgit-hub-content-v1', { create: false })
-    return await (await directory?.getFileHandle(path)).getFile()
+    const handle = await directory?.getFileHandle(path)
+    return handle ? await handle.getFile() : null
   } catch {
     return null
   }

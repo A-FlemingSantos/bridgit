@@ -50,15 +50,27 @@ describe('AccountAvatar', () => {
     expect(screen.getByTestId('account-avatar-badge').querySelector('img')).not.toBeNull()
   })
 
-  it('falls back to initials when the photo is unavailable, and asks again on the next mount', async () => {
-    actions.getConnectionAvatar.mockRejectedValue(new Error('404'))
+  it('falls back to initials when the account has no photo, and does not ask again', async () => {
+    actions.getConnectionAvatar.mockRejectedValue(Object.assign(new Error('sem foto'), { status: 404 }))
     const first = render(<AccountAvatar connection={connection} />)
 
     await waitFor(() => expect(actions.getConnectionAvatar).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('AS')).toBeInTheDocument()
     first.unmount()
 
-    // A failure may be transient, so it is not remembered; the browser caches a real "no photo".
+    render(<AccountAvatar connection={connection} />)
+    expect(await screen.findByText('AS')).toBeInTheDocument()
+    expect(actions.getConnectionAvatar).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to initials when the photo is unavailable, and asks again on the next mount', async () => {
+    actions.getConnectionAvatar.mockRejectedValue(Object.assign(new Error('indisponível'), { status: 503 }))
+    const first = render(<AccountAvatar connection={connection} />)
+
+    await waitFor(() => expect(actions.getConnectionAvatar).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText('AS')).toBeInTheDocument()
+    first.unmount()
+
     render(<AccountAvatar connection={connection} />)
     expect(await screen.findByText('AS')).toBeInTheDocument()
     await waitFor(() => expect(actions.getConnectionAvatar).toHaveBeenCalledTimes(2))

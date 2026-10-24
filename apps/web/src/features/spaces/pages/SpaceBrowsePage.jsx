@@ -264,7 +264,7 @@ export default function SpaceBrowsePage() {
     await sendUpload(files)
   }
 
-  function menuContext(item) {
+  function menuContext() {
     return {
       openOverlay,
       actions,
