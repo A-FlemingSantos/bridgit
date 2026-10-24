@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useHubDataContext } from '../../hub/HubDataProvider.jsx'
+import { findCachedItem } from '../../hub/hubCache.js'
 import styles from './OperationNotices.module.css'
 
 const VISIBLE_MS = 8000
@@ -9,11 +10,13 @@ const VERBS = {
   UPLOAD: 'enviar',
   UPDATE: 'alterar',
   DELETE: 'excluir',
+  REPLACE_CONTENT: 'salvar',
 }
 
-export function rejectionNotice(operation) {
+// cachedName: the item's name from the catalog, for refusals that name no file (a save listed by the server).
+export function rejectionNotice(operation, cachedName) {
   const verb = VERBS[operation.request?.kind] ?? 'concluir a alteração em'
-  const name = operation.request?.name ?? operation.localItem?.name
+  const name = operation.request?.name ?? operation.localItem?.name ?? cachedName
   const subject = name ? `"${name}"` : 'o item'
   const reason = operation.errorMessage ? ` ${operation.errorMessage}` : ''
   return `Não foi possível ${verb} ${subject}.${reason}`
@@ -32,17 +35,24 @@ export function freshRejections(previousStatuses, operations) {
 // Forms close as soon as the server accepts a change. When the provider later refuses it, the pending
 // item just disappears from the list; this says why.
 export default function OperationNotices() {
-  const { durableOperations } = useHubDataContext()
+  const { durableOperations, actions, folderCache, itemCache } = useHubDataContext()
   const [notices, setNotices] = useState([])
   const statusesRef = useRef(new Map())
+  const cachesRef = useRef({ folderCache, itemCache })
+  cachesRef.current = { folderCache, itemCache }
 
   useEffect(() => {
     const operations = Object.values(durableOperations ?? {})
-    const fresh = freshRejections(statusesRef.current, operations)
+    // A save the open editor already reports on its own is not announced a second time.
+    const fresh = freshRejections(statusesRef.current, operations).filter((op) => !actions?.isOperationAttended?.(op))
     statusesRef.current = new Map(operations.map((op) => [op.id, op.status]))
     if (fresh.length === 0) return
-    setNotices((current) => [...current, ...fresh.map((op) => ({ id: op.id, text: rejectionNotice(op) }))])
-  }, [durableOperations])
+    const { folderCache: folders, itemCache: items } = cachesRef.current
+    setNotices((current) => [...current, ...fresh.map((op) => ({
+      id: op.id,
+      text: rejectionNotice(op, op.request?.ref ? findCachedItem(folders ?? {}, items ?? {}, op.request.connectionId, op.request.ref)?.name : undefined),
+    }))])
+  }, [durableOperations, actions])
 
   useEffect(() => {
     if (notices.length === 0) return undefined

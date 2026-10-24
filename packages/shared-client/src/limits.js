@@ -15,3 +15,13 @@ export function uploadTooLargeError() {
 export function exceedsUploadLimit(file) {
   return typeof file?.size === 'number' && file.size > MAX_UPLOAD_BYTES
 }
+
+// Keep in sync with the API's editable-text limit. The code editor refuses to save text beyond it.
+export const MAX_EDITABLE_TEXT_BYTES = 2 * 1024 * 1024
+
+export function editableTextTooLargeError() {
+  return new ApiClientError('O texto passou de 2 MB e não pode ser salvo aqui.', {
+    code: 'TEXTO_GRANDE_DEMAIS',
+    status: 400,
+  })
+}

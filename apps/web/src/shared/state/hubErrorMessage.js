@@ -7,6 +7,8 @@ const CODE_MESSAGES = {
   CANCELADO: 'A operação foi cancelada.',
   RESPOSTA_INVALIDA: 'O servidor enviou uma resposta inesperada. Tente novamente.',
   ARQUIVO_GRANDE: `O arquivo excede o limite de ${MAX_UPLOAD_LABEL}.`,
+  TEXTO_GRANDE_DEMAIS: 'O texto passou de 2 MB e não pode ser salvo aqui.',
+  EDICAO_INDISPONIVEL: 'Este arquivo não pode ser editado aqui.',
   RECONEXAO_NECESSARIA: 'Reconecte o provedor em Configurações.',
   PROVEDOR_NAO_CONECTADO: 'Conecte o provedor em Configurações.',
 }

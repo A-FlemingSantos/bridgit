@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiClientError, createFolder, uploadFile, updateItem, deleteItem } from '@bridgit/shared-client'
+import { ApiClientError, createFolder, uploadFile, updateItem, deleteItem, replaceFileContent } from '@bridgit/shared-client'
 import { createHubApi } from './hubApi.js'
 
 vi.mock('@bridgit/shared-client', async (original) => ({
-  ...await original(), createFolder: vi.fn(), uploadFile: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn(),
+  ...await original(), createFolder: vi.fn(), uploadFile: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn(), replaceFileContent: vi.fn(),
 }))
 beforeEach(() => vi.resetAllMocks())
 const item = { ref: 'remote-id', name: 'Docs' }
@@ -65,5 +65,23 @@ describe('legacy mutation identity', () => {
     await expect(api.createFolder('connection-a', null, 'Docs')).rejects.toMatchObject({ status: 503 })
     await expect(api.createFolder('connection-b', null, 'Docs')).rejects.toMatchObject({ status: 503 })
     expect(createFolder.mock.calls[0][4].clientKey).not.toBe(createFolder.mock.calls[1][4].clientKey)
+  })
+
+  it('saves text through the content route and keeps the key for the same file after a transient error', async () => {
+    replaceFileContent.mockRejectedValueOnce(new ApiClientError('uncertain', { status: 503 })).mockResolvedValue(item)
+    const api = createHubApi(() => 'token', vi.fn())
+    const file = new File(['texto'], 'a.txt', { type: 'text/plain' })
+    await expect(api.replaceFileContent('connection-a', 'ref', file, 'r1')).rejects.toMatchObject({ status: 503 })
+    await expect(api.replaceFileContent('connection-a', 'ref', file, 'r1')).resolves.toEqual(item)
+    expect(replaceFileContent.mock.calls[0].slice(1, 5)).toEqual(['connection-a', 'ref', file, 'r1'])
+    expect(replaceFileContent.mock.calls[0][5].clientKey).toBe(replaceFileContent.mock.calls[1][5].clientKey)
+  })
+
+  it('refuses text over 2 MB before any request', async () => {
+    const api = createHubApi(() => 'token', vi.fn())
+    const file = new File(['x'], 'a.txt')
+    Object.defineProperty(file, 'size', { value: 2 * 1024 * 1024 + 1 })
+    await expect(api.replaceFileContent('connection-a', 'ref', file, 'r1')).rejects.toMatchObject({ code: 'TEXTO_GRANDE_DEMAIS' })
+    expect(replaceFileContent).not.toHaveBeenCalled()
   })
 })

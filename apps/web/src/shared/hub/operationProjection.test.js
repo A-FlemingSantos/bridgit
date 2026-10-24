@@ -26,4 +26,9 @@ describe('durable intent projection', () => {
     const rejected = { ...op({ name: 'Rejected.txt' }), status: 'REJECTED' }
     expect(projectOperations(base, detail, { rejected }, connections).folderCache).toBe(base)
   })
+  it('does not flash a pending item for a content save', () => {
+    const projected = projectOperations(base, detail, { op: op({ kind: 'REPLACE_CONTENT', expectedVersion: 'r1' }) }, connections)
+    expect(projected.folderCache).toBe(base)
+    expect(projected.itemCache).toBe(detail)
+  })
 })

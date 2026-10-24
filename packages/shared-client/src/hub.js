@@ -1,6 +1,6 @@
 import { apiRequest } from './apiClient.js'
 import { mutationHeaders } from './idempotency.js'
-import { exceedsUploadLimit, uploadTooLargeError } from './limits.js'
+import { MAX_EDITABLE_TEXT_BYTES, editableTextTooLargeError, exceedsUploadLimit, uploadTooLargeError } from './limits.js'
 
 function providerBase(provider) {
   return `/api/providers/${encodeURIComponent(provider)}`
@@ -118,6 +118,23 @@ export async function uploadFile(token, connectionId, parentRef, file, options =
   body.append('file', file)
 
   const item = await apiRequest(`${connectionBase(connectionId)}/files`, {
+    method: 'POST',
+    token,
+    body,
+    headers: mutationHeaders(options),
+  })
+  return stampItem(item, connectionId)
+}
+
+// Replaces the content of an existing file with the edited text; expectedVersion is the content revision it was opened at.
+export async function replaceFileContent(token, connectionId, ref, file, expectedVersion, options = {}) {
+  if (typeof file?.size === 'number' && file.size > MAX_EDITABLE_TEXT_BYTES) throw editableTextTooLargeError()
+
+  const body = new FormData()
+  body.append('file', file)
+  body.append('expectedVersion', expectedVersion)
+
+  const item = await apiRequest(`${itemPath(connectionId, ref)}/content`, {
     method: 'POST',
     token,
     body,

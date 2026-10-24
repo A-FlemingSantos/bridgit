@@ -1,3 +1,4 @@
+import { ApiClientError, MAX_EDITABLE_TEXT_BYTES, editableTextTooLargeError } from '@bridgit/shared-client'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
@@ -33,6 +34,9 @@ import {
 
 const HubDataContext = createContext(null)
 
+// How long an editor save stays recognised after it settles: a refusal can still arrive from the server.
+const ATTENDED_SAVE_MS = 60_000
+
 const emptyListState = { status: 'idle', entries: [], error: null, fetchedAt: 0 }
 const emptyRecentsState = { ...emptyListState, authoritative: false }
 const emptyProvidersState = { status: 'idle', providers: [], error: null, fetchedAt: 0 }
@@ -64,6 +68,8 @@ export function HubDataProvider({ children }) {
   const [durableOperations, setDurableOperations] = useState({})
   const operationCallbackRef = useRef(null)
   const readDescriptorsRef = useRef(new Map())
+  // Content saves an open editor reports on itself, by clientKey: the notices skip their refusals.
+  const attendedSavesRef = useRef(new Map())
   const searchResultsRef = useRef(new Map())
   const observedOperationsRef = useRef(new Map())
   const tokenRef = useRef(session?.accessToken ?? null)
@@ -130,7 +136,8 @@ export function HubDataProvider({ children }) {
         // goes stale at once and would reject the user's own rename or delete as "changed".
         return cached?.kind === 'folder' ? null : cached?.remoteVersion
       },
-      getUncertainOperation: (connectionId, kind, fields) => [...observedOperationsRef.current.values()].find((operation) => {
+      // A save never adopts an older one that is still being verified: it carries its own revision.
+      getUncertainOperation: (connectionId, kind, fields) => kind === 'REPLACE_CONTENT' ? undefined : [...observedOperationsRef.current.values()].find((operation) => {
         const request = operation.request
         return ['NEEDS_ATTENTION', 'VERIFYING', 'WAITING_RECONNECT'].includes(operation.status)
           && !operation.id.startsWith('client:') && request?.connectionId === connectionId && request.kind === kind
@@ -140,7 +147,7 @@ export function HubDataProvider({ children }) {
       onOperation: (operation) => operationCallbackRef.current?.(operation),
       onIntent: (request, file) => operationCallbackRef.current?.({
         id: `client:${request.clientKey}`, request, status: 'SUBMITTING', updatedAt: new Date().toISOString(),
-        localItem: file ? { size: file.size, mimeType: file.type, extension: file.name.includes('.') ? file.name.split('.').pop() : null } : null,
+        localItem: file ? { name: file.name, size: file.size, mimeType: file.type, extension: file.name.includes('.') ? file.name.split('.').pop() : null } : null,
       }),
     }),
     [onUnauthorized],
@@ -739,6 +746,32 @@ export function HubDataProvider({ children }) {
   }, [])
   removeItemFromCachesRef.current = removeItemFromCaches
 
+  // A saved text keeps its place everywhere: only size, dates and revisions change, never the order or the parent.
+  const applyContentSaved = useCallback((connectionId, ref, saved) => {
+    if (!saved) return
+    const patch = {}
+    for (const field of ['size', 'modifiedAt', 'remoteVersion', 'contentRevision']) {
+      if (saved[field] !== undefined) patch[field] = saved[field]
+    }
+    const matches = (item) => item.connectionId === connectionId && item.ref === ref
+    readDescriptorsRef.current.delete(itemCacheKey(connectionId, ref))
+    setItemCache((prev) => {
+      const key = itemCacheKey(connectionId, ref)
+      const entry = prev[key]
+      if (!entry?.item) return prev
+      return { ...prev, [key]: { ...entry, item: { ...entry.item, ...patch } } }
+    })
+    setFolderCache((prev) => {
+      let next = prev
+      for (const [key, entry] of Object.entries(prev)) {
+        if (!entry?.items?.some(matches)) continue
+        if (next === prev) next = { ...prev }
+        next[key] = { ...entry, items: entry.items.map((item) => (matches(item) ? { ...item, ...patch } : item)) }
+      }
+      return next
+    })
+  }, [])
+
   const replaceOptimisticItem = useCallback((folderKey, uiKey, serverItem) => {
     const nextItem = withUiKey(serverItem, uiKey)
     delete nextItem.pending
@@ -812,6 +845,8 @@ export function HubDataProvider({ children }) {
       getOperationError(connectionId) {
         const errors = [...observedOperationsRef.current.values()].filter((operation) => {
           const request = operation.request
+          // The editor shows its own save errors.
+          if (request?.kind === 'REPLACE_CONTENT') return false
           const connection = connectionsRef.current.find((item) => item.connectionId === request?.connectionId)
           return connection && connection.generation === request.generation && (!connectionId || request.connectionId === connectionId)
             && ['NEEDS_ATTENTION', 'WAITING_RECONNECT'].includes(operation.status)
@@ -1024,6 +1059,42 @@ export function HubDataProvider({ children }) {
         })
         postHubEvent({ type: 'invalidate', scope: 'folder', connectionId, keys: [folderKey] })
         return uploaded
+      },
+
+      // Saves the edited text of an existing file. baseRevision is the content revision the editor opened;
+      // overwrite adopts the cloud's current one instead, after the user chose to replace what changed there.
+      async saveFileContent({ connectionId, ref, file, baseRevision, overwrite = false, isAttended }) {
+        if (file?.size > MAX_EDITABLE_TEXT_BYTES) throw editableTextTooLargeError()
+        const expected = overwrite
+          ? (await actions.getReadSource({ connectionId, ref, refresh: true }))?.revision
+          : baseRevision
+        if (!expected) throw new ApiClientError('Este arquivo não pode ser editado aqui.', { code: 'EDICAO_INDISPONIVEL', status: 409 })
+        const registered = new Map()
+        // A refusal can reach the notices after the save settled, so the entries outlive it for a while.
+        const pruneLater = () => setTimeout(() => {
+          for (const [key, entry] of registered) if (attendedSavesRef.current.get(key) === entry) attendedSavesRef.current.delete(key)
+        }, ATTENDED_SAVE_MS)
+        let item
+        try {
+          item = await hubApiRef.current.replaceFileContent(connectionId, ref, file, expected, {
+            onRequest: (request) => {
+              const entry = { isAttended }
+              registered.set(request.clientKey, entry)
+              attendedSavesRef.current.set(request.clientKey, entry)
+            },
+          })
+        } catch (error) {
+          pruneLater()
+          throw error
+        }
+        pruneLater()
+        applyContentSaved(connectionId, ref, item)
+        if (item?.contentRevision) void seedUploadedContent(connectionId, item, file)
+        return { item, revision: item?.contentRevision }
+      },
+
+      isOperationAttended(operation) {
+        return Boolean(attendedSavesRef.current.get(operation?.request?.clientKey)?.isAttended?.())
       },
 
       async renameItem({ connectionId, ref, name }) {
@@ -1547,6 +1618,7 @@ export function HubDataProvider({ children }) {
       },
     }),
     [
+      applyContentSaved,
       loadItem,
       loadPublicLinks,
       loadShortcuts,
@@ -1689,6 +1761,7 @@ export function HubDataProvider({ children }) {
     })
     if (operation.status === 'SUCCEEDED' && !creation && (previous || localIntent)) {
       if (request.kind === 'DELETE') removeItemFromCaches(request.connectionId, request.ref)
+      else if (request.kind === 'REPLACE_CONTENT') applyContentSaved(request.connectionId, request.ref, finishedItem)
       else if (finishedItem) {
         const updated = finishedItem
         setItemCache((current) => {

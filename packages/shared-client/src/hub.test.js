@@ -22,6 +22,7 @@ import {
   listShortcuts,
   recordRecent,
   removeShortcut,
+  replaceFileContent,
   search,
   updateItem,
   uploadFile,
@@ -232,6 +233,26 @@ describe('hub api', () => {
     expect(options.body.get('parentRef')).toBe('parent-1')
     expect(options.body.get('file')).toBe(smallFile)
     expect(options.headers['Idempotency-Key']).toEqual(expect.any(String))
+  })
+
+  it('replaceFileContent posts the file and the expected version to the item content route', async () => {
+    const edited = new File(['texto'], 'a.txt', { type: 'text/plain' })
+    apiRequest.mockResolvedValue({ ref: 'x/y', contentRevision: 'r2' })
+    const saved = await replaceFileContent(token, 'conn-1', 'x/y', edited, 'r1', { clientKey: 'save-action' })
+    const [path, options] = apiRequest.mock.calls[0]
+    expect(path).toBe('/api/connections/conn-1/items/x%2Fy/content')
+    expect(options.method).toBe('POST')
+    expect(options.body.get('file')).toBe(edited)
+    expect(options.body.get('expectedVersion')).toBe('r1')
+    expect(options.headers).toEqual({ 'Idempotency-Key': 'save-action' })
+    expect(saved).toEqual({ ref: 'x/y', contentRevision: 'r2', connectionId: 'conn-1' })
+  })
+
+  it('replaceFileContent refuses text over 2 MB before any request', async () => {
+    const edited = new File(['x'], 'a.txt')
+    Object.defineProperty(edited, 'size', { value: 2 * 1024 * 1024 + 1 })
+    await expect(replaceFileContent(token, 'conn-1', 'ref', edited, 'r1')).rejects.toMatchObject({ code: 'TEXTO_GRANDE_DEMAIS', status: 400 })
+    expect(apiRequest).not.toHaveBeenCalled()
   })
 
   it('updateItem sends empty parentRef for root moves', async () => {

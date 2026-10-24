@@ -27,6 +27,8 @@ export function projectOperations(folderCache, itemCache, operations, providers)
   for (const op of Object.values(operations)) {
     if (!pending.has(op.status)) continue
     const request = op.request
+    // An autosave would flash the file as pending on every keystroke pause; its result is patched in place.
+    if (request?.kind === 'REPLACE_CONTENT') continue
     if (op.sequence && op.sequence < (completed.get(`${request?.connectionId}:${request?.generation}:${request?.ref}`) ?? 0)) continue
     const connection = activeConnections.get(request?.connectionId)
     if (!connection || String(connection.generation) !== String(request.generation)) continue

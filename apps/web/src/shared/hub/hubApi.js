@@ -1,6 +1,8 @@
 import { isApiClientError, isHubSessionFailure } from './hubCache.js'
 import {
   ApiClientError,
+  MAX_EDITABLE_TEXT_BYTES,
+  editableTextTooLargeError,
   exceedsUploadLimit,
   uploadTooLargeError,
   submitOperation,
@@ -28,6 +30,7 @@ import {
   listRecents as listRecentsRequest,
   listShortcuts as listShortcutsRequest,
   recordRecent as recordRecentRequest,
+  replaceFileContent as replaceFileContentRequest,
   removeShortcut as removeShortcutRequest,
   search as searchRequest,
   updateItem as updateItemRequest,
@@ -90,6 +93,7 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       connectionId: connection.connectionId, generation: connection.generation,
       ...(fields.ref ? { expectedVersion: options.getItemVersion?.(connectionId, fields.ref) ?? null } : {}), ...fields,
     }
+    hooks.onRequest?.(request)
     options.onIntent?.(request, file)
     uncertainRequests.set(signature, { request, accepted: previous?.accepted })
     let accepted = previous?.accepted
@@ -173,6 +177,13 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       return await operation(connectionId, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(connectionId, 'UPLOAD',
         { parentRef, name: file.name, contentType: file.type }, file,
         (token, requestOptions) => uploadFileRequest(token, connectionId, parentRef, file, requestOptions))
+    },
+    // expectedVersion is the content revision the text was opened at; it replaces the cached item version.
+    replaceFileContent: async (connectionId, ref, file, expectedVersion, hooks) => {
+      if (file?.size > MAX_EDITABLE_TEXT_BYTES) throw editableTextTooLargeError()
+      const fields = { ref, expectedVersion, contentType: file.type || null }
+      return await operation(connectionId, 'REPLACE_CONTENT', fields, file, hooks) ?? legacy(connectionId, 'REPLACE_CONTENT', fields, file,
+        (token, requestOptions) => replaceFileContentRequest(token, connectionId, ref, file, expectedVersion, requestOptions))
     },
     updateItem: async (connectionId, ref, patch) => await operation(connectionId, 'UPDATE', { ref, ...patch,
       ...(patch.parentRef !== undefined ? { parentRef: patch.parentRef || '' } : {}),

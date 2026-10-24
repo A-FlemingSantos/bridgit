@@ -15,6 +15,25 @@ describe('rejectionNotice', () => {
   })
 })
 
+describe('rejectionNotice for a save', () => {
+  it('names the file being saved', () => {
+    expect(rejectionNotice({ request: { kind: 'REPLACE_CONTENT' }, localItem: { name: 'main.js' }, errorMessage: 'Bloqueado.' }))
+      .toBe('Não foi possível salvar "main.js". Bloqueado.')
+  })
+})
+
+describe('rejectionNotice with a cached name', () => {
+  it('names the file from the catalog when the refusal carries no name', () => {
+    expect(rejectionNotice({ request: { kind: 'REPLACE_CONTENT', name: null, ref: 'f' }, errorMessage: 'Bloqueado.' }, 'main.js'))
+      .toBe('Não foi possível salvar "main.js". Bloqueado.')
+  })
+
+  it('prefers the name the operation itself carries', () => {
+    expect(rejectionNotice({ request: { kind: 'UPDATE', name: 'novo.txt' } }, 'velho.txt'))
+      .toBe('Não foi possível alterar "novo.txt".')
+  })
+})
+
 describe('freshRejections', () => {
   const rejected = (id) => ({ id, status: 'REJECTED', request: { kind: 'DELETE' } })
 

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiClientError, submitOperation, getOperation } from '@bridgit/shared-client'
+import { ApiClientError, submitOperation, submitUploadOperation, getOperation } from '@bridgit/shared-client'
 import { createHubApi } from './hubApi.js'
 
 vi.mock('@bridgit/shared-client', async (original) => ({
-  ...await original(), submitOperation: vi.fn(), getOperation: vi.fn(),
+  ...await original(), submitOperation: vi.fn(), submitUploadOperation: vi.fn(), getOperation: vi.fn(),
 }))
 const connection = { connectionId: 'connection', provider: 'onedrive', generation: 1, operationsEnabled: true }
 const request = { provider: 'onedrive', kind: 'CREATE_FOLDER', name: 'Docs' }
@@ -77,5 +77,53 @@ describe('durable API operations', () => {
     identity = 'user-b'
     resolve({ id: 'op', status: 'SUCCEEDED', request, item })
     await assertion
+  })
+  describe('replaceFileContent', () => {
+    const saved = { ref: 'file', name: 'a.txt', contentRevision: 'r2' }
+    const textFile = () => new File(['texto'], 'a.txt', { type: 'text/plain' })
+    const make = (extra = {}) => createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user', ...extra })
+
+    it('submits REPLACE_CONTENT with the explicit version over the cached one', async () => {
+      submitUploadOperation.mockResolvedValue({ id: 'op', status: 'SUCCEEDED', request, item: saved })
+      const file = textFile()
+      const result = await make({ getItemVersion: () => 'cached-version' }).replaceFileContent('connection', 'file', file, 'r1')
+      const [, sent, sentFile] = submitUploadOperation.mock.calls[0]
+      expect(sent).toMatchObject({ kind: 'REPLACE_CONTENT', ref: 'file', expectedVersion: 'r1', contentType: 'text/plain', connectionId: 'connection' })
+      expect(sentFile).toBe(file)
+      expect(result).toEqual({ ...saved, connectionId: 'connection' })
+    })
+
+    it('sends a null content type when the file has none', async () => {
+      submitUploadOperation.mockResolvedValue({ id: 'op', status: 'SUCCEEDED', request, item: saved })
+      await make().replaceFileContent('connection', 'file', new File(['x'], 'Makefile'), 'r1')
+      expect(submitUploadOperation.mock.calls[0][1].contentType).toBeNull()
+    })
+
+    it('reuses the same client key when the same file is retried after an ambiguous failure', async () => {
+      submitUploadOperation.mockRejectedValue(new ApiClientError('unavailable', { status: 503 }))
+      const api = make()
+      const file = textFile()
+      const first = expect(api.replaceFileContent('connection', 'file', file, 'r1')).rejects.toMatchObject({ status: 503 })
+      await vi.advanceTimersByTimeAsync(2000)
+      await first
+      submitUploadOperation.mockResolvedValue({ id: 'op', status: 'SUCCEEDED', request, item: saved })
+      await api.replaceFileContent('connection', 'file', file, 'r1')
+      const keys = submitUploadOperation.mock.calls.map((call) => call[1].clientKey)
+      expect(new Set(keys).size).toBe(1)
+    })
+
+    it('reports the request to the caller before it is sent', async () => {
+      submitUploadOperation.mockResolvedValue({ id: 'op', status: 'SUCCEEDED', request, item: saved })
+      const onRequest = vi.fn()
+      await make().replaceFileContent('connection', 'file', textFile(), 'r1', { onRequest })
+      expect(onRequest).toHaveBeenCalledWith(expect.objectContaining({ kind: 'REPLACE_CONTENT', clientKey: submitUploadOperation.mock.calls[0][1].clientKey }))
+    })
+
+    it('throws for text over 2 MB before any request', async () => {
+      const file = textFile()
+      Object.defineProperty(file, 'size', { value: 2 * 1024 * 1024 + 1 })
+      await expect(make().replaceFileContent('connection', 'file', file, 'r1')).rejects.toMatchObject({ code: 'TEXTO_GRANDE_DEMAIS', status: 400 })
+      expect(submitUploadOperation).not.toHaveBeenCalled()
+    })
   })
 })
