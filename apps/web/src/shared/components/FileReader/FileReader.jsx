@@ -29,6 +29,10 @@ export default function FileReader({
   variant = 'default',
   // Images, PDFs and code use the space around them (see ImageReader, PdfReader, CodeEditor) instead of the reading column.
   viewer: viewerRequested = false,
+  // Saving edited text (see CodeEditor): only the app's own file views pass these, so a public link only reads.
+  onSaveContent,
+  onSaveStatusChange,
+  onSaveController,
 }) {
   const editorial = variant === 'editorial'
   const [contentReady, setContentReady] = useState(false)
@@ -234,8 +238,17 @@ export default function FileReader({
                 <CodeEditor
                   key={readerKey}
                   extension={file?.extension}
-                  // Only the app's own file views edit; a public link only reads.
-                  editable={editorial}
+                  // The server says which files can be written back; a save we make never changes the source,
+                  // so the editor keeps its state (readerKey) across saves.
+                  editable={editorial && source.editable === true && Boolean(onSaveContent)}
+                  baseRevision={source.revision ?? null}
+                  fileName={file?.name ?? null}
+                  mimeType={file?.mimeType ?? null}
+                  minimap={editorial}
+                  onSave={onSaveContent}
+                  onSaveStatusChange={onSaveStatusChange}
+                  onSaveController={onSaveController}
+                  onReload={handleRetry}
                   fill={fill}
                   url={source.url}
                   content={content}

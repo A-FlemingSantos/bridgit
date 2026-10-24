@@ -42,10 +42,53 @@
   background: var(--overlay);
 }
 
-/* The editor spans the page, so a click anywhere below the last line still lands in it. */
+/* The editor fills the page and scrolls inside it (see codeEditorSetup.js). */
 .host {
-  min-width: max-content;
-  min-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+/* The cloud's copy changed since the file was opened: nothing is written until the user picks a way out. */
+.conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.conflictText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.conflictActions {
+  display: flex;
+  gap: 16px;
+}
+
+.conflictAction {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.conflictAction:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.conflictAction:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 /* No end below: the page runs to the bottom edge of the view. */

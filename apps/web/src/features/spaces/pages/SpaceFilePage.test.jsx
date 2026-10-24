@@ -22,6 +22,9 @@ vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
   useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
 }))
 
+// jsdom has no canvas to draw the code editor's minimap on.
+vi.mock('@replit/codemirror-minimap', () => ({ showMinimap: { compute: () => [] } }))
+
 import { useConnections, useHubActions, useItem, useShortcuts } from '../../../shared/hub/index.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
@@ -275,5 +278,41 @@ describe('SpaceFilePage download e leitura', () => {
     await act(async () => {})
     expect(document.querySelector('img[src="/foto-2.png"]')).toBeTruthy()
     expect(document.querySelector('img[src="/foto-obsoleta.png"]')).toBeNull()
+  })
+})
+
+describe('SpaceFilePage salvando código', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('salva pelo hub e mostra o status ao lado de Baixar', async () => {
+    const code = { ...item, name: 'a.py', extension: 'py', mimeType: 'text/x-python' }
+    const saveFileContent = vi.fn().mockResolvedValue({ item: code, revision: 'r2' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('x = 1').buffer })))
+    setup({
+      recordRecent: vi.fn().mockResolvedValue(undefined),
+      getReadSource: vi.fn().mockResolvedValue({ mode: 'text', url: '/a.py', editable: true, revision: 'r1' }),
+      getDownloadUrl: vi.fn(),
+      saveFileContent,
+    })
+    useItem.mockReturnValue({ status: 'ready', item: code, error: null, reload: vi.fn() })
+    renderPage()
+
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'true'))
+    const { EditorView } = await import('@codemirror/view')
+    const view = EditorView.findFromDOM(document.querySelector('.cm-editor'))
+    act(() => view.dispatch({ changes: { from: 0, insert: '#' } }))
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+
+    await waitFor(() => expect(saveFileContent).toHaveBeenCalledTimes(1))
+    expect(saveFileContent).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionId: 'conn-1', ref: 'file-1', baseRevision: 'r1', overwrite: false }),
+    )
+    expect(await screen.findByText('Salvo')).toBeInTheDocument()
   })
 })

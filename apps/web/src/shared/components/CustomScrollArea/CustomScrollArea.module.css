@@ -27,6 +27,13 @@
   overflow-x: auto;
 }
 
+/* The scrolling happens inside (see `scrollElement`): the viewport only frames it. */
+.viewportExternal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .track {
   position: absolute;
   top: 0;

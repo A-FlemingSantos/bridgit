@@ -81,8 +81,12 @@ export default function useCustomScrollbar({
   insetPx = 0,
   minThumbPx = 18,
   horizontal = false,
+  // An element that scrolls on its own (an editor's scroller) to follow instead of the viewport.
+  scrollElement = null,
 } = {}) {
   const viewportRef = useRef(null)
+  const scrollElementRef = useRef(scrollElement)
+  scrollElementRef.current = scrollElement
   const thumbRef = useRef(null)
   const thumbXRef = useRef(null)
   const thumbMetricsRef = useRef(HIDDEN_THUMB_STATE)
@@ -105,7 +109,7 @@ export default function useCustomScrollbar({
     const metrics = thumbMetricsRef.current
     if (!enabled || !metrics.visible) return
 
-    const viewport = viewportRef.current
+    const viewport = scrollElementRef.current ?? viewportRef.current
     if (!viewport) return
 
     const trackHeight = Math.max(0, viewport.clientHeight - insetPx * 2)
@@ -130,7 +134,7 @@ export default function useCustomScrollbar({
     const metrics = thumbXMetricsRef.current
     if (!enabled || !horizontal || !metrics.visible) return
 
-    const viewport = viewportRef.current
+    const viewport = scrollElementRef.current ?? viewportRef.current
     if (!viewport) return
 
     const trackWidth = Math.max(0, viewport.clientWidth - insetPx * 2)
@@ -164,7 +168,7 @@ export default function useCustomScrollbar({
       return undefined
     }
 
-    const viewport = viewportRef.current
+    const viewport = scrollElement ?? viewportRef.current
     if (!viewport) return undefined
 
     let frameId = null
@@ -360,7 +364,7 @@ export default function useCustomScrollbar({
 
       stopDragging()
     }
-  }, [enabled, horizontal, insetPx, minThumbPx, refreshKey, stopDragging])
+  }, [enabled, horizontal, insetPx, minThumbPx, refreshKey, scrollElement, stopDragging])
 
   return {
     viewportRef,

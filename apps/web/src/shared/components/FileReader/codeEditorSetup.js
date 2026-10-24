@@ -43,18 +43,22 @@ const monochromeHighlight = HighlightStyle.define([
 
 const editorTheme = EditorView.theme({
   '&': {
-    minHeight: '100%',
+    height: '100%',
     backgroundColor: 'transparent',
     color: 'var(--code-text)',
     fontSize: '13px',
   },
   '&.cm-focused': { outline: 'none' },
-  // The page around the editor scrolls (CustomScrollArea), not the editor itself.
+  // The editor scrolls itself (the minimap reads and moves its scroll); the project's thin thumbs follow it
+  // from CustomScrollArea, so the browser's own bars stay hidden.
   '.cm-scroller': {
-    overflow: 'visible',
+    overflow: 'auto',
     fontFamily: 'var(--mono)',
     lineHeight: '20px',
+    scrollbarWidth: 'none',
   },
+  '.cm-scroller::-webkit-scrollbar': { display: 'none' },
+  '.cm-minimap-gutter': { backgroundColor: 'var(--overlay)' },
   '.cm-content': {
     padding: '12px 0',
     caretColor: 'var(--code-text)',
@@ -80,10 +84,20 @@ const editorTheme = EditorView.theme({
   '.cm-nonmatchingBracket': { backgroundColor: 'transparent', color: 'var(--code-invalid)' },
 })
 
+async function loadMinimap() {
+  const { showMinimap } = await import('@replit/codemirror-minimap')
+  return showMinimap.compute(['doc'], () => ({
+    create: () => ({ dom: document.createElement('div') }),
+    displayText: 'characters',
+    showOverlay: 'mouse-over',
+  }))
+}
+
 // Builds the editor into `parent`. `editable: false` keeps highlighting and bracket matching but no typing.
-// The text shows at once; its grammar follows when loaded.
-export function createCodeEditor({ parent, text, extension, editable }) {
+// The text shows at once; its grammar and the minimap follow when loaded. `onDocChanged` hears every edit.
+export function createCodeEditor({ parent, text, extension, editable, minimap = false, onDocChanged }) {
   const language = new Compartment()
+  const overview = new Compartment()
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -98,12 +112,16 @@ export function createCodeEditor({ parent, text, extension, editable }) {
         bracketMatching(),
         closeBrackets(),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) onDocChanged?.()
+        }),
         syntaxHighlighting(monochromeHighlight),
         editorTheme,
         EditorState.readOnly.of(!editable),
         EditorView.editable.of(editable),
         EditorView.contentAttributes.of({ 'aria-label': 'Código do arquivo' }),
         language.of([]),
+        overview.of([]),
       ],
     }),
   })
@@ -114,6 +132,14 @@ export function createCodeEditor({ parent, text, extension, editable }) {
       if (grammar && view.dom.isConnected) view.dispatch({ effects: language.reconfigure(grammar) })
     })
     .catch(() => {})
+
+  if (minimap) {
+    void loadMinimap()
+      .then((extension) => {
+        if (view.dom.isConnected) view.dispatch({ effects: overview.reconfigure(extension) })
+      })
+      .catch(() => {})
+  }
 
   return view
 }

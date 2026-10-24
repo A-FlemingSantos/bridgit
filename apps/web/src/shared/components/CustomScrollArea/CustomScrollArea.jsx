@@ -24,6 +24,8 @@ function CustomScrollArea({
   minThumbPx = DEFAULT_MIN_THUMB_PX,
   // Also scrolls sideways, with its own thumb along the bottom edge.
   horizontal = false,
+  // Something inside scrolls on its own (an editor): the thumbs follow it, and the viewport itself stays put.
+  scrollElement = null,
   className = '',
   viewportClassName = '',
   viewportTag = 'div',
@@ -36,6 +38,7 @@ function CustomScrollArea({
     insetPx,
     minThumbPx,
     horizontal,
+    scrollElement,
   })
 
   const ViewportTag = viewportTag
@@ -44,6 +47,7 @@ function CustomScrollArea({
   const viewportCombinedClassName = [
     styles.viewport,
     horizontal ? styles.viewportHorizontal : '',
+    scrollElement ? styles.viewportExternal : '',
     viewportClassName,
   ].filter(Boolean).join(' ')
   const trackClassName = [

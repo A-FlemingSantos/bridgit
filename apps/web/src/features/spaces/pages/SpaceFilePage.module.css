@@ -53,6 +53,14 @@ header.subheader p {
   gap: 12px;
 }
 
+.saveStatus {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
 .download {
   padding: 0;
   border: 0;

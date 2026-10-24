@@ -21,7 +21,8 @@ function isBlank(element) {
 
 // An open file, shown over the main view only: the sidebar and the rail stay as they are.
 // It mounts inside the shell's main area (`data-overlay-host`); a page without a shell gets the whole window.
-export default function FileOverlay({ title, meta, actions, children, onClose, refreshKey }) {
+// `onBeforeClose` may hold the overlay open: it resolves false to stay (an edit that couldn't be saved yet).
+export default function FileOverlay({ title, meta, actions, children, onClose, onBeforeClose, refreshKey }) {
   const { state } = useHub()
   const titleId = useId()
   const rootRef = useRef(null)
@@ -29,6 +30,9 @@ export default function FileOverlay({ title, meta, actions, children, onClose, r
   const [visible, setVisible] = useState(true)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const beforeCloseRef = useRef(onBeforeClose)
+  beforeCloseRef.current = onBeforeClose
+  const closingRef = useRef(false)
   const pressRef = useRef(null)
   const blockedRef = useRef(false)
   blockedRef.current = Boolean(state.overlay)
@@ -37,7 +41,16 @@ export default function FileOverlay({ title, meta, actions, children, onClose, r
     setHost(document.querySelector('[data-overlay-host]'))
   }, [])
 
-  const close = useCallback(() => setVisible(false), [])
+  const close = useCallback(async () => {
+    if (closingRef.current) return
+    closingRef.current = true
+    try {
+      if ((await beforeCloseRef.current?.()) === false) return
+      setVisible(false)
+    } finally {
+      closingRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event) {

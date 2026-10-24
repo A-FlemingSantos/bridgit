@@ -1,6 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import FileReader from './FileReader.jsx'
+
+// jsdom has no canvas to draw the minimap on.
+vi.mock('@replit/codemirror-minimap', () => ({ showMinimap: { compute: () => [] } }))
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
@@ -165,13 +169,56 @@ describe('FileReader', () => {
     vi.stubGlobal('fetch', vi.fn(async () => text()))
 
     const view = render(
-      <FileReader file={{ ...file, extension: 'py' }} source={{ mode: 'text', url: '/a.py' }} variant="editorial" />,
+      <FileReader
+        file={{ ...file, extension: 'py' }}
+        source={{ mode: 'text', url: '/a.py', editable: true, revision: 'r1' }}
+        variant="editorial"
+        onSaveContent={vi.fn()}
+      />,
     )
     await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'true'))
     view.unmount()
 
-    render(<FileReader file={{ ...file, extension: 'py' }} source={{ mode: 'text', url: '/b.py' }} />)
+    render(<FileReader file={{ ...file, extension: 'py' }} source={{ mode: 'text', url: '/b.py', editable: true }} />)
     await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false'))
+  })
+
+  it('só lê quando o servidor não libera a edição', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('x').buffer })))
+
+    render(
+      <FileReader
+        file={{ ...file, extension: 'py' }}
+        source={{ mode: 'text', url: '/c.py', editable: false }}
+        variant="editorial"
+        onSaveContent={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false'))
+  })
+
+  it('mantém o editor depois de salvar', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('x = 1').buffer })))
+    const onSaveContent = vi.fn().mockResolvedValue({ revision: 'r2' })
+
+    render(
+      <FileReader
+        file={{ ...file, name: 'd.py', extension: 'py' }}
+        source={{ mode: 'text', url: '/d.py', editable: true, revision: 'r1' }}
+        variant="editorial"
+        onSaveContent={onSaveContent}
+      />,
+    )
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'true'))
+    const editor = document.querySelector('.cm-editor')
+    const view = EditorView.findFromDOM(editor)
+
+    act(() => view.dispatch({ changes: { from: 0, insert: '#' } }))
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+
+    await waitFor(() => expect(onSaveContent).toHaveBeenCalledTimes(1))
+    expect(document.querySelector('.cm-editor')).toBe(editor)
+    expect(document.querySelector('.cm-content').textContent).toContain('#x = 1')
   })
 
   it('mantém o leitor de mídia e o tempo ao renovar URL da mesma revisão', () => {

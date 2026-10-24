@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -39,6 +39,8 @@ export default function SpaceFilePage({ overlay = false }) {
   const renewedExpiredSourceRef = useRef(null)
   const sourceRecoveryRef = useRef(null)
   const [source, setSource] = useState(null)
+  // The file the source was read for: a save goes there even if the page has already moved on to another file.
+  const [sourceTarget, setSourceTarget] = useState(null)
   const [readError, setReadError] = useState(null)
   const [downloadPending, setDownloadPending] = useState(false)
   const [downloadError, setDownloadError] = useState(null)
@@ -66,6 +68,20 @@ export default function SpaceFilePage({ overlay = false }) {
     () => (source ? { ...source, providerId: source.providerId ?? provider } : null),
     [provider, source],
   )
+  // The code editor saves on its own; the header shows how that is going, and closing waits for it.
+  const [saveStatus, setSaveStatus] = useState(null)
+  const saveControllerRef = useRef(null)
+  const saveContent = useCallback(
+    (attempt) => actionsRef.current.saveFileContent({ ...sourceTarget, ...attempt }),
+    [sourceTarget],
+  )
+  const handleSaveController = useCallback((controller) => {
+    saveControllerRef.current = controller
+  }, [])
+
+  useEffect(() => {
+    setSaveStatus(null)
+  }, [connectionId, readableRef])
 
   useEffect(() => {
     if (item?.name) {
@@ -93,6 +109,7 @@ export default function SpaceFilePage({ overlay = false }) {
     renewedExpiredSourceRef.current = null
     sourceRecoveryRef.current = null
     setSource(null)
+    setSourceTarget(null)
     setReadError(null)
 
     void actionsRef.current
@@ -101,6 +118,7 @@ export default function SpaceFilePage({ overlay = false }) {
         if (!active || sourceRequestRef.current !== requestId) return
         if (readableRefRef.current !== capturedRef || connectionRef.current !== capturedConnection) return
         setSource(nextSource)
+        setSourceTarget({ connectionId: capturedConnection, ref: capturedRef })
       })
       .catch((error) => {
         if (!active || sourceRequestRef.current !== requestId) return
@@ -265,6 +283,9 @@ export default function SpaceFilePage({ overlay = false }) {
             onDownload={() => void handleDownload()}
             onRetry={() => void refreshSource()}
             onContentError={handleContentError}
+            onSaveContent={saveContent}
+            onSaveStatusChange={setSaveStatus}
+            onSaveController={handleSaveController}
           />
         </>
       ) : null}
@@ -273,6 +294,11 @@ export default function SpaceFilePage({ overlay = false }) {
 
   const headerActions = item ? (
     <div className={styles.headerActions}>
+      {saveStatus?.label ? (
+        <span className={styles.saveStatus} role="status" aria-live="polite" title={saveStatus.error ?? undefined}>
+          {saveStatus.label}
+        </span>
+      ) : null}
       <button
         type="button"
         className={styles.download}
@@ -297,6 +323,7 @@ export default function SpaceFilePage({ overlay = false }) {
         meta={metaLine}
         actions={headerActions}
         refreshKey={fileRef}
+        onBeforeClose={() => saveControllerRef.current?.flushForClose() ?? true}
         onClose={() => navigate(backgroundRef.current)}
       >
         {stage}
