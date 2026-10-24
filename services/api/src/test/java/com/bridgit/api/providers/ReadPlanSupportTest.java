@@ -1,7 +1,9 @@
 package com.bridgit.api.providers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
@@ -103,6 +105,33 @@ class ReadPlanSupportTest {
     CloudItem item = file("archive.zip", "application/zip", 1000L);
     ReadPlan plan = ReadPlanSupport.readPlan(CloudProvider.ONEDRIVE, item);
     assertEquals(ReadMode.NONE, plan.mode());
+  }
+
+  @Test
+  void smallTextWithRevisionIsEditable() {
+    CloudItem item = file("readme.md", "text/markdown", 1024L).withVersions("v1", "c1");
+    assertTrue(ReadPlanSupport.isEditableText(CloudProvider.DROPBOX, item));
+    assertTrue(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE,
+        file("a.txt", "text/plain", ReadPlanSupport.EDIT_MAX_BYTES).withVersions("v1", "c1")));
+  }
+
+  @Test
+  void editableNeedsSizeWithinLimitAndRevision() {
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE, file("a.txt", "text/plain", 10L)));
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE,
+        file("a.txt", "text/plain", 10L).withVersions("v1", " ")));
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE,
+        file("a.txt", "text/plain", null).withVersions("v1", "c1")));
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE,
+        file("a.txt", "text/plain", ReadPlanSupport.EDIT_MAX_BYTES + 1).withVersions("v1", "c1")));
+  }
+
+  @Test
+  void nonTextAndGoogleNativeAreNotEditable() {
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE,
+        file("photo.png", "image/png", 10L).withVersions("v1", "c1")));
+    assertFalse(ReadPlanSupport.isEditableText(CloudProvider.GOOGLE_DRIVE,
+        file("doc", "application/vnd.google-apps.document", null).withVersions("v1", "c1")));
   }
 
   private static CloudItem file(String name, String mime, Long size) {

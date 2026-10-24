@@ -1,6 +1,7 @@
 package com.bridgit.api.providers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -363,5 +364,32 @@ class ProviderHttpSupportTest {
         () -> ProviderHttpSupport.throwOnError(HttpStatus.TOO_MANY_REQUESTS, "not json", CloudProvider.DROPBOX)
     );
     assertNull(ex.getRetryAfterSeconds());
+  }
+
+  @Test
+  void contentChangedAndLockedHelpers() {
+    ProviderApiException changed = ProviderHttpSupport.contentChanged();
+    assertEquals(HttpStatus.CONFLICT, changed.getStatus());
+    assertEquals("ARQUIVO_ALTERADO", changed.getCode());
+    ProviderApiException locked = ProviderHttpSupport.contentLocked();
+    assertEquals(HttpStatus.LOCKED, locked.getStatus());
+    assertEquals("ARQUIVO_BLOQUEADO", locked.getCode());
+  }
+
+  @Test
+  void detectsDropboxConflictBodies() {
+    assertTrue(ProviderHttpSupport.isDropboxConflict(
+        "{\"error_summary\":\"path/conflict/file/..\",\"error\":{\".tag\":\"path\"}}"));
+    assertTrue(ProviderHttpSupport.isDropboxConflict(
+        "{\"error\":{\".tag\":\"path\",\"reason\":{\".tag\":\"conflict\"}}}"));
+    assertFalse(ProviderHttpSupport.isDropboxConflict("{\"error_summary\":\"path/not_found/..\"}"));
+    assertFalse(ProviderHttpSupport.isDropboxConflict(null));
+  }
+
+  @Test
+  void existingDropboxConflictStillMapsToItemConflict() {
+    ProviderApiException ex = assertThrows(ProviderApiException.class, () -> ProviderHttpSupport.throwOnWriteError(
+        HttpStatus.CONFLICT, HttpHeaders.EMPTY, "{\"error_summary\":\"path/conflict/file/..\"}", CloudProvider.DROPBOX));
+    assertEquals("ITEM_CONFLITO", ex.getCode());
   }
 }

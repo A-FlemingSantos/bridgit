@@ -181,4 +181,86 @@ class LegacyOperationIntegrationTest extends ApiIntegrationTestSupport {
         .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Idempotency-Key,Content-Type"))
         .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsString("Idempotency-Key")));
   }
+
+  private static final String TEXT_REF = "item-1";
+  private CloudItem textFile(String etag, String ctag, long size, boolean parentKnown) {
+    return new CloudItem(TEXT_REF, "onedrive", "a.txt", ItemKind.FILE, "text/plain", "txt", size, OffsetDateTime.now(), null,
+        parentKnown, etag, ctag);
+  }
+  private org.springframework.test.web.servlet.ResultActions replaceUpload(String key, String requestJson, byte[] bytes) throws Exception {
+    return mockMvc.perform(multipart("/api/operations/uploads")
+        .file(new MockMultipartFile("file", "a.txt", "text/plain", bytes))
+        .file(new MockMultipartFile("request", "", "application/json", requestJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        .header("Authorization", "Bearer " + token));
+  }
+  private static String replaceJson(String key, String expectedVersion) {
+    return "{\"clientKey\":\"" + key + "\",\"provider\":\"onedrive\",\"kind\":\"REPLACE_CONTENT\",\"ref\":\"" + TEXT_REF + "\""
+        + (expectedVersion == null ? "" : ",\"expectedVersion\":\"" + expectedVersion + "\"")
+        + ",\"name\":\"ignored.txt\",\"parentRef\":\"somewhere\"}";
+  }
+
+  @Test void multipartReplaceContentIsAcceptedWithNameAndParentForcedToNull() throws Exception {
+    replaceUpload("replace-1", replaceJson("replace-1", "c1"), new byte[]{1, 2, 3})
+        .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.request.kind").value("REPLACE_CONTENT"));
+    var stored = operations.byClientKey(user, "replace-1");
+    assertThat(stored.request().name()).isNull();
+    assertThat(stored.request().parentRef()).isNull();
+    assertThat(stored.request().expectedVersion()).isEqualTo("c1");
+    assertThat(stored.payload()).isNotNull();
+  }
+
+  @Test void replaceContentOver2MiBIsRejectedBeforeStoringThePayload() throws Exception {
+    replaceUpload("replace-big", replaceJson("replace-big", "c1"), new byte[(int) ReadPlanSupport.EDIT_MAX_BYTES + 1])
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("TEXTO_GRANDE_DEMAIS"));
+    assertThat(operationCount()).isZero();
+    if (Files.exists(DIRECTORY)) try (var files = Files.list(DIRECTORY)) { assertThat(files.toList()).isEmpty(); }
+  }
+
+  @Test void replaceContentWithoutVersionIsRejected() throws Exception {
+    replaceUpload("replace-nov", replaceJson("replace-nov", null), new byte[]{1})
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VERSAO_OBRIGATORIA"));
+    replaceUpload("replace-blank", replaceJson("replace-blank", " "), new byte[]{1})
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VERSAO_OBRIGATORIA"));
+    assertThat(operationCount()).isZero();
+  }
+
+  @Test void replaceContentSubmittedAsJsonNeedsTheContent() throws Exception {
+    mockMvc.perform(post("/api/operations").header("Authorization", "Bearer " + token)
+        .contentType(MediaType.APPLICATION_JSON).content(replaceJson("replace-json", "c1")))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("CONTEUDO_AUSENTE"));
+    assertThat(operationCount()).isZero();
+  }
+
+  @Test void contentRouteReplacesTheFileThroughTheJournal() throws Exception {
+    when(remote.get(anyString(), eq(TEXT_REF))).thenReturn(textFile("etag-1", "c1", 5, true));
+    when(remote.replaceContent(anyString(), eq(TEXT_REF), anyString(), anyLong(), any(), any()))
+        .thenReturn(textFile("etag-2", "c2", 3, false));
+    mockMvc.perform(multipart("/api/providers/onedrive/items/" + TEXT_REF + "/content")
+        .file(new MockMultipartFile("file", "a.txt", "text/plain", new byte[]{1, 2, 3})).param("expectedVersion", "c1")
+        .header("Authorization", "Bearer " + token).header("Idempotency-Key", "route-1"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.contentRevision").value("c2"))
+        .andExpect(jsonPath("$.data.size").value(3));
+    verify(remote).replaceContent(eq("fixture-token"), eq(TEXT_REF), eq("text/plain"), eq(3L), any(), eq("etag-1"));
+    assertThat(operations.byClientKey(user, "route-1").status()).isEqualTo("SUCCEEDED");
+  }
+
+  @Test void contentRouteRejectsStaleVersionWithoutWriting() throws Exception {
+    when(remote.get(anyString(), eq(TEXT_REF))).thenReturn(textFile("etag-9", "c9", 5, true));
+    mockMvc.perform(multipart("/api/providers/onedrive/items/" + TEXT_REF + "/content")
+        .file(new MockMultipartFile("file", "a.txt", "text/plain", new byte[]{1, 2, 3})).param("expectedVersion", "c1")
+        .header("Authorization", "Bearer " + token).header("Idempotency-Key", "route-stale"))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("ARQUIVO_ALTERADO"));
+    verify(remote, never()).replaceContent(anyString(), anyString(), anyString(), anyLong(), any(), any());
+  }
+
+  @Test void contentRouteNeedsKeyAndVersion() throws Exception {
+    var file = new MockMultipartFile("file", "a.txt", "text/plain", new byte[]{1});
+    mockMvc.perform(multipart("/api/providers/onedrive/items/" + TEXT_REF + "/content").file(file).param("expectedVersion", "c1")
+        .header("Authorization", "Bearer " + token))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("IDEMPOTENCIA_OBRIGATORIA"));
+    mockMvc.perform(multipart("/api/providers/onedrive/items/" + TEXT_REF + "/content").file(file)
+        .header("Authorization", "Bearer " + token).header("Idempotency-Key", "route-nov"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VERSAO_OBRIGATORIA"));
+    assertThat(operationCount()).isZero();
+  }
 }

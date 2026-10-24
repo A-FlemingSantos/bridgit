@@ -28,12 +28,14 @@ public class OperationWorker {
   private final ConnectionWork work;
   private final LocalHubProperties properties;
   private final Clock clock;
+  private final ReadAuthorizationService readAuthorization;
   private final ExecutorService executor = Executors.newFixedThreadPool(4);
   private final Set<UUID> active = ConcurrentHashMap.newKeySet();
   public OperationWorker(OperationStore store, UploadPayloadStore payloads, ProviderConnectionRepository connections,
-      ProviderRetryService retry, CloudProviderClients clients, ConnectionWork work, LocalHubProperties properties, Clock clock) {
+      ProviderRetryService retry, CloudProviderClients clients, ConnectionWork work, LocalHubProperties properties, Clock clock,
+      ReadAuthorizationService readAuthorization) {
     this.store = store; this.payloads = payloads; this.connections = connections; this.retry = retry; this.clients = clients;
-    this.work = work; this.properties = properties; this.clock = clock;
+    this.work = work; this.properties = properties; this.clock = clock; this.readAuthorization = readAuthorization;
   }
   @Scheduled(fixedDelayString = "${app.hub.operation-poll-ms:500}")
   public void tick() {
@@ -83,7 +85,9 @@ public class OperationWorker {
       if (r.kind() != OperationDtos.Kind.UPDATE && parent != null && parent.isBlank()) parent = null;
       store.beginAttempt(id, owner);
       CloudItem base = op.base();
-      if (base == null && (r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE)) {
+      boolean replace = r.kind() == OperationDtos.Kind.REPLACE_CONTENT;
+      // A content write is conditioned on the provider's current version, so its base is always read fresh.
+      if ((base == null || replace) && (r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE || replace)) {
         try {
           base = retry.withRetry(c, token -> client.get(token, r.ref()));
         } catch (ApiException ex) {
@@ -92,7 +96,15 @@ public class OperationWorker {
           store.success(op, owner, c, null, r.ref());
           return;
         }
-        if (r.expectedVersion() != null && !r.expectedVersion().equals(base.remoteVersion())) {
+        if (replace) {
+          if (!Objects.equals(r.expectedVersion(), base.contentRevision())) {
+            log.warn("Operation content revision mismatch id={} provider={} ref={}", id, c.getProvider(), r.ref());
+            throw ProviderHttpSupport.contentChanged();
+          }
+          if (!ReadPlanSupport.isEditableText(CloudProvider.fromId(c.getProvider()), base)) {
+            throw new ApiException(HttpStatus.CONFLICT, "EDICAO_INDISPONIVEL", "Este arquivo não pode ser editado aqui.");
+          }
+        } else if (r.expectedVersion() != null && !r.expectedVersion().equals(base.remoteVersion())) {
           log.warn("Operation version mismatch id={} provider={} ref={} expected={} current={}", id, c.getProvider(), r.ref(), r.expectedVersion(), base.remoteVersion());
           throw new ApiException(HttpStatus.CONFLICT, "ARQUIVO_ALTERADO", "O arquivo foi alterado. Atualize antes de tentar novamente.");
         }
@@ -102,9 +114,10 @@ public class OperationWorker {
       store.prepared(id, owner, prepared, base);
       final PreparedWrite preparation = prepared;
       final String destination = parent;
+      final CloudItem baseItem = base;
       final String name = keepExtension(r.name(), base);
       final String version = base == null ? r.expectedVersion() : base.remoteVersion();
-      final org.springframework.core.io.InputStreamSource upload = r.kind() == OperationDtos.Kind.UPLOAD ? payloads.verified(op.payload()) : null;
+      final org.springframework.core.io.InputStreamSource upload = r.kind() == OperationDtos.Kind.UPLOAD || replace ? payloads.verified(op.payload()) : null;
       final long size = op.payload() == null ? 0 : op.payload().size();
       store.executing(id, owner);
       dispatched = true;
@@ -113,8 +126,10 @@ public class OperationWorker {
         case UPLOAD -> retry.withRetry(c, token -> client.uploadPrepared(token, destination, r.name(), r.contentType(), size, upload, preparation));
         case UPDATE -> retry.withRetry(c, token -> client.updateConditional(token, r.ref(), name, destination, version));
         case DELETE -> retry.withRetry(c, token -> { client.deleteConditional(token, r.ref(), version); return null; });
+        case REPLACE_CONTENT -> replaceContent(c, client, r, baseItem, upload, size, version);
       };
       store.success(op, owner, c, result, r.kind() == OperationDtos.Kind.DELETE ? r.ref() : null);
+      if (replace) readAuthorization.invalidate(c.getId(), r.ref());
     } catch (Exception ex) {
       if (!claimed) return;
       String code = ex instanceof ApiException api ? api.getCode() : "OPERACAO_FALHOU";
@@ -133,8 +148,17 @@ public class OperationWorker {
     } finally { lock.unlock(); }
   }
 
+  private CloudItem replaceContent(ProviderConnectionEntity c, CloudProviderClient client, OperationDtos.Request r,
+      CloudItem base, org.springframework.core.io.InputStreamSource upload, long size, String version) {
+    String mime = base.mimeType() == null || base.mimeType().isBlank() ? "application/octet-stream" : base.mimeType();
+    CloudItem written = retry.withRetry(c, token -> client.replaceContent(token, r.ref(), mime, size, upload, version));
+    if (written.contentRevision() == null) written = retry.withRetry(c, token -> client.get(token, r.ref()));
+    return written.withParent(base.parentRef(), base.parentKnown());
+  }
+
   private void verify(OperationStore.Stored op, ProviderConnectionEntity c, CloudProviderClient client, String owner) {
     OperationDtos.Request r = op.request();
+    if (r.kind() == OperationDtos.Kind.REPLACE_CONTENT) { verifyReplace(op, c, client, owner); return; }
     String ref = r.ref() != null ? r.ref() : op.prepared() == null ? null : op.prepared().remoteRef();
     if (ref != null) {
       try {
@@ -144,7 +168,7 @@ public class OperationWorker {
           case UPLOAD -> Objects.equals(current.size(), op.payload() == null ? null : op.payload().size());
           case UPDATE -> (r.name() == null || Objects.equals(current.name(), keepExtension(r.name(), op.base())))
               && (r.parentRef() == null || Objects.equals(current.parentRef(), r.parentRef().isBlank() ? null : r.parentRef()));
-          case DELETE -> false;
+          case DELETE, REPLACE_CONTENT -> false; // REPLACE_CONTENT is handled by verifyReplace
         };
         if (confirmed) { store.success(op, owner, c, current, null); return; }
       } catch (ProviderApiException ex) {
@@ -158,6 +182,53 @@ public class OperationWorker {
     boolean expired = op.createdAt().isBefore(OffsetDateTime.now(clock).minusMinutes(15));
     store.defer(op.id(), owner, expired ? "NEEDS_ATTENTION" : "VERIFYING", 30,
         "RESULTADO_NAO_CONFIRMADO", "Não foi possível confirmar o resultado. Atualize antes de repetir a operação.");
+  }
+  /** An ambiguous content write landed only if the cloud now holds exactly the payload bytes. */
+  private void verifyReplace(OperationStore.Stored op, ProviderConnectionEntity c, CloudProviderClient client, String owner) {
+    OperationDtos.Request r = op.request();
+    CloudItem current;
+    try {
+      current = retry.withRetry(c, token -> client.get(token, r.ref()));
+    } catch (ProviderApiException ex) {
+      if (ex.getStatus() != HttpStatus.NOT_FOUND) throw ex;
+      store.defer(op.id(), owner, "REJECTED", 0, "ITEM_NAO_ENCONTRADO", "O arquivo não existe mais na nuvem.");
+      return;
+    }
+    OperationStore.Payload payload = op.payload();
+    if (payload != null && Objects.equals(current.size(), payload.size()) && payload.size() <= ReadPlanSupport.EDIT_MAX_BYTES
+        && payload.hash().equals(currentHash(c, client, current))) {
+      overlayAndSucceed(op, owner, c, current);
+      return;
+    }
+    CloudItem base = op.base();
+    if (base != null && Objects.equals(current.contentRevision(), base.contentRevision())) {
+      store.defer(op.id(), owner, "QUEUED", 2, null, null); // the write did not land: safe to send again
+      return;
+    }
+    store.defer(op.id(), owner, "REJECTED", 0, "ARQUIVO_ALTERADO", "O arquivo foi alterado na nuvem desde que foi aberto.");
+  }
+
+  private String currentHash(ProviderConnectionEntity c, CloudProviderClient client, CloudItem current) {
+    try (ContentStream stream = retry.withRetry(c, token -> client.open(token, current, ContentVariant.ORIGINAL))) {
+      java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+      byte[] bytes = new byte[64 * 1024];
+      long remaining = ReadPlanSupport.EDIT_MAX_BYTES + 1;
+      int read;
+      while (remaining > 0 && (read = stream.body().read(bytes, 0, (int) Math.min(bytes.length, remaining))) != -1) {
+        digest.update(bytes, 0, read);
+        remaining -= read;
+      }
+      return HexFormat.of().formatHex(digest.digest());
+    } catch (java.io.IOException | java.security.NoSuchAlgorithmException ex) {
+      throw new ProviderApiException("Não foi possível conferir o conteúdo do arquivo.");
+    }
+  }
+
+  private void overlayAndSucceed(OperationStore.Stored op, String owner, ProviderConnectionEntity c, CloudItem current) {
+    CloudItem base = op.base();
+    CloudItem result = base == null ? current : current.withParent(base.parentRef(), base.parentKnown());
+    store.success(op, owner, c, result, null);
+    readAuthorization.invalidate(c.getId(), op.request().ref());
   }
   static String keepExtension(String name, CloudItem current) {
     if (name == null || current == null || current.kind() != ItemKind.FILE || current.extension() == null || current.extension().isBlank()) return name;

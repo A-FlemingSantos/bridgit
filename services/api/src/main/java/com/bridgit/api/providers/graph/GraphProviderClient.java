@@ -283,6 +283,44 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   }
 
   @Override
+  public CloudItem replaceContent(String accessToken, String ref, String contentType, long size,
+      InputStreamSource content, String remoteVersion) {
+    String url = DRIVE_BASE + "/items/" + ref + "/content";
+    MediaType mediaType = StringUtils.hasText(contentType)
+        ? MediaType.parseMediaType(contentType)
+        : MediaType.APPLICATION_OCTET_STREAM;
+    JsonNode json = restClient.put()
+        .uri(URI.create(url))
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .headers(headers -> setIfMatch(headers, remoteVersion))
+        .contentType(mediaType)
+        .contentLength(size)
+        .body((org.springframework.http.StreamingHttpOutputMessage.Body) out -> {
+          try (InputStream in = content.getInputStream()) {
+            in.transferTo(out);
+          }
+        })
+        .exchange((request, response) -> {
+          int code = response.getStatusCode().value();
+          if (code == 412 || code == 409) {
+            response.close();
+            throw ProviderHttpSupport.contentChanged();
+          }
+          if (code == 423) {
+            response.close();
+            throw ProviderHttpSupport.contentLocked();
+          }
+          ensureWriteSuccess(response);
+          try {
+            return objectMapper.readTree(response.getBody());
+          } catch (Exception ex) {
+            throw new ProviderApiException("Não foi possível salvar o arquivo.");
+          }
+        });
+    return mapUnknownParent(json);
+  }
+
+  @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
     return update(accessToken, ref, newName, newParentRef, null);
   }

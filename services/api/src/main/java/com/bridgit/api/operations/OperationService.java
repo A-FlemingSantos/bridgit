@@ -28,6 +28,7 @@ public class OperationService {
   public boolean enabled(CloudProvider provider) { return enabled() && properties.providerEnabled(provider.id()); }
   public OperationDtos.View submit(OperationDtos.Request raw) {
     if (raw.kind() == OperationDtos.Kind.UPLOAD) throw new BadRequestException("UPLOAD_AUSENTE", "Envie o arquivo junto à operação.");
+    if (raw.kind() == OperationDtos.Kind.REPLACE_CONTENT) throw new BadRequestException("CONTEUDO_AUSENTE", "Envie o conteúdo junto à operação.");
     UUID user = users.requireUserId();
     ProviderConnectionEntity connection = validateConnection(user, raw);
     OperationDtos.Request request = validate(raw, connection);
@@ -37,7 +38,9 @@ public class OperationService {
     UUID user = users.requireUserId();
     ProviderConnectionEntity connection = validateConnection(user, raw);
     OperationDtos.Request request = validate(raw, connection);
-    if (request.kind() != OperationDtos.Kind.UPLOAD) throw new BadRequestException("OPERACAO_INVALIDA", "Operação de upload inválida.");
+    boolean replace = request.kind() == OperationDtos.Kind.REPLACE_CONTENT;
+    if (request.kind() != OperationDtos.Kind.UPLOAD && !replace) throw new BadRequestException("OPERACAO_INVALIDA", "Operação de upload inválida.");
+    if (replace && size > ReadPlanSupport.EDIT_MAX_BYTES) throw new BadRequestException("TEXTO_GRANDE_DEMAIS", "O texto excede o limite de 2 MB para edição.");
     if (size < 0 || size > UploadLimits.MAX_BYTES) throw new BadRequestException("ARQUIVO_GRANDE", "O arquivo excede o limite de " + UploadLimits.MAX_LABEL + ".");
     if (store.pendingBytes(null) + size > properties.getUploadGlobalBytes() || store.pendingBytes(user) + size > properties.getUploadUserBytes()) {
       throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "UPLOAD_FILA_CHEIA", "Aguarde os envios pendentes antes de enviar mais arquivos.");
@@ -56,11 +59,15 @@ public class OperationService {
   /** Legacy routes retain their response shape, but use exactly the same journal and executor. */
   public CloudItem runLegacy(ConnectionScope scope, OperationDtos.Kind kind, String ref, String parent, String name,
       String contentType, long size, InputStreamSource content, String clientKey) {
+    return runLegacy(scope, kind, ref, parent, name, contentType, size, content, clientKey, null);
+  }
+  public CloudItem runLegacy(ConnectionScope scope, OperationDtos.Kind kind, String ref, String parent, String name,
+      String contentType, long size, InputStreamSource content, String clientKey, String expectedVersion) {
     if (clientKey == null || clientKey.isBlank() || clientKey.length() > 100) {
       throw new BadRequestException("IDEMPOTENCIA_OBRIGATORIA", "Envie Idempotency-Key (até 100 caracteres) e reutilize a mesma chave ao repetir esta ação.");
     }
-    OperationDtos.Request request = new OperationDtos.Request(clientKey, scope.provider().id(), scope.connectionId(), null, kind, ref, parent, name, contentType, null, null);
-    OperationDtos.View accepted = kind == OperationDtos.Kind.UPLOAD ? upload(request, size, content) : submit(request);
+    OperationDtos.Request request = new OperationDtos.Request(clientKey, scope.provider().id(), scope.connectionId(), null, kind, ref, parent, name, contentType, expectedVersion, null);
+    OperationDtos.View accepted = kind == OperationDtos.Kind.UPLOAD || kind == OperationDtos.Kind.REPLACE_CONTENT ? upload(request, size, content) : submit(request);
     worker.execute(accepted.id());
     OperationDtos.View result = get(accepted.id());
     if ("SUCCEEDED".equals(result.status())) return result.item();
@@ -90,15 +97,18 @@ public class OperationService {
   }
   private OperationDtos.Request validate(OperationDtos.Request r, ProviderConnectionEntity c) {
     if (r.clientKey() == null || r.clientKey().isBlank() || r.clientKey().length() > 100) throw new BadRequestException("OPERACAO_INVALIDA", "Identificador de operação inválido.");
-    if ((r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE) && (r.ref() == null || r.ref().isBlank())) throw new BadRequestException("ITEM_INVALIDO", "Informe o arquivo.");
+    if ((r.kind() == OperationDtos.Kind.UPDATE || r.kind() == OperationDtos.Kind.DELETE || r.kind() == OperationDtos.Kind.REPLACE_CONTENT) && (r.ref() == null || r.ref().isBlank())) throw new BadRequestException("ITEM_INVALIDO", "Informe o arquivo.");
     if (r.ref() != null && r.ref().length() > 400 || r.parentRef() != null && r.parentRef().length() > 400) throw new BadRequestException("ITEM_INVALIDO", "Identificador de arquivo inválido.");
-    String name = r.name();
+    boolean replace = r.kind() == OperationDtos.Kind.REPLACE_CONTENT;
+    if (replace && (r.expectedVersion() == null || r.expectedVersion().isBlank() || r.expectedVersion().length() > 400)) throw new BadRequestException("VERSAO_OBRIGATORIA", "Abra o arquivo novamente antes de salvar.");
+    String name = replace ? null : r.name();
     if (r.kind() == OperationDtos.Kind.CREATE_FOLDER || r.kind() == OperationDtos.Kind.UPLOAD || name != null) name = ItemNameValidator.requireValidName(name);
     if (r.kind() == OperationDtos.Kind.UPDATE && name == null && r.parentRef() == null) throw new BadRequestException("OPERACAO_INVALIDA", "Informe a alteração desejada.");
-    if (r.dependencyId() != null) {
-      OperationStore.Stored dependency = store.require(c.getUserId(), r.dependencyId());
+    UUID dependencyId = replace ? null : r.dependencyId();
+    if (dependencyId != null) {
+      OperationStore.Stored dependency = store.require(c.getUserId(), dependencyId);
       if (!dependency.connectionId().equals(c.getId()) || dependency.generation() != c.getGeneration()) throw new ConflictException("DEPENDENCIA_INVALIDA", "Destino pertence a outra conexão.");
     }
-    return new OperationDtos.Request(r.clientKey(), c.getProvider(), c.getId(), c.getGeneration(), r.kind(), r.ref(), r.parentRef(), name, r.contentType(), r.expectedVersion(), r.dependencyId());
+    return new OperationDtos.Request(r.clientKey(), c.getProvider(), c.getId(), c.getGeneration(), r.kind(), r.ref(), replace ? null : r.parentRef(), name, r.contentType(), r.expectedVersion(), dependencyId);
   }
 }

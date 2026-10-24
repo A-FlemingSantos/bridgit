@@ -82,6 +82,18 @@ public class FilesController {
     return withLocalSyncHeader(ApiEnvelope.ok(item));
   }
 
+  @PostMapping(value = "/items/{ref}/content", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ResponseEntity<ApiEnvelope<CloudItem>> replaceContent(
+      ConnectionScope scope,
+      @PathVariable String ref,
+      @RequestParam("file") MultipartFile file,
+      @RequestParam(value = "expectedVersion", required = false) String expectedVersion,
+      @RequestHeader(value = "Idempotency-Key", required = false) String clientKey
+  ) {
+    CloudItem item = providerFileService.replaceContent(scope, ref, expectedVersion, file.getSize(), file, clientKey);
+    return withLocalSyncHeader(ApiEnvelope.ok(item));
+  }
+
   @PatchMapping("/items/{ref}")
   public ResponseEntity<ApiEnvelope<CloudItem>> updateItem(
       ConnectionScope scope,

@@ -1,5 +1,7 @@
 package com.bridgit.api.files;
 
+import com.bridgit.api.common.error.BadRequestException;
+import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.common.error.NotFoundException;
 import com.bridgit.api.integrations.ConnectionScope;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
@@ -19,6 +21,7 @@ import com.bridgit.api.providers.ItemPage;
 import com.bridgit.api.providers.ProviderApiException;
 import com.bridgit.api.providers.ReadMode;
 import com.bridgit.api.providers.ReadPlan;
+import com.bridgit.api.providers.ReadPlanSupport;
 import com.bridgit.api.providers.SealedCursorService;
 import com.bridgit.api.providers.ThumbnailSupport;
 import java.util.List;
@@ -147,6 +150,37 @@ public class ProviderFileService {
     return item;
   }
 
+  /** Replaces the content of an existing text file; {@code expectedVersion} is the contentRevision the caller read. */
+  public CloudItem replaceContent(ConnectionScope scope, String ref, String expectedVersion, long size,
+      InputStreamSource content, String clientKey) {
+    if (size < 0 || size > ReadPlanSupport.EDIT_MAX_BYTES) {
+      throw new BadRequestException("TEXTO_GRANDE_DEMAIS", "O texto excede o limite de 2 MB para edição.");
+    }
+    if (!StringUtils.hasText(expectedVersion) || expectedVersion.length() > 400) {
+      throw new BadRequestException("VERSAO_OBRIGATORIA", "Abra o arquivo novamente antes de salvar.");
+    }
+    if (operations != null && operations.enabled(scope.provider())) return operations.runLegacy(scope,
+        com.bridgit.api.operations.OperationDtos.Kind.REPLACE_CONTENT, ref, null, null, null, size, content, clientKey, expectedVersion);
+    ProviderConnectionEntity connection = scope.connection();
+    CloudProviderClient client = clients.get(scope.provider());
+
+    CloudItem base = retryService.withRetry(connection, token -> client.get(token, ref));
+    if (!expectedVersion.equals(base.contentRevision())) {
+      throw new ConflictException("ARQUIVO_ALTERADO", "O arquivo foi alterado na nuvem desde que foi aberto.");
+    }
+    if (!ReadPlanSupport.isEditableText(scope.provider(), base)) {
+      throw new ConflictException("EDICAO_INDISPONIVEL", "Este arquivo não pode ser editado aqui.");
+    }
+    String contentType = StringUtils.hasText(base.mimeType()) ? base.mimeType() : "application/octet-stream";
+    CloudItem written = retryService.withRetry(connection,
+        token -> client.replaceContent(token, ref, contentType, size, content, base.remoteVersion()));
+    if (written.contentRevision() == null) written = retryService.withRetry(connection, token -> client.get(token, ref));
+    CloudItem item = written.withParent(base.parentRef(), base.parentKnown());
+    eventPublisher.publishEvent(new CloudItemChangedEvent(connection.getId(), item));
+    if (readAuthorization != null) readAuthorization.invalidate(connection.getId(), ref);
+    return item;
+  }
+
   public CloudItem updateItem(ConnectionScope scope, String ref, String newName, String newParentRef) {
     return updateItem(scope, ref, newName, newParentRef, null);
   }
@@ -225,7 +259,9 @@ public class ProviderFileService {
         plan.variant(),
         "inline"
     );
-    return new FilesDtos.ReadResponse(plan.mode(), "/api/content/" + issued.ticket(), issued.expiresAt());
+    return new FilesDtos.ReadResponse(plan.mode(), "/api/content/" + issued.ticket(), issued.expiresAt(),
+        null, null, ref, item.contentRevision(), null, null, null, null,
+        ReadPlanSupport.isEditableText(scope.provider(), item));
   }
 
   public ContentStream openThumbnail(ConnectionScope scope, String ref) {

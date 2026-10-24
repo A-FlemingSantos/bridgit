@@ -195,6 +195,48 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
   }
 
   @Override
+  public CloudItem replaceContent(String accessToken, String ref, String contentType, long size,
+      InputStreamSource content, String remoteVersion) {
+    Object mode = StringUtils.hasText(remoteVersion)
+        ? Map.of(".tag", "update", "update", remoteVersion)
+        : "overwrite";
+    String apiArg = apiArg(Map.of("path", ref, "mode", mode, "autorename", false, "mute", false,
+        "strict_conflict", true));
+
+    JsonNode json = contentClient.post()
+        .uri(CONTENT_BASE + "/files/upload")
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .header("Dropbox-API-Arg", apiArg)
+        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+        .contentLength(size)
+        .body((org.springframework.http.StreamingHttpOutputMessage.Body) out -> {
+          try (InputStream in = content.getInputStream()) {
+            in.transferTo(out);
+          }
+        })
+        .exchange((request, response) -> {
+          HttpStatusCode status = response.getStatusCode();
+          if (status.value() == 409) {
+            HttpHeaders headers = response.getHeaders();
+            String body = readBody(response);
+            response.close();
+            if (ProviderHttpSupport.isDropboxConflict(body)) {
+              throw ProviderHttpSupport.contentChanged();
+            }
+            ProviderHttpSupport.throwOnWriteError(status, headers, body, CloudProvider.DROPBOX);
+            throw new ProviderApiException("Não foi possível salvar o arquivo.");
+          }
+          ensureWriteSuccess(response);
+          try {
+            return objectMapper.readTree(response.getBody());
+          } catch (Exception ex) {
+            throw new ProviderApiException("Não foi possível salvar o arquivo.");
+          }
+        });
+    return mapUnknownParent(json);
+  }
+
+  @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
     JsonNode current = rpc(accessToken, API_BASE + "/files/get_metadata", """
         {"path":"%s"}

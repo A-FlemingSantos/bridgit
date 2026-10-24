@@ -162,6 +162,29 @@ public final class ProviderHttpSupport {
     }
   }
 
+  /** The content changed in the cloud since the caller read it (version precondition failed). */
+  public static ProviderApiException contentChanged() {
+    return new ProviderApiException(
+        HttpStatus.CONFLICT,
+        "ARQUIVO_ALTERADO",
+        "O arquivo foi alterado na nuvem desde que foi aberto."
+    );
+  }
+
+  /** The provider refuses the write because the file is locked (open in another app). */
+  public static ProviderApiException contentLocked() {
+    return new ProviderApiException(
+        HttpStatus.LOCKED,
+        "ARQUIVO_BLOQUEADO",
+        "O arquivo está bloqueado no provedor (aberto em outro app)."
+    );
+  }
+
+  /** True when a Dropbox error body reports a write conflict (stale rev or an existing path). */
+  public static boolean isDropboxConflict(String body) {
+    return dropboxErrorTags(body).contains("conflict");
+  }
+
   private static ProviderApiException conversionTooLarge() {
     return new ProviderApiException(
         HttpStatus.PAYLOAD_TOO_LARGE,

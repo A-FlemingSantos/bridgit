@@ -47,10 +47,17 @@ public final class FilesDtos {
 
   public record ReadResponse(ReadMode mode, String url, OffsetDateTime expiresAt,
       java.util.UUID connectionId, Long generation, String ref, String revision, String variant,
-      OffsetDateTime authorizedUntil, Long size, String proxyUrl) {
+      OffsetDateTime authorizedUntil, Long size, String proxyUrl, Boolean editable) {
+
+    public ReadResponse(ReadMode mode, String url, OffsetDateTime expiresAt,
+        java.util.UUID connectionId, Long generation, String ref, String revision, String variant,
+        OffsetDateTime authorizedUntil, Long size, String proxyUrl) {
+      this(mode, url, expiresAt, connectionId, generation, ref, revision, variant, authorizedUntil, size,
+          proxyUrl, null);
+    }
 
     public ReadResponse(ReadMode mode, String url, OffsetDateTime expiresAt) {
-      this(mode, url, expiresAt, null, null, null, null, null, null, null, null);
+      this(mode, url, expiresAt, null, null, null, null, null, null, null, null, null);
     }
 
     public ReadResponse(ReadMode mode, String url) {

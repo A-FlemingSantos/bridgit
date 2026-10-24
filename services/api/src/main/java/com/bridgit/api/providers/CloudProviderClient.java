@@ -29,6 +29,17 @@ public interface CloudProviderClient {
     delete(accessToken, ref);
   }
 
+  /**
+   * Replaces the content of an existing file without renaming or moving it. {@code remoteVersion} is the
+   * provider-native version the write is conditioned on (null means unconditional). A fresh stream is
+   * opened from {@code content} per attempt. The returned item may carry an unknown parent.
+   */
+  default CloudItem replaceContent(String accessToken, String ref, String contentType, long size,
+      InputStreamSource content, String remoteVersion) {
+    throw new ProviderApiException(org.springframework.http.HttpStatus.CONFLICT, "EDICAO_INDISPONIVEL",
+        "Este arquivo não pode ser editado aqui.");
+  }
+
   /** Optional temporary ORIGINAL download URL, never persisted as content identity. */
   default String directReadUrl(String accessToken, String ref) { return null; }
 

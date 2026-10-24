@@ -409,6 +409,44 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   }
 
   @Override
+  public CloudItem replaceContent(String accessToken, String ref, String contentType, long size,
+      InputStreamSource content, String remoteVersion) {
+    if (remoteVersion != null) {
+      // Drive has no conditional media update, so the version is compared right before the write.
+      JsonNode current = authorizedGet(accessToken, DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields="
+          + urlEncode("headRevisionId,md5Checksum,sha1Checksum,sha256Checksum,modifiedTime,trashed")
+          + "&supportsAllDrives=true");
+      requireNotTrashed(current);
+      if (!remoteVersion.equals(remoteVersion(current))) {
+        throw ProviderHttpSupport.contentChanged();
+      }
+    }
+    MediaType mediaType = StringUtils.hasText(contentType)
+        ? MediaType.parseMediaType(contentType)
+        : MediaType.APPLICATION_OCTET_STREAM;
+    JsonNode json = restClient.patch()
+        .uri(URI.create(UPLOAD_BASE + "/files/" + pathSegment(ref) + "?uploadType=media&fields="
+            + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true"))
+        .header(HttpHeaders.AUTHORIZATION, bearer(accessToken))
+        .contentType(mediaType)
+        .contentLength(size)
+        .body((org.springframework.http.StreamingHttpOutputMessage.Body) out -> {
+          try (InputStream in = content.getInputStream()) {
+            in.transferTo(out);
+          }
+        })
+        .exchange((request, response) -> {
+          ensureWriteSuccess(response);
+          try {
+            return objectMapper.readTree(response.getBody());
+          } catch (Exception ex) {
+            throw new ProviderApiException("Não foi possível salvar o arquivo.");
+          }
+        });
+    return mapUnknownParent(json);
+  }
+
+  @Override
   public CloudItem update(String accessToken, String ref, String newName, String newParentRef) {
     String url = DRIVE_BASE + "/files/" + pathSegment(ref) + "?fields=" + urlEncode(ITEM_FIELDS) + "&supportsAllDrives=true";
     if (newParentRef != null) {

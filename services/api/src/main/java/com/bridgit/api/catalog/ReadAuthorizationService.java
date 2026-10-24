@@ -33,11 +33,13 @@ public class ReadAuthorizationService {
     if (plan.mode() == ReadMode.NONE) return new FilesDtos.ReadResponse(ReadMode.NONE, null, null);
     ContentTicketService.IssuedTicket ticket = tickets.createTicket(c.getUserId(), c.getId(), ref, plan.variant(), "inline", c.getGeneration(), item.contentRevision());
     String proxy = "/api/content/" + ticket.ticket();
-    if (!properties.isContentCacheEnabled() || !properties.providerEnabled(c.getProvider())) return new FilesDtos.ReadResponse(plan.mode(), proxy, ticket.expiresAt());
+    boolean editable = ReadPlanSupport.isEditableText(CloudProvider.fromId(c.getProvider()), item);
+    if (!properties.isContentCacheEnabled() || !properties.providerEnabled(c.getProvider())) return new FilesDtos.ReadResponse(plan.mode(), proxy, ticket.expiresAt(),
+        null, null, ref, item.contentRevision(), null, null, null, null, editable);
     String direct = plan.variant() == ContentVariant.ORIGINAL ? valid.directUrl() : null;
     return new FilesDtos.ReadResponse(plan.mode(), direct == null ? proxy : direct, ticket.expiresAt(), c.getId(), c.getGeneration(), ref,
         item.contentRevision(), plan.variant().name(), OffsetDateTime.ofInstant(valid.until(), ZoneOffset.UTC),
-        plan.variant() == ContentVariant.ORIGINAL ? item.size() : null, proxy);
+        plan.variant() == ContentVariant.ORIGINAL ? item.size() : null, proxy, editable);
   }
   public void invalidate(UUID connection, String ref) {
     cache.keySet().removeIf(key -> key.connection().equals(connection) && key.ref().equals(ref));

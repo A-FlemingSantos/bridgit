@@ -27,6 +27,11 @@ public record CloudItem(
         parentRef, parentKnown, remoteVersion, contentRevision);
   }
 
+  public CloudItem withParent(String parentRef, boolean parentKnown) {
+    return new CloudItem(ref, provider, name, kind, mimeType, extension, size, modifiedAt,
+        parentRef, parentKnown, remoteVersion, contentRevision);
+  }
+
   public CloudItem(
       String ref,
       String provider,

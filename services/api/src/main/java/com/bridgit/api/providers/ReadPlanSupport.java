@@ -5,7 +5,9 @@ import java.util.Set;
 
 public final class ReadPlanSupport {
 
-  private static final long TEXT_MAX_BYTES = 2L * 1024L * 1024L;
+  public static final long EDIT_MAX_BYTES = 2L * 1024L * 1024L;
+
+  private static final long TEXT_MAX_BYTES = EDIT_MAX_BYTES;
 
   private static final Set<String> TEXT_EXTENSIONS = Set.of(
       "json", "xml", "md", "csv", "log", "yml", "yaml",
@@ -120,6 +122,14 @@ public final class ReadPlanSupport {
 
   private static ReadPlan none() {
     return new ReadPlan(ReadMode.NONE, ContentVariant.ORIGINAL, null);
+  }
+
+  /** Text files small enough to be opened in the editor and saved back whole. */
+  public static boolean isEditableText(CloudProvider provider, CloudItem item) {
+    return item != null
+        && readPlan(provider, item).mode() == ReadMode.TEXT
+        && item.size() != null && item.size() <= EDIT_MAX_BYTES
+        && org.springframework.util.StringUtils.hasText(item.contentRevision());
   }
 
   public static boolean isGoogleNative(String mimeType) {

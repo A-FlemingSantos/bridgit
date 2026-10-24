@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public final class OperationDtos {
   private OperationDtos() {}
-  public enum Kind { CREATE_FOLDER, UPLOAD, UPDATE, DELETE }
+  public enum Kind { CREATE_FOLDER, UPLOAD, UPDATE, DELETE, REPLACE_CONTENT }
   public record Request(String clientKey, String provider, UUID connectionId, Long generation,
       Kind kind, String ref, String parentRef, String name, String contentType,
       String expectedVersion, UUID dependencyId) {}
