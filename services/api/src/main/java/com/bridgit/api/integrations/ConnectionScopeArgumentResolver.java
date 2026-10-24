@@ -47,6 +47,17 @@ public class ConnectionScopeArgumentResolver implements HandlerMethodArgumentRes
         RequestAttributes.SCOPE_REQUEST
     );
     UUID userId = authenticatedUserService.requireUserId();
+    try {
+      return resolve(variables, userId);
+    } catch (ConflictException notConnected) {
+      if (parameter.hasParameterAnnotation(IfConnected.class)) {
+        return null;
+      }
+      throw notConnected;
+    }
+  }
+
+  private ConnectionScope resolve(Map<String, String> variables, UUID userId) {
     String connectionId = variables == null ? null : variables.get("connectionId");
     if (connectionId != null) {
       return ConnectionScope.of(userId, connectionService.requireOwnedConnection(userId, parseId(connectionId)));

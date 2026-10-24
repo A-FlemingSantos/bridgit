@@ -69,7 +69,8 @@ public class FolderArchiveService {
     String encoded = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
     response.setContentType("application/zip");
     response.setHeader("Content-Disposition",
-        "attachment; filename=\"" + fileName.replace("\"", "") + "\"; filename*=UTF-8''" + encoded);
+        "attachment; filename=\"" + com.bridgit.api.providers.ContentStreamResponder.asciiFilename(fileName)
+            + "\"; filename*=UTF-8''" + encoded);
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Cache-Control", "private, no-store");
 

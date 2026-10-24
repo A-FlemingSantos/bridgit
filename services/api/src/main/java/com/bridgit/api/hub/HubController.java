@@ -4,6 +4,7 @@ import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.hub.HubDtos.AddRecentRequest;
 import com.bridgit.api.hub.HubDtos.HubEntry;
 import com.bridgit.api.integrations.ConnectionScope;
+import com.bridgit.api.integrations.IfConnected;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
@@ -52,10 +53,12 @@ public class HubController {
 
   @DeleteMapping({"/hub/shortcuts/{provider}/{ref}", "/connections/{connectionId}/items/{ref}/shortcut"})
   public ApiEnvelope<Void> deleteShortcut(
-      ConnectionScope scope,
+      @IfConnected ConnectionScope scope,
       @PathVariable String ref
   ) {
-    hubService.deleteShortcut(scope, ref);
+    if (scope != null) {
+      hubService.deleteShortcut(scope, ref);
+    }
     return ApiEnvelope.ok(null);
   }
 }

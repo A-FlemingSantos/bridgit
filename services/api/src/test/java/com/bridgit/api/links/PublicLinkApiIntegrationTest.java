@@ -208,6 +208,13 @@ class PublicLinkApiIntegrationTest extends ApiIntegrationTestSupport {
     mockMvc.perform(get(firstLink).header("Authorization", "Bearer " + otherToken))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+
+    // Deleting stays idempotent and touches nothing it cannot reach.
+    mockMvc.perform(delete(firstLink).header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isOk());
+    mockMvc.perform(get(firstLink).header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.code").isNotEmpty());
   }
 
   @Test

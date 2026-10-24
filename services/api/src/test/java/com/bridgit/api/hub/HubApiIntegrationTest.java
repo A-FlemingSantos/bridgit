@@ -208,6 +208,17 @@ class HubApiIntegrationTest extends ApiIntegrationTestSupport {
             .header("Authorization", "Bearer " + otherToken))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("PROVEDOR_NAO_CONECTADO"));
+
+    // Deletes stay idempotent: without a connection there is nothing to remove, and nothing is removed.
+    mockMvc.perform(delete("/api/connections/" + firstId + "/items/file-1/shortcut")
+            .header("Authorization", "Bearer " + otherToken))
+        .andExpect(status().isOk());
+    mockMvc.perform(delete("/api/hub/shortcuts/dropbox/file-1")
+            .header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk());
+    mockMvc.perform(get("/api/hub/shortcuts").header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1));
   }
 
   @Test

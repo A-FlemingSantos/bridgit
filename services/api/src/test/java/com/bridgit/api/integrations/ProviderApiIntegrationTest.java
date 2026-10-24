@@ -54,6 +54,9 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   @TestConfiguration
   static class FindByIdHookConfig {
     static final AtomicBoolean hookArmed = new AtomicBoolean(false);
+    // Simulates a second callback for the same new account committing its insert right after this one
+    // looked the account up and found nothing.
+    static final AtomicBoolean raceArmed = new AtomicBoolean(false);
 
     @Bean
     @Primary
@@ -72,6 +75,20 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
             }
             if (method.getName().equals("findById") && hookArmed.compareAndSet(true, false)) {
               context.getBean(ProviderConnectionService.class).invalidate((UUID) args[0]);
+            }
+            if (method.getName().equals("findByUserIdAndProviderAndAccountId") && raceArmed.compareAndSet(true, false)) {
+              ProviderConnectionEntity winner = new ProviderConnectionEntity();
+              winner.setUserId((UUID) args[0]);
+              winner.setProvider((String) args[1]);
+              winner.setAccountId((String) args[2]);
+              winner.setEncryptedRefreshToken(context.getBean(IntegrationTokenCipher.class).encrypt("refresh-winner"));
+              winner.setConnectedAt(OffsetDateTime.now());
+              org.springframework.transaction.support.TransactionTemplate committed =
+                  new org.springframework.transaction.support.TransactionTemplate(
+                      context.getBean(org.springframework.transaction.PlatformTransactionManager.class));
+              committed.setPropagationBehavior(
+                  org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+              committed.executeWithoutResult(status -> real.saveAndFlush(winner));
             }
             return result;
           });
@@ -106,6 +123,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   @BeforeEach
   void setUp() throws Exception {
     FindByIdHookConfig.hookArmed.set(false);
+    FindByIdHookConfig.raceArmed.set(false);
     UUID deviceKey = UUID.randomUUID();
     JsonNode register = registerUser("provider_user", "password123", deviceKey);
     accessToken = register.path("data").path("accessToken").asText();
@@ -366,13 +384,12 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
         .andExpect(header().string("Location", Matchers.containsString("error=OAUTH_STATE_INVALIDO")));
   }
 
-  private ProviderOAuthStateEntity saveState(String token, String verifier, boolean allowAccountChange) {
+  private ProviderOAuthStateEntity saveState(String token, String verifier) {
     ProviderOAuthStateEntity state = new ProviderOAuthStateEntity();
     state.setUserId(userId);
     state.setProvider(CloudProvider.ONEDRIVE.id());
     state.setStateToken(token);
     state.setCodeVerifier(verifier);
-    state.setAllowAccountChange(allowAccountChange);
     state.setExpiresAt(java.time.OffsetDateTime.now().plusMinutes(10));
     return oauthStateRepository.save(state);
   }
@@ -408,16 +425,15 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void connectIgnoresAllowAccountChange() throws Exception {
-    String stateToken = startAuthorizationWithBody("{\"allowAccountChange\":true}");
+    startAuthorizationWithBody("{\"allowAccountChange\":true}");
 
-    assertThat(oauthStateRepository.findByStateToken(stateToken).orElseThrow().isAllowAccountChange()).isFalse();
     verify(microsoftOAuthClient).authorizationUrl(anyString(), anyString(), org.mockito.ArgumentMatchers.eq(false));
   }
 
   @Test
   void differentAccountAddsASecondConnection() throws Exception {
     ProviderConnectionEntity old = saveConnection("account-old");
-    saveState("state-different", "verifier-different", false);
+    saveState("state-different", "verifier-different");
     stubExchangeForAccount("code-different", "verifier-different", "account-new");
 
     MvcResult result = mockMvc.perform(get("/api/providers/onedrive/callback")
@@ -464,7 +480,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   @Test
   void sameAccountRefreshesInPlaceAndBumpsTheGeneration() throws Exception {
     ProviderConnectionEntity old = saveConnection("account-same");
-    saveState("state-same", "verifier-same", false);
+    saveState("state-same", "verifier-same");
     stubExchangeForAccount("code-same", "verifier-same", "account-same");
 
     MvcResult result = mockMvc.perform(get("/api/providers/onedrive/callback")
@@ -486,6 +502,27 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
   }
 
   @Test
+  void concurrentCallbackForTheSameNewAccountEndsInOneRefreshedConnection() throws Exception {
+    saveState("state-race", "verifier-race");
+    stubExchangeForAccount("code-race", "verifier-race", "account-race");
+    FindByIdHookConfig.raceArmed.set(true);
+
+    mockMvc.perform(get("/api/providers/onedrive/callback")
+            .param("state", "state-race")
+            .param("code", "code-race"))
+        .andExpect(status().isFound())
+        .andExpect(header().string("Location", Matchers.containsString("status=connected")));
+
+    assertThat(FindByIdHookConfig.raceArmed.get()).isFalse();
+    List<ProviderConnectionEntity> all = connectionRepository
+        .findByUserIdAndProviderOrderByCreatedAtAscIdAsc(userId, CloudProvider.ONEDRIVE.id());
+    assertThat(all).hasSize(1);
+    // The losing insert hit the unique key, re-read the winner and refreshed it in place.
+    assertThat(all.get(0).getGeneration()).isEqualTo(2);
+    assertThat(tokenCipher.decrypt(all.get(0).getEncryptedRefreshToken())).isEqualTo("refresh-account-race");
+  }
+
+  @Test
   void failedCallbackRedirectsWithoutConnection() throws Exception {
     mockMvc.perform(get("/api/providers/onedrive/callback")
             .param("state", "missing-state")
@@ -496,7 +533,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void transientExchangeFailureReleasesTheState() throws Exception {
-    saveState("state-transient", "verifier-transient", false);
+    saveState("state-transient", "verifier-transient");
     when(microsoftOAuthClient.exchangeCode("code-transient", "verifier-transient"))
         .thenThrow(new com.bridgit.api.providers.ProviderApiException(
             HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_INDISPONIVEL", "indisponivel"))
@@ -522,7 +559,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void ioFailureOnExchangeIsTransient() throws Exception {
-    saveState("state-io", "verifier-io", false);
+    saveState("state-io", "verifier-io");
     when(microsoftOAuthClient.exchangeCode("code-io", "verifier-io"))
         .thenThrow(new org.springframework.web.client.ResourceAccessException("timeout"));
 
@@ -535,7 +572,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void missingClientReportsProviderNotConfiguredAndKeepsTheStateUsed() throws Exception {
-    saveState("state-no-client", "verifier-no-client", false);
+    saveState("state-no-client", "verifier-no-client");
     when(providerOAuthClients.get(CloudProvider.ONEDRIVE)).thenThrow(ProviderOAuthClients.notConfigured());
 
     mockMvc.perform(get("/api/providers/onedrive/callback")
@@ -548,7 +585,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void invalidClientOnExchangeReportsProviderNotConfigured() throws Exception {
-    saveState("state-invalid-client", "verifier-invalid-client", false);
+    saveState("state-invalid-client", "verifier-invalid-client");
     when(microsoftOAuthClient.exchangeCode("code", "verifier-invalid-client"))
         .thenThrow(new com.bridgit.api.providers.ProviderApiException(
             HttpStatus.SERVICE_UNAVAILABLE, "PROVEDOR_CONFIGURACAO_INVALIDA", "configuracao"));
@@ -562,7 +599,7 @@ class ProviderApiIntegrationTest extends ApiIntegrationTestSupport {
 
   @Test
   void otherExchangeFailuresStayGenericAndConsumeTheState() throws Exception {
-    saveState("state-generic", "verifier-generic", false);
+    saveState("state-generic", "verifier-generic");
     when(microsoftOAuthClient.exchangeCode("code", "verifier-generic"))
         .thenThrow(new ReconnectionRequiredException());
 

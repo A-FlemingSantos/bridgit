@@ -80,6 +80,24 @@ public class ContentStreamResponder {
   }
 
   private static String sanitizeFilename(String fileName) {
-    return fileName.replace("\"", "").replace("\r", "").replace("\n", "");
+    return asciiFilename(fileName);
+  }
+
+  /**
+   * The plain {@code filename=} of a Content-Disposition must be ASCII: Tomcat drops the whole header for a
+   * character above 255 (an em dash, say). Accents are folded and anything else becomes "_"; the exact name
+   * travels in {@code filename*}.
+   */
+  public static String asciiFilename(String fileName) {
+    String folded = java.text.Normalizer.normalize(fileName, java.text.Normalizer.Form.NFD)
+        .replaceAll("\\p{M}+", "");
+    StringBuilder ascii = new StringBuilder(folded.length());
+    for (char c : folded.toCharArray()) {
+      if (c == '"' || c == '\\' || c < 0x20 || c == 0x7f) {
+        continue;
+      }
+      ascii.append(c < 0x80 ? c : '_');
+    }
+    return ascii.toString();
   }
 }

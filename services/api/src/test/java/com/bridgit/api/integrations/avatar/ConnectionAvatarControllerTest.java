@@ -86,21 +86,32 @@ class ConnectionAvatarControllerTest {
     assertEquals("private, max-age=3600", response.getHeaders().getCacheControl());
     ApiEnvelope<?> body = (ApiEnvelope<?>) response.getBody();
     assertFalse(body.success());
-    assertEquals("AVATAR_INDISPONIVEL", body.error().code());
+    assertEquals("AVATAR_INEXISTENTE", body.error().code());
     assertEquals(request.getRequestURI(), body.error().path());
   }
 
   @Test
-  void unavailableAndForeignConnectionsAre404WithoutCaching() {
+  void unavailableIs503WithoutCaching() {
     when(service.find(userId, connectionId)).thenReturn(ConnectionAvatarService.Result.UNAVAILABLE);
 
-    ResponseEntity<?> unavailable = controller.avatar(connectionId.toString(), null, request);
+    ResponseEntity<?> response = controller.avatar(connectionId.toString(), null, request);
+
+    assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+    assertEquals("no-store", response.getHeaders().getCacheControl());
+    assertEquals("AVATAR_INDISPONIVEL", ((ApiEnvelope<?>) response.getBody()).error().code());
+  }
+
+  @Test
+  void unknownOrForeignConnectionLooksLikeNoPhotoWithoutCaching() {
+    when(service.find(userId, connectionId)).thenReturn(ConnectionAvatarService.Result.NOT_FOUND);
+
+    ResponseEntity<?> foreign = controller.avatar(connectionId.toString(), null, request);
     ResponseEntity<?> malformed = controller.avatar("not-a-uuid", null, request);
 
-    for (ResponseEntity<?> response : new ResponseEntity<?>[] {unavailable, malformed}) {
+    for (ResponseEntity<?> response : new ResponseEntity<?>[] {foreign, malformed}) {
       assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
       assertEquals("no-store", response.getHeaders().getCacheControl());
-      assertEquals("AVATAR_INDISPONIVEL", ((ApiEnvelope<?>) response.getBody()).error().code());
+      assertEquals("AVATAR_INEXISTENTE", ((ApiEnvelope<?>) response.getBody()).error().code());
     }
     assertTrue(ConnectionAvatarController.matches("*", "\"x\""));
   }

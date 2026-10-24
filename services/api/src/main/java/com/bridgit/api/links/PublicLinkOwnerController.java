@@ -2,6 +2,7 @@ package com.bridgit.api.links;
 
 import com.bridgit.api.common.api.ApiEnvelope;
 import com.bridgit.api.integrations.ConnectionScope;
+import com.bridgit.api.integrations.IfConnected;
 import com.bridgit.api.links.LinkDtos.OwnerPublicLink;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -43,10 +44,12 @@ public class PublicLinkOwnerController {
 
   @DeleteMapping
   public ApiEnvelope<Void> deletePublicLink(
-      ConnectionScope scope,
+      @IfConnected ConnectionScope scope,
       @PathVariable String ref
   ) {
-    publicLinkService.deleteOwnerLink(scope, ref);
+    if (scope != null) {
+      publicLinkService.deleteOwnerLink(scope, ref);
+    }
     return ApiEnvelope.ok(null);
   }
 }

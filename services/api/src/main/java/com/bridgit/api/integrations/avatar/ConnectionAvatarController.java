@@ -21,10 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/connections")
 public class ConnectionAvatarController {
 
+  // "No photo" is final for a while; "unavailable" is a failure worth retrying. Unknown and foreign ids
+  // answer like "no photo", so they do not reveal which connections exist.
+  static final String NO_PHOTO_CODE = "AVATAR_INEXISTENTE";
   static final String UNAVAILABLE_CODE = "AVATAR_INDISPONIVEL";
   private static final String PHOTO_CACHE = "private, max-age=86400";
   private static final String NO_PHOTO_CACHE = "private, max-age=3600";
   private static final String NO_CACHE = "no-store";
+  private static final String NO_PHOTO_MESSAGE = "Esta conta não tem foto de perfil.";
+  private static final String UNAVAILABLE_MESSAGE = "A foto de perfil desta conta não está disponível agora.";
 
   private final ConnectionAvatarService avatarService;
   private final AuthenticatedUserService authenticatedUserService;
@@ -54,8 +59,9 @@ public class ConnectionAvatarController {
 
     return switch (result.kind()) {
       case FOUND -> photo(result.avatar(), ifNoneMatch);
-      case NO_PHOTO -> unavailable(request, NO_PHOTO_CACHE);
-      case UNAVAILABLE, NOT_FOUND -> unavailable(request, NO_CACHE);
+      case NO_PHOTO -> error(request, HttpStatus.NOT_FOUND, NO_PHOTO_CODE, NO_PHOTO_MESSAGE, NO_PHOTO_CACHE);
+      case NOT_FOUND -> error(request, HttpStatus.NOT_FOUND, NO_PHOTO_CODE, NO_PHOTO_MESSAGE, NO_CACHE);
+      case UNAVAILABLE -> error(request, HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE_CODE, UNAVAILABLE_MESSAGE, NO_CACHE);
     };
   }
 
@@ -77,15 +83,21 @@ public class ConnectionAvatarController {
         .body(avatar.bytes());
   }
 
-  private ResponseEntity<?> unavailable(HttpServletRequest request, String cacheControl) {
+  private ResponseEntity<?> error(
+      HttpServletRequest request,
+      HttpStatus status,
+      String code,
+      String message,
+      String cacheControl
+  ) {
     ApiErrorResponse error = new ApiErrorResponse(
-        UNAVAILABLE_CODE,
-        "A foto de perfil desta conta não está disponível.",
+        code,
+        message,
         request.getRequestURI(),
         OffsetDateTime.now(clock),
         null
     );
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    return ResponseEntity.status(status)
         .header(HttpHeaders.CACHE_CONTROL, cacheControl)
         .header("X-Content-Type-Options", "nosniff")
         .contentType(MediaType.APPLICATION_JSON)
