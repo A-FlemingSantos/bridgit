@@ -1080,7 +1080,7 @@ describe('App', () => {
     )
 
     const dialog = await screen.findByRole('dialog', { name: 'Configurações' })
-    for (const name of ['Conta', 'Provedores', 'Segurança', 'Sessões', 'Sobre']) {
+    for (const name of ['Conta', 'Minhas contas', 'Segurança', 'Sessões', 'Sobre']) {
       expect(within(dialog).getByRole('heading', { name })).toBeInTheDocument()
     }
     expect(within(dialog).queryByRole('link', { name: 'Sincronização' })).not.toBeInTheDocument()
@@ -1105,10 +1105,10 @@ describe('App', () => {
     )
 
     const dialog = await screen.findByRole('dialog', { name: 'Configurações' })
-    expect(within(dialog).getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
     expect(await within(dialog).findByText('arthur@outlook.com')).toBeInTheDocument()
-    expect(within(dialog).getAllByRole('button', { name: 'Desconectar' })).toHaveLength(2)
-    expect(within(dialog).getByRole('button', { name: 'Conectar' })).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('button', { name: /^Sair de / })).toHaveLength(2)
+    expect(within(dialog).getByRole('button', { name: 'Adicionar conta' })).toBeInTheDocument()
     expect(within(dialog).queryByLabelText('Usuário')).not.toBeInTheDocument()
   })
 
@@ -1144,7 +1144,7 @@ describe('App', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Configurações' })
     expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
     expect(within(dialog).getByRole('heading', { name: 'Conta' })).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))

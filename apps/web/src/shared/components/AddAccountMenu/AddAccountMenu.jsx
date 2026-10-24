@@ -18,7 +18,7 @@ function markIcon(providerId) {
 }
 
 // A button (styled by the caller) that opens the list of configured providers; choosing one starts
-// the OAuth flow to add one more account, coming back to the page the person is on.
+// the OAuth flow to add one more account, coming back to `redirectTo` (by default the page the person is on).
 // Built from the same menu pieces as OverflowMenu, which only offers an ellipsis trigger.
 export default function AddAccountMenu({
   children,
@@ -26,9 +26,11 @@ export default function AddAccountMenu({
   label = 'Nova conta',
   title,
   prefer = 'below',
+  redirectTo,
   onError,
 }) {
   const location = useLocation()
+  const returnTo = redirectTo ?? location.pathname + location.search
   const { providers, connect } = useProviders()
   const menuId = useId()
   const triggerId = useId()
@@ -47,11 +49,11 @@ export default function AddAccountMenu({
           icon: markIcon(provider.id),
           onSelect: () => {
             closeMenu()
-            Promise.resolve(connect(provider.id, location.pathname + location.search, { addAccount: true }))
+            Promise.resolve(connect(provider.id, returnTo, { addAccount: true }))
               .catch((error) => onError?.(error))
           },
         })),
-    [providers, connect, location.pathname, location.search, onError, closeMenu],
+    [providers, connect, returnTo, onError, closeMenu],
   )
 
   return (

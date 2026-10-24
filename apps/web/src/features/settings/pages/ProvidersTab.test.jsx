@@ -5,152 +5,178 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProvidersTab from './ProvidersTab.jsx'
 
 vi.mock('../../../shared/hub/hooks.js', () => ({
+  useConnections: vi.fn(),
   useProviders: vi.fn(),
 }))
 
-import { useProviders } from '../../../shared/hub/hooks.js'
+vi.mock('../../../shared/components/AccountAvatar/AccountAvatar.jsx', () => ({
+  default: ({ connection }) => <span data-testid="avatar">{connection.connectionId}</span>,
+}))
+
+import { useConnections, useProviders } from '../../../shared/hub/hooks.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
-const providers = [
+const connections = [
   {
-    id: 'onedrive',
-    name: 'OneDrive',
-    configured: true,
-    connected: true,
-    account: { email: 'arthur@outlook.com' },
+    connectionId: 'c-od',
+    provider: 'onedrive',
+    providerName: 'OneDrive',
+    account: { email: 'arthur@outlook.com', name: 'Arthur' },
     lastError: null,
+    generation: 1,
   },
   {
-    id: 'dropbox',
-    name: 'Dropbox',
-    configured: true,
-    connected: false,
-    account: null,
+    connectionId: 'c-gd-1',
+    provider: 'google-drive',
+    providerName: 'Google Drive',
+    account: { email: 'arthur@gmail.com', name: 'Arthur' },
     lastError: null,
+    generation: 1,
+  },
+  {
+    connectionId: 'c-gd-2',
+    provider: 'google-drive',
+    providerName: 'Google Drive',
+    account: { email: 'outra@gmail.com', name: 'Outra' },
+    lastError: null,
+    generation: 1,
   },
 ]
 
-function setup({ connect, disconnect }) {
-  useProviders.mockReturnValue({
-    status: 'ready',
-    providers,
-    error: null,
-    connect,
-    disconnect,
-  })
+const providers = [
+  { id: 'onedrive', name: 'OneDrive', configured: true },
+  { id: 'google-drive', name: 'Google Drive', configured: true },
+  { id: 'dropbox', name: 'Dropbox', configured: true },
+]
+
+function setup({ items = connections, connect = vi.fn(), disconnect = vi.fn() } = {}) {
+  useConnections.mockReturnValue({ status: 'ready', connections: items, error: null, connect, disconnect })
+  useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect, disconnect: vi.fn() })
+  return { connect, disconnect }
 }
 
-function renderTab() {
-  return render(
-    <MemoryRouter {...router} initialEntries={['/settings/providers']}>
+function renderTab(entry = '/settings/providers') {
+  let lastLocation = null
+  function LocationProbe() {
+    lastLocation = useLocation()
+    return null
+  }
+  render(
+    <MemoryRouter {...router} initialEntries={[entry]}>
       <ProvidersTab />
+      <LocationProbe />
     </MemoryRouter>,
   )
+  return () => lastLocation
 }
 
-describe('ProvidersTab erros de ação', () => {
+describe('ProvidersTab lista de contas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('mostra erro de conexão no provedor e limpa na nova tentativa', async () => {
-    const user = userEvent.setup()
-    const connect = vi.fn()
-      .mockRejectedValueOnce(new Error('falha ao conectar'))
-      .mockResolvedValueOnce(undefined)
-    setup({ connect, disconnect: vi.fn() })
+  it('mostra "Minhas contas" com cada conta (avatar e e-mail) e o botão de adicionar no fim', () => {
+    setup()
     renderTab()
 
-    await user.click(screen.getByRole('button', { name: 'Conectar' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('falha ao conectar')
-    expect(screen.getByRole('button', { name: 'Conectar' })).toBeEnabled()
-
-    await user.click(screen.getByRole('button', { name: 'Conectar' }))
-    await waitFor(() => {
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    })
-    expect(connect).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(4)
+    expect(within(items[0]).getByText('arthur@outlook.com')).toBeInTheDocument()
+    expect(within(items[0]).getByTestId('avatar')).toHaveTextContent('c-od')
+    expect(within(items[1]).getByText('arthur@gmail.com')).toBeInTheDocument()
+    expect(within(items[2]).getByText('outra@gmail.com')).toBeInTheDocument()
+    expect(within(items[3]).getByRole('button', { name: 'Adicionar conta' })).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: /^Sair de / })).toHaveLength(3)
   })
 
-  it('mantém a confirmação aberta quando desconectar falha', async () => {
+  it('sair pede confirmação e desconecta só aquela conta', async () => {
+    const user = userEvent.setup()
+    const { disconnect } = setup({ disconnect: vi.fn().mockResolvedValue(undefined) })
+    renderTab()
+
+    await user.click(screen.getByRole('button', { name: 'Sair de outra@gmail.com' }))
+    expect(screen.getByText('Sair desta conta? Os arquivos continuam no provedor.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sair' }))
+
+    await waitFor(() => expect(disconnect).toHaveBeenCalledWith('c-gd-2'))
+    expect(disconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancelar a saída não desconecta', async () => {
+    const user = userEvent.setup()
+    const { disconnect } = setup()
+    renderTab()
+
+    await user.click(screen.getByRole('button', { name: 'Sair de arthur@outlook.com' }))
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByText('Sair desta conta? Os arquivos continuam no provedor.')).not.toBeInTheDocument()
+    expect(disconnect).not.toHaveBeenCalled()
+  })
+
+  it('mantém a confirmação aberta e mostra o erro quando sair falha', async () => {
     const user = userEvent.setup()
     const disconnect = vi.fn()
-      .mockRejectedValueOnce(new Error('falha ao desconectar'))
-      .mockResolvedValueOnce([{ ...providers[0], connected: false }])
-    setup({ connect: vi.fn(), disconnect })
+      .mockRejectedValueOnce(new Error('falha ao sair'))
+      .mockResolvedValueOnce(undefined)
+    setup({ disconnect })
     renderTab()
 
-    const cards = screen.getAllByText('OneDrive')
-    const card = cards[0].closest('div')
-    expect(card).toBeTruthy()
-    await user.click(within(card.parentElement).getByRole('button', { name: 'Desconectar' }))
-    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    await user.click(screen.getByRole('button', { name: 'Sair de arthur@outlook.com' }))
+    await user.click(screen.getByRole('button', { name: 'Sair' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('falha ao sair')
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeInTheDocument()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('falha ao desconectar')
-    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument()
-    })
+    await user.click(screen.getByRole('button', { name: 'Sair' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
-  it('não mistura erro de um provedor com outro', async () => {
+  it('conta com acesso expirado mostra o aviso e reconecta pelo provedor dela', async () => {
     const user = userEvent.setup()
-    setup({ connect: vi.fn().mockRejectedValue(new Error('só dropbox')), disconnect: vi.fn() })
-    renderTab()
-
-    await user.click(screen.getByRole('button', { name: 'Conectar' }))
-    const alerts = await screen.findAllByRole('alert')
-    expect(alerts).toHaveLength(1)
-    expect(alerts[0]).toHaveTextContent('só dropbox')
-  })
-})
-
-describe('ProvidersTab acesso expirado', () => {
-  it('mostra o acesso expirado e Reconectar no lugar da conta', () => {
-    useProviders.mockReturnValue({
-      status: 'ready',
-      providers: [{ ...providers[0], lastError: 'RECONEXAO_NECESSARIA' }],
-      error: null,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
+    const { connect } = setup({
+      items: [{ ...connections[0], lastError: 'RECONEXAO_NECESSARIA' }],
+      connect: vi.fn().mockResolvedValue(undefined),
     })
     renderTab()
 
-    expect(screen.getByText(/Acesso expirado/)).toBeInTheDocument()
-    expect(screen.queryByText('arthur@outlook.com')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reconectar' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: 'Desconectar' })).not.toBeInTheDocument()
+    expect(screen.getByText('Acesso expirado')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Reconectar' }))
+    expect(connect).toHaveBeenCalledWith('onedrive', expect.any(String))
+  })
+
+  it('adicionar conta abre os provedores e conecta com addAccount', async () => {
+    const user = userEvent.setup()
+    const { connect } = setup({ connect: vi.fn().mockResolvedValue(undefined) })
+    renderTab()
+
+    await user.click(screen.getByRole('button', { name: 'Adicionar conta' }))
+    await user.click(await screen.findByRole('menuitem', { name: /Dropbox/ }))
+    expect(connect).toHaveBeenCalledWith('dropbox', expect.any(String), { addAccount: true })
+  })
+
+  it('sem contas mostra só o botão de adicionar', () => {
+    setup({ items: [] })
+    renderTab()
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Adicionar conta' })).toBeInTheDocument()
   })
 })
 
 describe('ProvidersTab aviso de retorno do OAuth', () => {
-  function renderReturn(search) {
-    let lastLocation = null
-    function LocationProbe() {
-      lastLocation = useLocation()
-      return null
-    }
-    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect: vi.fn(), disconnect: vi.fn() })
-    render(
-      <MemoryRouter {...router} initialEntries={[`/settings/providers${search}`]}>
-        <ProvidersTab />
-        <LocationProbe />
-      </MemoryRouter>,
-    )
-    return () => lastLocation
-  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('mostra o aviso uma vez, limpa a URL e permite dispensar', async () => {
     const user = userEvent.setup()
-    const location = renderReturn('?provider=onedrive&status=connected&background=%2Fhome')
+    setup()
+    const location = renderTab('/settings/providers?provider=onedrive&status=connected&background=%2Fhome')
 
     expect(await screen.findByText('OneDrive conectado')).toBeInTheDocument()
     await waitFor(() => expect(location().search).toBe(''))
     expect(location().state).toEqual({ backgroundLocation: expect.objectContaining({ pathname: '/home' }) })
-    expect(screen.getByText('OneDrive conectado')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Dispensar' }))
     expect(screen.queryByText('OneDrive conectado')).not.toBeInTheDocument()
@@ -158,65 +184,27 @@ describe('ProvidersTab aviso de retorno do OAuth', () => {
 
   it('some sozinho depois de um tempo quando a conexão deu certo', async () => {
     vi.useFakeTimers()
-    renderReturn('?provider=onedrive&status=connected')
+    setup()
+    renderTab('/settings/providers?provider=onedrive&status=connected')
 
     expect(screen.getByText('OneDrive conectado')).toBeInTheDocument()
     await act(async () => { await vi.advanceTimersByTimeAsync(6500) })
     expect(screen.queryByText('OneDrive conectado')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('traduz OAUTH_CODE_AUSENTE', async () => {
-    renderReturn('?provider=dropbox&status=error&error=OAUTH_CODE_AUSENTE')
+    setup()
+    renderTab('/settings/providers?provider=dropbox&status=error&error=OAUTH_CODE_AUSENTE')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'O provedor não devolveu a autorização. Tente conectar de novo.',
     )
   })
 
-  it('traduz OAUTH_TROCA_TEMPORARIA e PROVEDOR_NAO_CONFIGURADO', async () => {
-    renderReturn('?provider=dropbox&status=error&error=OAUTH_TROCA_TEMPORARIA')
+  it('traduz OAUTH_TROCA_TEMPORARIA', async () => {
+    setup()
+    renderTab('/settings/providers?provider=dropbox&status=error&error=OAUTH_TROCA_TEMPORARIA')
     expect(await screen.findByRole('alert')).toHaveTextContent('O provedor não respondeu. Tente conectar de novo.')
-  })
-
-  it('pede confirmação quando voltou com outra conta e reinicia a conexão com allowAccountChange', async () => {
-    const user = userEvent.setup()
-    const connect = vi.fn().mockResolvedValue(undefined)
-    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect, disconnect: vi.fn() })
-    render(
-      <MemoryRouter
-        {...router}
-        initialEntries={['/settings/providers?provider=onedrive&status=error&error=OAUTH_CONTA_DIFERENTE&background=%2Fhome']}
-      >
-        <ProvidersTab />
-      </MemoryRouter>,
-    )
-
-    const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent(
-      'Você entrou com outra conta do OneDrive. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.',
-    )
-    expect(screen.queryByText('Não foi possível conectar o provedor.')).not.toBeInTheDocument()
-    expect(connect).not.toHaveBeenCalled()
-
-    await user.click(within(dialog).getByRole('button', { name: 'Trocar de conta' }))
-    await waitFor(() => expect(connect).toHaveBeenCalledTimes(1))
-    expect(connect).toHaveBeenCalledWith('onedrive', expect.any(String), { allowAccountChange: true })
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-  })
-
-  it('cancelar a troca de conta fecha a confirmação sem conectar', async () => {
-    const user = userEvent.setup()
-    const connect = vi.fn()
-    useProviders.mockReturnValue({ status: 'ready', providers, error: null, connect, disconnect: vi.fn() })
-    render(
-      <MemoryRouter {...router} initialEntries={['/settings/providers?provider=onedrive&status=error&error=OAUTH_CONTA_DIFERENTE']}>
-        <ProvidersTab />
-      </MemoryRouter>,
-    )
-
-    const dialog = await screen.findByRole('alertdialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(connect).not.toHaveBeenCalled()
   })
 })

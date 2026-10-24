@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import ProviderMark from '../../spaces/components/ProviderMark.jsx'
+import { FiMinus, FiPlus } from 'react-icons/fi'
+import AccountAvatar from '../../../shared/components/AccountAvatar/AccountAvatar.jsx'
+import AddAccountMenu from '../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import { ROUTES, sanitizeInternalAppRedirect } from '../../../shared/config/routes.js'
 import { resolveSettingsBackground } from '../../../shared/utils/settingsOverlay.js'
-import { useProviders } from '../../../shared/hub/hooks.js'
+import { useConnections } from '../../../shared/hub/hooks.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import styles from './SettingsPage.module.css'
 
@@ -26,18 +28,13 @@ const OAUTH_ERROR_MESSAGES = {
   PROVEDOR_NAO_CONFIGURADO: 'Este provedor ainda não foi configurado no servidor.',
 }
 
-// The API refuses to replace the connected account without an explicit confirmation.
-const ACCOUNT_CHANGE_ERROR = 'OAUTH_CONTA_DIFERENTE'
-
 function mapOAuthError(code) {
   if (!code) return 'Não foi possível conectar o provedor.'
   return OAUTH_ERROR_MESSAGES[code] ?? 'Não foi possível conectar o provedor.'
 }
 
-function providerAccountLabel(provider) {
-  if (!provider.connected) return 'Não conectado'
-  if (provider.lastError === 'RECONEXAO_NECESSARIA') return 'Acesso expirado'
-  return provider.account?.email ?? provider.account?.name ?? 'Conectado'
+function accountLabel(connection) {
+  return connection.account?.email ?? connection.account?.name ?? connection.providerName
 }
 
 function toBackgroundLocation(value) {
@@ -48,12 +45,15 @@ function toBackgroundLocation(value) {
 export default function ProvidersTab() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { status, providers, error, connect, disconnect } = useProviders()
-  const [confirmDisconnectId, setConfirmDisconnectId] = useState(null)
+  const { status, connections, error, connect, disconnect } = useConnections()
+  const [confirmSignOutId, setConfirmSignOutId] = useState(null)
   const [banner, setBanner] = useState(null)
   const [pendingId, setPendingId] = useState(null)
   const [actionError, setActionError] = useState(null)
-  const [accountChangeId, setAccountChangeId] = useState(null)
+
+  // OAuth comes back to the page behind the settings overlay, not to the overlay itself.
+  const background = resolveSettingsBackground(location)
+  const redirectTo = `${background.pathname}${background.search ?? ''}${background.hash ?? ''}`
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -64,16 +64,12 @@ export default function ProvidersTab() {
     if (oauthStatus === 'connected') {
       const label = PROVIDER_LABELS[providerId] ?? providerId
       setBanner({ type: 'success', message: `${label} conectado` })
-      setAccountChangeId(null)
-    } else if (params.get('error') === ACCOUNT_CHANGE_ERROR) {
-      setBanner(null)
-      setAccountChangeId(providerId)
     } else {
       setBanner({ type: 'error', message: mapOAuthError(params.get('error')) })
     }
 
-    const background = toBackgroundLocation(sanitizeInternalAppRedirect(params.get('background')))
-    navigate(ROUTES.settingsProviders, { replace: true, state: { backgroundLocation: background } })
+    const backgroundLocation = toBackgroundLocation(sanitizeInternalAppRedirect(params.get('background')))
+    navigate(ROUTES.settingsProviders, { replace: true, state: { backgroundLocation } })
   }, [location.search, navigate])
 
   useEffect(() => {
@@ -82,50 +78,35 @@ export default function ProvidersTab() {
     return () => window.clearTimeout(timer)
   }, [banner])
 
-  async function handleConnect(providerId, options) {
-    const background = resolveSettingsBackground(location)
-    const redirectTo = `${background.pathname}${background.search ?? ''}${background.hash ?? ''}`
-    setPendingId(providerId)
-    setActionError((prev) => (prev?.providerId === providerId ? null : prev))
+  async function handleReconnect(connection) {
+    const { connectionId } = connection
+    setPendingId(connectionId)
+    setActionError((prev) => (prev?.connectionId === connectionId ? null : prev))
     try {
-      await connect(providerId, redirectTo, options)
+      await connect(connection.provider, redirectTo)
     } catch (err) {
-      setActionError({
-        providerId,
-        action: 'connect',
-        message: hubErrorMessage(err, 'Não foi possível conectar o provedor.'),
-      })
+      setActionError({ connectionId, message: hubErrorMessage(err, 'Não foi possível conectar o provedor.') })
     } finally {
-      setPendingId((current) => (current === providerId ? null : current))
+      setPendingId((current) => (current === connectionId ? null : current))
     }
   }
 
-  function handleConfirmAccountChange() {
-    const providerId = accountChangeId
-    setAccountChangeId(null)
-    void handleConnect(providerId, { allowAccountChange: true })
-  }
-
-  async function handleDisconnect(providerId) {
-    setPendingId(providerId)
-    setActionError((prev) => (prev?.providerId === providerId ? null : prev))
+  async function handleSignOut(connectionId) {
+    setPendingId(connectionId)
+    setActionError((prev) => (prev?.connectionId === connectionId ? null : prev))
     try {
-      await disconnect(providerId)
-      setConfirmDisconnectId(null)
+      await disconnect(connectionId)
+      setConfirmSignOutId(null)
     } catch (err) {
-      setActionError({
-        providerId,
-        action: 'disconnect',
-        message: hubErrorMessage(err, 'Não foi possível desconectar o provedor.'),
-      })
+      setActionError({ connectionId, message: hubErrorMessage(err, 'Não foi possível sair desta conta.') })
     } finally {
-      setPendingId((current) => (current === providerId ? null : current))
+      setPendingId((current) => (current === connectionId ? null : current))
     }
   }
 
   return (
     <section id="settings-providers" className={styles.pane}>
-      <h2 className={styles.paneTitle}>Provedores</h2>
+      <h2 className={styles.paneTitle}>Minhas contas</h2>
       <p className={styles.lead}>A conexão vale para todo o Bridgit.</p>
 
       {banner ? (
@@ -139,124 +120,101 @@ export default function ProvidersTab() {
         </div>
       ) : null}
 
-      {accountChangeId ? (
-        <div className={styles.sheet} role="alertdialog" aria-labelledby="account-change-text">
-          <p className={styles.sheetTitle}>Trocar de conta?</p>
-          <p id="account-change-text" className={styles.hint}>
-            Você entrou com outra conta do {PROVIDER_LABELS[accountChangeId] ?? accountChangeId}. Continuar troca a
-            conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.
-          </p>
-          <div className={styles.sheetActions}>
-            <button type="button" className={styles.secondary} onClick={() => setAccountChangeId(null)}>
-              Cancelar
-            </button>
-            <button type="button" className={styles.danger} onClick={handleConfirmAccountChange}>
-              Trocar de conta
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {error ? (
         <p className={styles.error} role="alert">
           {error.message}
         </p>
       ) : null}
 
-      {status === 'loading' && providers.length === 0 ? (
-        <p className={styles.hint}>Carregando provedores…</p>
+      {status === 'loading' && connections.length === 0 ? (
+        <p className={styles.hint}>Carregando contas…</p>
       ) : null}
 
-      <div className={styles.providers}>
-        {providers.map((provider) => {
-          const needsReconnect = provider.lastError === 'RECONEXAO_NECESSARIA'
-          const unavailable = !provider.configured
-          const connected = provider.connected
-          const confirming = confirmDisconnectId === provider.id
-          const busy = pendingId === provider.id
-
-          let action = null
-          if (unavailable) {
-            action = (
-              <button type="button" className={styles.secondary} disabled>
-                Indisponível
-              </button>
-            )
-          } else if (confirming) {
-            action = (
-              <span className={styles.pair}>
-                <button
-                  type="button"
-                  className={styles.secondary}
-                  disabled={busy}
-                  onClick={() => setConfirmDisconnectId(null)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className={styles.danger}
-                  disabled={busy}
-                  onClick={() => void handleDisconnect(provider.id)}
-                >
-                  Confirmar
-                </button>
-              </span>
-            )
-          } else if (needsReconnect) {
-            action = (
-              <button
-                type="button"
-                className={styles.primary}
-                disabled={busy}
-                onClick={() => void handleConnect(provider.id)}
-              >
-                Reconectar
-              </button>
-            )
-          } else if (connected) {
-            action = (
-              <button
-                type="button"
-                className={styles.secondary}
-                disabled={busy}
-                onClick={() => setConfirmDisconnectId(provider.id)}
-              >
-                Desconectar
-              </button>
-            )
-          } else {
-            action = (
-              <button
-                type="button"
-                className={styles.primary}
-                disabled={busy}
-                onClick={() => void handleConnect(provider.id)}
-              >
-                Conectar
-              </button>
-            )
-          }
+      <ul className={styles.list}>
+        {connections.map((connection) => {
+          const { connectionId } = connection
+          const label = accountLabel(connection)
+          const expired = connection.lastError === 'RECONEXAO_NECESSARIA'
+          const confirming = confirmSignOutId === connectionId
+          const busy = pendingId === connectionId
+          const failure = actionError?.connectionId === connectionId ? actionError.message : null
 
           return (
-            <div key={provider.id} className={styles.provider} data-off={!connected || undefined}>
-              <span className={styles.providerMark}>
-                <ProviderMark id={provider.id} size={40} />
+            <li key={connectionId} className={styles.row} data-static="">
+              <AccountAvatar connection={connection} size={28} />
+              <span className={styles.rowBody}>
+                <span className={`${styles.rowTitle} ${styles.rowClip}`}>{label}</span>
+                {confirming ? (
+                  <span className={styles.rowHint}>Sair desta conta? Os arquivos continuam no provedor.</span>
+                ) : expired ? (
+                  <span className={styles.rowHint} data-expired="">Acesso expirado</span>
+                ) : null}
+                {failure ? (
+                  <span className={styles.rowHint} data-error="" role="alert">
+                    {failure}
+                  </span>
+                ) : null}
               </span>
-              <p className={styles.providerName}>{provider.name}</p>
-              <p className={styles.providerStatus} data-expired={needsReconnect || undefined}>
-                {confirming ? 'Desconectar? Os arquivos continuam no provedor.' : providerAccountLabel(provider)}
-              </p>
-              {actionError?.providerId === provider.id ? (
-                <p className={styles.error} role="alert">
-                  {actionError.message}
-                </p>
-              ) : null}
-              <div className={styles.providerAction}>{action}</div>
-            </div>
+              {confirming ? (
+                <span className={styles.pair}>
+                  <button
+                    type="button"
+                    className={styles.secondary}
+                    disabled={busy}
+                    onClick={() => setConfirmSignOutId(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.danger}
+                    disabled={busy}
+                    onClick={() => void handleSignOut(connectionId)}
+                  >
+                    Sair
+                  </button>
+                </span>
+              ) : (
+                <>
+                  {expired ? (
+                    <button
+                      type="button"
+                      className={styles.secondary}
+                      disabled={busy}
+                      onClick={() => void handleReconnect(connection)}
+                    >
+                      Reconectar
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.rowAction}
+                    aria-label={`Sair de ${label}`}
+                    title="Sair"
+                    disabled={busy}
+                    onClick={() => setConfirmSignOutId(connectionId)}
+                  >
+                    <FiMinus size={18} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+            </li>
           )
         })}
-      </div>
+        <li>
+          <AddAccountMenu
+            className={styles.row}
+            label="Adicionar conta"
+            redirectTo={redirectTo}
+            onError={(err) => setBanner({ type: 'error', message: hubErrorMessage(err, 'Não foi possível conectar o provedor.') })}
+          >
+            <FiPlus size={20} className={styles.rowIcon} aria-hidden="true" />
+            <span className={styles.rowBody}>
+              <span className={styles.rowTitle}>Adicionar conta</span>
+            </span>
+          </AddAccountMenu>
+        </li>
+      </ul>
     </section>
   )
 }

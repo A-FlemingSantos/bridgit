@@ -26,7 +26,8 @@
   right: auto;
   bottom: auto;
   left: auto;
-  z-index: 24;
+  /* Above the settings and file overlays (40, 42), which can open menus too; below the notices (60). */
+  z-index: 50;
 }
 
 .stretch {
