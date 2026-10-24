@@ -14,8 +14,10 @@ import {
   createFolder as createFolderRequest,
   deleteItem as deleteItemRequest,
   disablePublicLink as disablePublicLinkRequest,
+  disconnectConnection as disconnectConnectionRequest,
   disconnectProvider as disconnectProviderRequest,
   enablePublicLink as enablePublicLinkRequest,
+  getConnectionAvatar as getConnectionAvatarRequest,
   getItem as getItemRequest,
   getPublicLink as getPublicLinkRequest,
   getReadSource as getReadSourceRequest,
@@ -75,18 +77,18 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
 
   // hooks.onAccepted runs once the server has queued the work, before it is done: a form can close there,
   // since the change already shows as pending and a later rejection is reported on its own.
-  async function operation(provider, kind, fields, file, hooks = {}) {
-    const connection = options.getConnection?.(provider)
+  async function operation(connectionId, kind, fields, file, hooks = {}) {
+    const connection = options.getConnection?.(connectionId)
     if (!connection?.connectionId || connection.operationsEnabled === false) return null
     const identity = options.getIdentity?.()
     if (file && !fileIdentities.has(file)) fileIdentities.set(file, crypto.randomUUID())
     const signature = JSON.stringify([identity, connection.connectionId, connection.generation, kind, fields, file ? fileIdentities.get(file) : null])
-    const recovered = options.getUncertainOperation?.(provider, kind, fields)
+    const recovered = options.getUncertainOperation?.(connectionId, kind, fields)
     const previous = uncertainRequests.get(signature) ?? (recovered ? { request: recovered.request, accepted: recovered } : null)
     const request = previous?.request ?? {
-      clientKey: hooks.clientKey ?? crypto.randomUUID(), provider, kind,
+      clientKey: hooks.clientKey ?? crypto.randomUUID(), provider: connection.provider, kind,
       connectionId: connection.connectionId, generation: connection.generation,
-      ...(fields.ref ? { expectedVersion: options.getItemVersion?.(provider, fields.ref) ?? null } : {}), ...fields,
+      ...(fields.ref ? { expectedVersion: options.getItemVersion?.(connectionId, fields.ref) ?? null } : {}), ...fields,
     }
     options.onIntent?.(request, file)
     uncertainRequests.set(signature, { request, accepted: previous?.accepted })
@@ -128,14 +130,15 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
       status: accepted.status === 'NEEDS_ATTENTION' ? 503 : 409, code: accepted.errorCode ?? 'OPERACAO_REJEITADA',
     })
     uncertainRequests.delete(signature)
-    return kind === 'DELETE' ? { deleted: true } : accepted.item
+    // The operation answers without the account; the caller expects items self-describing, like the other routes.
+    return kind === 'DELETE' ? { deleted: true } : accepted.item && { ...accepted.item, connectionId: connection.connectionId }
   }
 
-  async function legacy(provider, kind, fields, file, request) {
+  async function legacy(connectionId, kind, fields, file, request) {
     const identity = options.getIdentity?.() ?? getToken()
-    const connection = options.getConnection?.(provider)
+    const connection = options.getConnection?.(connectionId)
     if (file && !fileIdentities.has(file)) fileIdentities.set(file, crypto.randomUUID())
-    const signature = JSON.stringify([identity, provider, connection?.connectionId, connection?.generation,
+    const signature = JSON.stringify([identity, connectionId, connection?.generation,
       kind, fields, file ? fileIdentities.get(file) : null])
     const clientKey = uncertainLegacyRequests.get(signature) ?? crypto.randomUUID()
     uncertainLegacyRequests.set(signature, clientKey)
@@ -155,41 +158,44 @@ export function createHubApi(getToken, onUnauthorized, options = {}) {
     connectProvider: (provider, redirectTo, options) =>
       call((token) => connectProviderRequest(token, provider, redirectTo, options)),
     disconnectProvider: (provider) => call((token) => disconnectProviderRequest(token, provider)),
-    listFolder: (provider, parentRef, cursor) =>
-      call((token) => listFolderRequest(token, provider, parentRef, cursor)),
-    getItem: (provider, ref) => call((token) => getItemRequest(token, provider, ref)),
-    createFolder: async (provider, parentRef, name, hooks) =>
-      await operation(provider, 'CREATE_FOLDER', { parentRef, name }, null, hooks) ?? legacy(provider, 'CREATE_FOLDER', { parentRef, name }, null,
-        (token, requestOptions) => createFolderRequest(token, provider, parentRef, name, requestOptions)),
-    uploadFile: async (provider, parentRef, file) => {
+    disconnectConnection: (connectionId) => call((token) => disconnectConnectionRequest(token, connectionId)),
+    getConnectionAvatar: (connectionId, generation) =>
+      call((token) => getConnectionAvatarRequest(token, connectionId, generation)),
+    listFolder: (connectionId, parentRef, cursor) =>
+      call((token) => listFolderRequest(token, connectionId, parentRef, cursor)),
+    getItem: (connectionId, ref) => call((token) => getItemRequest(token, connectionId, ref)),
+    createFolder: async (connectionId, parentRef, name, hooks) =>
+      await operation(connectionId, 'CREATE_FOLDER', { parentRef, name }, null, hooks) ?? legacy(connectionId, 'CREATE_FOLDER', { parentRef, name }, null,
+        (token, requestOptions) => createFolderRequest(token, connectionId, parentRef, name, requestOptions)),
+    uploadFile: async (connectionId, parentRef, file) => {
       if (exceedsUploadLimit(file)) throw uploadTooLargeError()
       await assertReadable(file)
-      return await operation(provider, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(provider, 'UPLOAD',
+      return await operation(connectionId, 'UPLOAD', { parentRef, name: file.name, contentType: file.type }, file) ?? legacy(connectionId, 'UPLOAD',
         { parentRef, name: file.name, contentType: file.type }, file,
-        (token, requestOptions) => uploadFileRequest(token, provider, parentRef, file, requestOptions))
+        (token, requestOptions) => uploadFileRequest(token, connectionId, parentRef, file, requestOptions))
     },
-    updateItem: async (provider, ref, patch) => await operation(provider, 'UPDATE', { ref, ...patch,
+    updateItem: async (connectionId, ref, patch) => await operation(connectionId, 'UPDATE', { ref, ...patch,
       ...(patch.parentRef !== undefined ? { parentRef: patch.parentRef || '' } : {}),
-    }) ?? legacy(provider, 'UPDATE', { ref, ...patch }, null,
-      (token, requestOptions) => updateItemRequest(token, provider, ref, patch, requestOptions)),
-    deleteItem: async (provider, ref, hooks) => await operation(provider, 'DELETE', { ref }, null, hooks) ?? legacy(provider, 'DELETE', { ref }, null,
-      (token, requestOptions) => deleteItemRequest(token, provider, ref, requestOptions)),
-    getReadSource: async (provider, ref, refresh = false) =>
-      resolveContentUrls(await call((token) => getReadSourceRequest(token, provider, ref, refresh))),
-    getThumbnail: (provider, ref) => call((token) => getThumbnailRequest(token, provider, ref)),
+    }) ?? legacy(connectionId, 'UPDATE', { ref, ...patch }, null,
+      (token, requestOptions) => updateItemRequest(token, connectionId, ref, patch, requestOptions)),
+    deleteItem: async (connectionId, ref, hooks) => await operation(connectionId, 'DELETE', { ref }, null, hooks) ?? legacy(connectionId, 'DELETE', { ref }, null,
+      (token, requestOptions) => deleteItemRequest(token, connectionId, ref, requestOptions)),
+    getReadSource: async (connectionId, ref, refresh = false) =>
+      resolveContentUrls(await call((token) => getReadSourceRequest(token, connectionId, ref, refresh))),
+    getThumbnail: (connectionId, ref) => call((token) => getThumbnailRequest(token, connectionId, ref)),
     listOperations: () => call(listOperations),
     retryOperation: (id) => call((token) => retryOperation(token, id)),
-    createContentTicket: async (provider, ref, disposition) =>
-      resolveContentUrls(await call((token) => createContentTicketRequest(token, provider, ref, disposition))),
+    createContentTicket: async (connectionId, ref, disposition) =>
+      resolveContentUrls(await call((token) => createContentTicketRequest(token, connectionId, ref, disposition))),
     search: (query) => call((token) => searchRequest(token, query)),
     listRecents: () => call((token) => listRecentsRequest(token)),
-    recordRecent: (provider, ref) => call((token) => recordRecentRequest(token, provider, ref)),
+    recordRecent: (connectionId, ref) => call((token) => recordRecentRequest(token, connectionId, ref)),
     listShortcuts: () => call((token) => listShortcutsRequest(token)),
-    addShortcut: (provider, ref) => call((token) => addShortcutRequest(token, provider, ref)),
-    removeShortcut: (provider, ref) => call((token) => removeShortcutRequest(token, provider, ref)),
+    addShortcut: (connectionId, ref) => call((token) => addShortcutRequest(token, connectionId, ref)),
+    removeShortcut: (connectionId, ref) => call((token) => removeShortcutRequest(token, connectionId, ref)),
     listPublicLinks: () => call((token) => listPublicLinksRequest(token)),
-    getPublicLink: (provider, ref) => call((token) => getPublicLinkRequest(token, provider, ref)),
-    enablePublicLink: (provider, ref) => call((token) => enablePublicLinkRequest(token, provider, ref)),
-    disablePublicLink: (provider, ref) => call((token) => disablePublicLinkRequest(token, provider, ref)),
+    getPublicLink: (connectionId, ref) => call((token) => getPublicLinkRequest(token, connectionId, ref)),
+    enablePublicLink: (connectionId, ref) => call((token) => enablePublicLinkRequest(token, connectionId, ref)),
+    disablePublicLink: (connectionId, ref) => call((token) => disablePublicLinkRequest(token, connectionId, ref)),
   }
 }

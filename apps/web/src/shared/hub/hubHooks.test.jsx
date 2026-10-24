@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@bridgit/shared-client'
 import { SessionProvider } from '../auth/SessionContext.jsx'
 import { HubDataProvider } from './HubDataProvider.jsx'
-import { useFolder, useHubActions, useItem, useProviders, useRecents, useSearch, useShortcuts } from './hooks.js'
+import { useConnection, useConnections, useFolder, useHubActions, useItem, useProviders, useRecents, useSearch, useShortcuts } from './hooks.js'
 import { HubUploadError } from './hubErrors.js'
+import { HUB_CHANNEL_NAME, broadcastHubEvent } from './hubChannel.js'
 import { hubErrorMessage } from '../state/hubErrorMessage.js'
 import { createHubApi } from './hubApi.js'
 import { loadThumbnail } from './thumbnailQueue.js'
@@ -27,6 +28,11 @@ function badRequest(message = 'Falhou') {
 function badGateway() {
   return new ApiClientError('Falhou', { code: 'ERRO', status: 502 })
 }
+
+vi.mock('./hubChannel.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, broadcastHubEvent: vi.fn(actual.broadcastHubEvent) }
+})
 
 vi.mock('./hubApi.js', () => ({
   createHubApi: vi.fn(),
@@ -57,6 +63,7 @@ vi.mock('@bridgit/shared-client', async (importOriginal) => {
 
 const sampleItem = {
   ref: 'file-1',
+  connectionId: 'conn-1',
   provider: 'onedrive',
   name: 'Relatorio.pdf',
   kind: 'file',
@@ -67,10 +74,19 @@ const sampleItem = {
   parentRef: null,
 }
 
+const oneDriveConnection = {
+  connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive', account: { email: 'a@outlook.com' },
+  generation: 1, operationsEnabled: false,
+}
+const oneDriveRow = { id: 'onedrive', name: 'OneDrive', configured: true, connected: true, connections: [oneDriveConnection] }
+
 const hubApiMock = {
   listProviders: vi.fn().mockResolvedValue([]),
   connectProvider: vi.fn(),
   disconnectProvider: vi.fn(),
+  disconnectConnection: vi.fn(),
+  getConnectionAvatar: vi.fn(),
+  listPublicLinks: vi.fn(),
   listFolder: vi.fn(),
   getItem: vi.fn(),
   createFolder: vi.fn(),
@@ -146,14 +162,14 @@ describe('hub hooks', () => {
     let cached
     let fresh
     await act(async () => {
-      first = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
-      cached = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
-      fresh = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1', refresh: true })
+      first = await result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1' })
+      cached = await result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1' })
+      fresh = await result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1', refresh: true })
     })
     expect(cached).toBe(first)
     expect(fresh.url).toBe('/ticket-2')
     expect(hubApiMock.getReadSource).toHaveBeenCalledTimes(2)
-    expect(hubApiMock.getReadSource).toHaveBeenLastCalledWith('onedrive', 'file-1', true)
+    expect(hubApiMock.getReadSource).toHaveBeenLastCalledWith('conn-1', 'file-1', true)
   })
 
   it('não reutiliza ticket expirado quando a verificação do cache prolongou a autorização', async () => {
@@ -167,8 +183,8 @@ describe('hub hooks', () => {
     await waitFor(() => expect(result.current.providers.status).toBe('ready'))
     let fresh
     await act(async () => {
-      await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
-      fresh = await result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })
+      await result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1' })
+      fresh = await result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1' })
     })
     expect(fresh.url).toBe('/renewed')
     expect(hubApiMock.getReadSource).toHaveBeenCalledTimes(2)
@@ -182,7 +198,7 @@ describe('hub hooks', () => {
     })
 
     const { result } = renderHook(
-      () => ({ root: useFolder('onedrive', null), gone: useFolder('onedrive', 'folder-1') }),
+      () => ({ root: useFolder('conn-1', null), gone: useFolder('conn-1', 'folder-1') }),
       { wrapper: createWrapper() },
     )
 
@@ -196,13 +212,13 @@ describe('hub hooks', () => {
     hubApiMock.getReadSource.mockRejectedValue(new ApiClientError('Item não encontrado.', { code: 'ITEM_NAO_ENCONTRADO', status: 404 }))
 
     const { result } = renderHook(
-      () => ({ root: useFolder('onedrive', null), item: useItem('onedrive', 'file-1'), actions: useHubActions() }),
+      () => ({ root: useFolder('conn-1', null), item: useItem('conn-1', 'file-1'), actions: useHubActions() }),
       { wrapper: createWrapper() },
     )
     await waitFor(() => expect(result.current.root.items).toHaveLength(1))
 
     await act(async () => {
-      await expect(result.current.actions.getReadSource({ providerId: 'onedrive', ref: 'file-1' })).rejects.toBeInstanceOf(ApiClientError)
+      await expect(result.current.actions.getReadSource({ connectionId: 'conn-1', ref: 'file-1' })).rejects.toBeInstanceOf(ApiClientError)
     })
 
     expect(result.current.root.items).toHaveLength(0)
@@ -217,7 +233,7 @@ describe('hub hooks', () => {
     })
 
     const { result } = renderHook(
-      () => ({ root: useFolder('onedrive', null), other: useFolder('onedrive', 'folder-1') }),
+      () => ({ root: useFolder('conn-1', null), other: useFolder('conn-1', 'folder-1') }),
       { wrapper: createWrapper() },
     )
 
@@ -235,7 +251,7 @@ describe('hub hooks', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -248,7 +264,7 @@ describe('hub hooks', () => {
     await expect(
       act(async () => {
         await result.current.actions.renameItem({
-          providerId: 'onedrive',
+          connectionId: 'conn-1',
           ref: 'file-1',
           name: 'Novo nome.pdf',
         })
@@ -268,7 +284,7 @@ describe('hub hooks', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -281,7 +297,7 @@ describe('hub hooks', () => {
     await expect(
       act(async () => {
         await result.current.actions.deleteItem({
-          providerId: 'onedrive',
+          connectionId: 'conn-1',
           ref: 'file-1',
           parentRef: null,
         })
@@ -306,7 +322,7 @@ describe('hub hooks', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -321,7 +337,7 @@ describe('hub hooks', () => {
 
     await act(async () => {
       uploaded = await result.current.actions.uploadFiles({
-        providerId: 'onedrive',
+        connectionId: 'conn-1',
         parentRef: null,
         files: [file],
       })
@@ -391,7 +407,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -401,13 +417,13 @@ describe('hub findings', () => {
     let uploadPromise
     act(() => {
       createPromise = result.current.actions.createFolder({
-        providerId: 'onedrive',
+        connectionId: 'conn-1',
         parentRef: null,
         name: 'Nova pasta',
       })
       createPromise.catch(() => {})
       uploadPromise = result.current.actions.uploadFiles({
-        providerId: 'onedrive',
+        connectionId: 'conn-1',
         parentRef: null,
         files: [new File(['a'], 'a.txt', { type: 'text/plain' })],
       })
@@ -432,8 +448,8 @@ describe('hub findings', () => {
     expect(result.current.folder.nextCursor).toBe('cursor-1')
 
     await act(async () => {
-      createReq.resolve({ ref: 'folder-new', provider: 'onedrive', name: 'Nova pasta', kind: 'folder', parentRef: null })
-      uploadReq.resolve({ ref: 'server-a', provider: 'onedrive', name: 'a.txt', kind: 'file', parentRef: null })
+      createReq.resolve({ ref: 'folder-new', connectionId: 'conn-1', name: 'Nova pasta', kind: 'folder', parentRef: null })
+      uploadReq.resolve({ ref: 'server-a', connectionId: 'conn-1', name: 'a.txt', kind: 'file', parentRef: null })
       await createPromise
       await uploadPromise
     })
@@ -449,7 +465,7 @@ describe('hub findings', () => {
   it('F06 delete remove de todas as listagens', async () => {
     const rootFile = { ...sampleItem, ref: 'file-1', parentRef: 'root-id' }
     const subFile = { ...sampleItem, ref: 'file-2', name: 'Outro.pdf', parentRef: 'sub-1' }
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef) => {
       if (!folderRef) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [rootFile], nextCursor: null }
       }
@@ -461,8 +477,8 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        root: useFolder('onedrive', null),
-        sub: useFolder('onedrive', 'sub-1'),
+        root: useFolder('conn-1', null),
+        sub: useFolder('conn-1', 'sub-1'),
         recents: useRecents(),
         shortcuts: useShortcuts(),
         actions: useHubActions(),
@@ -478,7 +494,7 @@ describe('hub findings', () => {
     })
 
     await act(async () => {
-      await result.current.actions.deleteItem({ providerId: 'onedrive', ref: 'file-1' })
+      await result.current.actions.deleteItem({ connectionId: 'conn-1', ref: 'file-1' })
     })
 
     expect(result.current.root.items.some((item) => item.ref === 'file-1')).toBe(false)
@@ -489,21 +505,21 @@ describe('hub findings', () => {
 
   it('F06 move entre subpasta e raiz sem depender das dicas', async () => {
     const subFile = { ...sampleItem, ref: 'file-2', name: 'Outro.pdf', parentRef: 'sub-1' }
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef) => {
       if (!folderRef) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [{ ...sampleItem }], nextCursor: null }
       }
       return { folder: { ref: 'sub-1', name: 'Sub', ancestry: [] }, items: [{ ...subFile }], nextCursor: null }
     })
-    hubApiMock.updateItem.mockImplementation(async (providerId, ref, patch) => ({
+    hubApiMock.updateItem.mockImplementation(async (connectionId, ref, patch) => ({
       ...(ref === 'file-2' ? subFile : sampleItem),
       ...patch,
     }))
 
     const { result } = renderHook(
       () => ({
-        root: useFolder('onedrive', null),
-        sub: useFolder('onedrive', 'sub-1'),
+        root: useFolder('conn-1', null),
+        sub: useFolder('conn-1', 'sub-1'),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -515,13 +531,13 @@ describe('hub findings', () => {
     })
 
     await act(async () => {
-      await result.current.actions.moveItem({ providerId: 'onedrive', ref: 'file-2', fromParentRef: 'sub-1', parentRef: null })
+      await result.current.actions.moveItem({ connectionId: 'conn-1', ref: 'file-2', fromParentRef: 'sub-1', parentRef: null })
     })
     expect(result.current.sub.items.some((item) => item.ref === 'file-2')).toBe(false)
     expect(result.current.root.items.some((item) => item.ref === 'file-2')).toBe(true)
 
     await act(async () => {
-      await result.current.actions.moveItem({ providerId: 'onedrive', ref: 'file-1', fromParentRef: undefined, parentRef: 'sub-1' })
+      await result.current.actions.moveItem({ connectionId: 'conn-1', ref: 'file-1', fromParentRef: undefined, parentRef: 'sub-1' })
     })
     expect(result.current.root.items.some((item) => item.ref === 'file-1')).toBe(false)
     expect(result.current.sub.items.some((item) => item.ref === 'file-1')).toBe(true)
@@ -533,14 +549,14 @@ describe('hub findings', () => {
       items: [{ ...sampleItem }],
       nextCursor: null,
     })
-    hubApiMock.uploadFile.mockImplementation(async (providerId, parentRef, file) => {
+    hubApiMock.uploadFile.mockImplementation(async (connectionId, parentRef, file) => {
       if (file.name === 'b.txt') throw badRequest('Falha em b')
-      return { ref: `server-${file.name}`, provider: providerId, name: file.name, kind: 'file', parentRef }
+      return { ref: `server-${file.name}`, connectionId, name: file.name, kind: 'file', parentRef }
     })
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -558,7 +574,7 @@ describe('hub findings', () => {
     let failure = null
     await act(async () => {
       try {
-        await result.current.actions.uploadFiles({ providerId: 'onedrive', parentRef: null, files })
+        await result.current.actions.uploadFiles({ connectionId: 'conn-1', parentRef: null, files })
       } catch (error) {
         failure = error
       }
@@ -583,7 +599,7 @@ describe('hub findings', () => {
       let retryFailure = null
       try {
         await result.current.actions.uploadFiles({
-          providerId: 'onedrive',
+          connectionId: 'conn-1',
           parentRef: null,
           files: [files[1]],
         })
@@ -593,15 +609,15 @@ describe('hub findings', () => {
       expect(retryFailure).toBeInstanceOf(HubUploadError)
       expect(retryFailure.failed[0].file.name).toBe('b.txt')
     })
-    hubApiMock.uploadFile.mockImplementation(async (providerId, parentRef, file) => ({
+    hubApiMock.uploadFile.mockImplementation(async (connectionId, parentRef, file) => ({
       ref: `server-${file.name}`,
-      provider: providerId,
+      connectionId,
       name: file.name,
       kind: 'file',
       parentRef,
     }))
     await act(async () => {
-      await result.current.actions.uploadFiles({ providerId: 'onedrive', parentRef: null, files: [files[1]] })
+      await result.current.actions.uploadFiles({ connectionId: 'conn-1', parentRef: null, files: [files[1]] })
     })
     expect(result.current.folder.items.some((item) => item.ref === 'server-b.txt')).toBe(true)
   })
@@ -612,14 +628,14 @@ describe('hub findings', () => {
       items: [],
       nextCursor: null,
     })
-    hubApiMock.uploadFile.mockImplementation(async (providerId, parentRef, file) => {
+    hubApiMock.uploadFile.mockImplementation(async (connectionId, parentRef, file) => {
       if (file.name === 'a.txt' || file.name === 'c.txt') throw badRequest(`Falha em ${file.name}`)
-      return { ref: `server-${file.name}`, provider: providerId, name: file.name, kind: 'file', parentRef }
+      return { ref: `server-${file.name}`, connectionId, name: file.name, kind: 'file', parentRef }
     })
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -633,7 +649,7 @@ describe('hub findings', () => {
     await act(async () => {
       try {
         await result.current.actions.uploadFiles({
-          providerId: 'onedrive',
+          connectionId: 'conn-1',
           parentRef: null,
           files: [
             new File(['a'], 'a.txt', { type: 'text/plain' }),
@@ -655,20 +671,20 @@ describe('hub findings', () => {
   })
 
   it('F08 rollback por operacao mantem B quando A falha', async () => {
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef) => {
       if (!folderRef) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [{ ...sampleItem }], nextCursor: null }
       }
       return { folder: { ref: 'sub-1', name: 'Sub', ancestry: [] }, items: [], nextCursor: null }
     })
     const gateA = deferred()
-    hubApiMock.updateItem.mockImplementation((providerId, ref, patch) => {
+    hubApiMock.updateItem.mockImplementation((connectionId, ref, patch) => {
       if (patch.name === 'A.pdf') return gateA.promise
       return Promise.resolve({ ...sampleItem, ...patch })
     })
-    hubApiMock.createFolder.mockImplementation(async (providerId, parentRef, name) => ({
+    hubApiMock.createFolder.mockImplementation(async (connectionId, parentRef, name) => ({
       ref: `created-${parentRef ?? 'root'}`,
-      provider: providerId,
+      connectionId,
       name,
       kind: 'folder',
       parentRef,
@@ -676,8 +692,8 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        root: useFolder('onedrive', null),
-        sub: useFolder('onedrive', 'sub-1'),
+        root: useFolder('conn-1', null),
+        sub: useFolder('conn-1', 'sub-1'),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -690,11 +706,11 @@ describe('hub findings', () => {
 
     let promiseA
     act(() => {
-      promiseA = result.current.actions.renameItem({ providerId: 'onedrive', ref: 'file-1', name: 'A.pdf' })
+      promiseA = result.current.actions.renameItem({ connectionId: 'conn-1', ref: 'file-1', name: 'A.pdf' })
       promiseA.catch(() => {})
     })
     await act(async () => {
-      await result.current.actions.renameItem({ providerId: 'onedrive', ref: 'file-1', name: 'B.pdf' })
+      await result.current.actions.renameItem({ connectionId: 'conn-1', ref: 'file-1', name: 'B.pdf' })
     })
     await act(async () => {
       gateA.reject(badRequest())
@@ -703,17 +719,17 @@ describe('hub findings', () => {
     expect(result.current.root.items.find((item) => item.ref === 'file-1').name).toBe('B.pdf')
 
     const gateC = deferred()
-    hubApiMock.createFolder.mockImplementation((providerId, parentRef) => {
+    hubApiMock.createFolder.mockImplementation((connectionId, parentRef) => {
       if (!parentRef) return gateC.promise
-      return Promise.resolve({ ref: 'created-sub-1', provider: providerId, name: 'Sub pasta', kind: 'folder', parentRef })
+      return Promise.resolve({ ref: 'created-sub-1', connectionId, name: 'Sub pasta', kind: 'folder', parentRef })
     })
     let promiseC
     act(() => {
-      promiseC = result.current.actions.createFolder({ providerId: 'onedrive', parentRef: null, name: 'Pasta A' })
+      promiseC = result.current.actions.createFolder({ connectionId: 'conn-1', parentRef: null, name: 'Pasta A' })
       promiseC.catch(() => {})
     })
     await act(async () => {
-      await result.current.actions.createFolder({ providerId: 'onedrive', parentRef: 'sub-1', name: 'Sub pasta' })
+      await result.current.actions.createFolder({ connectionId: 'conn-1', parentRef: 'sub-1', name: 'Sub pasta' })
     })
     await act(async () => {
       gateC.reject(badRequest())
@@ -731,9 +747,9 @@ describe('hub findings', () => {
     })
     const gateDelete = deferred()
     hubApiMock.deleteItem.mockReturnValue(gateDelete.promise)
-    hubApiMock.createFolder.mockImplementation(async (providerId, parentRef, name) => ({
+    hubApiMock.createFolder.mockImplementation(async (connectionId, parentRef, name) => ({
       ref: 'created-new',
-      provider: providerId,
+      connectionId,
       name,
       kind: 'folder',
       parentRef,
@@ -741,7 +757,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -753,11 +769,11 @@ describe('hub findings', () => {
 
     let deletePromise
     act(() => {
-      deletePromise = result.current.actions.deleteItem({ providerId: 'onedrive', ref: 'file-1' })
+      deletePromise = result.current.actions.deleteItem({ connectionId: 'conn-1', ref: 'file-1' })
       deletePromise.catch(() => {})
     })
     await act(async () => {
-      await result.current.actions.createFolder({ providerId: 'onedrive', parentRef: null, name: 'Nova' })
+      await result.current.actions.createFolder({ connectionId: 'conn-1', parentRef: null, name: 'Nova' })
     })
     await act(async () => {
       gateDelete.reject(badRequest())
@@ -778,16 +794,17 @@ describe('hub findings', () => {
     })
     hubApiMock.listRecents.mockImplementation(async () => (disconnected ? [] : [{ ...sampleItem }]))
     hubApiMock.listShortcuts.mockResolvedValue([{ ...sampleItem }])
-    hubApiMock.getItem.mockImplementation(async (providerId, ref) => ({ ...sampleItem, ref, ancestry: [] }))
+    hubApiMock.getItem.mockImplementation(async (connectionId, ref) => ({ ...sampleItem, ref, ancestry: [] }))
+    hubApiMock.listProviders.mockResolvedValue([oneDriveRow])
     hubApiMock.disconnectProvider.mockImplementation(async () => {
       disconnected = true
-      return []
+      return [{ ...oneDriveRow, connected: false, connections: [] }]
     })
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
-        item: useItem('onedrive', 'file-1'),
+        folder: useFolder('conn-1', null),
+        item: useItem('conn-1', 'file-1'),
         recents: useRecents(),
         providers: useProviders(),
         actions: useHubActions(),
@@ -823,12 +840,12 @@ describe('hub findings', () => {
       },
       { timeout: 3000 },
     )
-    expect(result.current.recents.entries.some((entry) => entry.provider === 'onedrive')).toBe(false)
+    expect(result.current.recents.entries.some((entry) => entry.connectionId === 'conn-1')).toBe(false)
     expect(result.current.item.item).toBeNull()
   })
 
   it('cursor recusado pelo servidor recarrega a pasta desde a primeira pagina', async () => {
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef, cursor) => {
       if (cursor) throw new ApiClientError('Cursor', { code: 'CURSOR_INVALIDO', status: 400 })
       return {
         folder: { ref: null, name: 'OneDrive', ancestry: [] },
@@ -837,7 +854,7 @@ describe('hub findings', () => {
       }
     })
 
-    const { result } = renderHook(() => useFolder('onedrive', null), { wrapper: createWrapper() })
+    const { result } = renderHook(() => useFolder('conn-1', null), { wrapper: createWrapper() })
     await waitFor(() => expect(result.current.status).toBe('ready'))
 
     await act(async () => {
@@ -864,7 +881,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -908,7 +925,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -924,9 +941,9 @@ describe('hub findings', () => {
       return
     }
 
-    const channel = new BroadcastChannel('bridgit-hub')
+    const channel = new BroadcastChannel(HUB_CHANNEL_NAME)
     await act(async () => {
-      channel.postMessage({ type: 'invalidate', scope: 'folder', providerId: 'onedrive', keys: ['onedrive:root'], source: 'other-tab' })
+      channel.postMessage({ type: 'invalidate', scope: 'folder', connectionId: 'conn-1', keys: ['conn-1:root'], source: 'other-tab' })
       await new Promise((resolve) => setTimeout(resolve, 50))
     })
     channel.close()
@@ -942,7 +959,7 @@ describe('hub findings', () => {
       items: [{ ...sampleItem }],
       nextCursor: null,
     })
-    hubApiMock.getItem.mockImplementation(async (providerId, ref) => ({
+    hubApiMock.getItem.mockImplementation(async (connectionId, ref) => ({
       ...sampleItem,
       ref,
       ancestry: [{ ref: 'sub-1', name: 'Sub' }],
@@ -950,8 +967,8 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
-        item: useItem('onedrive', 'file-1'),
+        folder: useFolder('conn-1', null),
+        item: useItem('conn-1', 'file-1'),
       }),
       { wrapper: createWrapper() },
     )
@@ -962,7 +979,7 @@ describe('hub findings', () => {
     expect(result.current.item.item?.name).toBe('Relatorio.pdf')
 
     await waitFor(() => {
-      expect(hubApiMock.getItem).toHaveBeenCalledWith('onedrive', 'file-1')
+      expect(hubApiMock.getItem).toHaveBeenCalledWith('conn-1', 'file-1')
       expect(result.current.item.item?.ancestry).toEqual([{ ref: 'sub-1', name: 'Sub' }])
     })
   })
@@ -977,7 +994,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -990,7 +1007,7 @@ describe('hub findings', () => {
     let failure = null
     await act(async () => {
       try {
-        await result.current.actions.renameItem({ providerId: 'onedrive', ref: 'file-1', name: 'Novo.pdf' })
+        await result.current.actions.renameItem({ connectionId: 'conn-1', ref: 'file-1', name: 'Novo.pdf' })
       } catch (error) {
         failure = error
       }
@@ -1005,7 +1022,7 @@ describe('hub findings', () => {
 
   it('F25 loadMore duplo faz uma chamada e nao duplica', async () => {
     const nextPage = deferred()
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef, cursor) => {
       if (!cursor) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [{ ...sampleItem }], nextCursor: 'c1' }
       }
@@ -1014,7 +1031,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -1056,7 +1073,7 @@ describe('hub findings', () => {
     const page2 = deferred()
     const reloaded = deferred()
     let calls = 0
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef, cursor) => {
       calls += 1
       if (!cursor) {
         return calls <= 1
@@ -1068,7 +1085,7 @@ describe('hub findings', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -1110,7 +1127,7 @@ describe('hub findings', () => {
     })
     expect(result.current.folder.items.some((item) => item.ref === 'stale-2')).toBe(false)
 
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef, cursor) => {
       if (!cursor) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [{ ...sampleItem, ref: 'fresh-1', name: 'Atual.pdf' }], nextCursor: 'c2' }
       }
@@ -1122,7 +1139,7 @@ describe('hub findings', () => {
     })
     expect(result.current.folder.isFetchingNextPage).toBe(false)
 
-    hubApiMock.listFolder.mockImplementation(async (providerId, folderRef, cursor) => {
+    hubApiMock.listFolder.mockImplementation(async (connectionId, folderRef, cursor) => {
       if (!cursor) {
         return { folder: { ref: null, name: 'OneDrive', ancestry: [] }, items: [{ ...sampleItem, ref: 'fresh-1', name: 'Atual.pdf' }], nextCursor: 'c2' }
       }
@@ -1158,7 +1175,7 @@ describe('hub findings', () => {
     })
 
     await act(async () => {
-      await result.current.actions.recordRecent({ providerId: 'onedrive', ref: 'new' })
+      await result.current.actions.recordRecent({ connectionId: 'conn-1', ref: 'new' })
     })
 
     expect(result.current.recents.status).toBe('loading')
@@ -1211,7 +1228,7 @@ describe('hub findings', () => {
     const calls = hubApiMock.listRecents.mock.calls.length
 
     await act(async () => {
-      await result.current.actions.recordRecent({ providerId: 'onedrive', ref: 'b' })
+      await result.current.actions.recordRecent({ connectionId: 'conn-1', ref: 'b' })
     })
 
     expect(result.current.recents.entries.map((entry) => entry.ref)).toEqual(['b', 'a'])
@@ -1233,5 +1250,190 @@ describe('hub findings', () => {
     })
 
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:signed-in'))
+  })
+})
+
+describe('several accounts of one provider', () => {
+  const second = {
+    connectionId: 'conn-2', provider: 'onedrive', providerName: 'OneDrive', account: { email: 'b@outlook.com' },
+    generation: 5, operationsEnabled: false,
+  }
+  const twoAccounts = () => [{ ...oneDriveRow, connections: [oneDriveConnection, second] }]
+  const dropboxRow = {
+    id: 'dropbox', name: 'Dropbox', configured: true, connected: true,
+    connections: [{ connectionId: 'conn-d', provider: 'dropbox', providerName: 'Dropbox', account: { email: 'c@x.com' }, generation: 1, operationsEnabled: false }],
+  }
+  const listing = (connectionId) => ({
+    folder: { ref: null, name: 'Raiz', ancestry: [], connectionId },
+    items: [{ ...sampleItem, connectionId, name: `Arquivo de ${connectionId}` }],
+    nextCursor: null,
+  })
+
+  it('lists the accounts flat, in provider order and oldest first', async () => {
+    hubApiMock.listProviders.mockResolvedValue([{ ...twoAccounts()[0] }, dropboxRow])
+    const { result } = renderHook(
+      () => ({ connections: useConnections(), one: useConnection('conn-2'), none: useConnection('missing'), providers: useProviders() }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => expect(result.current.connections.status).toBe('ready'))
+    expect(result.current.connections.connections.map((connection) => connection.connectionId)).toEqual(['conn-1', 'conn-2', 'conn-d'])
+    expect(result.current.one.connection).toMatchObject({ connectionId: 'conn-2', provider: 'onedrive', generation: 5 })
+    expect(result.current.none.connection).toBeNull()
+    expect(result.current.providers.providers[0].connections).toHaveLength(2)
+  })
+
+  it('keeps the same ref of two accounts apart in every cache', async () => {
+    hubApiMock.listProviders.mockResolvedValue(twoAccounts())
+    hubApiMock.listFolder.mockImplementation(async (connectionId) => listing(connectionId))
+    const { result } = renderHook(
+      () => ({ first: useFolder('conn-1', null), second: useFolder('conn-2', null), item: useItem('conn-2', 'file-1') }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => {
+      expect(result.current.first.status).toBe('ready')
+      expect(result.current.second.status).toBe('ready')
+    })
+    expect(result.current.first.items.map((item) => item.name)).toEqual(['Arquivo de conn-1'])
+    expect(result.current.second.items.map((item) => item.name)).toEqual(['Arquivo de conn-2'])
+    expect(hubApiMock.listFolder).toHaveBeenCalledWith('conn-1', null, null)
+    expect(hubApiMock.listFolder).toHaveBeenCalledWith('conn-2', null, null)
+    expect(result.current.item.item?.name).toBe('Arquivo de conn-2')
+  })
+
+  it('forwards addAccount when connecting another account', async () => {
+    hubApiMock.connectProvider.mockResolvedValue({ authorizationUrl: 'about:blank#oauth' })
+    const { result } = renderHook(() => useConnections(), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    await act(async () => {
+      await result.current.connect('onedrive', '/settings', { addAccount: true }).catch(() => {})
+    })
+    expect(hubApiMock.connectProvider).toHaveBeenCalledWith('onedrive', '/settings', { addAccount: true })
+  })
+
+  it('disconnecting a provider purges every one of its accounts and tells the other tabs per account', async () => {
+    hubApiMock.listProviders.mockResolvedValue([...twoAccounts(), dropboxRow])
+    hubApiMock.listFolder.mockImplementation(async (connectionId) => listing(connectionId))
+    hubApiMock.listRecents.mockResolvedValue([
+      { ...sampleItem, connectionId: 'conn-1' }, { ...sampleItem, connectionId: 'conn-2' },
+      { ...sampleItem, connectionId: 'conn-d', provider: 'dropbox' },
+    ])
+    hubApiMock.listShortcuts.mockResolvedValue([])
+    hubApiMock.listPublicLinks.mockResolvedValue([])
+    hubApiMock.disconnectProvider.mockResolvedValue([{ ...oneDriveRow, connected: false, connections: [] }, dropboxRow])
+    const { result } = renderHook(
+      () => ({ one: useFolder('conn-1', null), two: useFolder('conn-2', null), drop: useFolder('conn-d', null), providers: useProviders(), recents: useRecents() }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => {
+      expect(result.current.one.status).toBe('ready')
+      expect(result.current.two.status).toBe('ready')
+      expect(result.current.drop.status).toBe('ready')
+      expect(result.current.providers.status).toBe('ready')
+      expect(result.current.recents.entries).toHaveLength(3)
+    })
+    hubApiMock.listFolder.mockRejectedValue(new ApiClientError('Gone', { code: 'ERRO', status: 400 }))
+    hubApiMock.listRecents.mockResolvedValue([{ ...sampleItem, connectionId: 'conn-d', provider: 'dropbox' }])
+    broadcastHubEvent.mockClear()
+
+    await act(async () => {
+      await result.current.providers.disconnect('onedrive')
+    })
+
+    expect(hubApiMock.disconnectProvider).toHaveBeenCalledWith('onedrive')
+    await waitFor(() => {
+      expect(result.current.one.items).toHaveLength(0)
+      expect(result.current.two.items).toHaveLength(0)
+    })
+    expect(result.current.drop.items).toHaveLength(1)
+    const events = broadcastHubEvent.mock.calls.map(([event]) => event).filter((event) => event.scope === 'connection')
+    expect(events.map((event) => event.connectionId).sort()).toEqual(['conn-1', 'conn-2'])
+  })
+
+  it('disconnecting one account leaves the other account of the provider alone', async () => {
+    hubApiMock.listProviders.mockResolvedValue(twoAccounts())
+    hubApiMock.listFolder.mockImplementation(async (connectionId) => listing(connectionId))
+    hubApiMock.listRecents.mockResolvedValue([])
+    hubApiMock.listShortcuts.mockResolvedValue([])
+    hubApiMock.listPublicLinks.mockResolvedValue([])
+    hubApiMock.disconnectConnection.mockResolvedValue([{ ...oneDriveRow, connections: [second] }])
+    const { result } = renderHook(
+      () => ({ one: useFolder('conn-1', null), two: useFolder('conn-2', null), connections: useConnections() }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => {
+      expect(result.current.one.status).toBe('ready')
+      expect(result.current.two.status).toBe('ready')
+      expect(result.current.connections.status).toBe('ready')
+    })
+    hubApiMock.listFolder.mockRejectedValue(new ApiClientError('Gone', { code: 'ERRO', status: 400 }))
+
+    await act(async () => {
+      await result.current.connections.disconnect('conn-1')
+    })
+
+    expect(hubApiMock.disconnectConnection).toHaveBeenCalledWith('conn-1')
+    expect(hubApiMock.disconnectProvider).not.toHaveBeenCalled()
+    expect(result.current.one.items).toHaveLength(0)
+    expect(result.current.two.items).toHaveLength(1)
+    expect(result.current.connections.connections.map((connection) => connection.connectionId)).toEqual(['conn-2'])
+  })
+
+  it('a reload purges only the accounts that left or came back under a new generation', async () => {
+    const third = { ...second, connectionId: 'conn-3', generation: 1 }
+    hubApiMock.listProviders.mockResolvedValue([{ ...oneDriveRow, connections: [oneDriveConnection, second, third] }])
+    hubApiMock.listFolder.mockImplementation(async (connectionId) => listing(connectionId))
+    const { result } = renderHook(
+      () => ({ one: useFolder('conn-1', null), two: useFolder('conn-2', null), three: useFolder('conn-3', null), connections: useConnections() }),
+      { wrapper: createWrapper() },
+    )
+    await waitFor(() => {
+      expect(result.current.one.status).toBe('ready')
+      expect(result.current.two.status).toBe('ready')
+      expect(result.current.three.status).toBe('ready')
+    })
+    hubApiMock.listFolder.mockRejectedValue(new ApiClientError('Gone', { code: 'ERRO', status: 400 }))
+    // conn-1 is gone, conn-2 was reconnected (new generation), conn-3 is untouched.
+    hubApiMock.listProviders.mockResolvedValue([{ ...oneDriveRow, connections: [{ ...second, generation: 6 }, third] }])
+
+    await act(async () => {
+      await result.current.connections.reload({ force: true })
+    })
+
+    expect(result.current.one.items).toHaveLength(0)
+    expect(result.current.two.items).toHaveLength(0)
+    expect(result.current.three.items).toHaveLength(1)
+  })
+
+  it('names the real provider on the read descriptor, whatever the connection is called', async () => {
+    hubApiMock.listProviders.mockResolvedValue(twoAccounts())
+    hubApiMock.getReadSource.mockResolvedValue({
+      mode: 'pdf', url: '/t', revision: 'r-1', connectionId: 'conn-2', generation: 5,
+      authorizedUntil: new Date(Date.now() + 60_000).toISOString(), expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    })
+    const { result } = renderHook(() => ({ connections: useConnections(), actions: useHubActions() }), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.connections.status).toBe('ready'))
+    let descriptor
+    await act(async () => {
+      descriptor = await result.current.actions.getReadSource({ connectionId: 'conn-2', ref: 'file-1' })
+    })
+    expect(hubApiMock.getReadSource).toHaveBeenCalledWith('conn-2', 'file-1')
+    expect(descriptor).toMatchObject({ connectionId: 'conn-2', provider: 'onedrive', providerId: 'onedrive' })
+  })
+
+  it('fetches the account picture by connection and generation', async () => {
+    const blob = new Blob(['x'])
+    hubApiMock.getConnectionAvatar.mockResolvedValue(blob)
+    const { result } = renderHook(() => useHubActions(), { wrapper: createWrapper() })
+    await expect(result.current.getConnectionAvatar('conn-2', 5)).resolves.toBe(blob)
+    expect(hubApiMock.getConnectionAvatar).toHaveBeenCalledWith('conn-2', 5)
+  })
+
+  it('shortcuts stay per account', async () => {
+    hubApiMock.listProviders.mockResolvedValue(twoAccounts())
+    hubApiMock.listShortcuts.mockResolvedValue([{ ...sampleItem, connectionId: 'conn-1' }])
+    const { result } = renderHook(() => useShortcuts(), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+    expect(result.current.isShortcut('conn-1', 'file-1')).toBe(true)
+    expect(result.current.isShortcut('conn-2', 'file-1')).toBe(false)
   })
 })

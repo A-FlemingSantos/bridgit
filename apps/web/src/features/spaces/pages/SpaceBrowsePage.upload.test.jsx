@@ -9,7 +9,9 @@ vi.mock('../../../shared/hub/index.js', () => ({
   useFolder: vi.fn(),
   useHubActions: vi.fn(),
   usePublicLinks: () => ({ status: 'ready', entries: [] }),
-  useProviders: vi.fn(),
+  useConnections: vi.fn(),
+  // The sidebar inside the page shell reads the provider rows.
+  useProviders: () => ({ providers: [], status: 'ready' }),
   useShortcuts: vi.fn(),
 }))
 
@@ -21,13 +23,13 @@ vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
   useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
 }))
 
-import { useFolder, useHubActions, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { useConnections, useFolder, useHubActions, useShortcuts } from '../../../shared/hub/index.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
 function setup({ uploadFiles }) {
-  useProviders.mockReturnValue({
-    providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
+  useConnections.mockReturnValue({
+    connections: [{ connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive' }],
     status: 'ready',
   })
   useShortcuts.mockReturnValue({ status: 'ready', entries: [], isShortcut: () => false })
@@ -45,9 +47,9 @@ function setup({ uploadFiles }) {
 
 function renderPage() {
   return render(
-    <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+    <MemoryRouter {...router} initialEntries={['/drives/conn-1']}>
       <Routes>
-        <Route path="/providers/:provider" element={<SpaceBrowsePage />} />
+        <Route path="/drives/:connectionId" element={<SpaceBrowsePage />} />
       </Routes>
     </MemoryRouter>,
   )

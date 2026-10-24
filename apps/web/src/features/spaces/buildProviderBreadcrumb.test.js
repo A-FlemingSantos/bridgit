@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { buildProviderBreadcrumbItems, childFolderTrail } from './buildProviderBreadcrumb.js'
 
-const provider = { id: 'onedrive', name: 'OneDrive' }
+const connection = { connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive' }
 
 describe('buildProviderBreadcrumbItems', () => {
   it('marca o provedor como atual na raiz', () => {
-    const items = buildProviderBreadcrumbItems({ provider, folder: { ref: null, name: 'OneDrive', ancestry: [] } })
+    const items = buildProviderBreadcrumbItems({ connection, folder: { ref: null, name: 'OneDrive', ancestry: [] } })
 
     expect(items.map((item) => item.label)).toEqual(['Início', 'OneDrive'])
     expect(items.at(-1).current).toBe(true)
@@ -13,7 +13,7 @@ describe('buildProviderBreadcrumbItems', () => {
 
   it('mostra a própria pasta como atual numa pasta da raiz', () => {
     const items = buildProviderBreadcrumbItems({
-      provider,
+      connection,
       folder: { ref: 'docs', name: 'Documentos', ancestry: [] },
     })
 
@@ -24,7 +24,7 @@ describe('buildProviderBreadcrumbItems', () => {
 
   it('lista as pastas acima e passa o caminho adiante', () => {
     const folder = { ref: 'rel', name: 'Relatórios', ancestry: [{ ref: 'docs', name: 'Documentos' }] }
-    const items = buildProviderBreadcrumbItems({ provider, folder })
+    const items = buildProviderBreadcrumbItems({ connection, folder })
 
     expect(items.map((item) => item.label)).toEqual(['Início', 'OneDrive', 'Documentos', 'Relatórios'])
     expect(items[2].state).toEqual({ folderName: 'Documentos', folderTrail: [] })
@@ -32,5 +32,24 @@ describe('buildProviderBreadcrumbItems', () => {
       { ref: 'docs', name: 'Documentos' },
       { ref: 'rel', name: 'Relatórios' },
     ])
+  })
+
+  it('aponta cada nível para a conta, não para o provedor', () => {
+    const folder = { ref: 'rel', name: 'Relatórios', ancestry: [{ ref: 'docs', name: 'Documentos' }] }
+    const items = buildProviderBreadcrumbItems({ connection, folder })
+
+    expect(items[1]).toMatchObject({ to: '/drives/conn-1', providerId: 'onedrive' })
+    expect(items[2].to).toBe('/drives/conn-1/folder/docs')
+  })
+
+  it('usa o rótulo da conta quando o provedor tem mais de uma', () => {
+    const items = buildProviderBreadcrumbItems({
+      connection,
+      rootLabel: 'OneDrive · ana@mail.com',
+      folder: { ref: null, name: 'OneDrive', ancestry: [] },
+    })
+
+    expect(items.map((item) => item.label)).toEqual(['Início', 'OneDrive · ana@mail.com'])
+    expect(items[1].providerId).toBe('onedrive')
   })
 })

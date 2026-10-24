@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { previewSettling } from './thumbnailEligibility.js'
+import { previewSettling, thumbnailEligible } from './thumbnailEligibility.js'
 
 describe('previewSettling', () => {
   const now = Date.parse('2026-10-21T12:00:00Z')
@@ -12,5 +12,15 @@ describe('previewSettling', () => {
 
   it('never holds other files', () => {
     expect(previewSettling({ mimeType: 'application/pdf', modifiedAt: '2026-10-21T11:59:00Z' }, now)).toBe(false)
+  })
+})
+
+describe('thumbnailEligible', () => {
+  it('decides by the kind of cloud, not by the account', () => {
+    const text = { kind: 'file', extension: 'txt' }
+    expect(thumbnailEligible('dropbox', text)).toBe(false)
+    expect(thumbnailEligible('google-drive', text)).toBe(true)
+    expect(thumbnailEligible('4f0c9a52-6f0e-4a55-9e56-1b6a8f3d2c10', text)).toBe(false)
+    expect(thumbnailEligible('dropbox', { kind: 'file', extension: 'jpg', size: 1024 })).toBe(true)
   })
 })

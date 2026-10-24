@@ -6,7 +6,7 @@ import { useLocationPicker } from '../../features/spaces/components/LocationPick
 import { getSpace } from './hubStore.js'
 import { hubErrorMessage } from './hubErrorMessage.js'
 import { useHub } from './HubState.jsx'
-import { useHubActions, useProviders } from '../hub/index.js'
+import { useConnections, useHubActions } from '../hub/index.js'
 import SpaceComposer from '../../features/spaces/components/SpaceComposer/SpaceComposer.jsx'
 
 export default function HubOverlays() {
@@ -66,7 +66,7 @@ function splitExtension(name) {
 function NameOverlay({ overlay }) {
   const { state, dispatch, closeOverlay } = useHub()
   const actions = useHubActions()
-  const { providers } = useProviders()
+  const { connections } = useConnections()
   const space = overlay.spaceId ? getSpace(state, overlay.spaceId) : null
   const renaming = overlay.mode === 'rename'
   const renamingFile = renaming && overlay.kind === 'file'
@@ -82,7 +82,8 @@ function NameOverlay({ overlay }) {
           ? 'Documento'
           : 'Pasta sem título'
   const [value, setValue] = useState(initial)
-  const [providerId, setProviderId] = useState(overlay.providerId ?? null)
+  // The account the item is created in (or already belongs to); asked first when the overlay opens without one.
+  const [connectionId, setConnectionId] = useState(overlay.connectionId ?? null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
@@ -98,15 +99,14 @@ function NameOverlay({ overlay }) {
     activeRef.current = true
     return () => { activeRef.current = false }
   }, [])
-  const needsProvider =
-    !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.providerId
+  const needsConnection =
+    !renaming && (overlay.kind === 'folder' || overlay.kind === 'file') && !overlay.connectionId
 
   const title =
     overlay.kind === 'space' || renaming ? 'Renomear' : overlay.kind === 'file' ? 'Novo arquivo' : 'Nova pasta'
   const label = overlay.kind === 'file' ? 'Nome do arquivo' : 'Nome'
   const submitLabel = overlay.kind === 'space' || renaming ? 'Salvar' : 'Criar'
-  const provider = providerId ? providers.find((item) => item.id === providerId) : null
-  const connectedProviders = providers.filter((item) => item.connected)
+  const connection = connectionId ? connections.find((item) => item.connectionId === connectionId) : null
   const thing = overlay.kind === 'file' ? 'o arquivo' : 'a pasta'
 
   async function submit() {
@@ -118,7 +118,7 @@ function NameOverlay({ overlay }) {
       return
     }
 
-    if (!providerId && needsProvider) return
+    if (!connectionId && needsConnection) return
 
     setPending(true)
     setError(null)
@@ -126,15 +126,15 @@ function NameOverlay({ overlay }) {
     try {
       if (renamingFile) {
         await actions.renameItem({
-          providerId: overlay.providerId,
+          connectionId: overlay.connectionId,
           ref: overlay.ref,
           name: name.toLowerCase().endsWith(fileExtension.toLowerCase()) ? name : `${name}${fileExtension}`,
         })
       } else if (renaming && overlay.kind === 'folder') {
-        await actions.renameItem({ providerId: overlay.providerId, ref: overlay.ref, name })
+        await actions.renameItem({ connectionId: overlay.connectionId, ref: overlay.ref, name })
       } else if (overlay.kind === 'folder') {
         await actions.createFolder({
-          providerId,
+          connectionId,
           parentRef: overlay.folderRef ?? null,
           name,
           onAccepted: closeOnce,
@@ -142,7 +142,7 @@ function NameOverlay({ overlay }) {
       } else if (overlay.kind === 'file') {
         // A new file is an empty upload: the providers have no separate "create" call.
         await actions.uploadFiles({
-          providerId,
+          connectionId,
           parentRef: overlay.folderRef ?? null,
           files: [new File([], name)],
         })
@@ -157,12 +157,12 @@ function NameOverlay({ overlay }) {
 
   return (
     <AppOverlay
-      title={!provider && needsProvider ? `Onde criar ${thing}?` : title}
+      title={!connection && needsConnection ? `Onde criar ${thing}?` : title}
       onClose={closeOverlay}
       compact
     >
-      {needsProvider && !provider ? (
-        <ProviderStrip providers={connectedProviders} onPick={setProviderId} />
+      {needsConnection && !connection ? (
+        <ProviderStrip providers={connections} onPick={setConnectionId} />
       ) : (
         <form
           className={styles.form}
@@ -210,7 +210,7 @@ function NameOverlay({ overlay }) {
           <button
             type="submit"
             className={styles.primary}
-            disabled={!value.trim() || (needsProvider && !providerId) || pending}
+            disabled={!value.trim() || (needsConnection && !connectionId) || pending}
           >
             {submitLabel}
           </button>
@@ -224,8 +224,8 @@ function NameOverlay({ overlay }) {
 function MoveOverlay({ overlay }) {
   const { closeOverlay } = useHub()
   const actions = useHubActions()
-  const { providers } = useProviders()
-  const provider = providers.find((item) => item.id === overlay.providerId)
+  const { connections } = useConnections()
+  const connection = connections.find((item) => item.connectionId === overlay.connectionId)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const activeRef = useRef(true)
@@ -244,7 +244,7 @@ function MoveOverlay({ overlay }) {
 
   const picker = useLocationPicker({
     source: 'api',
-    initialProviderId: overlay.providerId ?? null,
+    initialConnectionId: overlay.connectionId ?? null,
     foldersOnly: true,
     allowRoot: true,
     disabledFolderRefs: blockedRefs,
@@ -264,7 +264,7 @@ function MoveOverlay({ overlay }) {
 
     try {
       await Promise.all(entries.map((entry) => actions.moveItem({
-        providerId: overlay.providerId,
+        connectionId: overlay.connectionId,
         ref: entry.ref,
         fromParentRef: entry.parentRef ?? undefined,
         parentRef,
@@ -277,7 +277,7 @@ function MoveOverlay({ overlay }) {
     }
   }
 
-  if (!provider) return null
+  if (!connection) return null
 
   return (
     <AppOverlay
@@ -355,7 +355,7 @@ function ConfirmDeleteEntryOverlay({ overlay }) {
         if (accepted === entries.length) closeOnce()
       }
       await Promise.all(entries.map((entry) => actions.deleteItem({
-        providerId: overlay.providerId,
+        connectionId: overlay.connectionId,
         ref: entry.ref,
         onAccepted,
       })))

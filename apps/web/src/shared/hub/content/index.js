@@ -49,7 +49,8 @@ export function isCacheableContent(descriptor, maxBytes = MAX_CACHED_READ_BYTES)
 }
 
 function supportsProxyFallback(descriptor) {
-  return descriptor?.providerId === 'onedrive' && Boolean(descriptor?.proxyUrl)
+  // The real provider, as the descriptor names it; never the key an account is stored under.
+  return (descriptor?.provider ?? descriptor?.providerId) === 'onedrive' && Boolean(descriptor?.proxyUrl)
 }
 
 async function responseBlob(url, signal) {

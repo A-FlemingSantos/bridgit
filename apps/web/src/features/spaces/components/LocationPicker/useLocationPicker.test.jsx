@@ -5,7 +5,7 @@ import { useLocationPicker } from './useLocationPicker.jsx'
 
 vi.mock('../../../../shared/hub/index.js', () => ({
   useFolder: vi.fn(),
-  useProviders: vi.fn(),
+  useConnections: vi.fn(),
 }))
 
 vi.mock('../../../../shared/state/HubState.jsx', () => ({
@@ -17,9 +17,9 @@ vi.mock('../../folderColors.js', () => ({
   useFolderColors: () => ({ colorOf: () => ({ id: 'carbon', hex: '#4a4a4a' }) }),
 }))
 
-import { useFolder, useProviders } from '../../../../shared/hub/index.js'
+import { useConnections, useFolder } from '../../../../shared/hub/index.js'
 
-const PROVIDERS = [{ id: 'onedrive', name: 'OneDrive' }]
+const CONNECTIONS = [{ connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive' }]
 
 function folderStub(overrides = {}) {
   return {
@@ -39,11 +39,11 @@ let stubs = {}
 
 function setupStubs(next) {
   stubs = next
-  useFolder.mockImplementation((providerId, folderRef) => stubs[folderRef ?? 'root'] ?? folderStub())
+  useFolder.mockImplementation((connectionId, folderRef) => stubs[folderRef ?? 'root'] ?? folderStub())
 }
 
 function Picker(props) {
-  const picker = useLocationPicker({ source: 'api', initialProviderId: 'onedrive', ...props })
+  const picker = useLocationPicker({ source: 'api', initialConnectionId: 'conn-1', ...props })
   return (
     <>
       {picker.body}
@@ -55,7 +55,7 @@ function Picker(props) {
 describe('useApiLocationPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useProviders.mockReturnValue({ providers: PROVIDERS })
+    useConnections.mockReturnValue({ connections: CONNECTIONS })
     setupStubs({ root: folderStub() })
   })
 
@@ -236,6 +236,6 @@ describe('useApiLocationPicker', () => {
     const choose = screen.getByRole('button', { name: 'Escolher' })
     expect(choose).toBeEnabled()
     await user.click(choose)
-    expect(onChoose).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'onedrive' }))
+    expect(onChoose).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'conn-1', providerId: 'onedrive' }))
   })
 })

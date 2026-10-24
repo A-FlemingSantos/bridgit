@@ -65,6 +65,10 @@ function seedAuthenticatedSession(overrides = {}) {
   )
 }
 
+// An account is identified by its connection id; the provider is only how it is named.
+const CONN_OD = 'c0a80101-0000-4000-8000-0000000000a1'
+const CONN_GD = 'c0a80101-0000-4000-8000-0000000000b2'
+
 const testProvidersResponse = [
   {
     id: 'onedrive',
@@ -74,6 +78,19 @@ const testProvidersResponse = [
     account: { email: 'arthur@outlook.com', name: null },
     connectedAt: '2026-01-01T00:00:00.000Z',
     lastError: null,
+    connections: [
+      {
+        connectionId: CONN_OD,
+        provider: 'onedrive',
+        providerName: 'OneDrive',
+        account: { email: 'arthur@outlook.com', name: null },
+        connectedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        lastError: null,
+        generation: 1,
+        operationsEnabled: false,
+      },
+    ],
   },
   {
     id: 'google-drive',
@@ -83,6 +100,19 @@ const testProvidersResponse = [
     account: { email: 'arthur@gmail.com', name: null },
     connectedAt: '2026-01-01T00:00:00.000Z',
     lastError: null,
+    connections: [
+      {
+        connectionId: CONN_GD,
+        provider: 'google-drive',
+        providerName: 'Google Drive',
+        account: { email: 'arthur@gmail.com', name: null },
+        connectedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        lastError: null,
+        generation: 1,
+        operationsEnabled: false,
+      },
+    ],
   },
   {
     id: 'dropbox',
@@ -92,6 +122,7 @@ const testProvidersResponse = [
     account: null,
     connectedAt: null,
     lastError: null,
+    connections: [],
   },
 ]
 
@@ -107,6 +138,7 @@ function createHubTestState() {
     [FOLDER_INOV]: {
       ref: FOLDER_INOV,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Inovações técnicas',
       kind: 'folder',
       parentRef: null,
@@ -114,6 +146,7 @@ function createHubTestState() {
     [FOLDER_REF]: {
       ref: FOLDER_REF,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Referências de código',
       kind: 'folder',
       parentRef: null,
@@ -121,6 +154,7 @@ function createHubTestState() {
     [FOLDER_REL]: {
       ref: FOLDER_REL,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Relatórios',
       kind: 'folder',
       parentRef: FOLDER_INOV,
@@ -128,6 +162,7 @@ function createHubTestState() {
     [FILE_REL]: {
       ref: FILE_REL,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Relatório 2023',
       kind: 'file',
       parentRef: null,
@@ -137,6 +172,7 @@ function createHubTestState() {
     [FILE_ANALISE]: {
       ref: FILE_ANALISE,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Análise de desempenho',
       kind: 'file',
       parentRef: null,
@@ -146,6 +182,7 @@ function createHubTestState() {
     [FILE_RASCUNHO]: {
       ref: FILE_RASCUNHO,
       provider: 'onedrive',
+      connectionId: CONN_OD,
       name: 'Rascunho',
       kind: 'file',
       parentRef: FOLDER_REL,
@@ -155,16 +192,17 @@ function createHubTestState() {
   }
 
   const children = {
-    'onedrive:root': [FOLDER_INOV, FOLDER_REF, FILE_REL, FILE_ANALISE],
-    [`onedrive:${FOLDER_INOV}`]: [FOLDER_REL],
-    [`onedrive:${FOLDER_REL}`]: [FILE_RASCUNHO],
-    [`onedrive:${FOLDER_REF}`]: [],
+    [`${CONN_OD}:root`]: [FOLDER_INOV, FOLDER_REF, FILE_REL, FILE_ANALISE],
+    [`${CONN_OD}:${FOLDER_INOV}`]: [FOLDER_REL],
+    [`${CONN_OD}:${FOLDER_REL}`]: [FILE_RASCUNHO],
+    [`${CONN_OD}:${FOLDER_REF}`]: [],
   }
 
-  const shortcuts = [{ provider: 'onedrive', ref: FILE_REL, name: 'Relatório 2023', extension: 'pdf', mimeType: 'application/pdf' }]
+  const shortcuts = [{ provider: 'onedrive', connectionId: CONN_OD, ref: FILE_REL, name: 'Relatório 2023', extension: 'pdf', mimeType: 'application/pdf' }]
   const recents = [
     {
       provider: 'onedrive',
+      connectionId: CONN_OD,
       ref: FILE_ANALISE,
       name: 'Análise de desempenho',
       extension: 'pdf',
@@ -187,8 +225,8 @@ function createHubTestState() {
     return chain
   }
 
-  function listFolder(provider, parentRef) {
-    const key = `${provider}:${parentRef ?? 'root'}`
+  function listFolder(connectionId, parentRef) {
+    const key = `${connectionId}:${parentRef ?? 'root'}`
     const refs = children[key] ?? []
     const ancestry = parentRef ? [...ancestryFor(parentRef), { ref: parentRef, name: items[parentRef].name }] : []
     return {
@@ -200,9 +238,9 @@ function createHubTestState() {
     }
   }
 
-  function getItem(provider, ref) {
+  function getItem(connectionId, ref) {
     const item = items[ref]
-    if (!item || item.provider !== provider) return null
+    if (!item || item.connectionId !== connectionId) return null
     return { ...item, ancestry: ancestryFor(ref) }
   }
 
@@ -231,9 +269,9 @@ function resetHubTestState() {
 }
 
 function parseHubPath(path) {
-  const providerItems = path.match(/^\/api\/providers\/([^/]+)\/items(?:\/(.+))?$/)
-  if (providerItems) {
-    return { type: 'items', provider: decodeURIComponent(providerItems[1]), ref: providerItems[2] ? decodeURIComponent(providerItems[2]) : null }
+  const connectionItems = path.match(/^\/api\/connections\/([^/]+)\/items(?:\/(.+))?$/)
+  if (connectionItems) {
+    return { type: 'items', connectionId: decodeURIComponent(connectionItems[1]), ref: connectionItems[2] ? decodeURIComponent(connectionItems[2]) : null }
   }
   const providerRoot = path.match(/^\/api\/providers\/([^/]+)$/)
   if (providerRoot) {
@@ -275,6 +313,7 @@ async function resolveAuthenticatedApiRequest(path, options = {}) {
   if (path === '/api/hub/public-links') {
     return Object.entries(hubTestState.publicLinks).map(([ref, link]) => ({
       provider: 'onedrive',
+      connectionId: CONN_OD,
       ref,
       kind: 'file',
       name: hubTestState.items[ref]?.name ?? ref,
@@ -286,17 +325,17 @@ async function resolveAuthenticatedApiRequest(path, options = {}) {
   if (path === '/api/search') {
     return {
       results: [hubTestState.items[FILE_ANALISE]],
-      providers: [{ id: 'onedrive', ok: true, error: null }],
+      providers: [{ id: 'onedrive', connectionId: CONN_OD, ok: true, error: null }],
     }
   }
 
   const parsed = parseHubPath(path)
   if (parsed.type === 'items' && !parsed.ref && method === 'GET') {
     const parentRef = options.query?.parent ?? null
-    return hubTestState.listFolder(parsed.provider, parentRef || null)
+    return hubTestState.listFolder(parsed.connectionId, parentRef || null)
   }
   if (parsed.type === 'items' && parsed.ref && method === 'GET') {
-    const item = hubTestState.getItem(parsed.provider, parsed.ref)
+    const item = hubTestState.getItem(parsed.connectionId, parsed.ref)
     if (!item) {
       throw new ApiClientError('Not found', { code: 'NAO_ENCONTRADO', status: 404 })
     }
@@ -311,8 +350,8 @@ async function resolveAuthenticatedApiRequest(path, options = {}) {
     if (options.body?.parentRef !== undefined) {
       const oldParent = item.parentRef
       const newParent = options.body.parentRef === '' ? null : options.body.parentRef || null
-      const oldKey = `${parsed.provider}:${oldParent ?? 'root'}`
-      const newKey = `${parsed.provider}:${newParent ?? 'root'}`
+      const oldKey = `${parsed.connectionId}:${oldParent ?? 'root'}`
+      const newKey = `${parsed.connectionId}:${newParent ?? 'root'}`
       hubTestState.children[oldKey] = (hubTestState.children[oldKey] ?? []).filter((ref) => ref !== parsed.ref)
       hubTestState.children[newKey] = [...(hubTestState.children[newKey] ?? []), parsed.ref]
       item.parentRef = newParent
@@ -321,7 +360,7 @@ async function resolveAuthenticatedApiRequest(path, options = {}) {
   }
   if (parsed.type === 'items' && parsed.ref && method === 'DELETE') {
     const item = hubTestState.items[parsed.ref]
-    const parentKey = `${parsed.provider}:${item.parentRef ?? 'root'}`
+    const parentKey = `${parsed.connectionId}:${item.parentRef ?? 'root'}`
     hubTestState.children[parentKey] = (hubTestState.children[parentKey] ?? []).filter((ref) => ref !== parsed.ref)
     delete hubTestState.items[parsed.ref]
     return { ok: true }
@@ -454,20 +493,20 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
     const devicesHeading = screen.getByRole('heading', { name: 'Dispositivos' })
-    const providersHeading = screen.getByRole('heading', { name: 'Provedores' })
+    const providersHeading = screen.getByRole('heading', { name: 'Minhas contas' })
     expect(devicesHeading.compareDocumentPosition(providersHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'OneDrive Conectado' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toHaveAttribute(
       'href',
-      '/providers/onedrive',
+      `/drives/${CONN_OD}`,
     )
     expect(screen.getByText('arthur@outlook.com')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Dropbox Desconectado' })).toBeInTheDocument()
     const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
-    expect(recentLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_ANALISE}`)
+    expect(recentLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(recentLink).not.toHaveAttribute('target')
     expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
   })
@@ -490,7 +529,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('link', { name: 'Análise de desempenho' }))
 
     expect(await screen.findByRole('dialog', { name: 'Análise de desempenho' })).toBeInTheDocument()
-    expect(lastLocation?.pathname).toBe(`/providers/onedrive/file/${FILE_ANALISE}`)
+    expect(lastLocation?.pathname).toBe(`/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(lastLocation?.state?.backgroundLocation?.pathname).toBe('/home')
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
 
@@ -520,7 +559,7 @@ describe('App', () => {
     expect(device).toHaveTextContent('DESKTOP-6K2J8M1')
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'OneDrive Conectado' }))
+    await user.click(screen.getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' }))
     expect(await screen.findByRole('heading', { name: 'Dispositivos' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
   })
@@ -730,7 +769,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -748,7 +787,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -769,7 +808,7 @@ describe('App', () => {
     setupAuthenticatedApi()
     hubTestState.renameShouldFail = true
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -787,7 +826,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -817,7 +856,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -884,7 +923,7 @@ describe('App', () => {
   it('mostra so o nome de um arquivo aninhado, sem as pastas ancestrais', async () => {
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}/file/f2b8d4c1-7e50-4a91-8c36-1d9e5a0b7f24`]}>
         <App />
       </MemoryRouter>,
     )
@@ -897,7 +936,7 @@ describe('App', () => {
   it('mostra a lista de um provedor', async () => {
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -911,18 +950,83 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
     expect(within(screen.getByRole('main')).getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
       'href',
-      '/providers/onedrive/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334',
+      `/drives/${CONN_OD}/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334`,
     )
     const fileLink = await within(screen.getByRole('main')).findByRole('link', { name: /Relatório 2023/ })
-    expect(fileLink).toHaveAttribute('href', `/providers/onedrive/file/${FILE_REL}`)
+    expect(fileLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_REL}`)
     expect(fileLink).not.toHaveAttribute('target')
+  })
+
+  it('leva o link antigo por provedor à conta mais antiga, na mesma pasta ou arquivo', async () => {
+    let lastLocation = null
+    function LocationProbe() {
+      lastLocation = useLocation()
+      return null
+    }
+    const second = { ...testProvidersResponse[0].connections[0], connectionId: 'c0a80101-0000-4000-8000-0000000000c3', account: { email: 'outra@outlook.com', name: null } }
+    testProvidersResponse[0].connections.push(second)
+    try {
+      for (const [legacy, expected] of [
+        ['/providers/onedrive', `/drives/${CONN_OD}`],
+        [`/providers/onedrive/folder/${FOLDER_INOV}`, `/drives/${CONN_OD}/folder/${FOLDER_INOV}`],
+        [`/providers/onedrive/file/${FILE_REL}`, `/drives/${CONN_OD}/file/${FILE_REL}`],
+      ]) {
+        setupAuthenticatedApi()
+        const view = render(
+          <MemoryRouter {...router} initialEntries={[legacy]}>
+            <App />
+            <LocationProbe />
+          </MemoryRouter>,
+        )
+
+        await waitFor(() => expect(lastLocation?.pathname).toBe(expected))
+        view.unmount()
+      }
+    } finally {
+      testProvidersResponse[0].connections.pop()
+    }
+  })
+
+  it('manda o link antigo de um provedor sem conta para as configurações de provedores', async () => {
+    let lastLocation = null
+    function LocationProbe() {
+      lastLocation = useLocation()
+      return null
+    }
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={['/providers/dropbox/folder/qualquer']}>
+        <App />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(lastLocation?.pathname).toBe('/settings/providers'))
+  })
+
+  it('abre o arquivo de um link antigo acima da página, na conta mais antiga', async () => {
+    let lastLocation = null
+    function LocationProbe() {
+      lastLocation = useLocation()
+      return null
+    }
+    setupAuthenticatedApi()
+    render(
+      <MemoryRouter {...router} initialEntries={[`/providers/onedrive/file/${FILE_ANALISE}`]}>
+        <App />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Análise de desempenho' })).toBeInTheDocument()
+    expect(lastLocation?.pathname).toBe(`/drives/${CONN_OD}/file/${FILE_ANALISE}`)
   })
 
   it('habilita link publico e copia endereco', async () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -942,7 +1046,7 @@ describe('App', () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
-      <MemoryRouter {...router} initialEntries={[`/providers/onedrive/file/${FILE_ANALISE}`]}>
+      <MemoryRouter {...router} initialEntries={[`/drives/${CONN_OD}/file/${FILE_ANALISE}`]}>
         <App />
       </MemoryRouter>,
     )
@@ -1046,7 +1150,7 @@ describe('App', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
-    expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
   })
 
   it('retorna do OAuth com background sobre a página de origem e limpa os params', async () => {
@@ -1063,7 +1167,7 @@ describe('App', () => {
       <MemoryRouter
         {...router}
         initialEntries={[
-          '/settings/providers?provider=onedrive&status=connected&background=%2Fproviders%2Fonedrive',
+          '/settings/providers?provider=onedrive&status=connected&background=%2Fdrives%2Fc0a80101-0000-4000-8000-0000000000a1',
         ]}
       >
         <App />
@@ -1078,7 +1182,7 @@ describe('App', () => {
       expect(lastLocation?.pathname).toBe('/settings/providers')
       expect(lastLocation?.search).toBe('')
     })
-    expect(lastLocation?.state?.backgroundLocation?.pathname).toBe('/providers/onedrive')
+    expect(lastLocation?.state?.backgroundLocation?.pathname).toBe(`/drives/${CONN_OD}`)
   })
 
   it('mostra o cadastro na mesma tela', async () => {
@@ -1120,7 +1224,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     resolveLogin()
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
     })
   })
 
@@ -1157,7 +1261,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
     })
 
     expect(sessionStorage.getItem('bridgit.session')).toBeNull()
@@ -1338,7 +1442,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Provedores' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog', { name: 'Configurações' })).not.toBeInTheDocument()
   })

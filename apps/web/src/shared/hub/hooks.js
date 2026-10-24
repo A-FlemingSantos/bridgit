@@ -13,9 +13,11 @@ import {
   itemCacheKey,
 } from './hubCache.js'
 
-export function useProviders() {
+// Keeps the provider list (and the accounts inside it) loaded and fresh.
+function useProvidersLoaded() {
   const { session } = useSession()
-  const { providersState, loadProviders, connectProvider, disconnectProvider, hydrated } = useHubDataContext()
+  const context = useHubDataContext()
+  const { providersState, loadProviders, hydrated } = context
 
   useEffect(() => {
     if (!session?.accessToken || !hydrated) return
@@ -26,26 +28,56 @@ export function useProviders() {
     }
   }, [hydrated, loadProviders, providersState, session?.accessToken])
 
+  return context
+}
+
+// One row per provider; each row lists its accounts in `connections`.
+export function useProviders() {
+  const { providersState, loadProviders, connectProvider, disconnectProvider, hydrated } = useProvidersLoaded()
+
   return {
     status: hydrated ? providersState.status : 'loading',
     providers: providersState.providers,
     error: providersState.error,
     reload: loadProviders,
+    // connect(providerId, redirectTo, { addAccount }): addAccount links one more account of that provider.
     connect: connectProvider,
+    // Disconnects every account of the provider.
     disconnect: disconnectProvider,
   }
 }
 
-export function useFolder(providerId, folderRef) {
+// The connected accounts, flat: provider order, then oldest first. An account is identified by connectionId.
+export function useConnections() {
+  const { providersState, connections, loadProviders, connectProvider, disconnectConnection, hydrated } = useProvidersLoaded()
+
+  return {
+    status: hydrated ? providersState.status : 'loading',
+    connections,
+    error: providersState.error,
+    reload: loadProviders,
+    connect: connectProvider,
+    // Disconnects that one account only.
+    disconnect: disconnectConnection,
+  }
+}
+
+export function useConnection(connectionId) {
+  const { status, connections, error, reload } = useConnections()
+  const connection = connectionId ? connections.find((item) => item.connectionId === connectionId) ?? null : null
+  return { status, connection, error, reload }
+}
+
+export function useFolder(connectionId, folderRef) {
   const { session } = useSession()
   const { folderCache, loadFolder, hydrated } = useHubDataContext()
-  const key = folderCacheKey(providerId, folderRef)
+  const key = folderCacheKey(connectionId, folderRef)
   const entry = folderCache[key]
 
   useEffect(() => {
-    if (!session?.accessToken || !hydrated || !providerId || isTempRef(folderRef)) return
+    if (!session?.accessToken || !hydrated || !connectionId || isTempRef(folderRef)) return
     if (!entry || entry.status === 'idle') {
-      if (entry?.status !== 'loading') void loadFolder(providerId, folderRef)
+      if (entry?.status !== 'loading') void loadFolder(connectionId, folderRef)
     } else if (
       entry.loaded &&
       entry.status === 'ready' &&
@@ -53,9 +85,9 @@ export function useFolder(providerId, folderRef) {
       !entry.revalidating &&
       !entry.isFetchingNextPage
     ) {
-      void loadFolder(providerId, folderRef)
+      void loadFolder(connectionId, folderRef)
     }
-  }, [hydrated, entry, folderRef, loadFolder, providerId, session?.accessToken])
+  }, [hydrated, entry, folderRef, loadFolder, connectionId, session?.accessToken])
 
   return {
     status: entry?.status ?? 'idle',
@@ -71,28 +103,28 @@ export function useFolder(providerId, folderRef) {
     catalog: entry?.catalog ?? null,
     loadMore() {
       if (!entry?.nextCursor || entry?.isFetchingNextPage) return Promise.resolve()
-      return loadFolder(providerId, folderRef, entry.nextCursor)
+      return loadFolder(connectionId, folderRef, entry.nextCursor)
     },
     reload() {
-      return loadFolder(providerId, folderRef, null, { force: true })
+      return loadFolder(connectionId, folderRef, null, { force: true })
     },
   }
 }
 
-export function useItem(providerId, ref) {
+export function useItem(connectionId, ref) {
   const { session } = useSession()
   const { itemCache, loadItem, hydrated } = useHubDataContext()
-  const key = providerId && ref ? itemCacheKey(providerId, ref) : null
+  const key = connectionId && ref ? itemCacheKey(connectionId, ref) : null
   const entry = key ? itemCache[key] : null
 
   useEffect(() => {
-    if (!session?.accessToken || !hydrated || !providerId || !ref || isTempRef(ref)) return
+    if (!session?.accessToken || !hydrated || !connectionId || !ref || isTempRef(ref)) return
     if (!entry || entry.status === 'idle') {
-      if (entry?.status !== 'loading') void loadItem(providerId, ref)
+      if (entry?.status !== 'loading') void loadItem(connectionId, ref)
     } else if (entry.status === 'ready' && !entry.revalidating && (entry.complete === false || isStaleEntry(entry, ITEM_STALE_MS))) {
-      void loadItem(providerId, ref)
+      void loadItem(connectionId, ref)
     }
-  }, [hydrated, entry, loadItem, providerId, ref, session?.accessToken])
+  }, [hydrated, entry, loadItem, connectionId, ref, session?.accessToken])
 
   return {
     status: entry?.status ?? 'idle',
@@ -100,8 +132,8 @@ export function useItem(providerId, ref) {
     error: entry?.error ?? null,
     parentRef: entry?.parentRef ?? null,
     reload() {
-      if (!providerId || !ref) return
-      void loadItem(providerId, ref)
+      if (!connectionId || !ref) return
+      void loadItem(connectionId, ref)
     },
   }
 }
@@ -146,9 +178,9 @@ export function useShortcuts() {
     entries: shortcutsState.entries,
     error: shortcutsState.error,
     reload: loadShortcuts,
-    isShortcut(providerId, ref) {
+    isShortcut(connectionId, ref) {
       return shortcutsState.entries.some(
-        (entry) => entry.provider === providerId && entry.ref === ref,
+        (entry) => entry.connectionId === connectionId && entry.ref === ref,
       )
     },
   }
@@ -172,9 +204,9 @@ export function usePublicLinks() {
     entries: publicLinksState.entries,
     error: publicLinksState.error,
     reload: loadPublicLinks,
-    isPublic(providerId, ref) {
+    isPublic(connectionId, ref) {
       return publicLinksState.entries.some(
-        (entry) => entry.provider === providerId && entry.ref === ref,
+        (entry) => entry.connectionId === connectionId && entry.ref === ref,
       )
     },
   }

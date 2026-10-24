@@ -103,7 +103,7 @@ export default function SpaceComposer({ overlay }) {
   const picker = useLocationPicker({
     source: 'mock',
     foldersOnly: true,
-    initialProviderId: pickingProviderId,
+    initialConnectionId: pickingProviderId,
     disabledFolderRef: otherFolderRef ?? null,
     resetKey: picking,
     onChoose: (location) => {

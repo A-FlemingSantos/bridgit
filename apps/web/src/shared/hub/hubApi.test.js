@@ -87,17 +87,17 @@ describe('hubApi autorizacao', () => {
     createContentTicket.mockResolvedValue({ url: '/api/content/t3' })
     const api = createHubApi(() => 'token', vi.fn())
 
-    expect(await api.getReadSource('onedrive', 'ref')).toEqual({ url: '/api/content/t1', proxyUrl: '/api/content/t2', revision: 'r1' })
-    expect(await api.createContentTicket('onedrive', 'ref', 'attachment')).toEqual({ url: '/api/content/t3' })
+    expect(await api.getReadSource('connection-a', 'ref')).toEqual({ url: '/api/content/t1', proxyUrl: '/api/content/t2', revision: 'r1' })
+    expect(await api.createContentTicket('connection-a', 'ref', 'attachment')).toEqual({ url: '/api/content/t3' })
 
     vi.stubEnv('VITE_API_BASE_URL', 'https://bridgit-demo.duckdns.org')
     try {
-      expect(await api.getReadSource('onedrive', 'ref')).toEqual({
+      expect(await api.getReadSource('connection-a', 'ref')).toEqual({
         url: 'https://bridgit-demo.duckdns.org/api/content/t1',
         proxyUrl: 'https://bridgit-demo.duckdns.org/api/content/t2',
         revision: 'r1',
       })
-      expect(await api.createContentTicket('onedrive', 'ref', 'attachment')).toEqual({
+      expect(await api.createContentTicket('connection-a', 'ref', 'attachment')).toEqual({
         url: 'https://bridgit-demo.duckdns.org/api/content/t3',
       })
     } finally {
@@ -112,7 +112,7 @@ describe('hubApi autorizacao', () => {
     const gone = new File(['conteudo'], 'atalho.md')
     gone.slice = () => ({ arrayBuffer: () => Promise.reject(new DOMException('A requested file could not be found.', 'NotFoundError')) })
 
-    await expect(api.uploadFile('dropbox', null, gone)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL', status: 400 })
+    await expect(api.uploadFile('connection-b', null, gone)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL', status: 400 })
     expect(uploadFile).not.toHaveBeenCalled()
   })
 
@@ -123,7 +123,7 @@ describe('hubApi autorizacao', () => {
     const shortcut = new File([], 'Hub-nuvem.md')
     shortcut.arrayBuffer = () => Promise.reject(new DOMException('A requested file could not be found.', 'NotFoundError'))
 
-    await expect(api.uploadFile('dropbox', null, shortcut)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL' })
+    await expect(api.uploadFile('connection-b', null, shortcut)).rejects.toMatchObject({ code: 'ARQUIVO_ILEGIVEL' })
     expect(uploadFile).not.toHaveBeenCalled()
   })
 
@@ -132,7 +132,7 @@ describe('hubApi autorizacao', () => {
     uploadFile.mockReset().mockResolvedValue({ ref: 'r2' })
     const api = createHubApi(() => 'token', vi.fn())
 
-    await expect(api.uploadFile('dropbox', null, new File([], 'novo.txt'))).resolves.toEqual({ ref: 'r2' })
+    await expect(api.uploadFile('connection-b', null, new File([], 'novo.txt'))).resolves.toEqual({ ref: 'r2' })
   })
 
   it('envia um arquivo legível depois de ler o primeiro byte', async () => {
@@ -140,7 +140,7 @@ describe('hubApi autorizacao', () => {
     uploadFile.mockReset().mockResolvedValue({ ref: 'r1' })
     const api = createHubApi(() => 'token', vi.fn())
 
-    await expect(api.uploadFile('dropbox', null, new File(['conteudo'], 'nota.md'))).resolves.toEqual({ ref: 'r1' })
+    await expect(api.uploadFile('connection-b', null, new File(['conteudo'], 'nota.md'))).resolves.toEqual({ ref: 'r1' })
     expect(uploadFile).toHaveBeenCalledTimes(1)
   })
 

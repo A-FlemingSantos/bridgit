@@ -38,7 +38,7 @@ const catalog = {
 describe('resolveSpaceViewBreadcrumb', () => {
   it('inclui a cadeia de pastas para um arquivo aninhado', () => {
     const { items } = resolveSpaceViewBreadcrumb(
-      '/providers/onedrive/file/file-nested',
+      '/drives/onedrive/file/file-nested',
       catalog,
     )
 
@@ -50,10 +50,10 @@ describe('resolveSpaceViewBreadcrumb', () => {
       'Rascunho',
     ])
     expect(items.find((item) => item.label === 'Inovações técnicas').to).toBe(
-      '/providers/onedrive/folder/parent',
+      '/drives/onedrive/folder/parent',
     )
     expect(items.find((item) => item.label === 'Relatórios').to).toBe(
-      '/providers/onedrive/folder/nested',
+      '/drives/onedrive/folder/nested',
     )
   })
 
@@ -72,7 +72,7 @@ describe('resolveSpaceViewBreadcrumb', () => {
     }
 
     const { items } = resolveSpaceViewBreadcrumb(
-      '/providers/onedrive/file/file-nested',
+      '/drives/onedrive/file/file-nested',
       catalogWithAncestry,
     )
 
@@ -87,7 +87,7 @@ describe('resolveSpaceViewBreadcrumb', () => {
 
   it('inclui a pasta pai ao abrir uma pasta aninhada', () => {
     const { items } = resolveSpaceViewBreadcrumb(
-      '/providers/onedrive/folder/nested',
+      '/drives/onedrive/folder/nested',
       catalog,
     )
 

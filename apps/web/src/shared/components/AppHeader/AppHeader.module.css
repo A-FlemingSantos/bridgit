@@ -68,11 +68,13 @@
 
 .iconButton:hover,
 .accountButton:hover {
+  --avatar-surface: color-mix(in srgb, var(--ink) 6%, var(--wash));
   color: var(--ink);
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
 .iconButtonActive {
+  --avatar-surface: color-mix(in srgb, var(--ink) 8%, var(--wash));
   color: var(--ink);
   background: color-mix(in srgb, var(--ink) 8%, transparent);
 }

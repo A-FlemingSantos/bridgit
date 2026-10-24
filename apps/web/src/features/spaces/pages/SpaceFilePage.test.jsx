@@ -8,7 +8,9 @@ vi.mock('../../../shared/hub/index.js', () => ({
   useHubActions: vi.fn(),
   useItem: vi.fn(),
   usePublicLinks: () => ({ status: 'ready', entries: [] }),
-  useProviders: vi.fn(),
+  useConnections: vi.fn(),
+  // The sidebar inside the page shell reads the provider rows.
+  useProviders: () => ({ providers: [], status: 'ready' }),
   useShortcuts: vi.fn(),
 }))
 
@@ -20,13 +22,14 @@ vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
   useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
 }))
 
-import { useHubActions, useItem, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { useConnections, useHubActions, useItem, useShortcuts } from '../../../shared/hub/index.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
 const item = {
   ref: 'file-1',
   provider: 'onedrive',
+  connectionId: 'conn-1',
   name: 'Foto.png',
   kind: 'file',
   extension: 'png',
@@ -35,8 +38,8 @@ const item = {
 }
 
 function setup(actions) {
-  useProviders.mockReturnValue({
-    providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
+  useConnections.mockReturnValue({
+    connections: [{ connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive' }],
     status: 'ready',
   })
   useShortcuts.mockReturnValue({ status: 'ready', entries: [], isShortcut: () => false })
@@ -46,9 +49,9 @@ function setup(actions) {
 
 function renderPage() {
   return render(
-    <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/file-1']}>
+    <MemoryRouter {...router} initialEntries={['/drives/conn-1/file/file-1']}>
       <Routes>
-        <Route path="/providers/:provider/file/:fileRef" element={<SpaceFilePage />} />
+        <Route path="/drives/:connectionId/file/:fileRef" element={<SpaceFilePage />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -96,7 +99,7 @@ describe('SpaceFilePage download e leitura', () => {
     await waitFor(() => {
       expect(getDownloadUrl).toHaveBeenCalledTimes(2)
     })
-    expect(getDownloadUrl).toHaveBeenNthCalledWith(1, { providerId: 'onedrive', ref: 'file-1' })
+    expect(getDownloadUrl).toHaveBeenNthCalledWith(1, { connectionId: 'conn-1', ref: 'file-1' })
   })
 
   it('mostra erro de download sem travar o botão', async () => {
@@ -197,7 +200,7 @@ describe('SpaceFilePage download e leitura', () => {
       expect(video.currentTime).toBe(37)
     }
     expect(getReadSource).toHaveBeenCalledTimes(3)
-    expect(getReadSource).toHaveBeenLastCalledWith({ providerId: 'onedrive', ref: 'file-1', refresh: true })
+    expect(getReadSource).toHaveBeenLastCalledWith({ connectionId: 'conn-1', ref: 'file-1', refresh: true })
   })
 
   it('agrupa falhas simultâneas enquanto aguarda a recuperação de um ticket', async () => {
@@ -258,9 +261,9 @@ describe('SpaceFilePage download e leitura', () => {
       reload: vi.fn(),
     })
     view.rerender(
-      <MemoryRouter {...router} initialEntries={['/providers/onedrive/file/file-1']}>
+      <MemoryRouter {...router} initialEntries={['/drives/conn-1/file/file-1']}>
         <Routes>
-          <Route path="/providers/:provider/file/:fileRef" element={<SpaceFilePage />} />
+          <Route path="/drives/:connectionId/file/:fileRef" element={<SpaceFilePage />} />
         </Routes>
       </MemoryRouter>,
     )

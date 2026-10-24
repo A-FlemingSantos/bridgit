@@ -7,12 +7,15 @@ export {
   PROVIDERS_STALE_MS,
   RECENTS_STALE_MS,
   SHORTCUTS_STALE_MS,
+  flattenConnections,
   folderCacheKey,
   isApiClientError,
   isHubSessionFailure,
   itemCacheKey,
 } from './hubCache.js'
 export {
+  useConnection,
+  useConnections,
   useFolder,
   useHubActions,
   useItem,

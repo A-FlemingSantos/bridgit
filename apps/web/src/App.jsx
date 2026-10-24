@@ -11,8 +11,9 @@ import LandingPage from './features/landing/pages/LandingPage.jsx'
 import PublicLinkPage from './features/public-link/pages/PublicLinkPage.jsx'
 import PlaceholderScreen from './screens/PlaceholderScreen.jsx'
 import Spinner from './shared/components/Spinner/Spinner.jsx'
-import { isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
+import { driveFileUrl, driveFolderUrl, driveUrl, isPublicRoute, ROUTES, spaceUrl } from './shared/config/routes.js'
 import { HubDataProvider } from './shared/hub/HubDataProvider.jsx'
+import { useProviders } from './shared/hub/index.js'
 import { HubProvider } from './shared/state/HubState.jsx'
 import HubOverlays from './shared/state/HubOverlays.jsx'
 import OperationNotices from './shared/components/OperationNotices/OperationNotices.jsx'
@@ -76,9 +77,12 @@ function AppShell() {
         <Route path={ROUTES.space} element={<SpaceDetailPage />} />
         <Route path={ROUTES.legacySpace} element={<LegacySpaceRedirect />} />
         <Route path={ROUTES.providers} element={<Navigate to={ROUTES.home} replace />} />
-        <Route path={ROUTES.providerFolder} element={<SpaceBrowsePage />} />
-        <Route path={ROUTES.providerFile} element={<SpaceFilePage />} />
-        <Route path={ROUTES.provider} element={<SpaceBrowsePage />} />
+        <Route path={ROUTES.driveFolder} element={<SpaceBrowsePage />} />
+        <Route path={ROUTES.driveFile} element={<SpaceFilePage />} />
+        <Route path={ROUTES.drive} element={<SpaceBrowsePage />} />
+        <Route path={ROUTES.providerFolder} element={<LegacyProviderRedirect />} />
+        <Route path={ROUTES.providerFile} element={<LegacyProviderRedirect />} />
+        <Route path={ROUTES.provider} element={<LegacyProviderRedirect />} />
         <Route path={ROUTES.privacy} element={<PlaceholderScreen title="Privacidade" />} />
         <Route path={ROUTES.terms} element={<PlaceholderScreen title="Termos" />} />
         <Route path="*" element={<PlaceholderScreen title="Página não encontrada" backLabel="Ir para o início" />} />
@@ -90,7 +94,7 @@ function AppShell() {
       ) : null}
       {fileBackground ? (
         <Routes>
-          <Route path={ROUTES.providerFile} element={<SpaceFilePage overlay />} />
+          <Route path={ROUTES.driveFile} element={<SpaceFilePage overlay />} />
         </Routes>
       ) : null}
       <HubOverlays />
@@ -98,6 +102,34 @@ function AppShell() {
     </HubProvider>
     </HubDataProvider>
   )
+}
+
+// Links made before an account could be told apart name only the provider. They keep working by landing on
+// that provider's oldest account, at the same folder or file.
+function LegacyProviderRedirect() {
+  const { provider, folderRef, fileRef } = useParams()
+  const location = useLocation()
+  const { providers, status } = useProviders()
+
+  if (status === 'idle' || status === 'loading') {
+    return (
+      <div className={styles.boot}>
+        <Spinner />
+      </div>
+    )
+  }
+
+  const oldest = providers.find((row) => row.id === provider)?.connections?.[0] ?? null
+  if (!oldest) {
+    return <Navigate to={ROUTES.settingsProviders} replace />
+  }
+
+  const pathname = fileRef
+    ? driveFileUrl(oldest.connectionId, fileRef)
+    : folderRef
+      ? driveFolderUrl(oldest.connectionId, folderRef)
+      : driveUrl(oldest.connectionId)
+  return <Navigate to={{ pathname, search: location.search, hash: location.hash }} replace state={location.state} />
 }
 
 function LegacySpaceRedirect() {

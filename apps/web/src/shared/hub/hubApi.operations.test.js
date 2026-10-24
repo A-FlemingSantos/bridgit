@@ -5,18 +5,27 @@ import { createHubApi } from './hubApi.js'
 vi.mock('@bridgit/shared-client', async (original) => ({
   ...await original(), submitOperation: vi.fn(), getOperation: vi.fn(),
 }))
-const connection = { connectionId: 'connection', generation: 1, operationsEnabled: true }
+const connection = { connectionId: 'connection', provider: 'onedrive', generation: 1, operationsEnabled: true }
 const request = { provider: 'onedrive', kind: 'CREATE_FOLDER', name: 'Docs' }
-const item = { provider: 'onedrive', ref: 'folder', kind: 'folder', name: 'Docs' }
+const item = { connectionId: 'connection', provider: 'onedrive', ref: 'folder', kind: 'folder', name: 'Docs' }
 beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers() })
 afterEach(() => { vi.useRealTimers() })
 
 describe('durable API operations', () => {
+  it('addresses the work to the account and names its real provider', async () => {
+    const getConnection = vi.fn(() => ({ ...connection, connectionId: 'second-account' }))
+    submitOperation.mockResolvedValue({ id: 'op', status: 'SUCCEEDED', request, item: { ref: 'folder', name: 'Docs' } })
+    const api = createHubApi(() => 'token', vi.fn(), { getConnection, getIdentity: () => 'user' })
+    const created = await api.createFolder('second-account', null, 'Docs')
+    expect(getConnection).toHaveBeenCalledWith('second-account')
+    expect(submitOperation.mock.calls[0][1]).toMatchObject({ provider: 'onedrive', connectionId: 'second-account', generation: 1 })
+    expect(created).toMatchObject({ ref: 'folder', connectionId: 'second-account' })
+  })
   it('retries a lost acceptance with the same idempotency key', async () => {
     submitOperation.mockRejectedValueOnce(new ApiClientError('network', { status: 0 }))
       .mockResolvedValueOnce({ id: 'op', status: 'SUCCEEDED', request, item })
     const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user' })
-    const result = api.createFolder('onedrive', null, 'Docs')
+    const result = api.createFolder('connection', null, 'Docs')
     await vi.advanceTimersByTimeAsync(300)
     await expect(result).resolves.toEqual(item)
     expect(submitOperation).toHaveBeenCalledTimes(2)
@@ -29,7 +38,7 @@ describe('durable API operations', () => {
     const events = vi.fn()
     const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user', onOperation: events })
     let finished = false
-    const result = api.createFolder('onedrive', null, 'Docs').then((value) => { finished = true; return value })
+    const result = api.createFolder('connection', null, 'Docs').then((value) => { finished = true; return value })
     await vi.advanceTimersByTimeAsync(750)
     expect(finished).toBe(false)
     await vi.advanceTimersByTimeAsync(750)
@@ -43,7 +52,7 @@ describe('durable API operations', () => {
     const accepted = vi.fn()
     const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user' })
     let finished = false
-    const result = api.createFolder('onedrive', null, 'Docs', { onAccepted: accepted }).then((value) => { finished = true; return value })
+    const result = api.createFolder('connection', null, 'Docs', { onAccepted: accepted }).then((value) => { finished = true; return value })
     await vi.advanceTimersByTimeAsync(0)
     expect(accepted).toHaveBeenCalledTimes(1)
     expect(finished).toBe(false)
@@ -55,7 +64,7 @@ describe('durable API operations', () => {
     submitOperation.mockResolvedValue({ id: 'op', status: 'REJECTED', request, errorMessage: 'Já existe.' })
     const accepted = vi.fn()
     const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => 'user' })
-    await expect(api.createFolder('onedrive', null, 'Docs', { onAccepted: accepted })).rejects.toThrow('Já existe.')
+    await expect(api.createFolder('connection', null, 'Docs', { onAccepted: accepted })).rejects.toThrow('Já existe.')
     expect(accepted).not.toHaveBeenCalled()
   })
   it('rejects a late result from another authenticated identity', async () => {
@@ -63,7 +72,7 @@ describe('durable API operations', () => {
     let resolve
     submitOperation.mockImplementation(() => new Promise((done) => { resolve = done }))
     const api = createHubApi(() => 'token', vi.fn(), { getConnection: () => connection, getIdentity: () => identity })
-    const result = api.createFolder('onedrive', null, 'Docs')
+    const result = api.createFolder('connection', null, 'Docs')
     const assertion = expect(result).rejects.toMatchObject({ code: 'RESPOSTA_OBSOLETA' })
     identity = 'user-b'
     resolve({ id: 'op', status: 'SUCCEEDED', request, item })

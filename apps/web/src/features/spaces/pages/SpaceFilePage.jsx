@@ -8,10 +8,10 @@ import FileOverlay from '../components/FileOverlay/FileOverlay.jsx'
 import FileSheet from '../components/FileSheet/FileSheet.jsx'
 import {
   ROUTES,
-  providerFolderUrl,
-  providerUrl,
+  driveFolderUrl,
+  driveUrl,
 } from '../../../shared/config/routes.js'
-import { useHubActions, useItem, useProviders, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
+import { useConnections, useHubActions, useItem, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
 import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -24,17 +24,17 @@ import styles from './SpaceFilePage.module.css'
 
 // `overlay`: the file opens above the page it was opened from, as the settings panel does.
 export default function SpaceFilePage({ overlay = false }) {
-  const { fileRef, provider: providerId } = useParams()
+  const { fileRef, connectionId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const backgroundRef = useRef(null)
   backgroundRef.current = resolveFileBackground(location) ?? ROUTES.home
   const { openOverlay } = useHub()
   const actions = useHubActions()
-  const { providers, status: providersStatus } = useProviders()
+  const { connections, status: connectionsStatus } = useConnections()
   const { isShortcut } = useShortcuts()
   const { isPublic: hasPublicLink } = usePublicLinks()
-  const itemQuery = useItem(providerId, fileRef)
+  const itemQuery = useItem(connectionId, fileRef)
   const recordedRef = useRef(null)
   const renewedExpiredSourceRef = useRef(null)
   const sourceRecoveryRef = useRef(null)
@@ -43,10 +43,10 @@ export default function SpaceFilePage({ overlay = false }) {
   const [downloadPending, setDownloadPending] = useState(false)
   const [downloadError, setDownloadError] = useState(null)
   const [actionError, setActionError] = useState(null)
-  const operationError = actions.getOperationError?.(providerId) ?? null
+  const operationError = actions.getOperationError?.(connectionId) ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
 
-  const providerMeta = providers.find((item) => item.id === providerId) ?? null
+  const connection = connections.find((entry) => entry.connectionId === connectionId) ?? null
   const item = itemQuery.item
   const readableRef = item && item.kind !== 'folder' ? item.ref : null
   // Hub actions are recreated on every cache update; reading must only restart when the file changes.
@@ -56,13 +56,15 @@ export default function SpaceFilePage({ overlay = false }) {
   const sourceRequestRef = useRef(0)
   const readableRefRef = useRef(readableRef)
   readableRefRef.current = readableRef
-  const providerRef = useRef(providerId)
-  providerRef.current = providerId
+  const connectionRef = useRef(connectionId)
+  connectionRef.current = connectionId
   const sourceRef = useRef(source)
   sourceRef.current = source
+  // The reader switches on the kind of provider (the OneDrive proxy fallback), never on the account.
+  const provider = item?.provider ?? connection?.provider ?? null
   const readerSource = useMemo(
-    () => (source ? { ...source, providerId: source.providerId ?? providerId } : null),
-    [providerId, source],
+    () => (source ? { ...source, providerId: source.providerId ?? provider } : null),
+    [provider, source],
   )
 
   useEffect(() => {
@@ -78,14 +80,14 @@ export default function SpaceFilePage({ overlay = false }) {
     if (!readableRef) return
     if (recordedRef.current === readableRef) return
     recordedRef.current = readableRef
-    void actionsRef.current.recordRecent({ providerId, ref: readableRef }).catch(() => {})
-  }, [providerId, readableRef])
+    void actionsRef.current.recordRecent({ connectionId, ref: readableRef }).catch(() => {})
+  }, [connectionId, readableRef])
 
   useEffect(() => {
     if (!readableRef) return undefined
     const requestId = (sourceRequestRef.current += 1)
     const capturedRef = readableRef
-    const capturedProvider = providerId
+    const capturedConnection = connectionId
 
     let active = true
     renewedExpiredSourceRef.current = null
@@ -94,15 +96,15 @@ export default function SpaceFilePage({ overlay = false }) {
     setReadError(null)
 
     void actionsRef.current
-      .getReadSource({ providerId: capturedProvider, ref: capturedRef })
+      .getReadSource({ connectionId: capturedConnection, ref: capturedRef })
       .then((nextSource) => {
         if (!active || sourceRequestRef.current !== requestId) return
-        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+        if (readableRefRef.current !== capturedRef || connectionRef.current !== capturedConnection) return
         setSource(nextSource)
       })
       .catch((error) => {
         if (!active || sourceRequestRef.current !== requestId) return
-        if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+        if (readableRefRef.current !== capturedRef || connectionRef.current !== capturedConnection) return
         setReadError(hubErrorMessage(error))
       })
 
@@ -110,18 +112,18 @@ export default function SpaceFilePage({ overlay = false }) {
       active = false
       sourceRequestRef.current += 1
     }
-  }, [providerId, readableRef])
+  }, [connectionId, readableRef])
 
   async function refreshSource({ preserveRevision = false } = {}) {
     if (!readableRef) return false
     const requestId = (sourceRequestRef.current += 1)
     const capturedRef = readableRef
-    const capturedProvider = providerId
+    const capturedConnection = connectionId
     setReadError(null)
     try {
-      const nextSource = await actionsRef.current.getReadSource({ providerId: capturedProvider, ref: capturedRef, refresh: true })
+      const nextSource = await actionsRef.current.getReadSource({ connectionId: capturedConnection, ref: capturedRef, refresh: true })
       if (sourceRequestRef.current !== requestId) return false
-      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return false
+      if (readableRefRef.current !== capturedRef || connectionRef.current !== capturedConnection) return false
       if (
         preserveRevision &&
         sourceRef.current?.revision &&
@@ -136,7 +138,7 @@ export default function SpaceFilePage({ overlay = false }) {
       return true
     } catch (error) {
       if (sourceRequestRef.current !== requestId) return
-      if (readableRefRef.current !== capturedRef || providerRef.current !== capturedProvider) return
+      if (readableRefRef.current !== capturedRef || connectionRef.current !== capturedConnection) return
       setReadError(hubErrorMessage(error))
       return false
     }
@@ -162,7 +164,7 @@ export default function SpaceFilePage({ overlay = false }) {
     setDownloadPending(true)
     setDownloadError(null)
     try {
-      const url = await actionsRef.current.getDownloadUrl({ providerId, ref: item.ref })
+      const url = await actionsRef.current.getDownloadUrl({ connectionId, ref: item.ref })
       const anchor = document.createElement('a')
       anchor.href = url
       anchor.download = item.name ?? ''
@@ -177,32 +179,32 @@ export default function SpaceFilePage({ overlay = false }) {
     }
   }
 
-  if (providersStatus === 'ready' && !providerMeta) {
+  if (connectionsStatus === 'ready' && !connection) {
     return <Navigate to={ROUTES.home} replace />
   }
 
   if (isTempRef(fileRef)) {
-    return <Navigate to={providerUrl(providerId)} replace />
+    return <Navigate to={driveUrl(connectionId)} replace />
   }
 
   if (itemQuery.status === 'gone') {
-    const to = itemQuery.parentRef ? providerFolderUrl(providerId, itemQuery.parentRef) : providerUrl(providerId)
+    const to = itemQuery.parentRef ? driveFolderUrl(connectionId, itemQuery.parentRef) : driveUrl(connectionId)
     return <Navigate to={to} replace state={{ notice: 'Esse arquivo não existe mais.' }} />
   }
 
   if (itemQuery.status === 'ready' && !item) {
-    return <Navigate to={providerMeta ? providerUrl(providerMeta.id) : ROUTES.home} replace />
+    return <Navigate to={connection ? driveUrl(connection.connectionId) : ROUTES.home} replace />
   }
 
   if (itemQuery.status === 'ready' && item?.kind === 'folder') {
-    return <Navigate to={providerFolderUrl(providerId, item.ref)} replace />
+    return <Navigate to={driveFolderUrl(connectionId, item.ref)} replace />
   }
 
   // No breadcrumb while reading: the subheader shows only the file name, with its meta below.
-  const titleItems = providerMeta && item ? [{ label: item.name, current: true }] : null
+  const titleItems = connection && item ? [{ label: item.name, current: true }] : null
   const metaLine = item
     ? [
-        formatFileMeta({ extension: item.extension, providerName: providerMeta?.name ?? '' }),
+        formatFileMeta({ extension: item.extension, providerName: connection?.providerName ?? '' }),
         formatFileSize(item.size),
       ]
         .filter(Boolean)
@@ -216,7 +218,7 @@ export default function SpaceFilePage({ overlay = false }) {
     hasPublicLink,
     navigate,
     location,
-    providerName: providerMeta?.name ?? '',
+    providerName: connection?.providerName ?? '',
     onError: (error) => setActionError(hubErrorMessage(error)),
   }
 
@@ -253,7 +255,7 @@ export default function SpaceFilePage({ overlay = false }) {
               name: item.name,
               extension: item.extension,
               mimeType: item.mimeType,
-              providerName: providerMeta?.name ?? '',
+              providerName: connection?.providerName ?? '',
             }}
             variant="editorial"
             viewer={overlay}

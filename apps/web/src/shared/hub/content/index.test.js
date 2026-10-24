@@ -60,9 +60,17 @@ describe('content reader cache', () => {
         .mockResolvedValueOnce({ ok: true, blob: async () => blob }),
     )
 
-    await expect(loadContent({ ...descriptor, providerId: 'onedrive', proxyUrl: '/proxy' })).resolves.toBe(blob)
+    await expect(loadContent({ ...descriptor, provider: 'onedrive', proxyUrl: '/proxy' })).resolves.toBe(blob)
     expect(fetch).toHaveBeenNthCalledWith(1, '/content', { signal: undefined })
     expect(fetch).toHaveBeenNthCalledWith(2, '/proxy', { signal: undefined })
+  })
+
+  it('does not use the OneDrive proxy for another provider, whatever the connection is called', async () => {
+    getContent.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('expired direct URL')))
+
+    await expect(loadContent({ ...descriptor, connectionId: 'onedrive', provider: 'google-drive', proxyUrl: '/proxy' })).rejects.toThrow('expired direct URL')
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it('does not prefetch a file larger than five megabytes', async () => {

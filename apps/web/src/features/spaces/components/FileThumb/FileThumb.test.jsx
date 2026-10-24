@@ -49,11 +49,11 @@ describe('FileThumb', () => {
   it('shows the cloud preview when the thumbnail arrives', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     const { container } = render(
-      <FileThumb file={{ ref: 'p', name: 'a.pdf', kind: 'file', mimeType: 'application/pdf', extension: 'pdf' }} providerId="onedrive" showTypeIcon />,
+      <FileThumb file={{ ref: 'p', name: 'a.pdf', kind: 'file', mimeType: 'application/pdf', extension: 'pdf' }} connectionId="conn-onedrive" provider="onedrive" showTypeIcon />,
     )
 
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
-    expect(getThumbnail).toHaveBeenCalledWith('onedrive', 'p', null, { keep: true })
+    expect(getThumbnail).toHaveBeenCalledWith('conn-onedrive', 'p', null, { keep: true })
     expect(container.querySelector('[data-type]')).toBeNull()
   })
 
@@ -62,7 +62,7 @@ describe('FileThumb', () => {
       throw Object.assign(new Error('missing'), { status: 404 })
     })
     const { container } = render(
-      <FileThumb file={{ ref: 'p', name: 'a.pdf', kind: 'file', mimeType: 'application/pdf', extension: 'pdf' }} providerId="onedrive" showTypeIcon />,
+      <FileThumb file={{ ref: 'p', name: 'a.pdf', kind: 'file', mimeType: 'application/pdf', extension: 'pdf' }} connectionId="conn-onedrive" provider="onedrive" showTypeIcon />,
     )
 
     await waitFor(() => expect(getThumbnail).toHaveBeenCalled())
@@ -76,7 +76,7 @@ describe('FileThumb', () => {
       throw Object.assign(new Error('missing'), { status: 404 })
     })
     const { container } = render(
-      <FileThumb file={{ ref: 'd', name: 'a.docx', kind: 'file', extension: 'docx' }} providerId="onedrive" />,
+      <FileThumb file={{ ref: 'd', name: 'a.docx', kind: 'file', extension: 'docx' }} connectionId="conn-onedrive" provider="onedrive" />,
     )
 
     expect(container.querySelector('[data-type="word"]')).toBeTruthy()
@@ -88,12 +88,12 @@ describe('FileThumb', () => {
   it('puts the Word mark on a folder-grid document and leaves it off the home grid', async () => {
     mockThumbnail(async () => jpeg())
     const file = { ref: 'd', name: 'a.docx', kind: 'file', extension: 'docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
-    const folder = render(<FileThumb file={file} providerId="onedrive" showTypeIcon />)
+    const folder = render(<FileThumb file={file} connectionId="conn-onedrive" provider="onedrive" showTypeIcon />)
     await waitFor(() => expect(folder.container.querySelector('img')).toBeTruthy())
     expect(folder.container.querySelector('[data-type="word"]')).toBeTruthy()
 
     clearThumbnailCache()
-    const home = render(<FileThumb file={{ ...file, ref: 'home' }} providerId="onedrive" align="center" />)
+    const home = render(<FileThumb file={{ ...file, ref: 'home' }} connectionId="conn-onedrive" provider="onedrive" align="center" />)
     await waitFor(() => expect(home.container.querySelector('img')).toBeTruthy())
     expect(home.container.querySelector('[data-type]')).toBeNull()
   })
@@ -103,8 +103,8 @@ describe('FileThumb', () => {
     const file = { ref: 'd', name: 'a.docx', kind: 'file', extension: 'docx' }
     const { container } = render(
       <>
-        <FileThumb file={file} providerId="onedrive" showTypeIcon />
-        <FileThumb file={{ ...file, ref: 'e' }} providerId="onedrive" showTypeIcon />
+        <FileThumb file={file} connectionId="conn-onedrive" provider="onedrive" showTypeIcon />
+        <FileThumb file={{ ...file, ref: 'e' }} connectionId="conn-onedrive" provider="onedrive" showTypeIcon />
       </>,
     )
     expect(container.querySelectorAll('[data-type="word"]')).toHaveLength(2)
@@ -113,7 +113,7 @@ describe('FileThumb', () => {
   it('does not ask Dropbox for a thumbnail of a text file', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     const { container } = render(
-      <FileThumb file={{ ref: 't', name: 'a.txt', kind: 'file', mimeType: 'text/plain', extension: 'txt' }} providerId="dropbox" showTypeIcon />,
+      <FileThumb file={{ ref: 't', name: 'a.txt', kind: 'file', mimeType: 'text/plain', extension: 'txt' }} connectionId="conn-dropbox" provider="dropbox" showTypeIcon />,
     )
     expect(container.querySelector('svg[shape-rendering="crispEdges"]')).toBeTruthy()
     expect(container.querySelector('[data-type]')).toBeNull()
@@ -124,9 +124,9 @@ describe('FileThumb', () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     render(
       <>
-        <FileThumb file={{ ref: 'o', name: 'a.md', kind: 'file', extension: 'md' }} providerId="onedrive" />
-        <FileThumb file={{ ref: 'g', name: 'a.txt', kind: 'file', extension: 'txt' }} providerId="google-drive" />
-        <FileThumb file={{ ref: 'h', name: 'a.md', kind: 'file', extension: 'md' }} providerId="google-drive" />
+        <FileThumb file={{ ref: 'o', name: 'a.md', kind: 'file', extension: 'md' }} connectionId="conn-onedrive" provider="onedrive" />
+        <FileThumb file={{ ref: 'g', name: 'a.txt', kind: 'file', extension: 'txt' }} connectionId="conn-google-drive" provider="google-drive" />
+        <FileThumb file={{ ref: 'h', name: 'a.md', kind: 'file', extension: 'md' }} connectionId="conn-google-drive" provider="google-drive" />
       </>,
     )
 
@@ -137,7 +137,7 @@ describe('FileThumb', () => {
   it('shows the preview this browser kept without asking the cloud', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg(), async () => ({ blob: jpeg() }))
     const { container } = render(
-      <FileThumb file={{ ref: 'k', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} providerId="onedrive" />,
+      <FileThumb file={{ ref: 'k', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} connectionId="conn-onedrive" provider="onedrive" />,
     )
 
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
@@ -147,19 +147,19 @@ describe('FileThumb', () => {
   it('keys a native Google file by its version when it has no content revision', async () => {
     mockThumbnail(async () => jpeg())
     render(
-      <FileThumb file={{ ref: 'g', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: '2026-02-01T00:00:00Z' }} providerId="google-drive" />,
+      <FileThumb file={{ ref: 'g', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: '2026-02-01T00:00:00Z' }} connectionId="conn-google-drive" provider="google-drive" />,
     )
 
-    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('google-drive', 'g', '2026-02-01T00:00:00Z'))
+    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('conn-google-drive', 'g', '2026-02-01T00:00:00Z'))
   })
 
   it('does not ask the cloud again for a revision it said has no preview', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg(), async () => ({ missing: true }))
     const { container } = render(
-      <FileThumb file={{ ref: 'm', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} providerId="onedrive" />,
+      <FileThumb file={{ ref: 'm', name: 'a.pdf', kind: 'file', extension: 'pdf', contentRevision: 'r1' }} connectionId="conn-onedrive" provider="onedrive" />,
     )
 
-    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('onedrive', 'm', 'r1'))
+    await waitFor(() => expect(useHubActions().getStoredThumbnail).toHaveBeenCalledWith('conn-onedrive', 'm', 'r1'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(getThumbnail).not.toHaveBeenCalled()
     expect(container.querySelector('img')).toBeNull()
@@ -169,10 +169,10 @@ describe('FileThumb', () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     const modifiedAt = new Date(Date.now() - 60 * 1000).toISOString()
     const { container } = render(
-      <FileThumb file={{ ref: 'fresh', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: modifiedAt, modifiedAt }} providerId="google-drive" />,
+      <FileThumb file={{ ref: 'fresh', name: 'Doc', kind: 'file', mimeType: 'application/vnd.google-apps.document', remoteVersion: modifiedAt, modifiedAt }} connectionId="conn-google-drive" provider="google-drive" />,
     )
 
     await waitFor(() => expect(container.querySelector('img')).toBeTruthy())
-    expect(getThumbnail).toHaveBeenCalledWith('google-drive', 'fresh', modifiedAt, { keep: false })
+    expect(getThumbnail).toHaveBeenCalledWith('conn-google-drive', 'fresh', modifiedAt, { keep: false })
   })
 })

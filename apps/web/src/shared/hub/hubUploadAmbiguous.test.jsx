@@ -105,7 +105,7 @@ describe('upload ambiguous flag', () => {
       items: [],
       nextCursor: null,
     })
-    hubApiMock.uploadFile.mockImplementation(async (providerId, parentRef, file) => {
+    hubApiMock.uploadFile.mockImplementation(async (connectionId, parentRef, file) => {
       if (file.name === 'rejeitado.txt') {
         throw new ApiClientError('Rejeitado', { code: 'ERRO', status: 400 })
       }
@@ -114,7 +114,7 @@ describe('upload ambiguous flag', () => {
 
     const { result } = renderHook(
       () => ({
-        folder: useFolder('onedrive', null),
+        folder: useFolder('conn-1', null),
         actions: useHubActions(),
       }),
       { wrapper: createWrapper() },
@@ -128,7 +128,7 @@ describe('upload ambiguous flag', () => {
     await act(async () => {
       try {
         await result.current.actions.uploadFiles({
-          providerId: 'onedrive',
+          connectionId: 'conn-1',
           parentRef: null,
           files: [
             new File(['a'], 'rejeitado.txt', { type: 'text/plain' }),

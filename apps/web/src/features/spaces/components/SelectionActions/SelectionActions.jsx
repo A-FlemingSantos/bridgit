@@ -43,7 +43,7 @@ const cardMotion = {
 // a mixed selection keeps what both share. Baixar leads, filled like the first action on Início. `gap` is the page's spacing, kept out while it is closed.
 export default function SelectionActions({
   entries,
-  providerId,
+  connectionId,
   gap = 0,
   openOverlay,
   actions,
@@ -70,18 +70,18 @@ export default function SelectionActions({
   const folders = entries.filter((entry) => entry.kind === 'folder')
   const files = entries.filter((entry) => entry.kind === 'file')
   const single = entries.length === 1 ? entries[0] : null
-  const allPinned = files.length > 0 && files.every((file) => isShortcut?.(providerId, file.ref))
-  const colorIds = new Set(folders.map((folder) => colorOf(providerId, folder.ref).id))
+  const allPinned = files.length > 0 && files.every((file) => isShortcut?.(connectionId, file.ref))
+  const colorIds = new Set(folders.map((folder) => colorOf(connectionId, folder.ref).id))
   const sharedColor = colorIds.size === 1 ? [...colorIds][0] : null
 
   // One entry keeps the overlay's single-item shape (its name shows in the text); several go as `items`.
   function overlayFor(type) {
     if (single) {
-      return { type, kind: single.kind, providerId, ref: single.ref, name: single.name, parentRef: single.parentRef ?? undefined }
+      return { type, kind: single.kind, connectionId, ref: single.ref, name: single.name, parentRef: single.parentRef ?? undefined }
     }
     return {
       type,
-      providerId,
+      connectionId,
       items: entries.map((entry) => ({ kind: entry.kind, ref: entry.ref, name: entry.name, parentRef: entry.parentRef ?? undefined })),
     }
   }
@@ -106,7 +106,7 @@ export default function SelectionActions({
     icon: PixelBookmark,
     onSelect: () =>
       files
-        .filter((file) => (isShortcut?.(providerId, file.ref) ?? false) === allPinned)
+        .filter((file) => (isShortcut?.(connectionId, file.ref) ?? false) === allPinned)
         .forEach((file) => void actions.toggleShortcut(file).catch((error) => onError?.(error))),
   }
   // Each file gets its link (asking again is harmless); the addresses go to the clipboard, one per line.
@@ -115,7 +115,7 @@ export default function SelectionActions({
     label: 'Link público',
     icon: PixelLink,
     onSelect: () =>
-      void Promise.all(files.map((file) => actions.enablePublicLink({ providerId, ref: file.ref })))
+      void Promise.all(files.map((file) => actions.enablePublicLink({ connectionId, ref: file.ref })))
         .then((links) => navigator.clipboard.writeText(links.map((entry) => entry.url).join('\n')))
         .catch((error) => onError?.(error)),
   }
@@ -170,7 +170,7 @@ export default function SelectionActions({
                     <FolderColorPalette
                       selectedId={sharedColor}
                       onPick={(id) => {
-                        folders.forEach((folder) => setColor(providerId, folder.ref, id))
+                        folders.forEach((folder) => setColor(connectionId, folder.ref, id))
                         setPaletteOpen(false)
                       }}
                     />

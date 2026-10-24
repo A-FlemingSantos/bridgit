@@ -3,7 +3,7 @@ import { ROUTES } from '../config/routes.js'
 import { isSettingsPath, resolveSettingsBackground, toBackgroundLocation } from './settingsOverlay.js'
 
 export function isFilePath(pathname) {
-  return matchPath({ path: ROUTES.providerFile, end: true }, pathname) !== null
+  return matchPath({ path: ROUTES.driveFile, end: true }, pathname) !== null
 }
 
 // A file opened from a page rides on top of it: the route is the file's, the page behind stays in state.

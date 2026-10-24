@@ -32,18 +32,19 @@ export function officeBadge(file) {
   return null
 }
 
-export function thumbnailEligible(providerId, file) {
+// `provider` is the kind of cloud ('onedrive', 'google-drive', 'dropbox'), never an account id.
+export function thumbnailEligible(provider, file) {
   if (!file || file.kind === 'folder' || file.pending) return false
   const extension = extensionOf(file)
   const mime = mimeOf(file)
-  if (providerId === 'dropbox') {
+  if (provider === 'dropbox') {
     if (!DROPBOX_IMAGE_EXTENSIONS.has(extension)) return false
     return typeof file.size !== 'number' || file.size <= DROPBOX_MAX_BYTES
   }
   if (mime.startsWith('image/') || IMAGE_EXTENSIONS.has(extension)) return true
   if (mime === 'application/pdf' || extension === 'pdf') return true
   if (officeBadge(file)) return true
-  return TEXT_EXTENSIONS[providerId]?.has(extension) === true
+  return TEXT_EXTENSIONS[provider]?.has(extension) === true
 }
 
 // Drive draws a native Google file's thumbnail a little after each edit and serves the old or a blank one

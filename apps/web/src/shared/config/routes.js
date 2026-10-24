@@ -14,6 +14,9 @@ export const ROUTES = {
   provider: '/providers/:provider',
   providerFolder: '/providers/:provider/folder/:folderRef',
   providerFile: '/providers/:provider/file/:fileRef',
+  drive: '/drives/:connectionId',
+  driveFolder: '/drives/:connectionId/folder/:folderRef',
+  driveFile: '/drives/:connectionId/file/:fileRef',
   privacy: '/privacy',
   terms: '/terms',
   publicLink: '/p/:linkRef',
@@ -25,6 +28,20 @@ export function spaceUrl(spaceRef) {
   return `/s/${spaceRef}`
 }
 
+// A connected account (one of possibly several per provider), keyed by its connection id.
+export function driveUrl(connectionId) {
+  return `/drives/${connectionId}`
+}
+
+export function driveFolderUrl(connectionId, folderRef) {
+  return `/drives/${connectionId}/folder/${encodeURIComponent(folderRef)}`
+}
+
+export function driveFileUrl(connectionId, fileRef) {
+  return `/drives/${connectionId}/file/${encodeURIComponent(fileRef)}`
+}
+
+// Legacy provider-keyed URLs: they redirect to the provider's oldest account.
 export function providerUrl(provider) {
   return `/providers/${provider}`
 }

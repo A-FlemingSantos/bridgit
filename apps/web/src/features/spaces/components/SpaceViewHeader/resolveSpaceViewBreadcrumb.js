@@ -1,8 +1,8 @@
 import { matchPath } from 'react-router-dom'
 import {
   ROUTES,
-  providerFolderUrl,
-  providerUrl,
+  driveFolderUrl,
+  driveUrl,
 } from '../../../../shared/config/routes.js'
 
 function item(label, extras = {}) {
@@ -13,12 +13,13 @@ function homeCrumb() {
   return item('Início', { to: ROUTES.home })
 }
 
-function providerCrumb(catalog, providerId, { current = false } = {}) {
-  const resolved = catalog.getProvider(providerId)
+// `catalog.getProvider` resolves an account (connection id) to the provider shown for it.
+function providerCrumb(catalog, connectionId, { current = false } = {}) {
+  const resolved = catalog.getProvider(connectionId)
   return item(resolved?.name ?? 'Provedor', {
-    to: current ? null : providerUrl(providerId),
+    to: current ? null : driveUrl(connectionId),
     current,
-    providerId: resolved?.id ?? providerId,
+    providerId: resolved?.id ?? connectionId,
   })
 }
 
@@ -43,9 +44,9 @@ function resolveAncestry(catalog, folderRef) {
   return chain
 }
 
-function folderCrumbs(catalog, providerId, folderRef, { current = false } = {}) {
+function folderCrumbs(catalog, connectionId, folderRef, { current = false } = {}) {
   if (!folderRef) return []
-  if (typeof catalog.providerHasFolder === 'function' && !catalog.providerHasFolder(providerId, folderRef)) {
+  if (typeof catalog.providerHasFolder === 'function' && !catalog.providerHasFolder(connectionId, folderRef)) {
     return []
   }
 
@@ -53,16 +54,16 @@ function folderCrumbs(catalog, providerId, folderRef, { current = false } = {}) 
   return ancestry.map((folder, index) => {
     const isLast = index === ancestry.length - 1
     return item(folder.name, {
-      to: current && isLast ? null : providerFolderUrl(providerId, folder.folderRef ?? folder.ref),
+      to: current && isLast ? null : driveFolderUrl(connectionId, folder.folderRef ?? folder.ref),
       current: current && isLast,
     })
   })
 }
 
 export function resolveSpaceViewBreadcrumb(pathname, catalog) {
-  const providerFile = matchPath({ path: ROUTES.providerFile, end: true }, pathname)
-  if (providerFile) {
-    const { provider: providerId, fileRef } = providerFile.params
+  const driveFile = matchPath({ path: ROUTES.driveFile, end: true }, pathname)
+  if (driveFile) {
+    const { connectionId, fileRef } = driveFile.params
     const file = catalog.getFile(fileRef)
     const parentRef = file?.parentRef ?? file?.folderRef ?? null
     const fileAncestry = file?.ancestry ?? null
@@ -73,29 +74,29 @@ export function resolveSpaceViewBreadcrumb(pathname, catalog) {
               to:
                 index === fileAncestry.length - 1
                   ? null
-                  : providerFolderUrl(providerId, folder.ref ?? folder.folderRef),
+                  : driveFolderUrl(connectionId, folder.ref ?? folder.folderRef),
               current: false,
             }),
           )
-        : folderCrumbs(catalog, providerId, parentRef)
+        : folderCrumbs(catalog, connectionId, parentRef)
     return {
       items: [
         homeCrumb(),
-        providerCrumb(catalog, providerId),
+        providerCrumb(catalog, connectionId),
         ...folderTrail,
         item(file?.name ?? file?.title ?? 'Arquivo', { current: true }),
       ],
     }
   }
 
-  const providerFolder = matchPath({ path: ROUTES.providerFolder, end: true }, pathname)
-  if (providerFolder) {
-    const { provider: providerId, folderRef } = providerFolder.params
-    const crumbs = folderCrumbs(catalog, providerId, folderRef, { current: true })
+  const driveFolder = matchPath({ path: ROUTES.driveFolder, end: true }, pathname)
+  if (driveFolder) {
+    const { connectionId, folderRef } = driveFolder.params
+    const crumbs = folderCrumbs(catalog, connectionId, folderRef, { current: true })
     return {
       items: [
         homeCrumb(),
-        providerCrumb(catalog, providerId),
+        providerCrumb(catalog, connectionId),
         ...(crumbs.length
           ? crumbs
           : [item(catalog.getFolder(folderRef)?.name ?? 'Pasta', { current: true })]),
@@ -103,12 +104,12 @@ export function resolveSpaceViewBreadcrumb(pathname, catalog) {
     }
   }
 
-  const provider = matchPath({ path: ROUTES.provider, end: true }, pathname)
-  if (provider) {
+  const drive = matchPath({ path: ROUTES.drive, end: true }, pathname)
+  if (drive) {
     return {
       items: [
         homeCrumb(),
-        providerCrumb(catalog, provider.params.provider, { current: true }),
+        providerCrumb(catalog, drive.params.connectionId, { current: true }),
       ],
     }
   }

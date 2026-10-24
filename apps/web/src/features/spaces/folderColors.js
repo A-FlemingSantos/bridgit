@@ -1,5 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { useSession } from '../../shared/auth/SessionContext.jsx'
+import { useConnections } from '../../shared/hub/index.js'
+import { oldestConnectionOf } from './connectionLabel.js'
 
 // Muted, neutral tones; the first one is the default carbon folder.
 export const FOLDER_COLORS = [
@@ -28,8 +30,9 @@ function storageKey(userId) {
   return `${STORAGE_PREFIX}${userId}`
 }
 
-function entryKey(provider, ref) {
-  return `${provider}:${ref}`
+// Colors are kept per account: two accounts of one provider can hold folders that share a ref.
+function entryKey(connectionId, ref) {
+  return `${connectionId}:${ref}`
 }
 
 // Colors live in this browser only, per user; they do not sync across devices.
@@ -71,20 +74,45 @@ export function useFolderColors() {
   const userId = user?.id ?? null
   const colors = useSyncExternalStore(subscribe, () => read(userId), () => EMPTY)
 
-  const colorOf = useCallback(
-    (provider, ref) => findFolderColor(colors[entryKey(provider, ref)]),
-    [colors],
+  const { connections } = useConnections()
+
+  // Colors saved before accounts were told apart were keyed by provider ("onedrive:ref"). Only the
+  // provider's oldest account inherits them; any other account starts with the default color.
+  const legacyKeyOf = useCallback(
+    (connectionId, ref) => {
+      const connection = connections.find((item) => item.connectionId === connectionId)
+      if (!connection) return null
+      const oldest = oldestConnectionOf(connection.provider, connections)
+      return oldest?.connectionId === connectionId ? entryKey(connection.provider, ref) : null
+    },
+    [connections],
   )
 
+  const colorOf = useCallback(
+    (connectionId, ref) => {
+      const legacyKey = legacyKeyOf(connectionId, ref)
+      return findFolderColor(colors[entryKey(connectionId, ref)] ?? (legacyKey ? colors[legacyKey] : undefined))
+    },
+    [colors, legacyKeyOf],
+  )
+
+  // Writes always use the account key; going back to the default also clears the legacy entry so it
+  // cannot show through again.
   const setColor = useCallback(
-    (provider, ref, id) => {
+    (connectionId, ref, id) => {
       if (!userId) return
       const next = { ...read(userId) }
-      if (id === DEFAULT_FOLDER_COLOR.id) delete next[entryKey(provider, ref)]
-      else next[entryKey(provider, ref)] = id
+      const key = entryKey(connectionId, ref)
+      if (id === DEFAULT_FOLDER_COLOR.id) {
+        delete next[key]
+        const legacyKey = legacyKeyOf(connectionId, ref)
+        if (legacyKey) delete next[legacyKey]
+      } else {
+        next[key] = id
+      }
       write(userId, next)
     },
-    [userId],
+    [userId, legacyKeyOf],
   )
 
   return { colorOf, setColor }

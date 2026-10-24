@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { fileNavState, resolveFileBackground, resolvePageLocation } from './fileOverlay.js'
+import { fileNavState, isFilePath, resolveFileBackground, resolvePageLocation } from './fileOverlay.js'
 
-const FILE = '/providers/onedrive/file/f1'
+const FILE = '/drives/conn-1/file/f1'
 
 describe('fileNavState', () => {
   it('guarda a página de origem para o arquivo abrir por cima dela', () => {
-    const state = fileNavState({ pathname: '/providers/onedrive', search: '?q=1' })
+    const state = fileNavState({ pathname: '/drives/conn-1', search: '?q=1' })
 
     expect(resolveFileBackground({ pathname: FILE, state })).toEqual({
-      pathname: '/providers/onedrive',
+      pathname: '/drives/conn-1',
       search: '?q=1',
       hash: '',
       state: null,
@@ -42,5 +42,14 @@ describe('resolvePageLocation', () => {
     expect(resolvePageLocation({ pathname: FILE, state: { backgroundLocation: background } })).toBe(background)
     expect(resolvePageLocation({ pathname: '/settings', state: { backgroundLocation: background } })).toBe(background)
     expect(resolvePageLocation({ pathname: '/home' }).pathname).toBe('/home')
+  })
+})
+
+describe('isFilePath', () => {
+  it('reconhece só o arquivo de uma conta; o caminho antigo por provedor só redireciona', () => {
+    expect(isFilePath('/drives/conn-1/file/f1')).toBe(true)
+    expect(isFilePath('/drives/conn-1')).toBe(false)
+    expect(isFilePath('/drives/conn-1/folder/f1')).toBe(false)
+    expect(isFilePath('/providers/onedrive/file/f1')).toBe(false)
   })
 })

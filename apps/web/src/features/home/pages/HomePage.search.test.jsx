@@ -6,8 +6,10 @@ import HomePage from './HomePage.jsx'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 
 vi.mock('../../../shared/hub/index.js', () => ({
+  useConnections: vi.fn(),
   useHubActions: vi.fn(),
-  useProviders: vi.fn(),
+  // The sidebar beside the page reads the provider rows.
+  useProviders: vi.fn(() => ({ providers: [], status: 'ready' })),
   usePublicLinks: vi.fn(() => ({ status: 'ready', entries: [], error: null })),
   useRecents: vi.fn(),
   useSearch: vi.fn(),
@@ -23,8 +25,8 @@ vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
 }))
 
 import {
+  useConnections,
   useHubActions,
-  useProviders,
   useRecents,
   useSearch,
   useShortcuts,
@@ -32,8 +34,14 @@ import {
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
+const CONNECTIONS = [
+  { connectionId: 'conn-od', provider: 'onedrive', providerName: 'OneDrive', account: { email: 'ana@mail.com' } },
+  { connectionId: 'conn-db', provider: 'dropbox', providerName: 'Dropbox', account: { email: 'ana@mail.com' } },
+]
+
 const fileItem = {
   provider: 'onedrive',
+  connectionId: 'conn-od',
   ref: 'file-1',
   name: 'Relatório.pdf',
   kind: 'file',
@@ -42,7 +50,7 @@ const fileItem = {
 
 function setup(searchValue) {
   useHubActions.mockReturnValue({ uploadFiles: vi.fn().mockResolvedValue([]) })
-  useProviders.mockReturnValue({ providers: [], status: 'ready' })
+  useConnections.mockReturnValue({ connections: CONNECTIONS, status: 'ready' })
   useRecents.mockReturnValue({ status: 'ready', entries: [], error: null })
   useShortcuts.mockReturnValue({ status: 'ready', entries: [], error: null, isShortcut: () => false })
   useSearch.mockReturnValue(searchValue)
@@ -72,10 +80,7 @@ describe('HomePage upload parcial', () => {
     })
     const uploadFiles = vi.fn().mockRejectedValueOnce(uploadError).mockResolvedValueOnce([])
     useHubActions.mockReturnValue({ uploadFiles })
-    useProviders.mockReturnValue({
-      providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
-      status: 'ready',
-    })
+    useConnections.mockReturnValue({ connections: [CONNECTIONS[0]], status: 'ready' })
     useRecents.mockReturnValue({ status: 'ready', entries: [], error: null })
     useShortcuts.mockReturnValue({ status: 'ready', entries: [], error: null, isShortcut: () => false })
     useSearch.mockReturnValue({ status: 'idle', results: [], providers: [], error: null })
@@ -92,6 +97,7 @@ describe('HomePage upload parcial', () => {
       expect(uploadFiles).toHaveBeenCalledTimes(2)
     })
     expect(uploadFiles.mock.calls[1][0].files).toEqual([badFile])
+    expect(uploadFiles.mock.calls[1][0].connectionId).toBe('conn-od')
   })
 })
   beforeEach(() => {
@@ -105,8 +111,8 @@ describe('HomePage busca por provedor', () => {
       status: 'ready',
       results: [],
       providers: [
-        { id: 'onedrive', ok: true, error: null },
-        { id: 'google-drive', ok: true, error: null },
+        { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
+        { id: 'google-drive', connectionId: 'conn-gd', ok: true, error: null },
       ],
       error: null,
     })
@@ -122,8 +128,8 @@ describe('HomePage busca por provedor', () => {
       status: 'ready',
       results: [fileItem],
       providers: [
-        { id: 'onedrive', ok: true, error: null },
-        { id: 'dropbox', ok: false, error: 'PROVEDOR_FALHOU' },
+        { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
+        { id: 'dropbox', connectionId: 'conn-db', ok: false, error: 'PROVEDOR_FALHOU' },
       ],
       error: null,
     })
@@ -142,8 +148,8 @@ describe('HomePage busca por provedor', () => {
       status: 'ready',
       results: [],
       providers: [
-        { id: 'onedrive', ok: true, error: null },
-        { id: 'dropbox', ok: false, error: null },
+        { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
+        { id: 'dropbox', connectionId: 'conn-db', ok: false, error: null },
       ],
       error: null,
     })
@@ -160,8 +166,8 @@ describe('HomePage busca por provedor', () => {
       status: 'ready',
       results: [],
       providers: [
-        { id: 'onedrive', ok: false, error: null },
-        { id: 'dropbox', ok: false, error: null },
+        { id: 'onedrive', connectionId: 'conn-od', ok: false, error: null },
+        { id: 'dropbox', connectionId: 'conn-db', ok: false, error: null },
       ],
       error: null,
     })
@@ -174,5 +180,51 @@ describe('HomePage busca por provedor', () => {
       expect(screen.getByRole('searchbox', { name: 'Buscar' })).toHaveValue('rel')
     })
     expect(hubErrorMessage).toBeDefined()
+  })
+})
+
+describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
+  const second = { ...fileItem, connectionId: 'conn-od-2', ref: 'file-2', name: 'Outro.pdf', uiKey: 'conn-od-2-file-2' }
+
+  function setupTwoAccounts(results, providers) {
+    setup({ status: 'ready', results, providers, error: null })
+    useConnections.mockReturnValue({
+      connections: [
+        CONNECTIONS[0],
+        { connectionId: 'conn-od-2', provider: 'onedrive', providerName: 'OneDrive', account: { email: 'bia@mail.com' } },
+        CONNECTIONS[1],
+      ],
+      status: 'ready',
+    })
+  }
+
+  it('separa os resultados por conta e identifica cada uma pelo e-mail', async () => {
+    const user = userEvent.setup()
+    setupTwoAccounts([fileItem, second], [
+      { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
+      { id: 'onedrive', connectionId: 'conn-od-2', ok: true, error: null },
+      { id: 'dropbox', connectionId: 'conn-db', ok: true, error: null },
+    ])
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByRole('heading', { level: 3, name: 'OneDrive · ana@mail.com' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'OneDrive · bia@mail.com' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Dropbox' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Relatório.pdf' })).toHaveAttribute('href', '/drives/conn-od/file/file-1')
+    expect(screen.getByRole('link', { name: 'Outro.pdf' })).toHaveAttribute('href', '/drives/conn-od-2/file/file-2')
+  })
+
+  it('uma conta que falha não esconde os resultados da outra do mesmo provedor', async () => {
+    const user = userEvent.setup()
+    setupTwoAccounts([fileItem], [
+      { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
+      { id: 'onedrive', connectionId: 'conn-od-2', ok: false, error: 'PROVEDOR_FALHOU' },
+    ])
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByText('Relatório.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível buscar em OneDrive · bia@mail.com.')
   })
 })

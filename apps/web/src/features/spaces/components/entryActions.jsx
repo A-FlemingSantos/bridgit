@@ -1,4 +1,4 @@
-import { providerFileUrl } from '../../../shared/config/routes.js'
+import { driveFileUrl } from '../../../shared/config/routes.js'
 import { fileNavState } from '../../../shared/utils/fileOverlay.js'
 import OpenChoices from './OpenChoices/OpenChoices.jsx'
 import { PixelBookmark, PixelBrush, PixelCopy, PixelDownload, PixelFolderMove, PixelLink, PixelOpen, PixelPencil, PixelTrash, PixelUnlink } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
@@ -16,7 +16,7 @@ export function startDownload(url, name = '') {
 
 // A file downloads as it is; a folder comes packed as .zip.
 export function downloadEntry(item, { actions, onError }) {
-  const target = { providerId: item.provider, ref: item.ref }
+  const target = { connectionId: item.connectionId, ref: item.ref }
   const url = item.kind === 'folder' ? actions.getFolderDownloadUrl(target) : actions.getDownloadUrl(target)
   return url
     .then((ready) => startDownload(ready, item.kind === 'folder' ? `${item.name ?? 'pasta'}.zip` : item.name ?? ''))
@@ -26,8 +26,8 @@ export function downloadEntry(item, { actions, onError }) {
 // Creating the link (or asking for the existing one: the call is idempotent) copies its address.
 // The item fills while that runs; the rejection tells the menu to empty it again.
 function publicLinkItems(item, { actions, hasPublicLink, onError }) {
-  const linked = hasPublicLink?.(item.provider, item.ref) ?? false
-  const target = { providerId: item.provider, ref: item.ref }
+  const linked = hasPublicLink?.(item.connectionId, item.ref) ?? false
+  const target = { connectionId: item.connectionId, ref: item.ref }
   const copyLink = () =>
     actions
       .enablePublicLink(target)
@@ -54,9 +54,9 @@ function publicLinkItems(item, { actions, hasPublicLink, onError }) {
 }
 
 export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPublicLink, navigate, location, onError, onRename }) {
-  const pinned = isShortcut?.(item.provider, item.ref) ?? false
+  const pinned = isShortcut?.(item.connectionId, item.ref) ?? false
 
-  const fileUrl = providerFileUrl(item.provider, item.ref)
+  const fileUrl = driveFileUrl(item.connectionId, item.ref)
 
   return [
     {
@@ -86,7 +86,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
           type: 'name',
           kind: 'file',
           mode: 'rename',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           name: item.name,
         }),
@@ -107,7 +107,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
         openOverlay({
           type: 'move',
           kind: 'file',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           parentRef: item.parentRef ?? undefined,
         }),
@@ -130,7 +130,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
         openOverlay({
           type: 'confirm-delete-entry',
           kind: 'file',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           name: item.name,
         }),
@@ -150,7 +150,7 @@ export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onE
           type: 'name',
           kind: 'folder',
           mode: 'rename',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           name: item.name,
         }),
@@ -171,7 +171,7 @@ export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onE
         openOverlay({
           type: 'move',
           kind: 'folder',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           parentRef: item.parentRef ?? undefined,
         }),
@@ -197,7 +197,7 @@ export function folderMenuItems(item, { openOverlay, actions, hasPublicLink, onE
         openOverlay({
           type: 'confirm-delete-entry',
           kind: 'folder',
-          providerId: item.provider,
+          connectionId: item.connectionId,
           ref: item.ref,
           name: item.name,
         }),

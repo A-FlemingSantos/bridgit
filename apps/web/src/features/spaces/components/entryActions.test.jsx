@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fileMenuItems, folderMenuItems } from './entryActions.jsx'
 
-const folder = { provider: 'onedrive', ref: 'folder-1', name: 'Docs' }
-const file = { provider: 'onedrive', ref: 'file-1', name: 'a.pdf' }
+const folder = { provider: 'onedrive', connectionId: 'conn-1', ref: 'folder-1', name: 'Docs' }
+const file = { provider: 'onedrive', connectionId: 'conn-1', ref: 'file-1', name: 'a.pdf' }
 const url = 'https://bridgit.test/p/docs-ab12'
 
 function context(overrides = {}) {
@@ -30,7 +30,7 @@ describe('entryActions folder download', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     byId(items, 'download').onSelect()
     await vi.waitFor(() => expect(click).toHaveBeenCalled())
-    expect(getFolderDownloadUrl).toHaveBeenCalledWith({ providerId: 'onedrive', ref: 'folder-1' })
+    expect(getFolderDownloadUrl).toHaveBeenCalledWith({ connectionId: 'conn-1', ref: 'folder-1' })
     expect(click.mock.contexts[0].download).toBe('Docs.zip')
     click.mockRestore()
   })
@@ -60,7 +60,7 @@ describe('entryActions public link items', () => {
     await byId(items, 'link').onSelect()
 
     expect(writeText).toHaveBeenCalledWith(url)
-    expect(ctx.actions.enablePublicLink).toHaveBeenCalledWith({ providerId: 'onedrive', ref: 'folder-1' })
+    expect(ctx.actions.enablePublicLink).toHaveBeenCalledWith({ connectionId: 'conn-1', ref: 'folder-1' })
     expect(ctx.openOverlay).not.toHaveBeenCalled()
   })
 
@@ -71,7 +71,7 @@ describe('entryActions public link items', () => {
     expect(byId(items, 'unlink').label).toBe('Desativar link')
 
     byId(items, 'unlink').onSelect()
-    expect(ctx.actions.disablePublicLink).toHaveBeenCalledWith({ providerId: 'onedrive', ref: 'file-1' })
+    expect(ctx.actions.disablePublicLink).toHaveBeenCalledWith({ connectionId: 'conn-1', ref: 'file-1' })
   })
 
   it('reports a failure to create the link', async () => {

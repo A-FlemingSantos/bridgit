@@ -1,17 +1,21 @@
 import {
   ROUTES,
-  providerFolderUrl,
-  providerUrl,
+  driveFolderUrl,
+  driveUrl,
 } from '../../shared/config/routes.js'
 
 // folder.ancestry lists the folders above the current one (root excluded, folder itself excluded).
-export function buildProviderBreadcrumbItems({ provider, folder = null, fileName = null }) {
+// `connection` is the account being browsed; `rootLabel` names it (the provider, plus the account when the
+// provider has several) and defaults to the provider name.
+export function buildProviderBreadcrumbItems({ connection, rootLabel = null, folder = null, fileName = null }) {
+  const { connectionId } = connection
   const items = [
     { label: 'Início', to: ROUTES.home },
     {
-      label: provider.name,
-      to: providerUrl(provider.id),
-      providerId: provider.id,
+      label: rootLabel ?? connection.providerName,
+      to: driveUrl(connectionId),
+      // The mark drawn beside the title is the provider's.
+      providerId: connection.provider,
     },
   ]
 
@@ -19,7 +23,7 @@ export function buildProviderBreadcrumbItems({ provider, folder = null, fileName
   ancestry.forEach((crumb, index) => {
     items.push({
       label: crumb.name,
-      to: providerFolderUrl(provider.id, crumb.ref),
+      to: driveFolderUrl(connectionId, crumb.ref),
       state: { folderName: crumb.name, folderTrail: ancestry.slice(0, index) },
     })
   })
@@ -27,7 +31,7 @@ export function buildProviderBreadcrumbItems({ provider, folder = null, fileName
   if (folder?.ref) {
     items.push({
       label: folder.name ?? '…',
-      to: fileName ? providerFolderUrl(provider.id, folder.ref) : null,
+      to: fileName ? driveFolderUrl(connectionId, folder.ref) : null,
       state: fileName ? { folderName: folder.name, folderTrail: ancestry } : undefined,
       current: !fileName,
     })

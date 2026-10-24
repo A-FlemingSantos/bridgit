@@ -7,13 +7,13 @@ import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import {
   ROUTES,
-  providerFileUrl,
-  providerFolderUrl,
-  providerUrl,
+  driveFileUrl,
+  driveFolderUrl,
+  driveUrl,
 } from '../../../shared/config/routes.js'
 import { fileNavState, usePageLocation } from '../../../shared/utils/fileOverlay.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
-import { useFolder, useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
+import { useConnections, useFolder, useHubActions, usePublicLinks, useShortcuts } from '../../../shared/hub/index.js'
 import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
@@ -26,6 +26,7 @@ import SelectionActions from '../components/SelectionActions/SelectionActions.js
 import SpaceViewActions from '../components/SpaceViewActions/SpaceViewActions.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
 import { buildProviderBreadcrumbItems, childFolderTrail } from '../buildProviderBreadcrumb.js'
+import { connectionLabel } from '../connectionLabel.js'
 import { formatItemDate } from '../formatItemDate.js'
 import { fileMenuItems, folderMenuItems } from '../components/entryActions.jsx'
 import styles from './SpaceBrowsePage.module.css'
@@ -122,20 +123,20 @@ function PendingAware({ pending, className, render, children }) {
 }
 
 export default function SpaceBrowsePage() {
-  const { folderRef, provider: providerId } = useParams()
+  const { folderRef, connectionId } = useParams()
   const location = useLocation()
   const pageLocation = usePageLocation()
   const navigate = useNavigate()
   const { openOverlay } = useHub()
   const actions = useHubActions()
-  const { providers, status: providersStatus } = useProviders()
+  const { connections, status: connectionsStatus } = useConnections()
   const { isShortcut } = useShortcuts()
   const { isPublic: hasPublicLink } = usePublicLinks()
   const folderColors = useFolderColors()
-  const folderQuery = useFolder(providerId, folderRef ?? null)
+  const folderQuery = useFolder(connectionId, folderRef ?? null)
   const uploadRef = useRef(null)
   const [actionError, setActionError] = useState(null)
-  const operationError = actions.getOperationError?.(providerId) ?? null
+  const operationError = actions.getOperationError?.(connectionId) ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
   const [failedUploads, setFailedUploads] = useState([])
   // The folder being named. Its key is the one its pending entry will carry, so the same row goes
@@ -149,33 +150,36 @@ export default function SpaceBrowsePage() {
   const tileOrder = ['folder', 'file'].flatMap((kind) =>
     folderQuery.items.filter((item) => item.kind === kind && !item.pending).map((item) => item.ref),
   )
-  const selection = useTileSelection(`${providerId}:${folderRef ?? ''}`, tileOrder)
+  const selection = useTileSelection(`${connectionId}:${folderRef ?? ''}`, tileOrder)
   // A draft belongs to the folder it was opened in; moving to another folder drops it.
-  useEffect(() => { setDraftKey(null) }, [providerId, folderRef])
+  useEffect(() => { setDraftKey(null) }, [connectionId, folderRef])
 
-  const providerMeta = providers.find((item) => item.id === providerId) ?? null
-  const knownProvider = providersStatus === 'ready' ? providerMeta : providersStatus === 'loading' ? true : providerMeta
+  // The account in the address; the provider is only how it is shown.
+  const connection = connections.find((item) => item.connectionId === connectionId) ?? null
+  const knownConnection = connectionsStatus === 'ready' ? connection : connectionsStatus === 'loading' ? true : connection
 
-  if (providersStatus === 'ready' && !providerMeta) {
+  // An account that is not (or no longer) connected has nothing to browse.
+  if (connectionsStatus === 'ready' && !connection) {
     return <Navigate to={ROUTES.home} replace />
   }
 
   if (isTempRef(folderRef)) {
-    return <Navigate to={providerUrl(providerId)} replace />
+    return <Navigate to={driveUrl(connectionId)} replace />
   }
 
   if (folderRef && folderQuery.status === 'gone') {
-    const to = folderQuery.parentRef ? providerFolderUrl(providerId, folderQuery.parentRef) : providerUrl(providerId)
+    const to = folderQuery.parentRef ? driveFolderUrl(connectionId, folderQuery.parentRef) : driveUrl(connectionId)
     return <Navigate to={to} replace state={{ notice: 'Essa pasta não existe mais.' }} />
   }
 
   if (folderRef && folderQuery.status === 'ready' && folderQuery.folder === null && folderQuery.items.length === 0) {
-    return <Navigate to={providerUrl(providerId)} replace />
+    return <Navigate to={driveUrl(connectionId)} replace />
   }
 
-  const connected = providerMeta?.connected ?? false
+  const connected = Boolean(connection)
+  const accountName = connectionLabel(connection, connections)
   // The connection still exists but the provider rejected it; the folder shows the last synced catalog.
-  const expired = connected && providerMeta?.lastError === 'RECONEXAO_NECESSARIA'
+  const expired = connected && connection?.lastError === 'RECONEXAO_NECESSARIA'
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
   const files = folderQuery.items.filter((item) => item.kind === 'file')
   const folderRows = draftKey
@@ -192,8 +196,8 @@ export default function SpaceBrowsePage() {
       }
     : null
   const headerFolder = folderQuery.status === 'ready' ? folderQuery.folder : pendingFolder
-  const breadcrumbItems = providerMeta
-    ? buildProviderBreadcrumbItems({ provider: providerMeta, folder: headerFolder })
+  const breadcrumbItems = connection
+    ? buildProviderBreadcrumbItems({ connection, rootLabel: accountName, folder: headerFolder })
     : null
 
   async function renameEntry(item, name) {
@@ -202,7 +206,7 @@ export default function SpaceBrowsePage() {
     const { extension } = item.kind === 'file' ? splitExtension(item.name) : { extension: '' }
     const finalName = extension && !name.toLowerCase().endsWith(extension.toLowerCase()) ? `${name}${extension}` : name
     try {
-      await actions.renameItem({ providerId, ref: item.ref, name: finalName })
+      await actions.renameItem({ connectionId, ref: item.ref, name: finalName })
     } catch (error) {
       setActionError(hubErrorMessage(error))
     }
@@ -222,7 +226,7 @@ export default function SpaceBrowsePage() {
     setDraftKey(null)
     setActionError(null)
     try {
-      await actions.createFolder({ providerId, parentRef: folderRef ?? null, name, clientKey })
+      await actions.createFolder({ connectionId, parentRef: folderRef ?? null, name, clientKey })
     } catch (error) {
       setActionError(hubErrorMessage(error))
     }
@@ -240,7 +244,7 @@ export default function SpaceBrowsePage() {
     setFailedUploads([])
     try {
       await actions.uploadFiles({
-        providerId,
+        connectionId,
         parentRef: folderRef ?? null,
         files,
       })
@@ -268,14 +272,14 @@ export default function SpaceBrowsePage() {
       hasPublicLink,
       navigate,
       location,
-      providerName: providerMeta?.name ?? '',
+      providerName: connection?.providerName ?? '',
       onError: (error) => setActionError(hubErrorMessage(error)),
       onRename: (target) => setRenamingRef(target.ref),
     }
   }
 
   function folderMenuContext(item) {
-    const color = folderColors.colorOf(providerId, item.ref)
+    const color = folderColors.colorOf(connectionId, item.ref)
     return {
       ...menuContext(item),
       colorPicker: {
@@ -284,7 +288,7 @@ export default function SpaceBrowsePage() {
           <FolderColorPalette
             selectedId={color.id}
             onPick={(id) => {
-              folderColors.setColor(providerId, item.ref, id)
+              folderColors.setColor(connectionId, item.ref, id)
               close()
             }}
           />
@@ -295,11 +299,11 @@ export default function SpaceBrowsePage() {
 
   function renderBody() {
     // While the folder loads the page stays empty: no loading text.
-    if (providersStatus === 'loading' || folderQuery.status === 'loading' || folderQuery.status === 'idle') {
+    if (connectionsStatus === 'loading' || folderQuery.status === 'loading' || folderQuery.status === 'idle') {
       return null
     }
 
-    if (providersStatus === 'error' || folderQuery.status === 'error') {
+    if (connectionsStatus === 'error' || folderQuery.status === 'error') {
       return (
         <>
           <p className={styles.empty} role="alert">
@@ -312,31 +316,12 @@ export default function SpaceBrowsePage() {
       )
     }
 
-    if (!connected) {
-      return (
-        <>
-          <p className={styles.empty}>Conecte {providerMeta?.name ?? 'este provedor'} para ver seus arquivos.</p>
-          <button
-            type="button"
-            className={styles.loadMore}
-            onClick={() =>
-              navigate(ROUTES.settingsProviders, {
-                state: settingsNavState({ pathname: window.location.pathname }),
-              })
-            }
-          >
-            Conectar
-          </button>
-        </>
-      )
-    }
-
     return (
       <>
         {expired ? (
           <>
             <p className={styles.empty} role="alert">
-              O acesso ao {providerMeta?.name ?? 'provedor'} expirou e esta lista pode estar desatualizada.
+              O acesso ao {accountName || 'provedor'} expirou e esta lista pode estar desatualizada.
             </p>
             <button
               type="button"
@@ -386,7 +371,7 @@ export default function SpaceBrowsePage() {
                   {item.draft ? (
                     <div className={folderViewStyles.tile}>
                       <TileContent
-                        art={<FolderArt color={folderColors.colorOf(providerId, null).hex} />}
+                        art={<FolderArt color={folderColors.colorOf(connectionId, null).hex} />}
                         title={
                           <InlineName
                             initial="Nova pasta"
@@ -411,14 +396,14 @@ export default function SpaceBrowsePage() {
                         <Link
                           {...props}
                           {...selection.tileProps(item.ref)}
-                          to={providerFolderUrl(providerId, item.ref)}
+                          to={driveFolderUrl(connectionId, item.ref)}
                           state={{ folderName: item.name, folderTrail: childFolderTrail(folderQuery.folder) }}
                         />
                       )
                     }
                   >
                     <TileContent
-                      art={<FolderArt color={folderColors.colorOf(providerId, item.ref).hex} />}
+                      art={<FolderArt color={folderColors.colorOf(connectionId, item.ref).hex} />}
                       title={
                         renamingRef === item.ref ? (
                           <InlineName
@@ -473,14 +458,14 @@ export default function SpaceBrowsePage() {
                         <Link
                           {...props}
                           {...selection.tileProps(item.ref)}
-                          to={providerFileUrl(providerId, item.ref)}
+                          to={driveFileUrl(connectionId, item.ref)}
                           state={fileNavState(location)}
                         />
                       )
                     }
                   >
                     <TileContent
-                      art={<FileThumb file={item} providerId={providerId} showTypeIcon />}
+                      art={<FileThumb file={item} connectionId={connectionId} showTypeIcon />}
                       title={
                         renamingRef === item.ref ? (
                           <InlineName
@@ -520,13 +505,13 @@ export default function SpaceBrowsePage() {
     )
   }
 
-  if (!knownProvider && providersStatus === 'idle') {
+  if (!knownConnection && connectionsStatus === 'idle') {
     return null
   }
 
   return (
     <AppShell
-      refreshKey={`${providerId}-${folderRef ?? 'root'}`}
+      refreshKey={`${connectionId}-${folderRef ?? 'root'}`}
       subheader={
         breadcrumbItems ? (
           <SpaceViewHeader
@@ -566,7 +551,7 @@ export default function SpaceBrowsePage() {
         {connected && !expired ? (
           <SelectionActions
             entries={folderQuery.items.filter((item) => !item.pending && selection.selected.has(item.ref))}
-            providerId={providerId}
+            connectionId={connectionId}
             gap={40}
             openOverlay={openOverlay}
             actions={actions}

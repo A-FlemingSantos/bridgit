@@ -8,7 +8,9 @@ vi.mock('../../../shared/hub/index.js', () => ({
   useFolder: vi.fn(),
   useHubActions: vi.fn(),
   usePublicLinks: () => ({ status: 'ready', entries: [], isPublic: () => false }),
-  useProviders: vi.fn(),
+  useConnections: vi.fn(),
+  // The sidebar inside the page shell reads the provider rows.
+  useProviders: () => ({ providers: [], status: 'ready' }),
   useShortcuts: vi.fn(),
 }))
 
@@ -20,13 +22,13 @@ vi.mock('../../../shared/auth/SessionContext.jsx', () => ({
   useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
 }))
 
-import { useFolder, useHubActions, useProviders, useShortcuts } from '../../../shared/hub/index.js'
+import { useConnections, useFolder, useHubActions, useShortcuts } from '../../../shared/hub/index.js'
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
 function setup() {
-  useProviders.mockReturnValue({
-    providers: [{ id: 'onedrive', name: 'OneDrive', connected: true }],
+  useConnections.mockReturnValue({
+    connections: [{ connectionId: 'conn-1', provider: 'onedrive', providerName: 'OneDrive' }],
     status: 'ready',
   })
   useShortcuts.mockReturnValue({ status: 'ready', entries: [], isShortcut: () => false })
@@ -58,11 +60,11 @@ function NavigateProbe() {
 
 function renderPage() {
   return render(
-    <MemoryRouter {...router} initialEntries={['/providers/onedrive']}>
+    <MemoryRouter {...router} initialEntries={['/drives/conn-1']}>
       <NavigateProbe />
       <Routes>
-        <Route path="/providers/:provider" element={<SpaceBrowsePage />} />
-        <Route path="/providers/:provider/folder/:folderRef" element={<SpaceBrowsePage />} />
+        <Route path="/drives/:connectionId" element={<SpaceBrowsePage />} />
+        <Route path="/drives/:connectionId/folder/:folderRef" element={<SpaceBrowsePage />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -122,7 +124,7 @@ describe('SpaceBrowsePage new folder draft', () => {
     renderPage()
 
     await openDraft(user)
-    goTo('/providers/onedrive/folder/folder-a')
+    goTo('/drives/conn-1/folder/folder-a')
 
     // The draft leaves with an exit animation, which can run long when the whole suite is busy.
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome da nova pasta' })).not.toBeInTheDocument(), { timeout: 3000 })
@@ -146,7 +148,7 @@ describe('SpaceBrowsePage tile selection', () => {
     expect(tile.closest('main')).toBeInTheDocument()
 
     await user.click(within(tile).getByText('Anexos'))
-    await waitFor(() => expect(currentPath).toBe('/providers/onedrive/folder/folder-a'))
+    await waitFor(() => expect(currentPath).toBe('/drives/conn-1/folder/folder-a'))
   })
 
   it('clicar fora tira a seleção', async () => {

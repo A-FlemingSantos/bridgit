@@ -9,29 +9,29 @@ function snapshot() {
     providersState: {
       status: 'ready',
       providers: [
-        { id: 'onedrive', connected: true, connectionId: 'connection-a', generation: 3 },
-        { id: 'dropbox', connected: false },
+        { id: 'onedrive', connected: true, connections: [{ provider: 'onedrive', connectionId: 'connection-a', generation: 3 }] },
+        { id: 'dropbox', connected: false, connections: [] },
       ],
     },
     folderCache: {
-      'onedrive:root': {
+      'connection-a:root': {
         query: { parent: null, sort: 'name' },
         complete: true,
         generation: 8,
         items: [
-          { provider: 'onedrive', ref: 'report', name: 'Report' },
-          { provider: 'onedrive', ref: 'report', name: 'Duplicate' },
-          { provider: 'dropbox', ref: 'wrong-connection' },
+          { connectionId: 'connection-a', provider: 'onedrive', ref: 'report', name: 'Report' },
+          { connectionId: 'connection-a', provider: 'onedrive', ref: 'report', name: 'Duplicate' },
+          { connectionId: 'connection-z', provider: 'onedrive', ref: 'wrong-connection' },
         ],
       },
-      'dropbox:root': { items: [{ provider: 'dropbox', ref: 'discarded' }] },
+      'connection-b:root': { items: [{ connectionId: 'connection-b', provider: 'dropbox', ref: 'discarded' }] },
     },
     itemCache: {
-      'onedrive:report': { complete: true, item: { provider: 'onedrive', ref: 'report' } },
-      'dropbox:discarded': { complete: true, item: { provider: 'dropbox', ref: 'discarded' } },
+      'connection-a:report': { complete: true, item: { connectionId: 'connection-a', provider: 'onedrive', ref: 'report' } },
+      'connection-b:discarded': { complete: true, item: { connectionId: 'connection-b', provider: 'dropbox', ref: 'discarded' } },
     },
-    recentsState: { entries: [{ provider: 'onedrive', ref: 'report' }, { provider: 'dropbox', ref: 'discarded' }] },
-    shortcutsState: { entries: [{ provider: 'onedrive', ref: 'report' }] },
+    recentsState: { entries: [{ connectionId: 'connection-a', provider: 'onedrive', ref: 'report' }, { connectionId: 'connection-b', provider: 'dropbox', ref: 'discarded' }] },
+    shortcutsState: { entries: [{ connectionId: 'connection-a', provider: 'onedrive', ref: 'report' }] },
   }
 }
 
@@ -40,21 +40,21 @@ afterEach(() => {
 })
 
 describe('catalog normalization', () => {
-  it('scopes legacy provider keys, preserves ordering and rejects disconnected providers', () => {
+  it('scopes keys by connectionId, preserves ordering and rejects accounts that are no longer connected', () => {
     const normalized = normalizeCatalogSnapshot(snapshot())
 
-    expect(normalized.folderCache['onedrive:root']).toMatchObject({
+    expect(normalized.folderCache['connection-a:root']).toMatchObject({
       query: { parent: null, sort: 'name' },
       complete: true,
       catalog: expect.objectContaining({ connectionId: 'connection-a', generation: '3' }),
       generation: 8,
     })
-    expect(normalized.folderCache['onedrive:root'].items).toEqual([
+    expect(normalized.folderCache['connection-a:root'].items).toEqual([
       expect.objectContaining({ ref: 'report', catalog: expect.objectContaining({ connectionId: 'connection-a', generation: '3' }) }),
     ])
-    expect(normalized.folderCache['dropbox:root']).toBeUndefined()
+    expect(normalized.folderCache['connection-b:root']).toBeUndefined()
     expect(normalized.itemCache).toEqual({
-      'onedrive:report': expect.objectContaining({ complete: true, catalog: expect.objectContaining({ connectionId: 'connection-a' }) }),
+      'connection-a:report': expect.objectContaining({ complete: true, catalog: expect.objectContaining({ connectionId: 'connection-a' }) }),
     })
     expect(normalized.recentsState.entries).toHaveLength(1)
     expect(normalized.shortcutsState.entries[0]).toMatchObject({ ref: 'report', catalog: { generation: '3' } })
@@ -64,12 +64,12 @@ describe('catalog normalization', () => {
     const input = snapshot()
     input.providersState.providers[0].authorizationUrl = 'https://provider.example/authorize'
     input.providersState.providers[0].link = 'https://provider.example/account'
-    input.itemCache['onedrive:report'].item.accessToken = 'secret'
+    input.itemCache['connection-a:report'].item.accessToken = 'secret'
 
     const normalized = normalizeCatalogSnapshot(input)
     expect(normalized.providersState.providers[0].authorizationUrl).toBeUndefined()
     expect(normalized.providersState.providers[0].link).toBeUndefined()
-    expect(normalized.itemCache['onedrive:report'].item.accessToken).toBeUndefined()
+    expect(normalized.itemCache['connection-a:report'].item.accessToken).toBeUndefined()
   })
 })
 

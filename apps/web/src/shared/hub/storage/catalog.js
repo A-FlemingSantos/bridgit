@@ -1,4 +1,9 @@
+import { flattenConnections } from '../hubCache.js'
 import { readRecord, requestAsPromise, transactionDone, writeRecords, openHubDatabase } from './idb.js'
+
+// Version of the saved record. Version 2 keys every cache by connectionId (the account); a record saved under
+// another version (cache keys by provider) is dropped and rebuilt from the API, never migrated.
+const CATALOG_FORMAT = 2
 
 const FORBIDDEN_FIELD = /(?:token|authorization|password|secret|url)/i
 
@@ -10,10 +15,6 @@ export function connectionEpochKey(userId, connectionId, generation = null) {
   return `connection:${userId}:${connectionId}:${generation ?? '*'}`
 }
 
-function providerId(status) {
-  return status?.provider ?? status?.id ?? null
-}
-
 function statusConnectionId(status) {
   return status?.connectionId ?? status?.connection?.id ?? null
 }
@@ -23,7 +24,7 @@ function statusGeneration(status) {
 }
 
 function scopeForStatus(status) {
-  const provider = providerId(status)
+  const provider = status?.provider ?? null
   const connection = statusConnectionId(status)
   const version = statusGeneration(status)
   if (!provider || !connection || version === null || version === undefined || status?.connected === false) return null
@@ -42,16 +43,17 @@ function safeCopy(value) {
   return out
 }
 
-function scopesForProviders(providersState) {
+// One scope per connected account, keyed by connectionId.
+function scopesForConnections(providersState) {
   const scopes = new Map()
-  for (const status of providersState?.providers ?? []) {
+  for (const status of flattenConnections(providersState?.providers)) {
     const scope = scopeForStatus(status)
-    if (scope) scopes.set(scope.provider, scope)
+    if (scope) scopes.set(scope.connectionId, scope)
   }
   return scopes
 }
 
-function providerFromKey(key) {
+function connectionFromKey(key) {
   if (typeof key !== 'string') return null
   const separator = key.indexOf(':')
   return separator > 0 ? key.slice(0, separator) : null
@@ -85,11 +87,11 @@ function scopedItem(item, scope) {
   return { ...safeCopy(item), catalog: catalogScope(item, scope) }
 }
 
-function dedupeScopedItems(items, scope, provider) {
+function dedupeScopedItems(items, scope) {
   const seen = new Set()
   const result = []
   for (const item of items ?? []) {
-    if (item?.provider !== provider) continue
+    if (item?.connectionId !== scope.connectionId) continue
     const normalized = scopedItem(item, scope)
     if (!normalized) continue
     const identity = `${scope.connectionId}:${scope.generation}:${normalized.ref}`
@@ -103,11 +105,11 @@ function dedupeScopedItems(items, scope, provider) {
 function normalizeFolderCache(cache, scopes) {
   const output = {}
   for (const [legacyKey, original] of Object.entries(cache ?? {})) {
-    const provider = original?.provider ?? original?.providerId ?? providerFromKey(legacyKey)
-    const scope = scopes.get(provider)
+    const connectionId = connectionFromKey(legacyKey)
+    const scope = scopes.get(connectionId)
     if (!scope || !sameScope(original, scope)) continue
     const ref = original?.folderRef ?? original?.parentRef ?? folderRefFromKey(legacyKey)
-    const key = `${provider}:${ref == null || ref === '' ? 'root' : ref}`
+    const key = `${connectionId}:${ref == null || ref === '' ? 'root' : ref}`
     output[key] = {
       ...safeCopy(original),
       status: original?.loaded ? 'ready' : 'idle',
@@ -116,7 +118,7 @@ function normalizeFolderCache(cache, scopes) {
       error: null,
       fetchedAt: original?.revalidating || original?.isFetchingNextPage || original?.status === 'loading' ? 0 : original?.fetchedAt ?? 0,
       catalog: catalogScope(original, scope),
-      items: dedupeScopedItems(original?.items, scope, provider),
+      items: dedupeScopedItems(original?.items, scope),
     }
   }
   return output
@@ -126,12 +128,11 @@ function normalizeItemCache(cache, scopes) {
   const output = {}
   for (const [legacyKey, original] of Object.entries(cache ?? {})) {
     const item = original?.item
-    const provider = item?.provider ?? original?.provider ?? providerFromKey(legacyKey)
-    const scope = scopes.get(provider)
+    const scope = scopes.get(item?.connectionId ?? connectionFromKey(legacyKey))
     if (!scope || !sameScope(original, scope)) continue
     const normalized = scopedItem(item, scope)
     if (!normalized) continue
-    output[`${provider}:${normalized.ref}`] = {
+    output[`${scope.connectionId}:${normalized.ref}`] = {
       ...safeCopy(original),
       status: 'ready',
       revalidating: false,
@@ -148,7 +149,7 @@ function normalizeListState(state, scopes) {
   const entries = []
   const seen = new Set()
   for (const entry of state?.entries ?? []) {
-    const scope = scopes.get(entry?.provider)
+    const scope = scopes.get(entry?.connectionId)
     const normalized = scope && scopedItem(entry, scope)
     if (!normalized) continue
     const identity = `${scope.connectionId}:${scope.generation}:${normalized.ref}`
@@ -243,7 +244,7 @@ export function normalizeCatalogSnapshot(snapshot) {
   const providersState = safeCopy(snapshot.providersState ?? {})
   providersState.status = providersState.status === 'ready' || providersState.providers?.length ? 'ready' : 'idle'
   providersState.error = null
-  const scopes = scopesForProviders(providersState)
+  const scopes = scopesForConnections(providersState)
   return {
     providersState,
     folderCache: normalizeFolderCache(snapshot.folderCache, scopes),
@@ -269,7 +270,7 @@ async function epochsFor(userId, scopes) {
 }
 
 function scopeEpochs(userId, snapshot, values) {
-  const scopes = [...scopesForProviders(snapshot.providersState).values()]
+  const scopes = [...scopesForConnections(snapshot.providersState).values()]
   return scopes.map((scope) => ({
     connectionId: scope.connectionId,
     generation: scope.generation,
@@ -292,7 +293,7 @@ async function catalogEpochsMatch(record) {
 export async function loadCatalog(userId) {
   if (!userId) return null
   const record = await readRecord('catalog', String(userId))
-  if (!record || !(await catalogEpochsMatch(record))) return null
+  if (!record || record.format !== CATALOG_FORMAT || !(await catalogEpochsMatch(record))) return null
   return expandCatalogSnapshot(record.snapshot)
 }
 
@@ -300,9 +301,10 @@ export async function saveCatalog(userId, snapshot) {
   if (!userId) return
   const compact = compactCatalogSnapshot(snapshot)
   if (!compact) return
-  const scopes = [...scopesForProviders(compact.providersState).values()]
+  const scopes = [...scopesForConnections(compact.providersState).values()]
   const initialEpochs = await epochsFor(String(userId), scopes)
   const record = {
+    format: CATALOG_FORMAT,
     userId: String(userId),
     snapshot: compact,
     userEpoch: initialEpochs.get(userEpochKey(String(userId))) ?? 0,
@@ -365,18 +367,15 @@ export async function clearConnectionStorage(userId, connectionId, generation) {
     removed = await deleteMatchingContent(transaction, (record) => matchesConnection(record, userId, connectionId, generation))
     const catalogStore = transaction.objectStore('catalog')
     const catalog = await requestAsPromise(catalogStore.get(String(userId)))
-    if (catalog) {
+    if (catalog && catalog.format !== CATALOG_FORMAT) {
+      catalogStore.delete(String(userId))
+    } else if (catalog) {
       const expanded = expandCatalogSnapshot(catalog.snapshot) ?? {
         providersState: { providers: [] }, folderCache: {}, itemCache: {}, recentsState: {}, shortcutsState: {},
       }
       const scopeMatches = (scope) => scope.connectionId === String(connectionId) &&
         (generation === undefined || generation === null || scope.generation === String(generation))
-      const providers = expanded.providersState?.providers ?? []
-      const providerIds = new Set(providers
-        .filter((provider) => String(statusConnectionId(provider)) === String(connectionId) &&
-          (generation === undefined || generation === null || String(statusGeneration(provider)) === String(generation)))
-        .map(providerId))
-      const shouldRemove = (value, key) => providerIds.has(value?.provider ?? value?.providerId ?? providerFromKey(key)) &&
+      const shouldRemove = (value, key) => String(value?.connectionId ?? value?.catalog?.connectionId ?? connectionFromKey(key)) === String(connectionId) &&
         (generation === undefined || generation === null || String(value?.catalog?.generation ?? value?.connectionGeneration) === String(generation))
       const filteredSnapshot = {
         ...expanded,

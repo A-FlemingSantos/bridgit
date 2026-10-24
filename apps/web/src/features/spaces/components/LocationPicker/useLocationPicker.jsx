@@ -3,6 +3,7 @@ import ProviderStrip from '../ProviderStrip/ProviderStrip.jsx'
 import FileSheet from '../FileSheet/FileSheet.jsx'
 import FolderArt from '../FolderArt/FolderArt.jsx'
 import { FolderTrail, folderViewStyles, ItemGrid, TileContent } from '../FolderView/FolderView.jsx'
+import { connectionLabel } from '../../connectionLabel.js'
 import { useFolderColors } from '../../folderColors.js'
 import {
   getFolder,
@@ -14,15 +15,17 @@ import {
   makeRootLocation,
 } from '../../../../shared/state/hubStore.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
-import { useFolder, useProviders } from '../../../../shared/hub/index.js'
+import { useConnections, useFolder } from '../../../../shared/hub/index.js'
 import { overlayStyles as styles } from '../../../../shared/components/AppOverlay/AppOverlay.jsx'
 
+// Where to pick a folder. `source: 'api'` browses a connected account (`initialConnectionId`); `source: 'mock'`
+// browses the Spaces catalog, where a provider stands in for its one account.
 export function useLocationPicker({
   source = 'mock',
-  excludeProviderId,
+  excludeConnectionId,
   disabledFolderRef = null,
   disabledFolderRefs = [],
-  initialProviderId = null,
+  initialConnectionId = null,
   foldersOnly = false,
   allowRoot = false,
   blockedHint = 'Esta pasta já é o outro lado',
@@ -31,10 +34,9 @@ export function useLocationPicker({
 } = {}) {
   if (source === 'api') {
     return useApiLocationPicker({
-      excludeProviderId,
       disabledFolderRef,
       disabledFolderRefs,
-      initialProviderId,
+      initialConnectionId,
       allowRoot,
       blockedHint,
       onChoose,
@@ -43,10 +45,10 @@ export function useLocationPicker({
   }
 
   return useMockLocationPicker({
-    excludeProviderId,
+    excludeConnectionId,
     disabledFolderRef,
     disabledFolderRefs,
-    initialProviderId,
+    initialConnectionId,
     foldersOnly,
     allowRoot,
     blockedHint,
@@ -56,10 +58,10 @@ export function useLocationPicker({
 }
 
 function useMockLocationPicker({
-  excludeProviderId,
+  excludeConnectionId,
   disabledFolderRef = null,
   disabledFolderRefs = [],
-  initialProviderId = null,
+  initialConnectionId = null,
   foldersOnly = false,
   allowRoot = false,
   blockedHint = 'Esta pasta já é o outro lado',
@@ -67,13 +69,13 @@ function useMockLocationPicker({
   resetKey,
 } = {}) {
   const { state } = useHub()
-  const [providerId, setProviderId] = useState(initialProviderId)
+  const [providerId, setProviderId] = useState(initialConnectionId)
   const [folderRef, setFolderRef] = useState(null)
 
   useEffect(() => {
-    setProviderId(initialProviderId)
+    setProviderId(initialConnectionId)
     setFolderRef(null)
-  }, [resetKey, excludeProviderId, initialProviderId])
+  }, [resetKey, excludeConnectionId, initialConnectionId])
 
   const provider = providerId ? getProvider(state, providerId) : null
   const folder = folderRef ? getFolder(state, folderRef) : null
@@ -83,7 +85,7 @@ function useMockLocationPicker({
       : getProviderContents(state, provider.id)
     : { folders: [], files: [] }
 
-  const providers = state.providers.filter((item) => item.id !== excludeProviderId)
+  const providers = state.providers.filter((item) => item.id !== excludeConnectionId)
   const blockedRefs = [disabledFolderRef, ...disabledFolderRefs].filter(Boolean)
   const currentLocation = useMemo(() => {
     if (!provider) return null
@@ -148,7 +150,7 @@ function useMockLocationPicker({
             ]}
             current={folder.name}
           />
-        ) : initialProviderId ? null : (
+        ) : initialConnectionId ? null : (
           <button type="button" className={styles.more} onClick={() => setProviderId(null)}>
             Provedores
           </button>
@@ -208,25 +210,26 @@ function useMockLocationPicker({
 function useApiLocationPicker({
   disabledFolderRef = null,
   disabledFolderRefs = [],
-  initialProviderId = null,
+  initialConnectionId = null,
   allowRoot = false,
   blockedHint = 'Não dá para mover para cá',
   onChoose,
   resetKey,
 } = {}) {
-  const { providers } = useProviders()
+  const { connections } = useConnections()
   const folderColors = useFolderColors()
   const [destination, setDestination] = useState(null)
   const [continuationError, setContinuationError] = useState(null)
-  const providerId = initialProviderId
-  const provider = providers.find((item) => item.id === providerId) ?? null
+  const connectionId = initialConnectionId
+  const connection = connections.find((item) => item.connectionId === connectionId) ?? null
+  const accountName = connectionLabel(connection, connections)
   const folderRef = destination?.ref ?? null
-  const folderQuery = useFolder(providerId, folderRef)
+  const folderQuery = useFolder(connectionId, folderRef)
 
   useEffect(() => {
     setDestination(null)
     setContinuationError(null)
-  }, [resetKey, initialProviderId])
+  }, [resetKey, initialConnectionId])
 
   const blockedRefs = [disabledFolderRef, ...disabledFolderRefs].filter(Boolean)
   const folders = folderQuery.items.filter((item) => item.kind === 'folder')
@@ -270,7 +273,7 @@ function useApiLocationPicker({
     setContinuationError(null)
   }
 
-  if (!provider) {
+  if (!connection) {
     return {
       picking: true,
       stage: 'providers',
@@ -294,13 +297,14 @@ function useApiLocationPicker({
   const chosenLocation = !validated
     ? null
     : atRoot
-      ? makeRootLocation(provider)
+      ? { ...makeRootLocation({ id: connection.provider, name: connection.providerName }), connectionId }
       : {
           kind: 'folder',
           ref: folderRef,
           name: destination?.name ?? folderQuery.folder?.name ?? '',
-          providerId: provider.id,
-          provider: provider.name,
+          connectionId,
+          providerId: connection.provider,
+          provider: connection.providerName,
         }
 
   const chooseDisabled = !canChoose || (!atRoot && folderQuery.status !== 'ready')
@@ -329,11 +333,11 @@ function useApiLocationPicker({
           size="compact"
           ancestors={folderRef
             ? [
-                { label: provider.name, onSelect: goRoot },
+                { label: accountName, onSelect: goRoot },
                 ...parents.map((item) => ({ label: item.name, onSelect: () => goTo(item.ref, item.name) })),
               ]
             : []}
-          current={folderRef ? (destination?.name ?? folderQuery.folder?.name ?? '') : provider.name}
+          current={folderRef ? (destination?.name ?? folderQuery.folder?.name ?? '') : accountName}
         />
 
         {folderQuery.status === 'error' ? (
@@ -366,7 +370,7 @@ function useApiLocationPicker({
                   }}
                 >
                   <TileContent
-                    art={<FolderArt color={folderColors.colorOf(provider.id, item.ref).hex} />}
+                    art={<FolderArt color={folderColors.colorOf(connectionId, item.ref).hex} />}
                     title={item.name}
                     subtitle="Pasta"
                   />
@@ -399,8 +403,8 @@ function useApiLocationPicker({
     picking: true,
     stage: 'browse',
     atRoot: !folderRef,
-    title: atRoot ? provider.name : (destination?.name ?? folderQuery.folder?.name ?? provider.name),
-    refreshKey: `${provider.id}-${folderRef ?? 'root'}`,
+    title: atRoot ? accountName : (destination?.name ?? folderQuery.folder?.name ?? accountName),
+    refreshKey: `${connectionId}-${folderRef ?? 'root'}`,
     validated,
     chosenLocation,
     chooseDisabled,

@@ -91,6 +91,7 @@
 }
 
 .item:hover {
+  --avatar-surface: var(--raise);
   background: var(--raise);
   color: var(--ink);
 }
@@ -101,6 +102,7 @@
 }
 
 .itemActive {
+  --avatar-surface: var(--raise);
   background: var(--raise);
   color: var(--ink);
 }

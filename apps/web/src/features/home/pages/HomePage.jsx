@@ -7,12 +7,12 @@ import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import AnchoredSuspendedMenu from '../../../shared/components/SuspendedMenu/AnchoredSuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
-import { providerFileUrl, providerFolderUrl, ROUTES } from '../../../shared/config/routes.js'
+import { driveFileUrl, driveFolderUrl, ROUTES } from '../../../shared/config/routes.js'
 import { fileNavState } from '../../../shared/utils/fileOverlay.js'
 import { settingsNavState } from '../../../shared/utils/settingsOverlay.js'
 import {
+  useConnections,
   useHubActions,
-  useProviders,
   usePublicLinks,
   useRecents,
   useSearch,
@@ -25,6 +25,7 @@ import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import ProviderStrip from '../../spaces/components/ProviderStrip/ProviderStrip.jsx'
 import { fileMenuItems } from '../../spaces/components/entryActions.jsx'
+import { connectionLabel } from '../../spaces/connectionLabel.js'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
 import styles from './HomePage.module.css'
@@ -58,6 +59,7 @@ function providerLabel(id) {
 
 function entryMenuFile(file) {
   return {
+    connectionId: file.connectionId,
     provider: file.provider,
     ref: file.ref,
     name: file.name,
@@ -77,13 +79,14 @@ export default function HomePage() {
   const searchId = useId()
   const [query, setQuery] = useState('')
   const [recentsView, setRecentsView] = useState('grid')
-  const [providerFilter, setProviderFilter] = useState(ALL_PROVIDERS)
+  const [accountFilter, setAccountFilter] = useState(ALL_PROVIDERS)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.() ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
   const [failedUploads, setFailedUploads] = useState([])
-  const [uploadProviderId, setUploadProviderId] = useState(null)
+  const [uploadConnectionId, setUploadConnectionId] = useState(null)
   const search = useSearch(query)
+  const { connections } = useConnections()
   const location = useLocation()
   const searchRef = useRef(null)
 
@@ -96,30 +99,44 @@ export default function HomePage() {
   const normalized = query.trim().toLowerCase()
   const searching = normalized.length >= 2
 
-  const recentProviders = useMemo(
-    () => [...new Set(recents.map((file) => file.provider))],
+  // A cloud account is what the lists are split by. Its name is the provider name, plus the account e-mail
+  // when that provider has several accounts.
+  function accountName(connectionId, provider) {
+    const connection = connections.find((item) => item.connectionId === connectionId)
+    return connection ? connectionLabel(connection, connections) : providerLabel(provider)
+  }
+
+  const recentAccounts = useMemo(
+    () => [...new Map(recents.map((file) => [file.connectionId, file.provider])).entries()]
+      .map(([connectionId, provider]) => ({ connectionId, provider })),
     [recents],
   )
-  const activeFilter = recentProviders.includes(providerFilter) ? providerFilter : ALL_PROVIDERS
+  const activeFilter = recentAccounts.some((account) => account.connectionId === accountFilter) ? accountFilter : ALL_PROVIDERS
   const visibleRecents = activeFilter === ALL_PROVIDERS
     ? recents
-    : recents.filter((file) => file.provider === activeFilter)
+    : recents.filter((file) => file.connectionId === activeFilter)
 
   const searchGroups = useMemo(() => {
     if (!searching || search.status !== 'ready') return []
     const groups = new Map()
     ;(search.results ?? []).forEach((item) => {
-      const key = item.provider
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key).push(item)
+      const key = item.connectionId
+      if (!groups.has(key)) groups.set(key, { provider: item.provider, items: [] })
+      groups.get(key).items.push(item)
     })
     const queried = Array.isArray(search.providers) ? search.providers : []
-    if (queried.length === 0) return [...groups.entries()].map(([id, items]) => ({ id, ok: true, error: null, items }))
+    if (queried.length === 0) {
+      return [...groups.entries()].map(([connectionId, group]) => ({
+        id: connectionId, provider: group.provider, ok: true, error: null, items: group.items,
+      }))
+    }
+    // Each queried account answers on its own: one can fail while another, even of the same provider, finds files.
     return queried.map((entry) => ({
-      id: entry.id,
+      id: entry.connectionId ?? entry.id,
+      provider: entry.id,
       ok: entry.ok !== false,
       error: entry.error ?? null,
-      items: groups.get(entry.id) ?? [],
+      items: groups.get(entry.connectionId ?? entry.id)?.items ?? [],
     }))
   }, [search.results, search.providers, search.status, searching])
 
@@ -143,31 +160,31 @@ export default function HomePage() {
       hasPublicLink: publicLinksQuery.isPublic,
       navigate,
       location,
-      providerName: providerLabel(item.provider),
+      providerName: accountName(item.connectionId, item.provider),
       onError: (error) => setActionError(hubErrorMessage(error)),
     }
   }
 
-  function handleUploadError(providerId, files, error) {
+  function handleUploadError(connectionId, files, error) {
     setActionError(hubErrorMessage(error))
     const failed = Array.isArray(error?.failed) ? error.failed.filter(Boolean) : []
     setFailedUploads(failed)
-    setUploadProviderId(providerId)
+    setUploadConnectionId(connectionId)
   }
 
   const retryableUploads = failedUploads.filter((entry) => entry?.ambiguous !== true)
   const pendingVerificationUploads = failedUploads.filter((entry) => entry?.ambiguous === true)
 
   async function retryFailedUploads() {
-    if (!uploadProviderId || retryableUploads.length === 0) return
-    const providerId = uploadProviderId
+    if (!uploadConnectionId || retryableUploads.length === 0) return
+    const connectionId = uploadConnectionId
     const files = retryableUploads.map((entry) => entry?.file ?? entry).filter(Boolean)
     setActionError(null)
     setFailedUploads([])
     try {
-      await actions.uploadFiles({ providerId, parentRef: null, files })
+      await actions.uploadFiles({ connectionId, parentRef: null, files })
     } catch (error) {
-      handleUploadError(providerId, files, error)
+      handleUploadError(connectionId, files, error)
     }
   }
 
@@ -258,7 +275,7 @@ export default function HomePage() {
                 O envio pode ter sido concluído; a pasta está sendo atualizada.
               </p>
             ) : null}
-            {retryableUploads.length > 0 && uploadProviderId ? (
+            {retryableUploads.length > 0 && uploadConnectionId ? (
               <button
                 type="button"
                 className={styles.inlineAction}
@@ -306,10 +323,10 @@ export default function HomePage() {
                 ) : null}
                 {searchGroups.map((group) => (
                   <div key={group.id} className={styles.searchGroup}>
-                    <h3>{providerLabel(group.id)}</h3>
+                    <h3>{accountName(group.id, group.provider)}</h3>
                     {!group.ok ? (
                       <p className={styles.empty} role="alert">
-                        {`Não foi possível buscar em ${providerLabel(group.id)}.`}
+                        {`Não foi possível buscar em ${accountName(group.id, group.provider)}.`}
                       </p>
                     ) : group.items.length === 0 ? (
                       <p className={styles.empty}>Nenhum resultado</p>
@@ -319,7 +336,7 @@ export default function HomePage() {
                           item.kind === 'folder' ? (
                             <Link
                               key={item.uiKey ?? item.ref}
-                              to={providerFolderUrl(group.id, item.ref)}
+                              to={driveFolderUrl(group.id, item.ref)}
                               className={styles.row}
                             >
                               <span className={styles.rowTitle}>{item.name}</span>
@@ -327,7 +344,7 @@ export default function HomePage() {
                           ) : (
                             <Link
                               key={item.uiKey ?? item.ref}
-                              to={providerFileUrl(group.id, item.ref)}
+                              to={driveFileUrl(group.id, item.ref)}
                               state={fileNavState(location)}
                               className={styles.row}
                             >
@@ -349,25 +366,25 @@ export default function HomePage() {
             </header>
 
             <div className={styles.toolbar}>
-              {recentProviders.length > 1 ? (
+              {recentAccounts.length > 1 ? (
                 <div className={styles.chips} role="group" aria-label="Filtrar recentes por provedor">
                   <button
                     type="button"
                     className={styles.chip}
                     aria-pressed={activeFilter === ALL_PROVIDERS}
-                    onClick={() => setProviderFilter(ALL_PROVIDERS)}
+                    onClick={() => setAccountFilter(ALL_PROVIDERS)}
                   >
                     Todos
                   </button>
-                  {recentProviders.map((id) => (
+                  {recentAccounts.map(({ connectionId, provider }) => (
                     <button
-                      key={id}
+                      key={connectionId}
                       type="button"
                       className={styles.chip}
-                      aria-pressed={activeFilter === id}
-                      onClick={() => setProviderFilter(id)}
+                      aria-pressed={activeFilter === connectionId}
+                      onClick={() => setAccountFilter(connectionId)}
                     >
-                      {providerLabel(id)}
+                      {accountName(connectionId, provider)}
                     </button>
                   ))}
                 </div>
@@ -430,7 +447,7 @@ export default function HomePage() {
               <div className={styles.list}>
                 {visibleRecents.map((file, index) => (
                   <StaggerItem
-                    key={`${file.provider}-${file.ref}`}
+                    key={`${file.connectionId}-${file.ref}`}
                     index={index}
                     base={0.04}
                     step={0.025}
@@ -438,18 +455,18 @@ export default function HomePage() {
                     className={styles.rowWrap}
                   >
                     <Link
-                      to={providerFileUrl(file.provider, file.ref)}
+                      to={driveFileUrl(file.connectionId, file.ref)}
                       state={fileNavState(location)}
                       className={styles.row}
                       aria-label={file.name}
                     >
                       <span className={styles.rowFace} aria-hidden="true">
-                        <FileThumb file={file} providerId={file.provider} align="center" fit="cover" />
+                        <FileThumb file={file} align="center" fit="cover" />
                       </span>
                       <span className={styles.rowBody}>
                         <span className={styles.rowTitle}>{file.name}</span>
                         <span className={styles.rowSub}>
-                          {itemKindLabel(file)} · {providerLabel(file.provider)}
+                          {itemKindLabel(file)} · {accountName(file.connectionId, file.provider)}
                         </span>
                       </span>
                       <span className={styles.rowWhen}>{formatRelativeTime(file.openedAt)}</span>
@@ -470,7 +487,7 @@ export default function HomePage() {
               <div className={styles.grid}>
                 {visibleRecents.map((file, index) => (
                   <StaggerItem
-                    key={`${file.provider}-${file.ref}`}
+                    key={`${file.connectionId}-${file.ref}`}
                     index={index}
                     base={0.04}
                     step={0.025}
@@ -478,13 +495,13 @@ export default function HomePage() {
                     className={styles.cardWrap}
                   >
                     <Link
-                      to={providerFileUrl(file.provider, file.ref)}
+                      to={driveFileUrl(file.connectionId, file.ref)}
                       state={fileNavState(location)}
                       className={styles.tile}
                       aria-label={file.name}
                     >
                       <span className={styles.tileFace} aria-hidden="true">
-                        <FileThumb file={file} providerId={file.provider} align="center" fit="cover" />
+                        <FileThumb file={file} align="center" fit="cover" />
                         <span className={styles.tileMark}>
                           <ProviderMark id={file.provider} size={14} />
                         </span>
@@ -515,7 +532,7 @@ export default function HomePage() {
 
 function UploadAction({ onUploadError }) {
   const actions = useHubActions()
-  const { providers } = useProviders()
+  const { connections } = useConnections()
   const extrasId = useId()
   const triggerId = useId()
   const inputRef = useRef(null)
@@ -523,9 +540,7 @@ function UploadAction({ onUploadError }) {
   const triggerRef = useRef(null)
   const menuRef = useRef(null)
   // An expired connection cannot receive uploads until it is reconnected.
-  const connectedProviders = providers.filter(
-    (provider) => provider.connected && provider.lastError !== 'RECONEXAO_NECESSARIA',
-  )
+  const uploadTargets = connections.filter((connection) => connection.lastError !== 'RECONEXAO_NECESSARIA')
   const menu = useSuspendedMenu(2, { menuRef })
   // What the system picker returned, waiting for the cloud it goes to (asked only when more than
   // one is connected).
@@ -537,17 +552,17 @@ function UploadAction({ onUploadError }) {
     input.current?.click()
   }
 
-  function send(providerId, choice) {
+  function send(connectionId, choice) {
     const run = choice.kind === 'folder'
-      ? uploadFolder(providerId, choice.files)
-      : actions.uploadFiles({ providerId, parentRef: null, files: choice.files })
-    void run.catch((error) => onUploadError?.(providerId, choice.files, error))
+      ? uploadFolder(connectionId, choice.files)
+      : actions.uploadFiles({ connectionId, parentRef: null, files: choice.files })
+    void run.catch((error) => onUploadError?.(connectionId, choice.files, error))
   }
 
   function receive(kind, files) {
-    if (!files.length || connectedProviders.length === 0) return
+    if (!files.length || uploadTargets.length === 0) return
     const choice = { kind, files }
-    if (connectedProviders.length === 1) send(connectedProviders[0].id, choice)
+    if (uploadTargets.length === 1) send(uploadTargets[0].connectionId, choice)
     else setPicked(choice)
   }
 
@@ -564,7 +579,7 @@ function UploadAction({ onUploadError }) {
     { id: 'folder', label: 'Enviar pasta', icon: PixelFolder, onSelect: () => startPicking(folderInputRef) },
   ]
 
-  async function uploadFolder(providerId, files) {
+  async function uploadFolder(connectionId, files) {
     // webkitRelativePath is "pasta/sub/arquivo.ext": rebuild the tree folder by
     // folder, then upload each folder's files into its new counterpart.
     const byDirectory = new Map()
@@ -585,14 +600,14 @@ function UploadAction({ onUploadError }) {
         if (refs.has(path)) continue
         const parentRef = refs.get(parts.slice(0, depth - 1).join('/'))
         const created = await actions.createFolder({
-          providerId,
+          connectionId,
           parentRef,
           name: parts[depth - 1],
         })
         refs.set(path, created.ref)
       }
       await actions.uploadFiles({
-        providerId,
+        connectionId,
         parentRef: refs.get(directory),
         files: byDirectory.get(directory),
       })
@@ -610,7 +625,7 @@ function UploadAction({ onUploadError }) {
         aria-expanded={menu.open}
         aria-controls={extrasId}
         onClick={menu.toggleMenu}
-        disabled={connectedProviders.length === 0}
+        disabled={uploadTargets.length === 0}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -663,11 +678,11 @@ function UploadAction({ onUploadError }) {
         <AppOverlay title="Enviar para" onClose={() => setPicked(null)} compact>
           <p className={overlayStyles.lead}>{pickedLabel}</p>
           <ProviderStrip
-            providers={connectedProviders}
-            onPick={(providerId) => {
+            providers={uploadTargets}
+            onPick={(connectionId) => {
               const choice = picked
               setPicked(null)
-              send(providerId, choice)
+              send(connectionId, choice)
             }}
           />
         </AppOverlay>

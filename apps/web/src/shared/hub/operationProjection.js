@@ -30,45 +30,45 @@ export function projectOperations(folderCache, itemCache, operations, providers)
     if (op.sequence && op.sequence < (completed.get(`${request?.connectionId}:${request?.generation}:${request?.ref}`) ?? 0)) continue
     const connection = activeConnections.get(request?.connectionId)
     if (!connection || String(connection.generation) !== String(request.generation)) continue
-    const provider = request.provider
+    const connectionId = request.connectionId
     const creation = request.kind === 'CREATE_FOLDER' || request.kind === 'UPLOAD'
     const attention = op.status === 'NEEDS_ATTENTION' || op.status === 'WAITING_RECONNECT'
     const projected = (item) => {
-      if (item.provider !== provider || item.ref !== request.ref) return item
+      if (item.connectionId !== connectionId || item.ref !== request.ref) return item
       return { ...item, ...(request.name ? { name: request.name } : {}),
         ...(request.parentRef !== undefined && request.parentRef !== null ? { parentRef: request.parentRef || null } : {}),
         pending: true, unconfirmed: attention, _operationId: op.id }
     }
     if (folders === folderCache) folders = { ...folderCache }
     const moving = request.kind === 'UPDATE' && request.parentRef !== undefined && request.parentRef !== null
-      ? items[itemCacheKey(provider, request.ref)]?.item ?? Object.values(folders).flatMap((entry) => entry.items ?? []).find((item) => item.provider === provider && item.ref === request.ref)
+      ? items[itemCacheKey(connectionId, request.ref)]?.item ?? Object.values(folders).flatMap((entry) => entry.items ?? []).find((item) => item.connectionId === connectionId && item.ref === request.ref)
       : null
     for (const [key, entry] of Object.entries(folders)) {
       if (!entry?.items) continue
       let next = entry.items
       if (!creation) {
         next = next.flatMap((item) => {
-          if (item.provider !== provider || item.ref !== request.ref) return [item]
+          if (item.connectionId !== connectionId || item.ref !== request.ref) return [item]
           if (request.kind === 'DELETE') return []
-          if (request.parentRef !== undefined && request.parentRef !== null && key !== folderCacheKey(provider, request.parentRef || null)) return []
+          if (request.parentRef !== undefined && request.parentRef !== null && key !== folderCacheKey(connectionId, request.parentRef || null)) return []
           return [projected(item)]
         })
       }
-      if (creation && key === folderCacheKey(provider, request.parentRef || null)) {
+      if (creation && key === folderCacheKey(connectionId, request.parentRef || null)) {
         const exists = next.some((item) => item._operationId === op.id || item.ref === `temp-operation-${request.clientKey ?? op.id}`)
         if (!exists) {
-          const ghost = { ...op.localItem, ref: `temp-operation-${request.clientKey ?? op.id}`, uiKey: `operation-${request.clientKey ?? op.id}`, provider,
+          const ghost = { ...op.localItem, ref: `temp-operation-${request.clientKey ?? op.id}`, uiKey: `operation-${request.clientKey ?? op.id}`, connectionId, provider: request.provider,
           name: request.name, parentRef: request.parentRef || null, parentKnown: true,
           kind: request.kind === 'CREATE_FOLDER' ? 'folder' : 'file', mimeType: request.contentType,
           pending: true, unconfirmed: attention, _operationId: op.id }
           next = request.kind === 'CREATE_FOLDER' ? [ghost, ...next] : [...next, ghost]
         }
       }
-      if (moving && key === folderCacheKey(provider, request.parentRef || null) && !next.some((item) => item.provider === provider && item.ref === moving.ref)) next = [projected(moving), ...next]
+      if (moving && key === folderCacheKey(connectionId, request.parentRef || null) && !next.some((item) => item.connectionId === connectionId && item.ref === moving.ref)) next = [projected(moving), ...next]
       folders[key] = { ...entry, items: next }
     }
     if (!creation && request.ref) {
-      const key = itemCacheKey(provider, request.ref)
+      const key = itemCacheKey(connectionId, request.ref)
       if (items[key]?.item && request.kind !== 'DELETE') {
         if (items === itemCache) items = { ...itemCache }
         items[key] = { ...items[key], item: projected(items[key].item) }

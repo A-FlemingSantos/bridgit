@@ -1,9 +1,11 @@
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
+import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
+import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import { PixelCopy, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
-import { providerFileUrl, providerUrl, ROUTES } from '../../../../shared/config/routes.js'
+import { driveFileUrl, driveUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
@@ -74,37 +76,29 @@ function Group({ title, children }) {
   )
 }
 
-function ProviderLink({ provider }) {
-  const settingsState = settingsNavState({ pathname: ROUTES.home })
+// One connected account. Name falls back to the email, then to the provider's name.
+function accountLabels(connection) {
+  const { account, providerName } = connection
+  const name = account?.name || account?.email || providerName
+  const sub = account?.email && account.email !== name ? account.email : providerName
+  return { name, sub }
+}
 
-  if (provider.connected && provider.lastError === EXPIRED) {
+function ConnectionLink({ connection }) {
+  const { name, sub } = accountLabels(connection)
+
+  if (connection.lastError === EXPIRED) {
     return (
       <Link
         to={ROUTES.settingsProviders}
-        state={settingsState}
+        state={settingsNavState({ pathname: ROUTES.home })}
         className={styles.item}
-        aria-label={`${provider.name} Acesso expirado`}
+        aria-label={`${connection.providerName} ${name} Acesso expirado`}
       >
-        <ProviderMark id={provider.id} size={24} />
+        <AccountAvatar connection={connection} size={24} />
         <span className={styles.itemMeta}>
-          <span className={styles.itemName}>{provider.name}</span>
+          <span className={styles.itemName}>{name}</span>
           <span className={styles.itemSub}>Acesso expirado · Reconectar</span>
-        </span>
-      </Link>
-    )
-  }
-
-  if (provider.connected) {
-    return (
-      <Link
-        to={providerUrl(provider.id)}
-        className={styles.item}
-        aria-label={`${provider.name} Conectado`}
-      >
-        <ProviderMark id={provider.id} size={24} />
-        <span className={styles.itemMeta}>
-          <span className={styles.itemName}>{provider.name}</span>
-          <span className={styles.itemSub}>{provider.account?.email ?? 'Conectado'}</span>
         </span>
       </Link>
     )
@@ -112,8 +106,25 @@ function ProviderLink({ provider }) {
 
   return (
     <Link
+      to={driveUrl(connection.connectionId)}
+      className={styles.item}
+      aria-label={`${connection.providerName} ${name} Conectado`}
+    >
+      <AccountAvatar connection={connection} size={24} />
+      <span className={styles.itemMeta}>
+        <span className={styles.itemName}>{name}</span>
+        <span className={styles.itemSub}>{sub}</span>
+      </span>
+    </Link>
+  )
+}
+
+// A provider with no account yet.
+function ProviderGhostLink({ provider }) {
+  return (
+    <Link
       to={ROUTES.settingsProviders}
-      state={settingsState}
+      state={settingsNavState({ pathname: ROUTES.home })}
       className={[styles.item, styles.itemGhost].join(' ')}
       aria-label={`${provider.name} Desconectado`}
     >
@@ -146,7 +157,7 @@ function PublicLinkRow({ link, onError }) {
       danger: true,
       onSelect: () => {
         void actions
-          .disablePublicLink({ providerId: link.provider, ref: link.ref })
+          .disablePublicLink({ connectionId: link.connectionId, ref: link.ref })
           .catch((error) => onError?.(error))
       },
     },
@@ -199,6 +210,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
   const homeActive = usePageLocation().pathname === ROUTES.home
 
   const handleError = onError ?? ((error) => setLocalError(hubErrorMessage(error)))
+  // Only the provider-list error state uses this; adding an account opens the menu below.
   const handleConnect = onConnect
     ?? (() => navigate(ROUTES.settingsProviders, { state: settingsNavState(location) }))
   const fileMenuContext = menuContext
@@ -238,7 +250,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         <WindowsDeviceButton />
       </Group>
 
-      <Group title="Provedores">
+      <Group title="Minhas contas">
         {providersStatus === 'loading' || providersStatus === 'idle' ? (
           <p className={styles.empty}>Carregando…</p>
         ) : providersStatus === 'error' ? (
@@ -251,16 +263,20 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             </button>
           </>
         ) : (
-          <nav className={styles.list} aria-label="Provedores">
-            {providers.map((provider) => (
-              <ProviderLink key={provider.id} provider={provider} />
-            ))}
+          <nav className={styles.list} aria-label="Minhas contas">
+            {providers.flatMap((provider) =>
+              provider.connections?.length > 0
+                ? provider.connections.map((connection) => (
+                    <ConnectionLink key={connection.connectionId} connection={connection} />
+                  ))
+                : [<ProviderGhostLink key={provider.id} provider={provider} />],
+            )}
           </nav>
         )}
-        <button type="button" className={[styles.item, styles.addItem].join(' ')} onClick={handleConnect}>
+        <AddAccountMenu className={[styles.item, styles.addItem].join(' ')} onError={handleError}>
           <Plus className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
           <span className={styles.itemName}>Nova conta</span>
-        </button>
+        </AddAccountMenu>
       </Group>
 
       <Group title="Links públicos">
@@ -275,7 +291,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         ) : (
           <div className={styles.list}>
             {links.map((link) => (
-              <PublicLinkRow key={`${link.provider}-${link.ref}`} link={link} onError={handleError} />
+              <PublicLinkRow key={`${link.connectionId}-${link.ref}`} link={link} onError={handleError} />
             ))}
           </div>
         )}
@@ -293,9 +309,9 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         ) : (
           <div className={styles.list}>
             {shortcuts.map((file) => (
-              <div key={`${file.provider}-${file.ref}`} className={styles.itemWrap}>
+              <div key={`${file.connectionId}-${file.ref}`} className={styles.itemWrap}>
                 <Link
-                  to={providerFileUrl(file.provider, file.ref)}
+                  to={driveFileUrl(file.connectionId, file.ref)}
                   state={fileNavState(location)}
                   className={styles.item}
                   aria-label={file.name}
@@ -310,6 +326,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
                   title={file.name}
                   items={fileMenuItems(
                     {
+                      connectionId: file.connectionId,
                       provider: file.provider,
                       ref: file.ref,
                       name: file.name,

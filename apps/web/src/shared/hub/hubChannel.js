@@ -1,4 +1,5 @@
-export const HUB_CHANNEL_NAME = 'bridgit-hub'
+// v2: events name the account (connectionId), not the provider; tabs on the older build must not read them.
+export const HUB_CHANNEL_NAME = 'bridgit-hub-v2'
 
 export function broadcastHubEvent(event) {
   try {
