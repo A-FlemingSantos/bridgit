@@ -141,7 +141,7 @@ describe('FileReader', () => {
     expect(document.querySelector('strong')).not.toBeInTheDocument()
   })
 
-  it('carrega texto no leitor de código só com o loader, sem a capa de folha', async () => {
+  it('carrega texto no editor de código só com o loader, sem a capa de folha', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
 
     render(
@@ -157,7 +157,21 @@ describe('FileReader', () => {
 
     expect(screen.getByRole('status', { name: 'Carregando arquivo' })).toBeInTheDocument()
     expect(document.querySelector('svg')).toBeNull()
-    expect(document.querySelector('[data-code-body]')).toBeTruthy()
+    expect(document.querySelector('[data-code-editor]')).toBeTruthy()
+  })
+
+  it('edita no app e só lê no link público', async () => {
+    const text = () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('x = 1').buffer })
+    vi.stubGlobal('fetch', vi.fn(async () => text()))
+
+    const view = render(
+      <FileReader file={{ ...file, extension: 'py' }} source={{ mode: 'text', url: '/a.py' }} variant="editorial" />,
+    )
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'true'))
+    view.unmount()
+
+    render(<FileReader file={{ ...file, extension: 'py' }} source={{ mode: 'text', url: '/b.py' }} />)
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false'))
   })
 
   it('mantém o leitor de mídia e o tempo ao renovar URL da mesma revisão', () => {

@@ -1,0 +1,61 @@
+/* Sets its own alignment: hosts centre their content, and code always reads from the left. */
+.reader {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  text-align: start;
+}
+
+.notice {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mute);
+}
+
+/* A page without a frame: only its surface sets it apart. It scrolls inside, both ways, with the
+   project's own thumbs (CustomScrollArea).
+   The Monochrome theme for VS Code, as blends from the page's surface to its text (see codeEditorSetup.js).
+   Its text (a 70% blend) is too faint at this size on the app's surfaces, so text is full ink and every
+   other tone keeps its proportion to it (blend / 70%): keyword 42% → 60%, string 54% → 77%… The faintest
+   (comments, line numbers, the bracket outline) have a floor so they stay readable. */
+.panel {
+  --code-text: var(--ink);
+  --code-comment: color-mix(in srgb, var(--ink) 45%, var(--overlay));
+  --code-keyword: color-mix(in srgb, var(--ink) 60%, var(--overlay));
+  --code-variable: color-mix(in srgb, var(--ink) 63%, var(--overlay));
+  --code-function: color-mix(in srgb, var(--ink) 54%, var(--overlay));
+  --code-support: color-mix(in srgb, var(--ink) 72%, var(--overlay));
+  --code-class: color-mix(in srgb, var(--ink) 85%, var(--overlay));
+  --code-string: color-mix(in srgb, var(--ink) 77%, var(--overlay));
+  --code-constant: color-mix(in srgb, var(--ink) 81%, var(--overlay));
+  --code-invalid: var(--ink);
+  --code-line-number: color-mix(in srgb, var(--ink) 40%, var(--overlay));
+  --code-line-number-active: color-mix(in srgb, var(--ink) 65%, var(--overlay));
+  /* The cursor line's tint is translucent: the selection is drawn beneath the text, and an opaque line
+     would hide it there. */
+  --code-active-line: color-mix(in srgb, var(--ink) 4%, transparent);
+  --code-selection: color-mix(in srgb, var(--ink) 20%, var(--overlay));
+  --code-bracket: color-mix(in srgb, var(--ink) 50%, var(--overlay));
+  width: 100%;
+  height: var(--file-viewer-height, 80dvh);
+  background: var(--overlay);
+}
+
+/* The editor spans the page, so a click anywhere below the last line still lands in it. */
+.host {
+  min-width: max-content;
+  min-height: 100%;
+}
+
+/* No end below: the page runs to the bottom edge of the view. */
+.fill {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.fill .panel {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+}

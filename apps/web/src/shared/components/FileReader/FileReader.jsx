@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCachedContent, isCacheableContent, loadContent } from '../../hub/content/index.js'
 import Spinner from '../Spinner/Spinner.jsx'
-import CodeReader from './CodeReader.jsx'
+import CodeEditor from './CodeEditor.jsx'
 import DownloadAction from './DownloadAction.jsx'
 import { formatFileMeta } from './formatFileMeta.js'
 import ImageReader from './ImageReader.jsx'
@@ -27,7 +27,7 @@ export default function FileReader({
   onContentError,
   // 'editorial' is a left-aligned reading column; the host page shows the name and meta, so none here.
   variant = 'default',
-  // Images, PDFs and code use the space around them (see ImageReader, PdfReader, CodeReader) instead of the reading column.
+  // Images, PDFs and code use the space around them (see ImageReader, PdfReader, CodeEditor) instead of the reading column.
   viewer: viewerRequested = false,
 }) {
   const editorial = variant === 'editorial'
@@ -231,8 +231,11 @@ export default function FileReader({
                 aria-hidden={!contentReady}
                 data-overlay-surface=""
               >
-                <CodeReader
+                <CodeEditor
                   key={readerKey}
+                  extension={file?.extension}
+                  // Only the app's own file views edit; a public link only reads.
+                  editable={editorial}
                   fill={fill}
                   url={source.url}
                   content={content}

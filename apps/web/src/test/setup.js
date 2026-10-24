@@ -42,4 +42,13 @@ beforeAll(() => {
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = vi.fn()
   }
+
+  // jsdom has no layout for text ranges; the code editor (CodeMirror) measures with them.
+  if (!Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = () => []
+  }
+
+  if (!Range.prototype.getBoundingClientRect) {
+    Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0)
+  }
 })

@@ -46,7 +46,7 @@ describe('active reading session', () => {
     const source = descriptor()
     const view = render(<FileReader file={file} source={source} onContentError={() => false} />)
     expect(await screen.findByText('nota')).toBeInTheDocument()
-    const text = document.querySelector('[data-code-body]')
+    const editor = document.querySelector('.cm-editor')
     const loads = loadContent.mock.calls.length
 
     vi.setSystemTime(now + 360_000)
@@ -54,7 +54,8 @@ describe('active reading session', () => {
     await act(async () => {})
 
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByText('nota')).toBe(text)
+    expect(document.querySelector('.cm-editor')).toBe(editor)
+    expect(screen.getByText('nota')).toBeInTheDocument()
     expect(screen.queryByRole('status', { name: 'Carregando arquivo' })).toBeNull()
     expect(loadContent).toHaveBeenCalledTimes(loads)
     expect(fetch).not.toHaveBeenCalled()
