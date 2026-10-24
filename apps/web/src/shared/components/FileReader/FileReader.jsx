@@ -237,7 +237,8 @@ export default function FileReader({
               className={`${styles.sheetShell} ${contentReady && readable ? (viewer ? styles.sheetShellViewer : styles.sheetShellReading) : styles.sheetShellCover}`}
               layout
               transition={TRANSITION}
-              data-overlay-surface=""
+              // The viewer's shell spans the whole width; there the image itself is the surface.
+              data-overlay-surface={viewer ? undefined : ''}
             >
               {readable ? (
                 <div
