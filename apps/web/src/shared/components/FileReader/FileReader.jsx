@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getCachedContent, isCacheableContent, loadContent } from '../../hub/content/index.js'
 import Spinner from '../Spinner/Spinner.jsx'
+import CodeReader from './CodeReader.jsx'
 import DownloadAction from './DownloadAction.jsx'
 import { formatFileMeta } from './formatFileMeta.js'
 import ImageReader from './ImageReader.jsx'
 import MediaReader from './MediaReader.jsx'
 import PdfReader from './PdfReader.jsx'
-import TextReader from './TextReader.jsx'
 import styles from './FileReader.module.css'
 
 const TRANSITION = { duration: 0.45, ease: [0.22, 1, 0.36, 1] }
@@ -27,7 +27,7 @@ export default function FileReader({
   onContentError,
   // 'editorial' is a left-aligned reading column; the host page shows the name and meta, so none here.
   variant = 'default',
-  // Images and PDFs use the space around them (see ImageReader, PdfReader) instead of the reading column.
+  // Images, PDFs and code use the space around them (see ImageReader, PdfReader, CodeReader) instead of the reading column.
   viewer: viewerRequested = false,
 }) {
   const editorial = variant === 'editorial'
@@ -43,8 +43,12 @@ export default function FileReader({
   const unreadable = Boolean(displayError) || mode === 'none'
   const readable = Boolean(source && isReadableMode(mode) && !displayError)
   const isPdf = mode === 'pdf'
+  const isCode = mode === 'text'
   const viewer = viewerRequested && mode === 'image'
   const pdfViewer = viewerRequested && mode === 'pdf'
+  const codeViewer = viewerRequested && isCode
+  // In the app's file views, code is a page that runs to the bottom edge; the host gives it the height left.
+  const fill = editorial && isCode && readable
   const readerIdentity = source?.revision
     ? [source.userId, source.connectionId, source.generation, source.ref ?? file?.ref, source.variant, source.revision].join('|')
     : source?.url ?? null
@@ -65,7 +69,7 @@ export default function FileReader({
   const currentRequestRef = useRef(null)
   const requestIdentity = `${contentSession}|${source?.url ?? ''}`
   currentRequestRef.current = requestIdentity
-  const showCover = !isPdf && (waitingForSource || unreadable || (readable && !contentReady))
+  const showCover = !isPdf && !isCode && (waitingForSource || unreadable || (readable && !contentReady))
   const showLoader = waitingForSource || (readable && !contentReady)
 
   useEffect(() => {
@@ -170,20 +174,6 @@ export default function FileReader({
       )
     }
 
-    if (mode === 'text') {
-      return (
-        <TextReader
-          key={readerKey}
-          url={source.url}
-          content={content}
-          deferNetwork={cacheable}
-          signal={abortSignal}
-          onReady={handleContentReady}
-          onError={handleContentError}
-        />
-      )
-    }
-
     if (mode === 'video' || mode === 'audio') {
       return (
         <MediaReader
@@ -202,7 +192,8 @@ export default function FileReader({
 
   return (
     <section
-      className={[styles.reader, editorial ? styles.editorial : '', viewer || pdfViewer ? styles.viewer : ''].filter(Boolean).join(' ')}
+      className={[styles.reader, editorial ? styles.editorial : '', viewer || pdfViewer || codeViewer ? styles.viewer : '', fill ? styles.fill : ''].filter(Boolean).join(' ')}
+      data-reader-fill={fill ? '' : undefined}
       aria-labelledby={editorial ? undefined : 'file-reader-title'}
       aria-label={editorial ? file?.name ?? 'Arquivo' : undefined}
     >
@@ -231,6 +222,28 @@ export default function FileReader({
               />
             </div>
           </div>
+        ) : isCode ? (
+          readable ? (
+            <div className={styles.codeStage}>
+              {!contentReady ? <Spinner label="Carregando arquivo" /> : null}
+              <div
+                className={contentReady ? styles.codeVisible : styles.contentHidden}
+                aria-hidden={!contentReady}
+                data-overlay-surface=""
+              >
+                <CodeReader
+                  key={readerKey}
+                  fill={fill}
+                  url={source.url}
+                  content={content}
+                  deferNetwork={cacheable}
+                  signal={abortSignal}
+                  onReady={handleContentReady}
+                  onError={handleContentError}
+                />
+              </div>
+            </div>
+          ) : null
         ) : (
           <>
             <motion.div

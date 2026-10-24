@@ -141,6 +141,25 @@ describe('FileReader', () => {
     expect(document.querySelector('strong')).not.toBeInTheDocument()
   })
 
+  it('carrega texto no leitor de código só com o loader, sem a capa de folha', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+    render(
+      <FileReader
+        file={{ ...file, extension: 'py' }}
+        source={{ mode: 'text', url: '/codigo.py' }}
+        error={null}
+        downloadUrl={null}
+        variant="editorial"
+        viewer
+      />,
+    )
+
+    expect(screen.getByRole('status', { name: 'Carregando arquivo' })).toBeInTheDocument()
+    expect(document.querySelector('svg')).toBeNull()
+    expect(document.querySelector('[data-code-body]')).toBeTruthy()
+  })
+
   it('mantém o leitor de mídia e o tempo ao renovar URL da mesma revisão', () => {
     const view = render(
       <FileReader

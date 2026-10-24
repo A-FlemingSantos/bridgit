@@ -46,7 +46,7 @@ describe('active reading session', () => {
     const source = descriptor()
     const view = render(<FileReader file={file} source={source} onContentError={() => false} />)
     expect(await screen.findByText('nota')).toBeInTheDocument()
-    const text = document.querySelector('pre')
+    const text = document.querySelector('[data-code-body]')
     const loads = loadContent.mock.calls.length
 
     vi.setSystemTime(now + 360_000)

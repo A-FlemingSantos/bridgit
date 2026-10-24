@@ -54,6 +54,12 @@
   box-sizing: border-box;
 }
 
+/* A reader that runs to the bottom edge (code): the view is exactly the window's height, with no room below. */
+.content:has([data-reader-fill]) {
+  height: 100%;
+  padding-bottom: 0;
+}
+
 .bar {
   display: flex;
   align-items: flex-start;

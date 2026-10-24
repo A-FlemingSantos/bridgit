@@ -20,6 +20,16 @@
   text-align: center;
 }
 
+/* A reader that runs to the bottom edge (code) takes the height left, from the top down, with no room below. */
+.main:has([data-reader-fill]) {
+  padding-bottom: 0;
+}
+
+.stage:has([data-reader-fill]) {
+  flex: 1 1 0;
+  justify-content: flex-start;
+}
+
 /* Subheader for the open-file view: the file name as the title, mono meta line right below.
    The header element bumps specificity over SpaceViewHeader's own rules, whatever the CSS load order. */
 header.subheader h1 {
