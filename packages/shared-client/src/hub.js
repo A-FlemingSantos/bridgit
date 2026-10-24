@@ -6,24 +6,47 @@ function providerBase(provider) {
   return `/api/providers/${encodeURIComponent(provider)}`
 }
 
-function itemPath(provider, ref) {
-  return `${providerBase(provider)}/items/${encodeURIComponent(ref)}`
+function connectionBase(connectionId) {
+  return `/api/connections/${encodeURIComponent(connectionId)}`
+}
+
+function itemPath(connectionId, ref) {
+  return `${connectionBase(connectionId)}/items/${encodeURIComponent(ref)}`
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+// Connection routes do not echo the connectionId, so the client stamps it to keep items self-describing.
+function stampItem(item, connectionId) {
+  return isObject(item) ? { ...item, connectionId } : item
+}
+
+function stampAncestry(node, connectionId) {
+  if (!isObject(node)) return node
+  const stamped = { ...node, connectionId }
+  if (Array.isArray(node.ancestry)) {
+    stamped.ancestry = node.ancestry.map((entry) => stampItem(entry, connectionId))
+  }
+  return stamped
 }
 
 export function listProviders(token) {
   return apiRequest('/api/providers', { token })
 }
 
-export function connectProvider(token, provider, redirectTo, { allowAccountChange = false } = {}) {
+export function connectProvider(token, provider, redirectTo, { addAccount = false } = {}) {
   const options = { method: 'POST', token }
   const body = {}
   if (redirectTo) body.redirectTo = redirectTo
-  // Only sent after the user confirmed replacing the connected account.
-  if (allowAccountChange) body.allowAccountChange = true
+  // Connects an additional account instead of reconnecting an existing one.
+  if (addAccount) body.addAccount = true
   if (Object.keys(body).length > 0) options.body = body
   return apiRequest(`${providerBase(provider)}/connect`, options)
 }
 
+// Disconnects every account of the provider.
 export function disconnectProvider(token, provider) {
   return apiRequest(providerBase(provider), {
     method: 'DELETE',
@@ -31,7 +54,28 @@ export function disconnectProvider(token, provider) {
   })
 }
 
-export function listFolder(token, provider, parentRef, cursor) {
+export function disconnectConnection(token, connectionId) {
+  return apiRequest(connectionBase(connectionId), {
+    method: 'DELETE',
+    token,
+  })
+}
+
+// Avatar bytes change with the connection generation; the query keeps caches from serving a stale image.
+export function connectionAvatarPath(connectionId, generation) {
+  const path = `${connectionBase(connectionId)}/avatar`
+  return generation == null ? path : `${path}?v=${encodeURIComponent(generation)}`
+}
+
+export function getConnectionAvatar(token, connectionId, generation) {
+  return apiRequest(`${connectionBase(connectionId)}/avatar`, {
+    token,
+    query: generation == null ? undefined : { v: generation },
+    responseType: 'blob',
+  })
+}
+
+export async function listFolder(token, connectionId, parentRef, cursor) {
   const query = {}
 
   if (parentRef != null && parentRef !== '') {
@@ -42,24 +86,30 @@ export function listFolder(token, provider, parentRef, cursor) {
     query.cursor = cursor
   }
 
-  return apiRequest(`${providerBase(provider)}/items`, { token, query })
+  const response = await apiRequest(`${connectionBase(connectionId)}/items`, { token, query })
+  if (!isObject(response)) return response
+  const stamped = { ...response }
+  if (Array.isArray(response.items)) stamped.items = response.items.map((item) => stampItem(item, connectionId))
+  if (isObject(response.folder)) stamped.folder = stampAncestry(response.folder, connectionId)
+  return stamped
 }
 
-export function getItem(token, provider, ref) {
-  return apiRequest(itemPath(provider, ref), { token })
+export async function getItem(token, connectionId, ref) {
+  return stampAncestry(await apiRequest(itemPath(connectionId, ref), { token }), connectionId)
 }
 
-export function createFolder(token, provider, parentRef, name, options = {}) {
-  return apiRequest(`${providerBase(provider)}/folders`, {
+export async function createFolder(token, connectionId, parentRef, name, options = {}) {
+  const item = await apiRequest(`${connectionBase(connectionId)}/folders`, {
     method: 'POST',
     token,
     // JSON bodies send the root as null; the API treats null and '' alike here.
     body: { parentRef: parentRef || null, name },
     headers: mutationHeaders(options),
   })
+  return stampItem(item, connectionId)
 }
 
-export async function uploadFile(token, provider, parentRef, file, options = {}) {
+export async function uploadFile(token, connectionId, parentRef, file, options = {}) {
   if (exceedsUploadLimit(file)) throw uploadTooLargeError()
 
   const body = new FormData()
@@ -67,15 +117,16 @@ export async function uploadFile(token, provider, parentRef, file, options = {})
   if (parentRef) body.append('parentRef', parentRef)
   body.append('file', file)
 
-  return apiRequest(`${providerBase(provider)}/files`, {
+  const item = await apiRequest(`${connectionBase(connectionId)}/files`, {
     method: 'POST',
     token,
     body,
     headers: mutationHeaders(options),
   })
+  return stampItem(item, connectionId)
 }
 
-export function updateItem(token, provider, ref, { name, parentRef } = {}, options = {}) {
+export async function updateItem(token, connectionId, ref, { name, parentRef } = {}, options = {}) {
   const body = {}
 
   if (name !== undefined) {
@@ -87,32 +138,33 @@ export function updateItem(token, provider, ref, { name, parentRef } = {}, optio
     body.parentRef = parentRef === null || parentRef === '' ? '' : parentRef
   }
 
-  return apiRequest(itemPath(provider, ref), {
+  const item = await apiRequest(itemPath(connectionId, ref), {
     method: 'PATCH',
     token,
     body,
     headers: mutationHeaders(options),
   })
+  return stampItem(item, connectionId)
 }
 
-export function deleteItem(token, provider, ref, options = {}) {
-  return apiRequest(itemPath(provider, ref), {
+export function deleteItem(token, connectionId, ref, options = {}) {
+  return apiRequest(itemPath(connectionId, ref), {
     method: 'DELETE',
     token,
     headers: mutationHeaders(options),
   })
 }
 
-export function getReadSource(token, provider, ref, refresh = false) {
-  return apiRequest(`${itemPath(provider, ref)}/read`, { token, query: refresh ? { refresh: true } : undefined })
+export function getReadSource(token, connectionId, ref, refresh = false) {
+  return apiRequest(`${itemPath(connectionId, ref)}/read`, { token, query: refresh ? { refresh: true } : undefined })
 }
 
-export function getThumbnail(token, provider, ref) {
-  return apiRequest(`${itemPath(provider, ref)}/thumbnail`, { token, responseType: 'blob' })
+export function getThumbnail(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/thumbnail`, { token, responseType: 'blob' })
 }
 
-export function createContentTicket(token, provider, ref, disposition) {
-  return apiRequest(`${itemPath(provider, ref)}/ticket`, {
+export function createContentTicket(token, connectionId, ref, disposition) {
+  return apiRequest(`${itemPath(connectionId, ref)}/ticket`, {
     method: 'POST',
     token,
     body: { disposition },
@@ -130,11 +182,11 @@ export function listRecents(token) {
   return apiRequest('/api/hub/recents', { token })
 }
 
-export function recordRecent(token, provider, ref) {
+export function recordRecent(token, connectionId, ref) {
   return apiRequest('/api/hub/recents', {
     method: 'POST',
     token,
-    body: { provider, ref },
+    body: { connectionId, ref },
   })
 }
 
@@ -142,15 +194,15 @@ export function listShortcuts(token) {
   return apiRequest('/api/hub/shortcuts', { token })
 }
 
-export function addShortcut(token, provider, ref) {
-  return apiRequest(`/api/hub/shortcuts/${encodeURIComponent(provider)}/${encodeURIComponent(ref)}`, {
+export function addShortcut(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/shortcut`, {
     method: 'PUT',
     token,
   })
 }
 
-export function removeShortcut(token, provider, ref) {
-  return apiRequest(`/api/hub/shortcuts/${encodeURIComponent(provider)}/${encodeURIComponent(ref)}`, {
+export function removeShortcut(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/shortcut`, {
     method: 'DELETE',
     token,
   })
@@ -160,19 +212,19 @@ export function listPublicLinks(token) {
   return apiRequest('/api/hub/public-links', { token })
 }
 
-export function getPublicLink(token, provider, ref) {
-  return apiRequest(`${itemPath(provider, ref)}/public-link`, { token })
+export function getPublicLink(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/public-link`, { token })
 }
 
-export function enablePublicLink(token, provider, ref) {
-  return apiRequest(`${itemPath(provider, ref)}/public-link`, {
+export function enablePublicLink(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/public-link`, {
     method: 'PUT',
     token,
   })
 }
 
-export function disablePublicLink(token, provider, ref) {
-  return apiRequest(`${itemPath(provider, ref)}/public-link`, {
+export function disablePublicLink(token, connectionId, ref) {
+  return apiRequest(`${itemPath(connectionId, ref)}/public-link`, {
     method: 'DELETE',
     token,
   })

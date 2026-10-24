@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addShortcut,
   connectProvider,
+  connectionAvatarPath,
   createContentTicket,
   createFolder,
   deleteItem,
   disablePublicLink,
+  disconnectConnection,
   disconnectProvider,
   enablePublicLink,
+  getConnectionAvatar,
   getItem,
   getPublicLink,
   getReadSource,
@@ -69,29 +72,55 @@ describe('hub api', () => {
     })
   })
 
-  it('connectProvider sends allowAccountChange only when confirmed', async () => {
+  it('connectProvider sends addAccount only when requested', async () => {
     apiRequest.mockResolvedValue({ authorizationUrl: 'https://oauth.example/connect' })
-    await connectProvider(token, 'onedrive', '/providers/onedrive', { allowAccountChange: true })
+    await connectProvider(token, 'onedrive', '/providers/onedrive', { addAccount: true })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
       method: 'POST',
       token,
-      body: { redirectTo: '/providers/onedrive', allowAccountChange: true },
+      body: { redirectTo: '/providers/onedrive', addAccount: true },
     })
 
     apiRequest.mockClear()
-    await connectProvider(token, 'onedrive', undefined, { allowAccountChange: true })
+    await connectProvider(token, 'onedrive', undefined, { addAccount: true })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
       method: 'POST',
       token,
-      body: { allowAccountChange: true },
+      body: { addAccount: true },
     })
 
     apiRequest.mockClear()
-    await connectProvider(token, 'onedrive', '/x', { allowAccountChange: false })
+    await connectProvider(token, 'onedrive', '/x', { addAccount: false })
     expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/connect', {
       method: 'POST',
       token,
       body: { redirectTo: '/x' },
+    })
+
+    apiRequest.mockClear()
+    await connectProvider(token, 'onedrive', '/x', { allowAccountChange: true })
+    expect(apiRequest.mock.calls[0][1].body).toEqual({ redirectTo: '/x' })
+  })
+
+  it('disconnectConnection deletes one connection', async () => {
+    apiRequest.mockResolvedValue(undefined)
+    await disconnectConnection(token, 'conn-1')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1', {
+      method: 'DELETE',
+      token,
+    })
+  })
+
+  it('connection avatar path and blob request carry the generation', async () => {
+    expect(connectionAvatarPath('conn-1', 3)).toBe('/api/connections/conn-1/avatar?v=3')
+    expect(connectionAvatarPath('conn-1')).toBe('/api/connections/conn-1/avatar')
+    const blob = new Blob(['img'])
+    apiRequest.mockResolvedValue(blob)
+    await expect(getConnectionAvatar(token, 'conn-1', 3)).resolves.toBe(blob)
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/avatar', {
+      token,
+      query: { v: 3 },
+      responseType: 'blob',
     })
   })
 
@@ -106,8 +135,8 @@ describe('hub api', () => {
 
   it('listFolder encodes parent and cursor query params', async () => {
     apiRequest.mockResolvedValue({ folder: null, items: [], nextCursor: null })
-    await listFolder(token, 'google-drive', 'folder/ref', 'cursor-1')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/google-drive/items', {
+    await listFolder(token, 'conn-g', 'folder/ref', 'cursor-1')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-g/items', {
       token,
       query: { parent: 'folder/ref', cursor: 'cursor-1' },
     })
@@ -115,8 +144,8 @@ describe('hub api', () => {
 
   it('listFolder omits parent for provider root', async () => {
     apiRequest.mockResolvedValue({ folder: null, items: [], nextCursor: null })
-    await listFolder(token, 'onedrive', null)
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items', {
+    await listFolder(token, 'conn-1', null)
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items', {
       token,
       query: {},
     })
@@ -124,14 +153,44 @@ describe('hub api', () => {
 
   it('getItem encodes ref in path', async () => {
     apiRequest.mockResolvedValue({ ref: 'a/b' })
-    await getItem(token, 'onedrive', 'a/b')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/a%2Fb', { token })
+    await getItem(token, 'conn-1', 'a/b')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/a%2Fb', { token })
+  })
+
+  it('listFolder stamps connectionId onto items, folder and ancestry', async () => {
+    apiRequest.mockResolvedValue({
+      folder: { ref: 'f1', name: 'F', ancestry: [{ ref: null, name: 'Root' }] },
+      items: [{ ref: 'a', name: 'A' }, { ref: 'b', name: 'B' }],
+      nextCursor: 'next',
+    })
+    const result = await listFolder(token, 'conn-1', 'f1')
+    expect(result.items.map((item) => item.connectionId)).toEqual(['conn-1', 'conn-1'])
+    expect(result.folder.connectionId).toBe('conn-1')
+    expect(result.folder.ancestry[0]).toEqual({ ref: null, name: 'Root', connectionId: 'conn-1' })
+    expect(result.nextCursor).toBe('next')
+  })
+
+  it('getItem stamps connectionId onto the item and its ancestry', async () => {
+    apiRequest.mockResolvedValue({ ref: 'a', name: 'A', ancestry: [{ ref: 'p', name: 'P' }] })
+    const item = await getItem(token, 'conn-1', 'a')
+    expect(item.connectionId).toBe('conn-1')
+    expect(item.ancestry).toEqual([{ ref: 'p', name: 'P', connectionId: 'conn-1' }])
+  })
+
+  it('mutation results are stamped with connectionId', async () => {
+    apiRequest.mockResolvedValue({ ref: 'x', name: 'X' })
+    expect(await createFolder(token, 'conn-1', null, 'X')).toEqual({ ref: 'x', name: 'X', connectionId: 'conn-1' })
+    expect(await uploadFile(token, 'conn-1', null, new File(['x'], 'x.txt'))).toMatchObject({ connectionId: 'conn-1' })
+    expect(await updateItem(token, 'conn-1', 'x', { name: 'Y' })).toMatchObject({ connectionId: 'conn-1' })
+
+    apiRequest.mockResolvedValue(undefined)
+    expect(await updateItem(token, 'conn-1', 'x', { name: 'Y' })).toBeUndefined()
   })
 
   it('createFolder posts parentRef and name', async () => {
     apiRequest.mockResolvedValue({ ref: 'new-folder' })
-    await createFolder(token, 'onedrive', null, 'Docs', { clientKey: 'folder-action' })
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/folders', {
+    await createFolder(token, 'conn-1', null, 'Docs', { clientKey: 'folder-action' })
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/folders', {
       method: 'POST',
       token,
       body: { parentRef: null, name: 'Docs' },
@@ -142,7 +201,7 @@ describe('hub api', () => {
   it('uploadFile rejects the promise for files over 50 MB', async () => {
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
     Object.defineProperty(file, 'size', { value: 51 * 1024 * 1024 })
-    const pending = uploadFile(token, 'onedrive', null, file)
+    const pending = uploadFile(token, 'conn-1', null, file)
     await expect(pending).rejects.toMatchObject({ code: 'ARQUIVO_GRANDE', status: 400 })
     await expect(pending).rejects.toThrow(/50 MB/)
     expect(apiRequest).not.toHaveBeenCalled()
@@ -150,8 +209,8 @@ describe('hub api', () => {
 
   it('uploadFile omits parentRef at the root', async () => {
     apiRequest.mockResolvedValue({ ref: 'file-2' })
-    await uploadFile(token, 'onedrive', null, new File(['x'], 'x.txt'))
-    await uploadFile(token, 'onedrive', '', new File(['x'], 'x.txt'))
+    await uploadFile(token, 'conn-1', null, new File(['x'], 'x.txt'))
+    await uploadFile(token, 'conn-1', '', new File(['x'], 'x.txt'))
     for (const [, options] of apiRequest.mock.calls) {
       expect(options.body.has('parentRef')).toBe(false)
     }
@@ -159,14 +218,14 @@ describe('hub api', () => {
 
   it('createFolder sends null for an empty root', async () => {
     apiRequest.mockResolvedValue({ ref: 'new-folder' })
-    await createFolder(token, 'onedrive', '', 'Docs', { clientKey: 'k' })
+    await createFolder(token, 'conn-1', '', 'Docs', { clientKey: 'k' })
     expect(apiRequest.mock.calls[0][1].body).toEqual({ parentRef: null, name: 'Docs' })
   })
 
   it('uploadFile sends multipart body', async () => {
     const smallFile = new File(['hello'], 'hello.txt', { type: 'text/plain' })
     apiRequest.mockResolvedValue({ ref: 'file-1' })
-    await uploadFile(token, 'onedrive', 'parent-1', smallFile)
+    await uploadFile(token, 'conn-1', 'parent-1', smallFile)
     const [, options] = apiRequest.mock.calls.at(-1)
     expect(options.method).toBe('POST')
     expect(options.body).toBeInstanceOf(FormData)
@@ -177,8 +236,8 @@ describe('hub api', () => {
 
   it('updateItem sends empty parentRef for root moves', async () => {
     apiRequest.mockResolvedValue({ ref: 'item-1' })
-    await updateItem(token, 'onedrive', 'item-1', { parentRef: null }, { clientKey: 'move-action' })
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/item-1', {
+    await updateItem(token, 'conn-1', 'item-1', { parentRef: null }, { clientKey: 'move-action' })
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/item-1', {
       method: 'PATCH',
       token,
       body: { parentRef: '' },
@@ -188,8 +247,8 @@ describe('hub api', () => {
 
   it('deleteItem deletes encoded ref', async () => {
     apiRequest.mockResolvedValue(undefined)
-    await deleteItem(token, 'dropbox', 'x/y', { clientKey: 'delete-action' })
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/dropbox/items/x%2Fy', {
+    await deleteItem(token, 'conn-2', 'x/y', { clientKey: 'delete-action' })
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-2/items/x%2Fy', {
       method: 'DELETE',
       token,
       headers: { 'Idempotency-Key': 'delete-action' },
@@ -198,32 +257,32 @@ describe('hub api', () => {
 
   it('uses distinct keys for new actions and preserves explicit keys for retries', async () => {
     apiRequest.mockResolvedValue({ ref: 'folder' })
-    await createFolder(token, 'onedrive', null, 'Docs')
-    await createFolder(token, 'onedrive', null, 'Docs')
+    await createFolder(token, 'conn-1', null, 'Docs')
+    await createFolder(token, 'conn-1', null, 'Docs')
     expect(apiRequest.mock.calls[0][1].headers['Idempotency-Key']).not.toBe(apiRequest.mock.calls[1][1].headers['Idempotency-Key'])
     const file = new File(['hello'], 'hello.txt')
-    await uploadFile(token, 'onedrive', null, file, { clientKey: 'upload-action' })
-    await uploadFile(token, 'onedrive', null, file, { clientKey: 'upload-action' })
+    await uploadFile(token, 'conn-1', null, file, { clientKey: 'upload-action' })
+    await uploadFile(token, 'conn-1', null, file, { clientKey: 'upload-action' })
     expect(apiRequest.mock.calls[2][1].headers['Idempotency-Key']).toBe('upload-action')
     expect(apiRequest.mock.calls[3][1].headers['Idempotency-Key']).toBe('upload-action')
   })
 
   it('getReadSource and createContentTicket hit read/ticket endpoints', async () => {
     apiRequest.mockResolvedValue({ mode: 'pdf', url: 'https://read' })
-    await getReadSource(token, 'onedrive', 'doc.pdf')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc.pdf/read', { token })
+    await getReadSource(token, 'conn-1', 'doc.pdf')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/doc.pdf/read', { token })
 
     apiRequest.mockResolvedValue({ url: 'https://ticket' })
-    await createContentTicket(token, 'onedrive', 'doc.pdf', 'attachment')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc.pdf/ticket', {
+    await createContentTicket(token, 'conn-1', 'doc.pdf', 'attachment')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/doc.pdf/ticket', {
       method: 'POST',
       token,
       body: { disposition: 'attachment' },
     })
 
     apiRequest.mockResolvedValue(new Blob(['img']))
-    await getThumbnail(token, 'onedrive', 'photo.jpg')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/photo.jpg/thumbnail', {
+    await getThumbnail(token, 'conn-1', 'photo.jpg')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/photo.jpg/thumbnail', {
       token,
       responseType: 'blob',
     })
@@ -243,12 +302,12 @@ describe('hub api', () => {
     await listRecents(token)
     expect(apiRequest).toHaveBeenCalledWith('/api/hub/recents', { token })
 
-    apiRequest.mockResolvedValue({ provider: 'onedrive', ref: 'a' })
-    await recordRecent(token, 'onedrive', 'a')
+    apiRequest.mockResolvedValue({ connectionId: 'conn-1', ref: 'a' })
+    await recordRecent(token, 'conn-1', 'a')
     expect(apiRequest).toHaveBeenCalledWith('/api/hub/recents', {
       method: 'POST',
       token,
-      body: { provider: 'onedrive', ref: 'a' },
+      body: { connectionId: 'conn-1', ref: 'a' },
     })
 
     apiRequest.mockResolvedValue([])
@@ -259,16 +318,16 @@ describe('hub api', () => {
     await listPublicLinks(token)
     expect(apiRequest).toHaveBeenCalledWith('/api/hub/public-links', { token })
 
-    apiRequest.mockResolvedValue({ provider: 'onedrive', ref: 'a' })
-    await addShortcut(token, 'onedrive', 'a/1')
-    expect(apiRequest).toHaveBeenCalledWith('/api/hub/shortcuts/onedrive/a%2F1', {
+    apiRequest.mockResolvedValue({ connectionId: 'conn-1', ref: 'a/1' })
+    await addShortcut(token, 'conn-1', 'a/1')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/a%2F1/shortcut', {
       method: 'PUT',
       token,
     })
 
     apiRequest.mockResolvedValue(undefined)
-    await removeShortcut(token, 'onedrive', 'a/1')
-    expect(apiRequest).toHaveBeenCalledWith('/api/hub/shortcuts/onedrive/a%2F1', {
+    await removeShortcut(token, 'conn-1', 'a/1')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/a%2F1/shortcut', {
       method: 'DELETE',
       token,
     })
@@ -276,19 +335,19 @@ describe('hub api', () => {
 
   it('public link endpoints', async () => {
     apiRequest.mockResolvedValue(null)
-    await getPublicLink(token, 'onedrive', 'doc')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc/public-link', { token })
+    await getPublicLink(token, 'conn-1', 'doc')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/doc/public-link', { token })
 
     apiRequest.mockResolvedValue({ url: 'https://public', suffix: 'abc' })
-    await enablePublicLink(token, 'onedrive', 'doc')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc/public-link', {
+    await enablePublicLink(token, 'conn-1', 'doc')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/doc/public-link', {
       method: 'PUT',
       token,
     })
 
     apiRequest.mockResolvedValue(undefined)
-    await disablePublicLink(token, 'onedrive', 'doc')
-    expect(apiRequest).toHaveBeenCalledWith('/api/providers/onedrive/items/doc/public-link', {
+    await disablePublicLink(token, 'conn-1', 'doc')
+    expect(apiRequest).toHaveBeenCalledWith('/api/connections/conn-1/items/doc/public-link', {
       method: 'DELETE',
       token,
     })
