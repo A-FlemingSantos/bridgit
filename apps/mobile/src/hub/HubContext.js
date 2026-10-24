@@ -11,6 +11,7 @@ import {
   removeShortcut,
 } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
+import { findConnection, flattenConnections } from './connections'
 import { createEventPoller } from './eventPoller'
 import { fileScope, folderScope, foldersScope, HOME, itemWriteScopes, PROVIDERS, scopesForEvents } from './eventScopes'
 import { createInvalidationBus } from './invalidation'
@@ -24,7 +25,7 @@ function expectedVersion(entry) {
   return entry.isFolder ? null : entry.version
 }
 
-// Shares the provider list, the invalidation scopes that tell each screen when to refetch, the
+// Shares the provider list and its connected accounts, the invalidation scopes that tell each screen when to refetch, the
 // event poller and the write actions, so a screen refetches only when something it shows changed.
 export function HubProvider({ children }) {
   const { token, invalidate } = useSession()
@@ -33,8 +34,12 @@ export function HubProvider({ children }) {
   const [bus] = useState(createInvalidationBus)
   const tokenRef = useRef(token)
   tokenRef.current = token
-  const providersRef = useRef(providers)
-  providersRef.current = providers
+  // Every connected account of every provider: provider order, then oldest first. The account's
+  // identity is its connectionId; the provider is only for display.
+  const connections = useMemo(() => flattenConnections(providers), [providers])
+  const connectionsRef = useRef(connections)
+  connectionsRef.current = connections
+  const connectionById = useCallback((connectionId) => findConnection(connectionsRef.current, connectionId), [])
 
   const reloadProviders = useCallback(async () => {
     if (!tokenRef.current) return
@@ -66,7 +71,7 @@ export function HubProvider({ children }) {
       getToken: () => tokenRef.current,
       fetchHead: (accessToken) => getHubEventHead(accessToken),
       fetchEvents: (accessToken, after) => getHubEvents(accessToken, after),
-      onEvents: (events) => refreshScopes(scopesForEvents(events, providersRef.current)),
+      onEvents: (events) => refreshScopes(scopesForEvents(events, connectionsRef.current)),
       onUnauthorized: invalidate,
     })
 
@@ -100,36 +105,36 @@ export function HubProvider({ children }) {
     }
   }, [refreshScopes, invalidate])
 
-  const operate = useCallback((providerId, operation, scopes) => write((accessToken) => {
-    const connection = providersRef.current.find((provider) => provider.id === providerId)
-    if (!connection?.connected) {
-      throw Object.assign(new Error('Conecte este provedor em Ajustes.'), { status: 409 })
+  const operate = useCallback((connectionId, operation, scopes) => write((accessToken) => {
+    const connection = findConnection(connectionsRef.current, connectionId)
+    if (!connection) {
+      throw Object.assign(new Error('Conecte esta conta em Ajustes.'), { status: 409 })
     }
     return runOperation(accessToken, connection, operation)
   }, scopes), [write])
 
   const actions = useMemo(() => ({
-    createFolder: (providerId, parentRef, name) =>
-      operate(providerId, { kind: 'CREATE_FOLDER', parentRef: parentRef ?? '', name }, [folderScope(providerId, parentRef)]),
-    rename: (providerId, entry, name) =>
-      operate(providerId, { kind: 'UPDATE', ref: entry.ref, name, version: expectedVersion(entry) }, itemWriteScopes(providerId, entry.ref)),
-    remove: (providerId, entry) =>
-      operate(providerId, { kind: 'DELETE', ref: entry.ref, version: expectedVersion(entry) }, itemWriteScopes(providerId, entry.ref)),
-    upload: (providerId, parentRef, file) =>
-      operate(providerId, { kind: 'UPLOAD', parentRef: parentRef ?? '', file }, [folderScope(providerId, parentRef)]),
+    createFolder: (connectionId, parentRef, name) =>
+      operate(connectionId, { kind: 'CREATE_FOLDER', parentRef: parentRef ?? '', name }, [folderScope(connectionId, parentRef)]),
+    rename: (connectionId, entry, name) =>
+      operate(connectionId, { kind: 'UPDATE', ref: entry.ref, name, version: expectedVersion(entry) }, itemWriteScopes(connectionId, entry.ref)),
+    remove: (connectionId, entry) =>
+      operate(connectionId, { kind: 'DELETE', ref: entry.ref, version: expectedVersion(entry) }, itemWriteScopes(connectionId, entry.ref)),
+    upload: (connectionId, parentRef, file) =>
+      operate(connectionId, { kind: 'UPLOAD', parentRef: parentRef ?? '', file }, [folderScope(connectionId, parentRef)]),
     // Folder listings carry the pinned flag, so they refetch along with the Home.
-    setShortcut: (providerId, ref, pinned) => write((accessToken) => (
-      pinned ? addShortcut(accessToken, providerId, ref) : removeShortcut(accessToken, providerId, ref)
-    ), [HOME, foldersScope(providerId), fileScope(providerId, ref)]),
+    setShortcut: (connectionId, ref, pinned) => write((accessToken) => (
+      pinned ? addShortcut(accessToken, connectionId, ref) : removeShortcut(accessToken, connectionId, ref)
+    ), [HOME, foldersScope(connectionId), fileScope(connectionId, ref)]),
     // The Home lists the public links, so it refetches after one is created or turned off.
-    publicLink: (providerId, ref) => write((accessToken) => enablePublicLink(accessToken, providerId, ref), [HOME]),
-    disablePublicLink: (providerId, ref) =>
-      write((accessToken) => disablePublicLink(accessToken, providerId, ref), [HOME]),
+    publicLink: (connectionId, ref) => write((accessToken) => enablePublicLink(accessToken, connectionId, ref), [HOME]),
+    disablePublicLink: (connectionId, ref) =>
+      write((accessToken) => disablePublicLink(accessToken, connectionId, ref), [HOME]),
   }), [operate, write])
 
   const value = useMemo(
-    () => ({ providers, providersStatus, bus, reloadProviders, refreshScopes, ...actions }),
-    [providers, providersStatus, bus, reloadProviders, refreshScopes, actions],
+    () => ({ providers, connections, connectionById, providersStatus, bus, reloadProviders, refreshScopes, ...actions }),
+    [providers, connections, connectionById, providersStatus, bus, reloadProviders, refreshScopes, actions],
   )
 
   return <HubContext.Provider value={value}>{children}</HubContext.Provider>

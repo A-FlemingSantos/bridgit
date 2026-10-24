@@ -3,13 +3,17 @@ import { describeOauthReturn } from './oauthOutcome'
 
 describe('describeOauthReturn', () => {
   it('treats connected as success', () => {
-    expect(describeOauthReturn({ status: 'connected' })).toEqual({ message: '', accountChange: false })
+    expect(describeOauthReturn({ status: 'connected' })).toEqual({ message: '', connectionId: null })
   })
 
-  it('asks for confirmation when the account is different', () => {
+  it('reports the connection the server created or reconnected', () => {
+    expect(describeOauthReturn({ status: 'connected', connection: '3f2c' })).toEqual({ message: '', connectionId: '3f2c' })
+  })
+
+  it('no longer treats a different account as a special case', () => {
     expect(describeOauthReturn({ status: 'error', error: 'OAUTH_CONTA_DIFERENTE' })).toEqual({
-      message: '',
-      accountChange: true,
+      message: 'Não foi possível conectar o provedor.',
+      connectionId: null,
     })
   })
 

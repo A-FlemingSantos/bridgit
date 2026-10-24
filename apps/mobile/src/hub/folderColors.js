@@ -2,6 +2,9 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { Platform } from 'react-native'
 import * as FileSystem from 'expo-file-system'
 import { useSession } from '../auth/SessionContext'
+import { oldestConnectionOf, findConnection } from './connections'
+import { colorIdOf, withColor } from './folderColorKeys'
+import { useHub } from './HubContext'
 
 // Same muted tones as the web app; the first one is the default carbon folder.
 export const FOLDER_COLORS = [
@@ -25,10 +28,6 @@ const EMPTY = Object.freeze({})
 const cache = new Map()
 const loading = new Set()
 const listeners = new Set()
-
-function entryKey(providerId, ref) {
-  return `${providerId}:${ref}`
-}
 
 function storageKey(userId) {
   return `bridgit.folderColors.${userId}`
@@ -96,21 +95,28 @@ export function findFolderColor(id) {
 
 export function useFolderColors() {
   const { user } = useSession()
+  const { connections } = useHub()
   const userId = user?.id ?? user?.username ?? null
   const colors = useSyncExternalStore(subscribe, () => read(userId), () => EMPTY)
 
+  // Colors saved per provider (before accounts could be added) belong to the provider's oldest connection.
+  const legacyProviderOf = useCallback((connectionId) => {
+    const connection = findConnection(connections, connectionId)
+    if (!connection) return null
+    return oldestConnectionOf(connections, connection.providerId)?.connectionId === connection.connectionId
+      ? connection.providerId
+      : null
+  }, [connections])
+
   const colorOf = useCallback(
-    (providerId, ref) => findFolderColor(colors[entryKey(providerId, ref)]),
-    [colors],
+    (connectionId, ref) => findFolderColor(colorIdOf(colors, connectionId, ref, legacyProviderOf(connectionId))),
+    [colors, legacyProviderOf],
   )
 
-  const setColor = useCallback((providerId, ref, id) => {
+  const setColor = useCallback((connectionId, ref, id) => {
     if (!userId) return
-    const next = { ...read(userId) }
-    if (id === DEFAULT_FOLDER_COLOR.id) delete next[entryKey(providerId, ref)]
-    else next[entryKey(providerId, ref)] = id
-    write(userId, next)
-  }, [userId])
+    write(userId, withColor(read(userId), connectionId, ref, id, DEFAULT_FOLDER_COLOR.id, legacyProviderOf(connectionId)))
+  }, [userId, legacyProviderOf])
 
   return { colorOf, setColor }
 }

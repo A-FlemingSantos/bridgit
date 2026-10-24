@@ -58,9 +58,16 @@ export function useProviders() {
   return { status: providersStatus, providers, reload: reloadProviders }
 }
 
-export function useFolder(providerId, folderRef) {
+// Every connected account (provider order, then oldest first) with the status of the provider list.
+export function useConnections() {
+  const { connections, connectionById, providersStatus, reloadProviders } = useHub()
+  return { status: providersStatus, connections, connectionById, reload: reloadProviders }
+}
+
+export function useFolder(connectionId, folderRef) {
+  const { connectionById } = useHub()
   const { status, data, error, reload } = useResource(async (token) => {
-    if (!providerId) return { title: null, folders: [], files: [] }
+    if (!connectionId) return { title: null, folders: [], files: [] }
 
     let cursor
     let folder = null
@@ -68,7 +75,7 @@ export function useFolder(providerId, folderRef) {
     const items = []
 
     for (let page = 0; page < MAX_PAGES; page += 1) {
-      const response = await listFolder(token, providerId, folderRef, cursor)
+      const response = await listFolder(token, connectionId, folderRef, cursor)
       folder = response.folder ?? folder
       if (page === 0) catalog = response.catalog ?? null
       items.push(...(response.items ?? []))
@@ -76,14 +83,16 @@ export function useFolder(providerId, folderRef) {
       if (!cursor) break
     }
 
-    const entries = items.map((item) => toEntry(item, providerId))
+    // Listed items may not name their provider; the connection does.
+    const provider = connectionById(connectionId)?.providerId
+    const entries = items.map((item) => toEntry({ provider, ...item }, connectionId))
     return {
       title: folder?.name ?? null,
       catalog,
       folders: entries.filter((entry) => entry.isFolder),
       files: entries.filter((entry) => !entry.isFolder),
     }
-  }, `${providerId}:${folderRef ?? ''}`, providerId ? folderScopes(providerId, folderRef) : [])
+  }, `${connectionId}:${folderRef ?? ''}`, connectionId ? folderScopes(connectionId, folderRef) : [])
 
   return {
     status,
@@ -119,6 +128,7 @@ export function usePublicLinks() {
   const { status, data, error, reload } = useResource(async (token) => {
     const links = await listPublicLinks(token)
     return (links ?? []).map((link) => ({
+      connectionId: link.connectionId,
       providerId: link.provider,
       ref: link.ref,
       name: link.name,
@@ -131,26 +141,27 @@ export function usePublicLinks() {
   return { status, error, reload, links: data ?? [] }
 }
 
-export function useFile(providerId, fileRef) {
+export function useFile(connectionId, fileRef) {
   const { token } = useSession()
+  const { connectionById } = useHub()
   const { status, data, error } = useResource(async (accessToken) => {
     const [item, source] = await Promise.all([
-      getItem(accessToken, providerId, fileRef),
-      getReadSource(accessToken, providerId, fileRef).catch(() => null),
+      getItem(accessToken, connectionId, fileRef),
+      getReadSource(accessToken, connectionId, fileRef).catch(() => null),
     ])
     return { item, source }
-  }, `${providerId}:${fileRef}`, fileScopes(providerId, fileRef))
+  }, `${connectionId}:${fileRef}`, fileScopes(connectionId, fileRef))
 
   // Opening a file moves it to the top of "Recentes"; failing to record is not worth surfacing.
   useEffect(() => {
-    if (!token || !providerId || !fileRef) return
-    recordRecent(token, providerId, fileRef).catch(() => {})
-  }, [token, providerId, fileRef])
+    if (!token || !connectionId || !fileRef) return
+    recordRecent(token, connectionId, fileRef).catch(() => {})
+  }, [token, connectionId, fileRef])
 
   return {
     status,
     error,
-    file: data?.item ? toEntry(data.item, providerId) : null,
+    file: data?.item ? toEntry({ provider: connectionById(connectionId)?.providerId, ...data.item }, connectionId) : null,
     source: data?.source ?? null,
   }
 }

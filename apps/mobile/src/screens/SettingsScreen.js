@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import ActionDialog, { NameField, Notice, SheetButton } from '../components/ActionDialog'
@@ -321,23 +321,6 @@ export default function SettingsScreen({ navigation }) {
     onSubmit: orThrow(() => settings.disconnectProvider(provider.id)),
   })
 
-  const changeName = settings.providers.find((provider) => provider.id === settings.accountChangeId)?.name
-  const { confirmAccountChange } = settings
-  // Memoized: ActionDialog resets its state whenever it receives a new dialog object.
-  const accountDialog = useMemo(() => (changeName
-    ? {
-        type: 'confirm',
-        title: 'Trocar de conta?',
-        message: `Você entrou com outra conta do ${changeName}. Continuar troca a conta conectada e apaga recentes, atalhos, links públicos e o catálogo ligados à conta anterior.`,
-        confirmLabel: 'Trocar de conta',
-        danger: true,
-        onSubmit: async () => {
-          const failure = await confirmAccountChange()
-          if (failure) throw new Error(failure)
-        },
-      }
-    : null), [changeName, confirmAccountChange])
-
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.paper }]}>
       <BrowseHeader title="Ajustes" onBack={() => navigation.goBack()} />
@@ -462,7 +445,6 @@ export default function SettingsScreen({ navigation }) {
       <DeleteSheet open={form === 'delete'} onClose={() => setForm(null)} deleteAccount={settings.deleteAccount} />
 
       <ActionDialog dialog={dialog} onClose={() => setDialog(null)} />
-      <ActionDialog dialog={accountDialog} onClose={settings.cancelAccountChange} />
       <Notice message={notice} />
     </View>
   )

@@ -70,16 +70,17 @@ async function runDurable(token, request, file) {
   return accepted.item
 }
 
-// Runs one create-folder, rename, delete or upload. Uses the durable operations path when the
-// provider connection supports it, and the idempotent legacy routes otherwise.
+// Runs one create-folder, rename, delete or upload on one connection (`connection` is an entry of the
+// connection list). Uses the durable operations path when the connection supports it, and the
+// idempotent connection routes otherwise.
 export async function runOperation(token, connection, { kind, ref, parentRef, name, file, version }) {
   const clientKey = createClientKey()
-  const durable = Boolean(connection?.connectionId) && connection.operationsEnabled !== false
+  const durable = connection.operationsEnabled !== false
 
   if (durable) {
     const request = {
       clientKey,
-      provider: connection.id,
+      provider: connection.provider,
       kind,
       connectionId: connection.connectionId,
       generation: connection.generation,
@@ -93,10 +94,10 @@ export async function runOperation(token, connection, { kind, ref, parentRef, na
   }
 
   const options = { clientKey }
-  const provider = connection.id
-  if (kind === 'CREATE_FOLDER') return createFolder(token, provider, parentRef, name, options)
-  if (kind === 'UPDATE') return updateItem(token, provider, ref, { name, parentRef }, options)
-  if (kind === 'DELETE') return deleteItem(token, provider, ref, options)
-  if (kind === 'UPLOAD') return uploadFile(token, provider, parentRef, file, options)
+  const { connectionId } = connection
+  if (kind === 'CREATE_FOLDER') return createFolder(token, connectionId, parentRef, name, options)
+  if (kind === 'UPDATE') return updateItem(token, connectionId, ref, { name, parentRef }, options)
+  if (kind === 'DELETE') return deleteItem(token, connectionId, ref, options)
+  if (kind === 'UPLOAD') return uploadFile(token, connectionId, parentRef, file, options)
   throw new Error(`Operação desconhecida: ${kind}`)
 }

@@ -23,7 +23,7 @@ vi.mock('@bridgit/shared-client', () => {
 const client = await import('@bridgit/shared-client')
 const { runOperation } = await import('./operations')
 
-const durable = { id: 'onedrive', connectionId: 'c1', generation: 3, operationsEnabled: true }
+const durable = { provider: 'onedrive', connectionId: 'c1', generation: 3, operationsEnabled: true }
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -102,11 +102,12 @@ describe('runOperation (durable)', () => {
 })
 
 describe('runOperation (legacy routes)', () => {
-  it('uses the idempotent route when there is no durable connection', async () => {
+  it('uses the idempotent connection route when operations are disabled', async () => {
     client.createFolder.mockResolvedValue({ ref: 'x' })
-    const result = await runOperation('t', { id: 'dropbox' }, { kind: 'CREATE_FOLDER', parentRef: '', name: 'Docs' })
+    const legacy = { provider: 'dropbox', connectionId: 'c2', operationsEnabled: false }
+    const result = await runOperation('t', legacy, { kind: 'CREATE_FOLDER', parentRef: '', name: 'Docs' })
     expect(result).toEqual({ ref: 'x' })
-    expect(client.createFolder).toHaveBeenCalledWith('t', 'dropbox', '', 'Docs', { clientKey: expect.any(String) })
+    expect(client.createFolder).toHaveBeenCalledWith('t', 'c2', '', 'Docs', { clientKey: expect.any(String) })
     expect(client.submitOperation).not.toHaveBeenCalled()
   })
 })

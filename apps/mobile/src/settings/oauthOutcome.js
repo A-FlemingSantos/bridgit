@@ -1,6 +1,4 @@
 // What the OAuth redirect (a deep link with status and error in the query string) means for the user.
-export const ACCOUNT_CHANGE_ERROR = 'OAUTH_CONTA_DIFERENTE'
-
 export const OAUTH_ERRORS = {
   PROVEDOR_RECUSOU: 'A conexão foi cancelada no provedor.',
   OAUTH_STATE_EXPIRADO: 'A tentativa expirou. Tente conectar de novo.',
@@ -13,10 +11,12 @@ export const OAUTH_ERRORS = {
 
 const DEFAULT_ERROR = 'Não foi possível conectar o provedor.'
 
-// Returns { message, accountChange }. message is '' when the connection succeeded or needs a confirmation
-// instead of an error (accountChange: the user came back with a different account).
+// Returns { message, connectionId }. message is '' when the connection succeeded; connectionId is the
+// account the server connected (the redirect carries `connection={uuid}` on success), or null.
 export function describeOauthReturn(queryParams) {
-  if (queryParams?.status === 'connected') return { message: '', accountChange: false }
-  if (queryParams?.error === ACCOUNT_CHANGE_ERROR) return { message: '', accountChange: true }
-  return { message: OAUTH_ERRORS[queryParams?.error] ?? DEFAULT_ERROR, accountChange: false }
+  if (queryParams?.status === 'connected') {
+    const connectionId = queryParams.connection ? String(queryParams.connection) : null
+    return { message: '', connectionId }
+  }
+  return { message: OAUTH_ERRORS[queryParams?.error] ?? DEFAULT_ERROR, connectionId: null }
 }

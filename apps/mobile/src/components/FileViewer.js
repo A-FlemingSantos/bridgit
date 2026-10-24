@@ -100,7 +100,7 @@ function ImageBody({ url, name }) {
 
 // Shows the file by read mode. Images and text render in the app; PDF, video, audio and files without
 // a preview are downloaded and handed to another app through the system "Abrir com…".
-export default function FileViewer({ providerId, file, source }) {
+export default function FileViewer({ connectionId, file, source }) {
   const { token } = useSession()
   const [opening, setOpening] = useState(false)
   const [error, setError] = useState('')
@@ -111,7 +111,7 @@ export default function FileViewer({ providerId, file, source }) {
     setOpening(true)
     setError('')
     try {
-      await openFileWith(token, providerId, file)
+      await openFileWith(token, connectionId, file)
     } catch (openError) {
       setError(errorMessage(openError, 'Não foi possível abrir o arquivo.'))
     } finally {

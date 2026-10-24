@@ -50,8 +50,8 @@ export async function openWith({ url, name, mimeType }) {
 
 // Asks for a fresh download ticket (one in hand may have expired, they last 5 min) and opens the
 // file with another app. Backs the reader's "Abrir com…" and the file menu's "Baixar".
-export async function openFileWith(token, providerId, file) {
-  const ticket = await createContentTicket(token, providerId, file.ref, 'attachment')
+export async function openFileWith(token, connectionId, file) {
+  const ticket = await createContentTicket(token, connectionId, file.ref, 'attachment')
   if (!ticket?.url) throw new Error('Arquivo indisponível.')
   const url = /^https?:\/\//i.test(ticket.url) ? ticket.url : `${API_BASE_URL}${ticket.url}`
   await openWith({ url, name: file.name, mimeType: file.mimeType })

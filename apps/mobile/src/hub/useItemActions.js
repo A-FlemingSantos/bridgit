@@ -20,8 +20,8 @@ function failureMessage(error) {
 }
 
 // Menu handlers, dialogs and feedback for the write actions on files and folders.
-// `providerId` and `parentRef` say where "Nova pasta" and "Enviar" act; without them the create menu is empty.
-export function useItemActions({ providerId = null, parentRef = null } = {}) {
+// `connectionId` and `parentRef` say where "Nova pasta" and "Enviar" act; without them the create menu is empty.
+export function useItemActions({ connectionId = null, parentRef = null } = {}) {
   const hub = useHub()
   const { token } = useSession()
   const folderColors = useFolderColors()
@@ -39,7 +39,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
 
   const closeDialog = useCallback(() => setDialog(null), [])
 
-  const providerOf = (entry) => entry.providerId ?? providerId
+  const connectionOf = (entry) => entry.connectionId ?? connectionId
 
   const rename = (entry) => {
     // Files keep their extension: the field holds only the stem, like the web and the providers do.
@@ -53,7 +53,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
       onSubmit: async (value) => {
         const name = withExtension(value, extension)
         if (name === entry.name) return
-        await hub.rename(providerOf(entry), entry, name)
+        await hub.rename(connectionOf(entry), entry, name)
         say('Renomeado.')
       },
     })
@@ -68,14 +68,14 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     confirmLabel: 'Excluir',
     danger: true,
     onSubmit: async () => {
-      await hub.remove(providerOf(entry), entry)
+      await hub.remove(connectionOf(entry), entry)
       say('Excluído.')
     },
   })
 
   const togglePin = async (entry) => {
     try {
-      await hub.setShortcut(providerOf(entry), entry.ref, !entry.pinned)
+      await hub.setShortcut(connectionOf(entry), entry.ref, !entry.pinned)
       say(entry.pinned ? 'Atalho removido.' : 'Atalho criado.')
     } catch (error) {
       say(failureMessage(error))
@@ -85,7 +85,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   // Creates the link (or gets the existing one: the call is idempotent) and opens the share sheet.
   const shareLink = async (entry) => {
     try {
-      const link = await hub.publicLink(providerOf(entry), entry.ref)
+      const link = await hub.publicLink(connectionOf(entry), entry.ref)
       await Share.share({ message: link?.url ?? '' })
     } catch (error) {
       say(failureMessage(error))
@@ -96,7 +96,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   const download = async (entry) => {
     try {
       say('Baixando…')
-      await openFileWith(token, providerOf(entry), entry)
+      await openFileWith(token, connectionOf(entry), entry)
       setNotice('')
     } catch (error) {
       say(failureMessage(error))
@@ -113,14 +113,14 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
 
   const disableLink = async (link) => {
     try {
-      await hub.disablePublicLink(link.providerId, link.ref)
+      await hub.disablePublicLink(link.connectionId, link.ref)
       say('Link desativado.')
     } catch (error) {
       say(failureMessage(error))
     }
   }
 
-  // `target` picks another provider's root (the Home asks which one); by default the screen's folder.
+  // `target` is a connectionId and picks another account's root (the Home asks which one); by default the screen's folder.
   const newFolder = (target = null) => setDialog({
     type: 'name',
     title: 'Nova pasta',
@@ -128,12 +128,12 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     confirmLabel: 'Criar',
     onSubmit: async (name) => {
       if (target) await hub.createFolder(target, null, name)
-      else await hub.createFolder(providerId, parentRef, name)
+      else await hub.createFolder(connectionId, parentRef, name)
       say('Pasta criada.')
     },
   })
 
-  // Sends picked files one after another to `target`'s root, or to the screen's folder by default.
+  // Sends picked files one after another to the root of account `target`, or to the screen's folder by default.
   // Native sends { uri, name, type } as a form part; web sends the File the picker already holds.
   const sendFiles = async (target, files) => {
     const tooLarge = files.filter((file) => (file.size ?? 0) > MAX_UPLOAD_BYTES)
@@ -145,7 +145,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     for (const [index, file] of ready.entries()) {
       say(ready.length > 1 ? `Enviando ${index + 1} de ${ready.length}…` : 'Enviando…')
       if (target) await hub.upload(target, null, file)
-      else await hub.upload(providerId, parentRef, file)
+      else await hub.upload(connectionId, parentRef, file)
     }
     const sent = ready.length > 1 ? `${ready.length} arquivos enviados.` : 'Arquivo enviado.'
     const left = tooLarge.length === 1 ? '1 ficou de fora' : `${tooLarge.length} ficaram de fora`
@@ -196,7 +196,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     }
   }
 
-  // Rebuilds the picked folder under `target`'s root, folder by folder, then uploads each folder's
+  // Rebuilds the picked folder under the root of account `target`, folder by folder, then uploads each folder's
   // files into its new counterpart, as the web does with a picked directory.
   const sendFolder = async (target, tree) => {
     const tooLarge = tree.files.filter(({ file }) => (file.size ?? 0) > MAX_UPLOAD_BYTES).length
@@ -222,7 +222,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
     say(`Pasta "${tree.name}" enviada.${tooLarge ? `${left} por passar de ${MAX_UPLOAD_LABEL}.` : ''}`)
   }
 
-  // Sends what the Home picked to the cloud chosen afterwards.
+  // Sends what the Home picked to the account (connectionId) chosen afterwards.
   const sendPicked = async (target, picked) => {
     try {
       if (picked.kind === 'folder') await sendFolder(target, picked.tree)
@@ -273,7 +273,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
   }
 
   // An empty file with the typed name, as the web creates one; the provider opens it from there.
-  // `target` picks another provider's root, like newFolder.
+  // `target` picks another account's root, like newFolder.
   const newFile = (target = null) => setDialog({
     type: 'name',
     title: 'Criar arquivo',
@@ -292,12 +292,12 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
         file = { uri, name, type: 'application/octet-stream', size: 0 }
       }
       if (target) await hub.upload(target, null, file)
-      else await hub.upload(providerId, parentRef, file)
+      else await hub.upload(connectionId, parentRef, file)
       say('Arquivo criado.')
     },
   })
 
-  const canCreate = Boolean(providerId)
+  const canCreate = Boolean(connectionId)
 
   return {
     dialog,
@@ -311,7 +311,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
       link: () => shareLink(entry),
     }, { pinned: entry.pinned }),
     folderMenu: (entry) => {
-      const color = folderColors.colorOf(providerOf(entry), entry.ref)
+      const color = folderColors.colorOf(connectionOf(entry), entry.ref)
       return folderMenuItems({
         rename: () => rename(entry),
         link: () => shareLink(entry),
@@ -323,7 +323,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
             <FolderColorPalette
               selectedId={color.id}
               onPick={(id) => {
-                folderColors.setColor(providerOf(entry), entry.ref, id)
+                folderColors.setColor(connectionOf(entry), entry.ref, id)
                 close()
               }}
             />
@@ -340,7 +340,7 @@ export function useItemActions({ providerId = null, parentRef = null } = {}) {
         camera: capture,
       }
       : {}),
-    folderColor: (entry) => folderColors.colorOf(providerOf(entry), entry.ref).hex,
+    folderColor: (entry) => folderColors.colorOf(connectionOf(entry), entry.ref).hex,
     pickFiles,
     pickFolder,
     sendPicked,

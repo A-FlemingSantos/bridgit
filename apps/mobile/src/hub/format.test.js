@@ -13,18 +13,18 @@ describe('kindLabel', () => {
 describe('toEntry', () => {
   it('maps a cloud item to what the screens use', () => {
     const entry = toEntry({
-      ref: 'r1', name: 'Relatório', kind: 'file', extension: 'pdf', provider: 'onedrive',
+      ref: 'r1', name: 'Relatório', kind: 'file', extension: 'pdf', provider: 'onedrive', connectionId: 'c1',
       remoteVersion: 'v7', mimeType: 'application/pdf', size: 12,
     })
     expect(entry).toMatchObject({
-      ref: 'r1', name: 'Relatório', kind: 'PDF', providerId: 'onedrive', isFolder: false,
+      ref: 'r1', name: 'Relatório', kind: 'PDF', connectionId: 'c1', providerId: 'onedrive', isFolder: false,
       version: 'v7', mimeType: 'application/pdf', size: 12, pinned: false,
     })
   })
 
-  it('keeps the provider the list was loaded from', () => {
-    expect(toEntry({ ref: 'f', name: 'x', kind: 'folder' }, 'dropbox')).toMatchObject({
-      providerId: 'dropbox', isFolder: true, kind: 'Pasta',
+  it('keeps the connection the list was loaded from', () => {
+    expect(toEntry({ ref: 'f', name: 'x', kind: 'folder', provider: 'dropbox', connectionId: 'other' }, 'c2')).toMatchObject({
+      connectionId: 'c2', providerId: 'dropbox', isFolder: true, kind: 'Pasta',
     })
   })
 })
@@ -48,6 +48,11 @@ describe('needsReconnect', () => {
     expect(needsReconnect({ connected: true, lastError: null })).toBe(false)
     expect(needsReconnect({ connected: false, lastError: 'RECONEXAO_NECESSARIA' })).toBe(false)
     expect(needsReconnect(undefined)).toBe(false)
+  })
+
+  it('accepts a connection, which has no connected flag', () => {
+    expect(needsReconnect({ connectionId: 'c1', lastError: 'RECONEXAO_NECESSARIA' })).toBe(true)
+    expect(needsReconnect({ connectionId: 'c1', lastError: null })).toBe(false)
   })
 })
 

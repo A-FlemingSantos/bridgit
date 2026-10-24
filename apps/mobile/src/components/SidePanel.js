@@ -12,7 +12,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ChevronRight, FileText, Plus } from 'lucide-react-native'
-import { useProviders, usePublicLinks } from '../hub/hooks'
+import { useConnections, useProviders, usePublicLinks } from '../hub/hooks'
 import { needsReconnect } from '../hub/format'
 import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
@@ -22,6 +22,9 @@ import { SheetHeader } from './ActionSheet'
 import FileSheet from './FileSheet'
 import HoldMenu from './OverflowMenu'
 import { PixelFolder, PixelGear, PixelHome, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
+import AccountAvatar from './AccountAvatar'
+import AddAccountMenu from './AddAccountMenu'
+import { accountLabels } from './accountDisplay'
 import ProviderMark from './ProviderMark'
 import { Overlay } from './OverlayHost'
 import { useSlideModal } from './useSlideModal'
@@ -103,14 +106,27 @@ function Empty({ children, onPress = null }) {
   return onPress ? <Pressable accessibilityRole="button" onPress={onPress}>{text}</Pressable> : text
 }
 
-// The web side panel, adapted to a drawer: providers, public links and shortcuts.
+// The web side panel, adapted to a drawer: connected accounts, public links and shortcuts.
 // `go(fn)` closes the drawer first and runs `fn` once it is gone, so the next screen is not covered.
-export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, actions, onOpenFile, onOpenProvider, onOpenSettings }) {
+export default function SidePanel({
+  open,
+  onClose,
+  shortcuts,
+  shortcutsStatus,
+  actions,
+  onOpenFile,
+  onOpenAccount,
+  onAddAccount,
+  onOpenSettings,
+}) {
   const insets = useSafeAreaInsets()
   const { theme } = useMobileTheme()
   const { width: screenWidth } = useWindowDimensions()
   const width = Math.min(320, Math.round(screenWidth * 0.84))
   const { providers, status: providersStatus, reload: reloadProviders } = useProviders()
+  const { connections } = useConnections()
+  const [addOpen, setAddOpen] = useState(false)
+  const addButton = useRef(null)
   const linksQuery = usePublicLinks()
   const { mounted, offset: translateX, backdrop, onReady, afterClose } = useSlideModal(open, {
     onClose, from: -width })
@@ -164,28 +180,47 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
 
           <Item icon={<PixelHome size={24} color={theme.colors.mute} />} title="Início" active onPress={onClose} />
 
-          <Group title="Provedores">
+          <Group title="Minhas contas">
             {providersStatus === 'loading' ? <Empty>Carregando…</Empty> : null}
             {providersStatus === 'error' ? (
               <Empty onPress={reloadProviders}>Não foi possível carregar os provedores. Toque para tentar de novo.</Empty>
             ) : null}
-            {providersStatus === 'ready' ? providers.map((provider) => {
-              const expired = needsReconnect(provider)
-              const connected = provider.connected && !expired
+            {providersStatus === 'ready' ? connections.map((connection) => {
+              const expired = needsReconnect(connection)
+              const { title, subtitle } = accountLabels(connection)
               return (
                 <Item
-                  key={provider.id}
-                  icon={<ProviderMark id={provider.id} size={24} />}
-                  title={provider.name}
-                  subtitle={expired
-                    ? 'Acesso expirado · Reconectar'
-                    : provider.connected ? provider.account?.email ?? 'Conectado' : 'Conectar'}
-                  ghost={!provider.connected}
-                  onPress={() => go(connected ? () => onOpenProvider(provider.id) : onOpenSettings)}
+                  key={connection.connectionId}
+                  icon={<AccountAvatar connection={connection} size={28} ring={theme.colors.wash} />}
+                  title={title}
+                  label={`${title} · ${connection.providerName}`}
+                  subtitle={expired ? 'Acesso expirado · Reconectar' : subtitle}
+                  onPress={() => go(expired
+                    ? onOpenSettings
+                    : () => onOpenAccount({ connectionId: connection.connectionId, providerId: connection.providerId }))}
                 />
               )
             }) : null}
-            <Item icon={icon(Plus)} title="Nova conta" onPress={() => go(onOpenSettings)} />
+            {providersStatus === 'ready' ? providers.filter((provider) => !provider.connected).map((provider) => (
+              <Item
+                key={provider.id}
+                icon={<ProviderMark id={provider.id} size={24} />}
+                title={provider.name}
+                subtitle="Conectar"
+                ghost
+                onPress={() => go(onOpenSettings)}
+              />
+            )) : null}
+            <View ref={addButton} collapsable={false}>
+              <Item icon={icon(Plus)} title="Nova conta" onPress={() => setAddOpen(true)} />
+            </View>
+            <AddAccountMenu
+              open={addOpen}
+              anchor={addButton}
+              onClose={() => setAddOpen(false)}
+              providers={providers}
+              onSelect={(providerId) => onAddAccount(providerId)}
+            />
           </Group>
 
           <Group title="Links públicos">
@@ -201,7 +236,7 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
               const subtitle = link.when ? `${providerName} · ${link.when}` : providerName
               return (
                 <HoldMenu
-                  key={`${link.providerId}-${link.ref}`}
+                  key={`${link.connectionId}-${link.ref}`}
                   header={<SheetHeader leading={<LinkIcon kind={link.kind} size={24} color={theme.colors.mute} />} title={link.name} subtitle={subtitle} />}
                   items={[
                     { id: 'share', label: 'Compartilhar link', icon: PixelLink, onSelect: () => actions.shareUrl(link.url) },
@@ -230,7 +265,7 @@ export default function SidePanel({ open, onClose, shortcuts, shortcutsStatus, a
             ) : null}
             {shortcuts.map((file) => (
               <HoldMenu
-                key={`${file.providerId}-${file.ref}`}
+                key={`${file.connectionId}-${file.ref}`}
                 header={(
                   <SheetHeader
                     centered

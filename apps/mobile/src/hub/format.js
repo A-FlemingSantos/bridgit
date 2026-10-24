@@ -2,9 +2,10 @@ const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-// The connection row still exists, but the provider rejected its refresh token (e.g. it expired).
-export function needsReconnect(provider) {
-  return Boolean(provider?.connected) && provider?.lastError === 'RECONEXAO_NECESSARIA'
+// The connection still exists, but the provider rejected its refresh token (e.g. it expired).
+// Takes a connection or a provider row (which also says `connected`).
+export function needsReconnect(connection) {
+  return connection?.connected !== false && connection?.lastError === 'RECONEXAO_NECESSARIA'
 }
 
 // Warning for a folder listing whose catalog is out of date, or null when there is nothing to say.
@@ -40,12 +41,14 @@ export function kindLabel(item) {
   return extension ? extension.toUpperCase() : 'Arquivo'
 }
 
-export function toEntry(item, providerId = item.provider) {
+// `connectionId` identifies the account the item lives in; `providerId` is only for display.
+export function toEntry(item, connectionId = item.connectionId) {
   return {
     ref: item.ref,
     name: item.name,
     kind: kindLabel(item),
-    providerId,
+    connectionId,
+    providerId: item.provider ?? null,
     isFolder: item.kind === 'folder',
     mimeType: item.mimeType ?? null,
     size: item.size ?? null,

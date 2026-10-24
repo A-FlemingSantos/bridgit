@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { Clock } from 'lucide-react-native'
 import CollapsingHeader from '../components/CollapsingHeader'
 import ActionDialog, { Notice } from '../components/ActionDialog'
 import ActionSheet, { SheetHeader } from '../components/ActionSheet'
 import AnchoredMenu from '../components/AnchoredMenu'
+import { accountLine } from '../components/accountDisplay'
 import FileSheet from '../components/FileSheet'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
@@ -24,9 +25,10 @@ import ProviderMark from '../components/ProviderMark'
 import SidePanel from '../components/SidePanel'
 import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
-import { useHomeEntries, useProviders } from '../hub/hooks'
+import { useConnections, useHomeEntries } from '../hub/hooks'
 import { needsReconnect } from '../hub/format'
 import { canPickFolder } from '../hub/pickFolder'
+import { useConnectAccount } from '../hub/useConnectAccount'
 import { useItemActions } from '../hub/useItemActions'
 import { errorMessage } from '../api/errorMessage'
 import AppText from '../theme/AppText'
@@ -41,7 +43,7 @@ function providerName(id) {
 }
 
 function openFile(navigation, file) {
-  navigation.push('File', { providerId: file.providerId, fileRef: file.ref })
+  navigation.push('File', { connectionId: file.connectionId, providerId: file.providerId, fileRef: file.ref })
 }
 
 function fileMeta(file) {
@@ -67,10 +69,11 @@ function providerIcon(id) {
   return ProviderIcon
 }
 
-function providerHint(provider) {
-  if (needsReconnect(provider)) return 'Acesso expirado · Reconectar em Ajustes'
-  if (provider.connected) return provider.account?.email ?? 'Conectado'
-  return 'Não conectado'
+// The account's email is shown on its own only when the provider has more than one account to tell apart.
+function accountHint(connection, shared) {
+  if (needsReconnect(connection)) return 'Acesso expirado · Reconectar em Ajustes'
+  if (shared) return accountLine(connection)
+  return connection.account?.email ?? 'Conectado'
 }
 
 // A Home shortcut, drawn like the bottom sheet tiles; its choices open in a sheet of their own.
@@ -165,7 +168,8 @@ function ViewButton({ icon: Icon, label, selected, onPress }) {
 export default function HomeScreen({ navigation }) {
   const { theme } = useMobileTheme()
   const { recents, shortcuts, status, error, reload } = useHomeEntries()
-  const { providers } = useProviders()
+  const { connections } = useConnections()
+  const connectAccount = useConnectAccount()
   const actions = useItemActions()
   const { width } = useWindowDimensions()
   const [panelOpen, setPanelOpen] = useState(false)
@@ -173,6 +177,10 @@ export default function HomeScreen({ navigation }) {
   const [providerFilter, setProviderFilter] = useState(ALL_PROVIDERS)
   // What "Enviar" picked on the device, waiting for the user to choose the cloud it goes to.
   const [picked, setPicked] = useState(null)
+  // Result of connecting another account from the side panel (a failure message, or empty).
+  const [connectNotice, setConnectNotice] = useState('')
+  const connectTimer = useRef(null)
+  useEffect(() => () => clearTimeout(connectTimer.current), [])
   // The destination sheet keeps drawing the last pick while it slides away.
   const lastPicked = useRef(null)
   if (picked) lastPicked.current = picked
@@ -188,20 +196,31 @@ export default function HomeScreen({ navigation }) {
 
   const openSettings = () => navigation.push('Settings')
 
-  // Home uploads, new files and new folders land at the root of the cloud picked in the sheet.
+  // Connects one more account of the provider; the list refreshes itself once the OAuth flow returns.
+  async function addAccount(providerId) {
+    const message = await connectAccount(providerId, { addAccount: true })
+    if (!message) return
+    setConnectNotice(message)
+    clearTimeout(connectTimer.current)
+    connectTimer.current = setTimeout(() => setConnectNotice(''), 4000)
+  }
+
+  // Home uploads, new files and new folders land at the root of the account picked in the sheet.
   // An expired connection stays listed but cannot take writes until it is reconnected.
   function destinationItems(run) {
-    const connected = providers.filter((provider) => provider.connected)
-    if (connected.length === 0) {
+    if (connections.length === 0) {
       return [{ id: 'connect', label: 'Conectar uma nuvem', icon: PixelCloud, onSelect: openSettings }]
     }
-    return connected.map((provider) => ({
-      id: provider.id,
-      label: provider.name,
-      hint: providerHint(provider),
-      icon: providerIcon(provider.id),
-      disabled: needsReconnect(provider),
-      onSelect: () => run(provider.id),
+    return connections.map((connection) => ({
+      id: connection.connectionId,
+      label: connection.providerName,
+      hint: accountHint(
+        connection,
+        connections.filter((other) => other.providerId === connection.providerId).length > 1,
+      ),
+      icon: providerIcon(connection.providerId),
+      disabled: needsReconnect(connection),
+      onSelect: () => run(connection.connectionId),
     }))
   }
 
@@ -312,7 +331,7 @@ export default function HomeScreen({ navigation }) {
             {recentsView === 'list' ? (
               <View>
                 {visibleRecents.map((file, index) => (
-                  <StaggerItem key={`${file.providerId}-${file.ref}`} index={index} base={0.04} step={0.025}>
+                  <StaggerItem key={`${file.connectionId}-${file.ref}`} index={index} base={0.04} step={0.025}>
                     <HoldMenu header={fileHeader(file)} items={actions.fileMenu(file)}>
                       {({ onLongPress, openMenu }) => (
                         <View style={styles.rowWrap}>
@@ -355,7 +374,7 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.grid}>
                 {visibleRecents.map((file, index) => (
                   <StaggerItem
-                    key={`${file.providerId}-${file.ref}-grid`}
+                    key={`${file.connectionId}-${file.ref}-grid`}
                     index={index}
                     base={0.04}
                     step={0.025}
@@ -422,10 +441,11 @@ export default function HomeScreen({ navigation }) {
         shortcutsStatus={status}
         actions={actions}
         onOpenFile={(file) => openFile(navigation, file)}
-        onOpenProvider={(providerId) => navigation.push('Folder', { providerId })}
+        onOpenAccount={({ connectionId, providerId }) => navigation.push('Folder', { connectionId, providerId })}
+        onAddAccount={addAccount}
         onOpenSettings={openSettings}
       />
-      <Notice message={actions.notice} />
+      <Notice message={connectNotice || actions.notice} />
       <ActionDialog dialog={actions.dialog} onClose={actions.closeDialog} />
     </View>
   )

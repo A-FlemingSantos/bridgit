@@ -10,28 +10,32 @@ import HoldMenu from '../components/OverflowMenu'
 import { PixelFolderOpen } from '../components/PixelIcons'
 import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
-import { useFolder, useProviders } from '../hub/hooks'
+import { useFolder } from '../hub/hooks'
 import { needsReconnect, staleCatalogNotice } from '../hub/format'
 import { useItemActions } from '../hub/useItemActions'
 import { errorMessage } from '../api/errorMessage'
+import { useRouteConnection } from './routeConnection'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 
 export default function FolderScreen({ navigation, route }) {
   const { theme } = useMobileTheme()
   const { width } = useWindowDimensions()
-  const { providerId, folderRef = null, trail = [] } = route.params ?? {}
-  const { providers } = useProviders()
-  const provider = providers.find((entry) => entry.id === providerId)
-  const providerName = () => provider?.name ?? providerId
-  const connected = provider?.connected ?? true
+  const { connectionId: routeConnectionId = null, providerId = null, folderRef = null, trail = [] } = route.params ?? {}
+  // The route names the account; one that names only the provider means that provider's oldest account.
+  const { status: accountStatus, connectionId, connection } = useRouteConnection({ connectionId: routeConnectionId, providerId })
+  const resolving = accountStatus === 'resolving'
+  const providerName = () => connection?.providerName ?? providerId ?? 'A conta'
+  // An account that is gone from the list (disconnected) cannot be browsed; the list loading says nothing yet.
+  const connected = accountStatus !== 'missing'
   // An expired connection still lists the last synced catalog, which may be stale or incomplete.
-  const expired = needsReconnect(provider)
-  const { status, error, reload, title, catalog, folders, files } = useFolder(connected ? providerId : null, folderRef)
+  const expired = needsReconnect(connection)
+  const accountEmail = connection?.account?.email ?? ''
+  const { status, error, reload, title, catalog, folders, files } = useFolder(connected && !resolving ? connectionId : null, folderRef)
   // The listing says its catalog is old (e.g. sync failing); the reconnect warning already covers an expired login.
   const staleNotice = connected ? staleCatalogNotice(catalog, { reconnectShown: expired }) : null
-  const actions = useItemActions({ providerId: connected && !expired ? providerId : null, parentRef: folderRef })
-  const location = { title: title ?? provider?.name ?? 'Pasta', folders, files }
+  const actions = useItemActions({ connectionId: connected && !expired ? connectionId : null, parentRef: folderRef })
+  const location = { title: title ?? connection?.providerName ?? 'Pasta', folders, files }
   const tileWidth = (width - 40 - 12) / 2
   const folderWidth = Math.min(112, Math.round(tileWidth * 0.7))
   const fileSize = Math.min(72, Math.round(tileWidth * 0.42))
@@ -44,7 +48,7 @@ export default function FolderScreen({ navigation, route }) {
           <BrowseHeader
             title={location.title}
             trail={trail}
-            providerId={folderRef ? null : providerId}
+            providerId={folderRef ? null : connection?.providerId ?? providerId}
             onBack={() => navigation.goBack()}
             onCrumb={(index) => navigation.pop(trail.length - index)}
           />
@@ -55,32 +59,32 @@ export default function FolderScreen({ navigation, route }) {
         <View style={styles.content}>
         {!connected ? (
           <AppText style={[styles.empty, { color: theme.colors.mute }]}>
-            {providerName()} ainda não está conectado. Conecte em Ajustes.
+            Esta conta do {providerName()} não está conectada. Conecte em Ajustes.
           </AppText>
         ) : null}
         {expired ? (
           <Pressable accessibilityRole="button" onPress={() => navigation.push('Settings')}>
             <AppText style={[styles.empty, { color: theme.colors.mute }]}>
-              O acesso ao {providerName()} expirou e esta lista pode estar desatualizada. Toque para reconectar em Ajustes.
+              O acesso ao {providerName()}{accountEmail ? ` (${accountEmail})` : ''} expirou e esta lista pode estar desatualizada. Toque para reconectar em Ajustes.
             </AppText>
           </Pressable>
         ) : null}
         {staleNotice ? (
           <AppText style={[styles.empty, { color: theme.colors.mute }]}>{staleNotice}</AppText>
         ) : null}
-        {connected && status === 'loading' ? (
+        {resolving || (connected && status === 'loading') ? (
           <View style={styles.loading}>
             <Spinner />
           </View>
         ) : null}
-        {connected && status === 'error' ? (
+        {connected && !resolving && status === 'error' ? (
           <Pressable accessibilityRole="button" onPress={reload}>
             <AppText style={[styles.empty, { color: theme.colors.mute }]}>
               {errorMessage(error, 'Não foi possível carregar.')} Toque para tentar de novo.
             </AppText>
           </Pressable>
         ) : null}
-        {connected && !expired && !staleNotice && empty ? (
+        {connected && !resolving && !expired && !staleNotice && empty ? (
           <View style={styles.emptyState}>
             <PixelFolderOpen size={96} color={theme.colors.mute} />
             <AppText weight="500" style={styles.emptyTitle}>Pasta vazia</AppText>
@@ -121,6 +125,7 @@ export default function FolderScreen({ navigation, route }) {
                       delayLongPress={420}
                       onLongPress={onLongPress}
                       onPress={() => navigation.push('Folder', {
+                        connectionId,
                         providerId,
                         folderRef: folder.ref,
                         trail: [...trail, { title: location.title }],
@@ -174,7 +179,7 @@ export default function FolderScreen({ navigation, route }) {
                       accessibilityHint="Mantenha pressionado para ações"
                       delayLongPress={420}
                       onLongPress={onLongPress}
-                      onPress={() => navigation.push('File', { providerId, fileRef: file.ref })}
+                      onPress={() => navigation.push('File', { connectionId, providerId, fileRef: file.ref })}
                       style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.wash } : null]}
                     >
                       <View style={styles.face}>
