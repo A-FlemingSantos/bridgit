@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Minus, Plus } from 'lucide-react-native'
+import AccountAvatar from '../components/AccountAvatar'
 import ActionDialog, { NameField, Notice, SheetButton } from '../components/ActionDialog'
-import ActionSheet, { SheetHeader } from '../components/ActionSheet'
+import ActionSheet from '../components/ActionSheet'
+import AddAccountMenu from '../components/AddAccountMenu'
 import BrowseHeader from '../components/BrowseHeader'
 import BrowserMark from '../components/BrowserMark'
-import ProviderMark from '../components/ProviderMark'
 import {
   BrandMark,
   PixelGithub,
   PixelKey,
-  PixelLink,
   PixelLinkedin,
   PixelTrash,
   PixelUnlink,
@@ -18,6 +19,8 @@ import {
   PixelX,
 } from '../components/PixelIcons'
 import { useSession } from '../auth/SessionContext'
+import { needsReconnect } from '../hub/format'
+import { useConnections } from '../hub/hooks'
 import { ABOUT, useSettings } from '../settings/useSettings'
 import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
@@ -51,7 +54,8 @@ function SectionTitle({ children }) {
 // Rounded group of rows on the raised surface, like the bottom sheet lists.
 function Card({ children }) {
   const { theme } = useMobileTheme()
-  const rows = (Array.isArray(children) ? children : [children]).filter(Boolean)
+  // Rows may come as lists (one per account), so they are flattened before the separators go in.
+  const rows = [children].flat(Infinity).filter(Boolean)
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.raise }]}>
       {rows.map((row, index) => (
@@ -64,7 +68,17 @@ function Card({ children }) {
   )
 }
 
-function Row({ leading = null, title, subtitle = null, badge = null, danger = false, disabled = false, onPress = null }) {
+function Row({
+  leading = null,
+  title,
+  subtitle = null,
+  subtitleAlert = false,
+  badge = null,
+  trailing = null,
+  danger = false,
+  disabled = false,
+  onPress = null,
+}) {
   const { theme } = useMobileTheme()
   const content = (
     <>
@@ -81,9 +95,15 @@ function Row({ leading = null, title, subtitle = null, badge = null, danger = fa
           ) : null}
         </View>
         {subtitle ? (
-          <AppText numberOfLines={1} style={[styles.rowSubtitle, { color: theme.colors.mute }]}>{subtitle}</AppText>
+          <AppText
+            numberOfLines={1}
+            style={[styles.rowSubtitle, { color: subtitleAlert ? theme.colors.danger : theme.colors.mute }]}
+          >
+            {subtitle}
+          </AppText>
         ) : null}
       </View>
+      {trailing}
     </>
   )
   if (!onPress) return <View style={styles.row}>{content}</View>
@@ -135,56 +155,24 @@ function AccountHero({ username, onEdit, onLogout }) {
   )
 }
 
-function providerStatus(provider) {
-  if (provider.needsReconnect) return 'Expirado'
-  if (provider.connected) return 'Conectado'
-  if (!provider.configured) return 'Indisponível'
-  return 'Conectar'
+function accountLabel(connection) {
+  return connection.account?.email ?? connection.account?.name ?? connection.providerName
 }
 
-// One card per provider across a single strip, drawn like the Home's action tiles.
-function ProviderCard({ provider, onPress }) {
+// The icon-only "sair" at the end of an account row.
+function SignOutButton({ label, onPress }) {
   const { theme } = useMobileTheme()
-  const status = providerStatus(provider)
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${provider.name}: ${status}`}
+      accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.providerCard, { backgroundColor: pressed ? theme.colors.line : theme.colors.raise }]}
+      hitSlop={6}
+      style={({ pressed }) => [styles.rowAction, pressed ? { backgroundColor: theme.colors.line } : null]}
     >
-      <ProviderMark id={provider.id} size={32} />
-      <AppText weight="500" numberOfLines={1} style={[styles.providerName, { color: theme.colors.ink }]}>
-        {provider.name}
-      </AppText>
-      <AppText
-        numberOfLines={1}
-        style={[styles.providerStatus, { color: provider.needsReconnect ? theme.colors.danger : theme.colors.mute }]}
-      >
-        {status}
-      </AppText>
+      <Minus size={18} strokeWidth={1.8} color={theme.colors.mute} />
     </Pressable>
   )
-}
-
-function providerItems(provider, { connect, disconnect }) {
-  if (provider.needsReconnect) {
-    return [
-      { id: 'reconnect', label: 'Reconectar', icon: PixelLink, onSelect: connect },
-      { id: 'disconnect', label: 'Desconectar', icon: PixelUnlink, danger: true, onSelect: disconnect },
-    ]
-  }
-  if (provider.connected) {
-    return [{ id: 'disconnect', label: 'Desconectar', icon: PixelUnlink, danger: true, onSelect: disconnect }]
-  }
-  return [{
-    id: 'connect',
-    label: 'Conectar',
-    hint: provider.configured ? null : 'Não configurado neste servidor',
-    icon: PixelLink,
-    disabled: !provider.configured,
-    onSelect: connect,
-  }]
 }
 
 // A form in a bottom sheet: title, fields, then Cancelar and the confirm button.
@@ -287,14 +275,11 @@ export default function SettingsScreen({ navigation }) {
   const settings = useSettings()
   const { logout } = useSession()
   const [notice, say] = useFlash()
+  const { connections } = useConnections()
   const [dialog, setDialog] = useState(null)
-  const [providerId, setProviderId] = useState(null)
   const [form, setForm] = useState(null)
-  // The provider sheet keeps drawing the last provider while it slides away.
-  const lastProvider = useRef(null)
-  const openProvider = settings.providers.find((provider) => provider.id === providerId) ?? null
-  if (openProvider) lastProvider.current = openProvider
-  const shownProvider = openProvider ?? lastProvider.current
+  const [addOpen, setAddOpen] = useState(false)
+  const addButton = useRef(null)
   const others = settings.sessions.filter((session) => !session.current)
 
   // Fails with the hook's message so the dialog sheet shows it and stays open.
@@ -312,13 +297,13 @@ export default function SettingsScreen({ navigation }) {
     onSubmit: orThrow(settings.saveUsername),
   })
 
-  const confirmDisconnect = (provider) => setDialog({
+  const confirmSignOut = (connection) => setDialog({
     type: 'confirm',
-    title: `Desconectar ${provider.name}?`,
-    message: 'Os arquivos continuam no provedor. Recentes, atalhos e links dele saem do Bridgit.',
-    confirmLabel: 'Desconectar',
+    title: `Sair de ${accountLabel(connection)}?`,
+    message: 'Os arquivos continuam no provedor. Recentes, atalhos e links desta conta saem do Bridgit.',
+    confirmLabel: 'Sair',
     danger: true,
-    onSubmit: orThrow(() => settings.disconnectProvider(provider.id)),
+    onSubmit: orThrow(() => settings.disconnectAccount(connection.connectionId)),
   })
 
   return (
@@ -331,20 +316,51 @@ export default function SettingsScreen({ navigation }) {
         <AccountHero username={settings.username} onEdit={editUsername} onLogout={logout} />
 
         <View style={styles.section}>
-          <SectionTitle>Provedores</SectionTitle>
-          {settings.providers.length ? (
-            <View style={styles.providers}>
-              {settings.providers.map((provider) => (
-                <ProviderCard key={provider.id} provider={provider} onPress={() => setProviderId(provider.id)} />
-              ))}
-            </View>
-          ) : settings.providersStatus === 'error' ? (
+          <SectionTitle>Minhas contas</SectionTitle>
+          {settings.providersStatus === 'error' && connections.length === 0 ? (
             <Pressable accessibilityRole="button" onPress={settings.reloadProviders}>
               <AppText style={[styles.rowSubtitle, { color: theme.colors.mute }]}>
-                Não foi possível carregar os provedores. Toque para tentar de novo.
+                Não foi possível carregar as contas. Toque para tentar de novo.
               </AppText>
             </Pressable>
-          ) : null}
+          ) : (
+            <Card>
+              {connections.map((connection) => {
+                const label = accountLabel(connection)
+                const expired = needsReconnect(connection)
+                return (
+                  <Row
+                    key={connection.connectionId}
+                    leading={<AccountAvatar connection={connection} size={28} ring={theme.colors.raise} />}
+                    title={label}
+                    subtitle={expired ? 'Acesso expirado · toque para reconectar' : null}
+                    subtitleAlert={expired}
+                    onPress={expired
+                      ? async () => say(await settings.connectProvider(connection.providerId))
+                      : null}
+                    trailing={<SignOutButton label={`Sair de ${label}`} onPress={() => confirmSignOut(connection)} />}
+                  />
+                )
+              })}
+              <View key="add" ref={addButton} collapsable={false}>
+                <Row
+                  leading={<Plus size={20} strokeWidth={1.7} color={theme.colors.mute} />}
+                  title="Adicionar conta"
+                  onPress={() => setAddOpen(true)}
+                />
+              </View>
+            </Card>
+          )}
+          <AddAccountMenu
+            open={addOpen}
+            anchor={addButton}
+            onClose={() => setAddOpen(false)}
+            providers={settings.providers}
+            onSelect={async (providerId) => {
+              setAddOpen(false)
+              say(await settings.connectProvider(providerId, { addAccount: true }))
+            }}
+          />
         </View>
 
         <View style={styles.section}>
@@ -419,23 +435,6 @@ export default function SettingsScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <ActionSheet
-        open={Boolean(openProvider)}
-        onClose={() => setProviderId(null)}
-        header={shownProvider ? (
-          <SheetHeader
-            centered
-            leading={<ProviderMark id={shownProvider.id} size={48} />}
-            title={shownProvider.name}
-            subtitle={shownProvider.needsReconnect ? 'Acesso expirado' : shownProvider.account ?? 'Não conectado'}
-          />
-        ) : null}
-        items={shownProvider ? providerItems(shownProvider, {
-          connect: async () => say(await settings.connectProvider(shownProvider.id)),
-          disconnect: () => confirmDisconnect(shownProvider),
-        }) : []}
-      />
-
       <PasswordSheet
         open={form === 'password'}
         onClose={() => setForm(null)}
@@ -497,29 +496,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: -0.51,
   },
-  providers: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  providerCard: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 112,
-    paddingVertical: 16,
-    paddingHorizontal: 6,
-    borderRadius: 16,
+  rowAction: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-  },
-  providerName: {
-    marginTop: 8,
-    fontSize: 13.5,
-    letterSpacing: -0.27,
-  },
-  providerStatus: {
-    fontSize: 11.5,
-    letterSpacing: -0.1,
   },
   card: {
     borderRadius: 16,

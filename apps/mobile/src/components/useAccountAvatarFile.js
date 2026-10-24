@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Platform } from 'react-native'
 import * as FileSystem from 'expo-file-system'
-import { connectionAvatarPath } from '@bridgit/shared-client'
+import { connectionAvatarPath, getConnectionAvatar } from '@bridgit/shared-client'
 import { API_BASE_URL } from '../api/config'
 
 // The photo is behind the session, and on Android <Image> does not send the source's headers, so it is
@@ -9,7 +9,8 @@ import { API_BASE_URL } from '../api/config'
 // a reconnect is a new generation, which may bring a new photo.
 const ROOT = FileSystem.cacheDirectory ? `${FileSystem.cacheDirectory}account-avatars/` : null
 
-// `${connectionId}-${generation}` -> local file URI, or null when the account has no photo.
+// `${connectionId}-${generation}` -> local file URI (object URL in the browser), or null when the account
+// has no photo.
 const known = new Map()
 const inflight = new Map()
 
@@ -44,13 +45,25 @@ async function fetchAvatar(connectionId, generation, token) {
   throw new Error(`avatar ${download.status}`)
 }
 
+// In the browser there is no device file system, but fetch sends the token: the photo becomes an object URL.
+async function fetchAvatarBlob(connectionId, generation, token) {
+  try {
+    const blob = await getConnectionAvatar(token, connectionId, generation)
+    return blob ? URL.createObjectURL(blob) : null
+  } catch (error) {
+    if (error?.status === 404) return null
+    throw error
+  }
+}
+
 function loadAvatar(connectionId, generation, token) {
   const key = `${connectionId}-${generation}`
   if (known.has(key)) return Promise.resolve(known.get(key))
   const pending = inflight.get(key)
   if (pending) return pending
 
-  const request = fetchAvatar(connectionId, generation, token)
+  const fetcher = Platform.OS === 'web' ? fetchAvatarBlob : fetchAvatar
+  const request = fetcher(connectionId, generation, token)
     .then((uri) => {
       known.set(key, uri)
       return uri
@@ -67,7 +80,7 @@ export function useAccountAvatarFile(connectionId, generation, token) {
   const [uri, setUri] = useState(() => (key && known.has(key) ? known.get(key) : null))
 
   useEffect(() => {
-    if (!key || !token || !ROOT || Platform.OS === 'web') {
+    if (!key || !token || (!ROOT && Platform.OS !== 'web')) {
       setUri(null)
       return undefined
     }

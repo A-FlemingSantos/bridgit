@@ -1,9 +1,9 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { Platform } from 'react-native'
 import * as FileSystem from 'expo-file-system'
 import { useSession } from '../auth/SessionContext'
 import { oldestConnectionOf, findConnection } from './connections'
-import { colorIdOf, withColor } from './folderColorKeys'
+import { colorIdOf, migrateLegacyColors, withColor } from './folderColorKeys'
 import { useHub } from './HubContext'
 
 // Same muted tones as the web app; the first one is the default carbon folder.
@@ -117,6 +117,14 @@ export function useFolderColors() {
     if (!userId) return
     write(userId, withColor(read(userId), connectionId, ref, id, DEFAULT_FOLDER_COLOR.id, legacyProviderOf(connectionId)))
   }, [userId, legacyProviderOf])
+
+  // Once colors and connections are both known, legacy keys move to their connection for good.
+  useEffect(() => {
+    if (!userId || !cache.has(userId) || connections.length === 0) return
+    const migrated = migrateLegacyColors(colors, (providerId) =>
+      oldestConnectionOf(connections, providerId)?.connectionId ?? null)
+    if (migrated) write(userId, migrated)
+  }, [userId, colors, connections])
 
   return { colorOf, setColor }
 }

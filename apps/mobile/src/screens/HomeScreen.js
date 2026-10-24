@@ -114,19 +114,20 @@ function ActionTile({ icon: Icon, label, primary = false, sheetTitle, sheetHint,
   )
 }
 
-// One button for the provider filter; the clouds open in a menu that drops from it, so the
-// toolbar keeps a single line however many are connected.
-function ProviderFilter({ value, options, onChange }) {
+// One button for the account filter; the accounts open in a menu that drops from it, so the
+// toolbar keeps a single line however many are connected. `options` are { id, label, providerId }.
+function AccountFilter({ value, options, onChange }) {
   const { theme } = useMobileTheme()
   const [open, setOpen] = useState(false)
   const button = useRef(null)
   const filtered = value !== ALL_PROVIDERS
+  const current = options.find((option) => option.id === value)
   return (
     <>
       <Pressable
         ref={button}
         accessibilityRole="button"
-        accessibilityLabel={`Filtrar recentes por provedor: ${filtered ? providerName(value) : 'Todos'}`}
+        accessibilityLabel={`Filtrar recentes por conta: ${filtered ? current?.label ?? '' : 'Todas'}`}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}
         style={[styles.viewButton, filtered || open ? { backgroundColor: theme.colors.wash } : null]}
@@ -137,14 +138,11 @@ function ProviderFilter({ value, options, onChange }) {
         open={open}
         anchor={button}
         onClose={() => setOpen(false)}
-        label="Filtrar recentes por provedor"
-        items={options.map((id) => ({
-          id,
-          label: id === ALL_PROVIDERS ? 'Todos' : providerName(id),
-          icon: id === ALL_PROVIDERS ? PixelCloud : providerIcon(id),
-          selected: value === id,
-          onSelect: () => onChange(id),
-        }))}
+        label="Filtrar recentes por conta"
+        items={[
+          { id: ALL_PROVIDERS, label: 'Todas', icon: PixelCloud },
+          ...options.map((option) => ({ id: option.id, label: option.label, icon: providerIcon(option.providerId) })),
+        ].map((item) => ({ ...item, selected: value === item.id, onSelect: () => onChange(item.id) }))}
       />
     </>
   )
@@ -174,7 +172,7 @@ export default function HomeScreen({ navigation }) {
   const { width } = useWindowDimensions()
   const [panelOpen, setPanelOpen] = useState(false)
   const [recentsView, setRecentsView] = useState('list')
-  const [providerFilter, setProviderFilter] = useState(ALL_PROVIDERS)
+  const [accountFilter, setAccountFilter] = useState(ALL_PROVIDERS)
   // What "Enviar" picked on the device, waiting for the user to choose the cloud it goes to.
   const [picked, setPicked] = useState(null)
   // Result of connecting another account from the side panel (a failure message, or empty).
@@ -188,11 +186,22 @@ export default function HomeScreen({ navigation }) {
   const tileWidth = (width - SCREEN_X * 2 - 12) / 2
   const tileSheet = Math.min(72, Math.round(tileWidth * 0.42))
 
-  const recentProviders = useMemo(() => [...new Set(recents.map((file) => file.providerId))], [recents])
-  const activeFilter = recentProviders.includes(providerFilter) ? providerFilter : ALL_PROVIDERS
+  // The filter lists the accounts that have recents: the provider name, plus the e-mail when that
+  // provider has more than one account.
+  const recentAccounts = useMemo(() => {
+    const ids = [...new Set(recents.map((file) => file.connectionId).filter(Boolean))]
+    return ids.map((id) => {
+      const connection = connections.find((item) => item.connectionId === id)
+      const providerId = connection?.providerId ?? recents.find((file) => file.connectionId === id)?.providerId
+      const shared = connections.filter((other) => other.providerId === providerId).length > 1
+      const name = connection?.providerName ?? providerName(providerId)
+      return { id, providerId, label: shared && connection?.account?.email ? `${name} · ${connection.account.email}` : name }
+    })
+  }, [recents, connections])
+  const activeFilter = recentAccounts.some((account) => account.id === accountFilter) ? accountFilter : ALL_PROVIDERS
   const visibleRecents = activeFilter === ALL_PROVIDERS
     ? recents
-    : recents.filter((file) => file.providerId === activeFilter)
+    : recents.filter((file) => file.connectionId === activeFilter)
 
   const openSettings = () => navigation.push('Settings')
 
@@ -293,11 +302,11 @@ export default function HomeScreen({ navigation }) {
             <AppText weight="500" style={styles.heading}>Recentes</AppText>
 
             <View style={styles.toolbar}>
-              {recentProviders.length > 1 ? (
-                <ProviderFilter
+              {recentAccounts.length > 1 ? (
+                <AccountFilter
                   value={activeFilter}
-                  options={[ALL_PROVIDERS, ...recentProviders]}
-                  onChange={setProviderFilter}
+                  options={recentAccounts}
+                  onChange={setAccountFilter}
                 />
               ) : <View />}
               <View style={styles.toggle}>
