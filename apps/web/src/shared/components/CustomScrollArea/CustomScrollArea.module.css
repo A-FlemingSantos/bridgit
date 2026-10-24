@@ -23,6 +23,10 @@
   display: none;
 }
 
+.viewportHorizontal {
+  overflow-x: auto;
+}
+
 .track {
   position: absolute;
   top: 0;
@@ -60,4 +64,36 @@
 .thumb:hover,
 .thumbDragging {
   width: 6px;
+}
+
+/* The sideways track (`horizontal`): the same thumb, laid along the bottom edge. */
+.trackX {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 12px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.thumbX {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: var(--custom-scroll-thumb-size);
+  min-width: 18px;
+  background: var(--custom-scroll-thumb-color);
+  border-radius: 0;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+  transition: height 140ms ease;
+  will-change: transform;
+}
+
+.trackX:hover .thumbX,
+.thumbX:hover,
+.thumbXDragging {
+  height: 6px;
 }

@@ -22,6 +22,8 @@ function CustomScrollArea({
   refreshKey = 'default',
   insetPx = DEFAULT_INSET_PX,
   minThumbPx = DEFAULT_MIN_THUMB_PX,
+  // Also scrolls sideways, with its own thumb along the bottom edge.
+  horizontal = false,
   className = '',
   viewportClassName = '',
   viewportTag = 'div',
@@ -33,12 +35,17 @@ function CustomScrollArea({
     refreshKey,
     insetPx,
     minThumbPx,
+    horizontal,
   })
 
   const ViewportTag = viewportTag
   const viewportRest = viewportProps ?? {}
   const rootClassName = [styles.root, className].filter(Boolean).join(' ')
-  const viewportCombinedClassName = [styles.viewport, viewportClassName].filter(Boolean).join(' ')
+  const viewportCombinedClassName = [
+    styles.viewport,
+    horizontal ? styles.viewportHorizontal : '',
+    viewportClassName,
+  ].filter(Boolean).join(' ')
   const trackClassName = [
     styles.track,
     scrollbar.thumbVisible ? '' : styles.trackHidden,
@@ -66,6 +73,18 @@ function CustomScrollArea({
           onPointerDown={scrollbar.handleThumbPointerDown}
         />
       </span>
+      {horizontal ? (
+        <span
+          className={[styles.trackX, scrollbar.thumbXVisible ? '' : styles.trackHidden].filter(Boolean).join(' ')}
+          aria-hidden={!scrollbar.thumbXVisible}
+        >
+          <span
+            ref={scrollbar.thumbXRef}
+            className={`${styles.thumbX} ${scrollbar.isDraggingX ? styles.thumbXDragging : ''}`}
+            onPointerDown={scrollbar.handleThumbXPointerDown}
+          />
+        </span>
+      ) : null}
     </div>
   )
 }

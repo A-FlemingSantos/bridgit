@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 const HIDDEN_THUMB_STATE = { visible: false, height: 0, top: 0 }
+const HIDDEN_THUMB_X_STATE = { visible: false, width: 0, left: 0 }
 const SCROLL_IDLE_MS = 120
 const LAYOUT_DEBOUNCE_MS = 32
 
@@ -40,24 +41,64 @@ function applyThumbStyles(thumb, metrics) {
   thumb.style.transform = `translate3d(0, ${metrics.top}px, 0)`
 }
 
+// The sideways thumb, for viewports that opt in (`horizontal`): the same metrics along the width.
+function computeThumbXMetrics(viewport, { insetPx, minThumbPx }) {
+  const { clientWidth, scrollWidth, scrollLeft } = viewport
+
+  if (!clientWidth || scrollWidth <= clientWidth + 1) {
+    return HIDDEN_THUMB_X_STATE
+  }
+
+  const trackWidth = Math.max(0, clientWidth - insetPx * 2)
+  const width = Math.max(
+    minThumbPx,
+    Math.round((clientWidth / scrollWidth) * trackWidth),
+  )
+  const maxLeft = Math.max(0, trackWidth - width)
+  const scrollRange = scrollWidth - clientWidth
+  const ratio = scrollRange > 0 ? Math.min(1, Math.max(0, scrollLeft / scrollRange)) : 0
+  const left = insetPx + ratio * maxLeft
+
+  return { visible: true, width, left }
+}
+
+function applyThumbXStyles(thumb, metrics) {
+  if (!thumb) return
+
+  if (!metrics.visible) {
+    thumb.style.width = '0px'
+    thumb.style.transform = 'translate3d(0, 0, 0)'
+    return
+  }
+
+  thumb.style.width = `${metrics.width}px`
+  thumb.style.transform = `translate3d(${metrics.left}px, 0, 0)`
+}
+
 export default function useCustomScrollbar({
   enabled = true,
   refreshKey = 'default',
   insetPx = 0,
   minThumbPx = 18,
+  horizontal = false,
 } = {}) {
   const viewportRef = useRef(null)
   const thumbRef = useRef(null)
+  const thumbXRef = useRef(null)
   const thumbMetricsRef = useRef(HIDDEN_THUMB_STATE)
+  const thumbXMetricsRef = useRef(HIDDEN_THUMB_X_STATE)
   const scrollIdleTimeoutRef = useRef(null)
   const layoutTimeoutRef = useRef(null)
   const [thumbVisible, setThumbVisible] = useState(false)
+  const [thumbXVisible, setThumbXVisible] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isDraggingX, setIsDraggingX] = useState(false)
   const dragStateRef = useRef(null)
 
   const stopDragging = useCallback(() => {
     dragStateRef.current = null
     setIsDragging(false)
+    setIsDraggingX(false)
   }, [])
 
   const handleThumbPointerDown = useCallback((event) => {
@@ -85,11 +126,40 @@ export default function useCustomScrollbar({
     setIsDragging(true)
   }, [enabled, insetPx])
 
+  const handleThumbXPointerDown = useCallback((event) => {
+    const metrics = thumbXMetricsRef.current
+    if (!enabled || !horizontal || !metrics.visible) return
+
+    const viewport = viewportRef.current
+    if (!viewport) return
+
+    const trackWidth = Math.max(0, viewport.clientWidth - insetPx * 2)
+    const maxThumbTravel = Math.max(0, trackWidth - metrics.width)
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+
+    if (!maxThumbTravel || !maxScrollLeft) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    dragStateRef.current = {
+      axis: 'x',
+      startX: event.clientX,
+      startScrollLeft: viewport.scrollLeft,
+      maxScrollLeft,
+      maxThumbTravel,
+    }
+    setIsDraggingX(true)
+  }, [enabled, horizontal, insetPx])
+
   useLayoutEffect(() => {
     if (!enabled) {
       thumbMetricsRef.current = HIDDEN_THUMB_STATE
+      thumbXMetricsRef.current = HIDDEN_THUMB_X_STATE
       setThumbVisible(false)
+      setThumbXVisible(false)
       applyThumbStyles(thumbRef.current, HIDDEN_THUMB_STATE)
+      applyThumbXStyles(thumbXRef.current, HIDDEN_THUMB_X_STATE)
       stopDragging()
       return undefined
     }
@@ -114,7 +184,38 @@ export default function useCustomScrollbar({
       }
     }
 
+    function commitXMetrics(nextMetrics) {
+      const previous = thumbXMetricsRef.current
+      thumbXMetricsRef.current = nextMetrics
+      applyThumbXStyles(thumbXRef.current, nextMetrics)
+
+      if (previous.visible !== nextMetrics.visible) {
+        setThumbXVisible((current) => (current === nextMetrics.visible ? current : nextMetrics.visible))
+      }
+    }
+
+    function updateThumbXPositionFromScroll() {
+      const thumb = thumbXRef.current
+      if (!horizontal || !thumb) return
+
+      const nextMetrics = computeThumbXMetrics(viewport, { insetPx, minThumbPx })
+      const metrics = thumbXMetricsRef.current
+
+      if (
+        metrics.visible !== nextMetrics.visible
+        || metrics.width !== nextMetrics.width
+      ) {
+        commitXMetrics(nextMetrics)
+        return
+      }
+
+      thumbXMetricsRef.current = { ...metrics, left: nextMetrics.left }
+      thumb.style.transform = `translate3d(${nextMetrics.left}px, 0, 0)`
+    }
+
     function updateThumbPositionFromScroll() {
+      updateThumbXPositionFromScroll()
+
       const thumb = thumbRef.current
       if (!thumb) return
 
@@ -139,6 +240,7 @@ export default function useCustomScrollbar({
       // scrollHeight can briefly collapse. Clamping scrollTop against that
       // transient max jumps Docs (and other long editors) far above the caret.
       commitMetrics(computeThumbMetrics(viewport, { insetPx, minThumbPx }))
+      if (horizontal) commitXMetrics(computeThumbXMetrics(viewport, { insetPx, minThumbPx }))
     }
 
     function scheduleFrameUpdate(updateFn) {
@@ -195,6 +297,12 @@ export default function useCustomScrollbar({
 
       dragFrameId = requestAnimationFrame(() => {
         dragFrameId = null
+        if (dragState.axis === 'x') {
+          const deltaX = event.clientX - dragState.startX
+          const nextScrollLeft = dragState.startScrollLeft + (deltaX / dragState.maxThumbTravel) * dragState.maxScrollLeft
+          viewport.scrollLeft = Math.min(dragState.maxScrollLeft, Math.max(0, nextScrollLeft))
+          return
+        }
         const deltaY = event.clientY - dragState.startY
         const nextScrollTop = dragState.startScrollTop + (deltaY / dragState.maxThumbTravel) * dragState.maxScrollTop
         viewport.scrollTop = Math.min(dragState.maxScrollTop, Math.max(0, nextScrollTop))
@@ -252,13 +360,17 @@ export default function useCustomScrollbar({
 
       stopDragging()
     }
-  }, [enabled, insetPx, minThumbPx, refreshKey, stopDragging])
+  }, [enabled, horizontal, insetPx, minThumbPx, refreshKey, stopDragging])
 
   return {
     viewportRef,
     thumbRef,
+    thumbXRef,
     thumbVisible,
+    thumbXVisible,
     isDragging,
+    isDraggingX,
     handleThumbPointerDown,
+    handleThumbXPointerDown,
   }
 }
