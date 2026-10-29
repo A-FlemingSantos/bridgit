@@ -4,6 +4,7 @@ import com.bridgit.api.common.error.ConflictException;
 import com.bridgit.api.files.FilesDtos;
 import com.bridgit.api.integrations.ProviderConnectionEntity;
 import com.bridgit.api.providers.CloudItem;
+import com.bridgit.api.providers.CloudProvider;
 import com.bridgit.api.providers.ItemKind;
 import com.bridgit.api.providers.sync.CloudChange;
 import com.bridgit.api.providers.sync.SyncPage;
@@ -42,6 +43,7 @@ public class CatalogStore {
       String leaseOwner, OffsetDateTime activeAt, OffsetDateTime watchExpires, int failures, String lastError) {}
   public record Entry(CloudItem item, String path, String parentPath, boolean fenced, boolean deleted) {}
   public record FolderPage(List<CloudItem> items, boolean complete, State state) {}
+  public record SearchPage(List<CloudItem> items, State state) {}
 
   public State ensure(ProviderConnectionEntity connection) {
     return tx.execute(status -> ensureLocked(connection));
@@ -196,6 +198,23 @@ public class CatalogStore {
     return new FolderPage(items, complete, s);
   }
 
+  /**
+   * Live items whose name contains {@code term} (case- and accent-insensitive, wildcards in the term taken
+   * literally), from the active scan only. Rows whose parent is still unknown are left out, as in a listing.
+   */
+  public SearchPage search(ProviderConnectionEntity c, String term, int limit) {
+    State s = ensure(c);
+    String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("[", "\\[") + "%";
+    List<CloudItem> items = jdbc.query("SELECT item_json FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? AND deleted=0 "
+        + "AND (parent_ref IS NOT NULL OR JSON_VALUE(item_json,'$.parentKnown')='true') "
+        + "AND item_name COLLATE Latin1_General_100_CI_AI LIKE ? ESCAPE '\\' "
+        // By name only: folders first would let them fill the limit and cut the files.
+        + "ORDER BY item_name,item_ref OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY",
+        (rs, row) -> json.read(rs.getString(1), CloudItem.class),
+        c.getId().toString(), c.getGeneration(), s.activeScan(), pattern, limit);
+    return new SearchPage(items, s);
+  }
+
   public List<FilesDtos.FolderRef> ancestry(ProviderConnectionEntity c, CloudItem item) {
     List<FilesDtos.FolderRef> chain = new ArrayList<>();
     Set<String> seen = new HashSet<>();
@@ -252,6 +271,10 @@ public class CatalogStore {
       for (CloudChange change : page.changes()) apply(c, s.buildingScan(), change, false);
       resolvePaths(c, s.buildingScan());
       if (page.caughtUp()) {
+        // The end of a full inventory (a rebuilt scan, or the first one): Drive lists everything the account can see.
+        if (CloudProvider.GOOGLE_DRIVE.id().equals(c.getProvider()) && (s.buildingScan() != s.activeScan() || !s.complete())) {
+          pruneUnreachable(c, s.buildingScan(), page.rootRef() != null ? page.rootRef() : s.rootRef());
+        }
         removeDeletedDescendants(c, s.buildingScan());
         jdbc.update("UPDATE cloud_catalog_state SET active_scan=building_scan,complete=1,synced_at=?,[checkpoint]=?,root_ref=COALESCE(?,root_ref) WHERE connection_id=? AND generation=?",
             now(), page.checkpoint(), page.rootRef(), c.getId().toString(), c.getGeneration());
@@ -293,6 +316,22 @@ public class CatalogStore {
     jdbc.update("UPDATE cloud_catalog_items SET deleted=1,mutation_fence=? WHERE connection_id=? AND generation=? AND scan_id=? AND item_ref=?",
         fence, c.getId().toString(), c.getGeneration(), scan, ref);
     if (fence) removeDescendants(c, scan, List.of(ref));
+  }
+
+  /**
+   * Google Drive's full inventory also lists what others shared with the user, and the children of shared folders
+   * that are not in My Drive. They have no place in the hub's tree, so every row of the scan that is not reachable
+   * from the My Drive root goes. A row has one parent, so the walk down from the root cannot loop.
+   */
+  private void pruneUnreachable(ProviderConnectionEntity c, long scan, String rootRef) {
+    String id = c.getId().toString();
+    jdbc.update("WITH reach(item_ref) AS (SELECT item_ref FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? "
+        + "AND ((parent_ref IS NULL AND JSON_VALUE(item_json,'$.parentKnown')='true') OR parent_ref=?) "
+        + "UNION ALL SELECT child.item_ref FROM cloud_catalog_items child JOIN reach ON child.parent_ref=reach.item_ref "
+        + "WHERE child.connection_id=? AND child.generation=? AND child.scan_id=?) "
+        + "DELETE FROM cloud_catalog_items WHERE connection_id=? AND generation=? AND scan_id=? "
+        + "AND NOT EXISTS (SELECT 1 FROM reach WHERE reach.item_ref=cloud_catalog_items.item_ref) OPTION (MAXRECURSION 0)",
+        id, c.getGeneration(), scan, rootRef, id, c.getGeneration(), scan, id, c.getGeneration(), scan);
   }
 
   private void removeDeletedDescendants(ProviderConnectionEntity c, long scan) {

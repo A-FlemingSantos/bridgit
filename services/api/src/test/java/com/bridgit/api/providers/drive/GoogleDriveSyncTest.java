@@ -101,6 +101,16 @@ class GoogleDriveSyncTest {
   }
 
   @Test
+  void checkpointFromFormat2RequiresAFreshInventoryThatPrunesItemsOutsideMyDrive() {
+    String v2 = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+        "{\"v\":2,\"phase\":\"changes\",\"rootRef\":\"root-id\",\"pageToken\":\"changes-9\"}"
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+    assertThrows(SyncResetException.class, () -> client.syncPage("token", v2));
+    server.verify();
+  }
+
+  @Test
   void incompleteInventoryAndExpiredChangeTokenRequireReset() {
     server.expect(requestTo("https://www.googleapis.com/drive/v3/files/root?fields=id"))
         .andRespond(withSuccess("{\"id\":\"root-id\"}", MediaType.APPLICATION_JSON));

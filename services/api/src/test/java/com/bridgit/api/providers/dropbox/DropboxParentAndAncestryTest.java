@@ -1,7 +1,6 @@
 package com.bridgit.api.providers.dropbox;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -126,24 +125,6 @@ class DropboxParentAndAncestryTest {
             """, MediaType.APPLICATION_JSON));
 
     assertTrue(client.ancestry("token", "id:file1").isEmpty());
-    server.verify();
-  }
-
-  @Test
-  void searchResultsHaveUnknownParent() {
-    server.expect(requestTo("https://api.dropboxapi.com/2/files/search_v2"))
-        .andRespond(withSuccess("""
-            {"matches": [
-              {"metadata": {"metadata":
-                {".tag": "file", "id": "id:s1", "name": "found.txt", "size": 5,
-                 "path_display": "/found.txt"}}}
-            ]}
-            """, MediaType.APPLICATION_JSON));
-
-    List<CloudItem> results = client.search("token", "found", 10);
-
-    assertNull(results.get(0).parentRef());
-    assertFalse(results.get(0).parentKnown());
     server.verify();
   }
 }

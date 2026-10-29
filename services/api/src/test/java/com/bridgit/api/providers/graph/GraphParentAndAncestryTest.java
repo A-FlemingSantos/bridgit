@@ -1,7 +1,6 @@
 package com.bridgit.api.providers.graph;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -125,24 +124,6 @@ class GraphParentAndAncestryTest {
             """, MediaType.APPLICATION_JSON));
 
     assertTrue(client.ancestry("token", "file-1").isEmpty());
-    server.verify();
-  }
-
-  @Test
-  void searchResultsHaveUnknownParent() {
-    server.expect(requestTo(org.hamcrest.Matchers.containsString("/root/search")))
-        .andRespond(withSuccess("""
-            {"value": [
-              {"id": "file-3", "name": "c.txt", "size": 5,
-               "file": {"mimeType": "text/plain"},
-               "parentReference": {"id": "folder-x"}}
-            ]}
-            """, MediaType.APPLICATION_JSON));
-
-    List<CloudItem> results = client.search("token", "c", 10);
-
-    assertNull(results.get(0).parentRef());
-    assertFalse(results.get(0).parentKnown());
     server.verify();
   }
 }

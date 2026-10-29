@@ -408,21 +408,6 @@ public class DropboxProviderClient implements CloudProviderClient, CloudSyncClie
     );
   }
 
-  @Override
-  public List<CloudItem> search(String accessToken, String query, int limit) {
-    JsonNode json = rpc(accessToken, API_BASE + "/files/search_v2", """
-        {"query":"%s","options":{"max_results":%d}}
-        """.formatted(escapeJson(query), Math.min(limit, PAGE_SIZE)));
-    List<CloudItem> results = new ArrayList<>();
-    json.path("matches").forEach(match -> {
-      JsonNode metadata = match.path("metadata").path("metadata");
-      if (!metadata.isMissingNode()) {
-        results.add(mapUnknownParent(metadata));
-      }
-    });
-    return results.stream().limit(limit).toList();
-  }
-
   private ContentStream contentDownload(
       String accessToken,
       String url,

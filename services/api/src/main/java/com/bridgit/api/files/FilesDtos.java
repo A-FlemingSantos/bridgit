@@ -76,7 +76,7 @@ public final class FilesDtos {
   }
 
   // One entry per connection: `id` is the provider id, `connectionId` tells apart two accounts of it.
-  public record SearchProviderStatus(String id, boolean ok, String error, java.util.UUID connectionId) {
+  public record SearchProviderStatus(String id, boolean ok, String error, java.util.UUID connectionId, CatalogMetadata catalog) {
   }
 
   // Serialized as the flat CloudItem plus connectionId.

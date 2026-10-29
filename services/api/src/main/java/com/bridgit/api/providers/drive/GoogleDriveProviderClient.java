@@ -44,8 +44,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.core.io.InputStreamSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -60,8 +58,6 @@ import org.springframework.web.util.UriUtils;
 @Component
 public class GoogleDriveProviderClient implements CloudProviderClient, CloudSyncClient, CloudWatchClient {
 
-  private static final Logger log = LoggerFactory.getLogger(GoogleDriveProviderClient.class);
-
   private static final String DRIVE_BASE = "https://www.googleapis.com/drive/v3";
   private static final String UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
   private static final String FILE_FIELDS =
@@ -73,9 +69,9 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
   private static final int PAGE_SIZE = 200;
   // Bumped when what the catalog stores for Drive changes. An older checkpoint is refused, which makes the
   // catalog worker reset and take a fresh inventory. 2: remoteVersion is the content revision, trashed items
-  // and items without a parent are left out.
-  private static final int CHECKPOINT_FORMAT = 2;
-  private static final int SEARCH_MAX_PAGES = 5;
+  // and items without a parent are left out. 3: forces the rebuild that prunes the items outside My Drive
+  // (children of shared folders the user did not add to it).
+  private static final int CHECKPOINT_FORMAT = 3;
   private static final int MAX_ANCESTRY_DEPTH = 512;
   private static final int ROOT_ID_CACHE_SIZE = 256;
   static final long MULTIPART_MAX = 5L * 1024L * 1024L;
@@ -574,37 +570,6 @@ public class GoogleDriveProviderClient implements CloudProviderClient, CloudSync
         "bytes */" + size,
         size
     );
-  }
-
-  @Override
-  public List<CloudItem> search(String accessToken, String query, int limit) {
-    if (!StringUtils.hasText(query) || limit <= 0) {
-      return List.of();
-    }
-    String q = "name contains '" + escapeQuery(query.trim()) + "' and trashed=false";
-    String base = DRIVE_BASE + "/files?q=" + urlEncode(q)
-        + "&corpora=user&fields=" + urlEncode(LIST_FIELDS)
-        + "&pageSize=" + Math.min(limit, PAGE_SIZE)
-        + "&supportsAllDrives=true";
-    List<CloudItem> results = new ArrayList<>();
-    String pageToken = null;
-    for (int page = 0; page < SEARCH_MAX_PAGES && results.size() < limit; page++) {
-      String url = pageToken == null ? base : base + "&pageToken=" + urlEncode(pageToken);
-      JsonNode json = authorizedGet(accessToken, url);
-      if (json.path("incompleteSearch").asBoolean(false)) {
-        log.debug("Google Drive search returned incomplete results");
-      }
-      json.path("files").forEach(node -> {
-        if (hasParent(node)) {
-          results.add(mapUnknownParent(node));
-        }
-      });
-      pageToken = json.path("nextPageToken").asText(null);
-      if (!StringUtils.hasText(pageToken)) {
-        break;
-      }
-    }
-    return results.stream().limit(limit).toList();
   }
 
   private CloudItem multipartUpload(

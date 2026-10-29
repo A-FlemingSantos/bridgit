@@ -109,6 +109,4 @@ public interface CloudProviderClient {
   default ContentStream openThumbnail(String accessToken, CloudItem item) {
     return null;
   }
-
-  List<CloudItem> search(String accessToken, String query, int limit);
 }

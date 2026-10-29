@@ -442,20 +442,6 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
     return StringUtils.hasText(item.mimeType()) ? item.mimeType() : "application/octet-stream";
   }
 
-  @Override
-  public List<CloudItem> search(String accessToken, String query, int limit) {
-    String escaped = query.replace("'", "''");
-    String url = DRIVE_BASE + "/root/search(q='" + UriUtils.encodePathSegment(escaped, StandardCharsets.UTF_8) + "')"
-        + "?$select=" + SELECT + "&$top=" + Math.min(limit, PAGE_SIZE);
-    JsonNode json = authorizedGet(accessToken, url);
-    List<CloudItem> results = new ArrayList<>();
-    JsonNode value = json.path("value");
-    if (value.isArray()) {
-      value.forEach(node -> results.add(mapUnknownParent(node)));
-    }
-    return results.stream().limit(limit).toList();
-  }
-
   private CloudItem simpleUpload(
       String accessToken,
       String parentRef,

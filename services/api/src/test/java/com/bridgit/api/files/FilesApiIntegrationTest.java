@@ -300,11 +300,6 @@ class FilesApiIntegrationTest extends ApiIntegrationTestSupport {
               item.name()
           );
         }
-
-        @Override
-        public List<CloudItem> search(String accessToken, String query, int limit) {
-          return List.of();
-        }
       };
     }
   }

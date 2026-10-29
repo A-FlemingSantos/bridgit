@@ -228,11 +228,6 @@ public class FakeOneDriveClient implements CloudProviderClient {
     );
   }
 
-  @Override
-  public List<CloudItem> search(String accessToken, String query, int limit) {
-    return List.of();
-  }
-
   public static CloudItem file(String ref, String name, String mimeType, String extension, long size) {
     return new CloudItem(
         ref,
