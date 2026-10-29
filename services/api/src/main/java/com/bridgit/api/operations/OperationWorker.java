@@ -132,6 +132,7 @@ public class OperationWorker {
       if (replace) readAuthorization.invalidate(c.getId(), r.ref());
     } catch (Exception ex) {
       if (!claimed) return;
+      log.warn("Operation attempt failed id={} dispatched={}", id, dispatched, ex);
       String code = ex instanceof ApiException api ? api.getCode() : "OPERACAO_FALHOU";
       String message = ex instanceof ApiException api ? api.getMessage() : "Não foi possível confirmar a operação. O resultado será verificado.";
       int status = ex instanceof ApiException api ? api.getStatus().value() : 0;

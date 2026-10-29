@@ -12,11 +12,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 public final class ProviderHttpSupport {
+
+  private static final Logger log = LoggerFactory.getLogger(ProviderHttpSupport.class);
 
   private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -155,7 +159,11 @@ public final class ProviderHttpSupport {
       );
     }
     if (code >= 400) {
+      log.warn("Provider refused the request status={} provider={} write={} body={}", code, provider, write,
+          body == null ? null : body.substring(0, Math.min(body.length(), 300)));
+      // A refused write is a definite answer; a bad gateway status would make the caller verify it forever.
       throw new ProviderApiException(
+          write ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY,
           "PROVEDOR_FALHOU",
           "O provedor de nuvem falhou ao processar a solicitação."
       );

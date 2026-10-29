@@ -14,7 +14,19 @@ public final class NoRedirectClientHttpRequestFactory {
   }
 
   public static ClientHttpRequestFactory create() {
-    HttpClient httpClient = HttpClient.newBuilder()
+    return create(HttpClient.newBuilder());
+  }
+
+  /**
+   * Same factory pinned to HTTP/1.1. Over HTTP/2 the JDK client leaves out Content-Length on an empty body,
+   * and OneDrive answers such a PUT with 411 Length Required.
+   */
+  public static ClientHttpRequestFactory createHttp11() {
+    return create(HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1));
+  }
+
+  private static ClientHttpRequestFactory create(HttpClient.Builder builder) {
+    HttpClient httpClient = builder
         .followRedirects(HttpClient.Redirect.NEVER)
         .connectTimeout(CONNECT_TIMEOUT)
         .build();

@@ -74,7 +74,7 @@ public class GraphProviderClient implements CloudProviderClient, CloudSyncClient
   @Autowired
   public GraphProviderClient(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
     this(
-        restClientBuilder.requestFactory(NoRedirectClientHttpRequestFactory.create()).build(),
+        restClientBuilder.requestFactory(NoRedirectClientHttpRequestFactory.createHttp11()).build(),
         RestClient.builder()
             .requestFactory(NoRedirectClientHttpRequestFactory.create())
             .build(),

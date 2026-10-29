@@ -218,6 +218,23 @@ class ProviderHttpSupportTest {
   }
 
   @Test
+  void unmappedClientErrorOnAWriteIsADefiniteRefusalButStaysBadGatewayOnARead() {
+    ProviderApiException write = assertThrows(
+        ProviderApiException.class,
+        () -> ProviderHttpSupport.throwOnWriteError(
+            HttpStatus.BAD_REQUEST, org.springframework.http.HttpHeaders.EMPTY, "{}", CloudProvider.ONEDRIVE)
+    );
+    assertEquals("PROVEDOR_FALHOU", write.getCode());
+    assertEquals(HttpStatus.BAD_REQUEST, write.getStatus());
+
+    ProviderApiException read = assertThrows(
+        ProviderApiException.class,
+        () -> ProviderHttpSupport.throwOnError(HttpStatus.BAD_REQUEST, "{}", CloudProvider.ONEDRIVE)
+    );
+    assertEquals(HttpStatus.BAD_GATEWAY, read.getStatus());
+  }
+
+  @Test
   void dropboxUnrelatedConflictSubstringIsNotANameConflict() {
     ProviderApiException ex = assertThrows(
         ProviderApiException.class,
