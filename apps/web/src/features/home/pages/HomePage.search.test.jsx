@@ -64,8 +64,10 @@ function renderPage() {
   )
 }
 
+// The recents stay while the actions fold away; the results take their place after.
 async function typeQuery(user, text) {
   await user.type(screen.getByRole('searchbox', { name: 'Buscar' }), text)
+  await screen.findByRole('heading', { name: 'Resultados' })
 }
 
 describe('HomePage upload parcial', () => {

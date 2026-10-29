@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Clock } from 'lucide-react'
 import AppOverlay, { overlayStyles } from '../../../shared/components/AppOverlay/AppOverlay.jsx'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
@@ -28,6 +29,7 @@ import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import ProviderStrip from '../../spaces/components/ProviderStrip/ProviderStrip.jsx'
 import { fileMenuItems, folderMenuItems } from '../../spaces/components/entryActions.jsx'
+import { cardMotion, stripMotion } from '../../spaces/components/SelectionActions/SelectionActions.jsx'
 import { connectionLabel } from '../../spaces/connectionLabel.js'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
@@ -49,6 +51,9 @@ const PROVIDER_LABELS = {
 }
 
 const ALL_PROVIDERS = 'all'
+
+// The gap between the page's blocks (.main), kept out while the actions are folded away.
+const MAIN_GAP = 28
 
 function itemKindLabel(item) {
   if (item.kind === 'folder') return 'Pasta'
@@ -86,6 +91,15 @@ export default function HomePage() {
   const [view, setView] = useState('grid')
   const [accountFilter, setAccountFilter] = useState(ALL_PROVIDERS)
   const [searchFilter, setSearchFilter] = useState(ALL_PROVIDERS)
+  // The actions fold away while a search is shown. They clip only while moving, so their menus can hang out.
+  const [actionsResting, setActionsResting] = useState(true)
+  // One thing moves at a time, as on the folder pages: the recents stay while the actions fold away and only
+  // then give way to the results; drawing the results mid-fold stalled it. Leaving the search, the results
+  // stay while the actions unfold, and only then do the recents return. Each swap renders as a transition,
+  // in slices, so the tiles' own entrance keeps its frames.
+  const [actionsFolded, setActionsFolded] = useState(false)
+  // The search that was on screen when the field was cleared, kept until the actions have unfolded.
+  const [heldSearch, setHeldSearch] = useState(null)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.() ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
@@ -104,55 +118,66 @@ export default function HomePage() {
   const recents = recentsQuery.entries
   const normalized = query.trim().toLowerCase()
   const searching = normalized.length >= 2
+  const shownSearch = searching ? search : heldSearch
+  const showResults = searching ? actionsFolded : heldSearch !== null
 
   // A cloud account is what the lists are split by. Its name is the provider name, plus the account e-mail
   // when that provider has several accounts.
-  function accountName(connectionId, provider) {
+  // Kept stable, with the menu context below, so the tiles skip a redraw while typing or as other state settles.
+  const accountName = useCallback((connectionId, provider) => {
     const connection = connections.find((item) => item.connectionId === connectionId)
     return connection ? connectionLabel(connection, connections) : providerLabel(provider)
-  }
+  }, [connections])
 
   const recentAccounts = useMemo(() => accountsOf(recents), [recents])
   const activeFilter = recentAccounts.some((account) => account.connectionId === accountFilter) ? accountFilter : ALL_PROVIDERS
-  const visibleRecents = activeFilter === ALL_PROVIDERS
-    ? recents
-    : recents.filter((file) => file.connectionId === activeFilter)
+  const visibleRecents = useMemo(
+    () => (activeFilter === ALL_PROVIDERS ? recents : recents.filter((file) => file.connectionId === activeFilter)),
+    [recents, activeFilter],
+  )
 
   const searchResults = useMemo(
-    () => (searching && search.status === 'ready' ? search.results ?? [] : []),
-    [search.results, search.status, searching],
+    () => (shownSearch?.status === 'ready' ? shownSearch.results ?? [] : []),
+    [shownSearch?.results, shownSearch?.status],
   )
   const searchAccounts = useMemo(() => accountsOf(searchResults), [searchResults])
   const activeSearchFilter = searchAccounts.some((account) => account.connectionId === searchFilter) ? searchFilter : ALL_PROVIDERS
-  const visibleResults = activeSearchFilter === ALL_PROVIDERS
-    ? searchResults
-    : searchResults.filter((item) => item.connectionId === activeSearchFilter)
+  const visibleResults = useMemo(
+    () => (activeSearchFilter === ALL_PROVIDERS
+      ? searchResults
+      : searchResults.filter((item) => item.connectionId === activeSearchFilter)),
+    [searchResults, activeSearchFilter],
+  )
 
   // Each queried account answers on its own: one can fail, or still be syncing, while another finds files.
-  const queried = searching && search.status === 'ready' && Array.isArray(search.providers) ? search.providers : []
+  const queried = shownSearch?.status === 'ready' && Array.isArray(shownSearch.providers) ? shownSearch.providers : []
   const failedAccounts = queried.filter((entry) => entry.ok === false)
   const syncingAccounts = queried.filter((entry) => entry.ok !== false && entry.catalog?.coverage === 'partial')
   const allFailed = queried.length > 0 && failedAccounts.length === queried.length
   const someFailed = failedAccounts.length > 0 && !allFailed
 
+  // Runs the same search again; the results on screen stay until the new answer.
   function retrySearch() {
     const current = query
+    setHeldSearch(search)
     setQuery('')
     window.setTimeout(() => setQuery(current), 0)
   }
 
-  function menuContext(item) {
-    return {
-      openOverlay,
-      actions,
-      isShortcut: shortcutsQuery.isShortcut,
-      hasPublicLink: publicLinksQuery.isPublic,
-      navigate,
-      location,
-      providerName: accountName(item.connectionId, item.provider),
-      onError: (error) => setActionError(hubErrorMessage(error)),
-    }
-  }
+  const shortcutEntries = shortcutsQuery.entries
+  const publicLinkEntries = publicLinksQuery.entries
+  const menuContext = useCallback((item) => ({
+    openOverlay,
+    actions,
+    isShortcut: (connectionId, ref) =>
+      (shortcutEntries ?? []).some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+    hasPublicLink: (connectionId, ref) =>
+      (publicLinkEntries ?? []).some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+    navigate,
+    location,
+    providerName: accountName(item.connectionId, item.provider),
+    onError: (error) => setActionError(hubErrorMessage(error)),
+  }), [openOverlay, actions, shortcutEntries, publicLinkEntries, navigate, location, accountName])
 
   function handleUploadError(connectionId, files, error) {
     setActionError(hubErrorMessage(error))
@@ -213,46 +238,81 @@ export default function HomePage() {
             placeholder="Buscar em todas as nuvens"
             aria-label="Buscar"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              // Leaving a search: its results stay while the actions unfold; then the recents return.
+              if (searching && next.trim().length < 2) {
+                setHeldSearch(search)
+                setActionsFolded(false)
+              }
+              setQuery(next)
+            }}
           />
         </div>
 
-        <div className={styles.actions}>
-          <CreateAction />
-          <UploadAction onUploadError={handleUploadError} />
-          <button
-            type="button"
-            className={styles.card}
-            onClick={() => openOverlay({ type: 'name', kind: 'folder' })}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              shapeRendering="crispEdges"
-              aria-hidden="true"
+        <AnimatePresence initial={false} onExitComplete={() => startTransition(() => setActionsFolded(true))}>
+          {searching ? null : (
+            <motion.div
+              key="home-actions"
+              custom={MAIN_GAP}
+              variants={stripMotion}
+              initial="hidden"
+              animate="show"
+              exit="gone"
+              style={{ overflow: actionsResting ? 'visible' : 'hidden' }}
+              onAnimationStart={() => setActionsResting(false)}
+              onAnimationComplete={(definition) => {
+                setActionsResting(true)
+                if (definition === 'show') startTransition(() => setHeldSearch(null))
+              }}
             >
-              <path d="M20 18h2v2h-2v2h-2v-2h-2v-2h2v-2h2v2Zm-6 2H4v-2h10v2ZM4 18H2V6h2v12Zm18-4h-2V8h2v6ZM12 6h8v2H10V6H4V4h8v2Z" />
-            </svg>
-            <span className={styles.cardLabel}>Nova pasta</span>
-          </button>
-          <button type="button" className={styles.card} onClick={openSettingsProviders}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              shapeRendering="crispEdges"
-              aria-hidden="true"
-            >
-              <path d="M10 4h6v2h-6zM8 6h2v2H8zm8 0h2v2h-2zM4 8h4v2H4zm14 0h2v2h-2zM2 10h2v2H2zm6 0h2v2H8zm10 0h4v2h-4zM0 12h2v6H0zm16 0h2v2h-2zm6 0h2v2h-2zm-2 4h2v2h-2zM2 18h14v2H2zm16 0h6v2h-6zm2 2h2v2h-2z" />
-            </svg>
-            <span className={styles.cardLabel}>Conectar nuvem</span>
-          </button>
-        </div>
+              <div className={styles.actions}>
+                <motion.div className={styles.actionSlot} custom={0} variants={cardMotion}>
+                  <CreateAction />
+                </motion.div>
+                <motion.div className={styles.actionSlot} custom={1} variants={cardMotion}>
+                  <UploadAction onUploadError={handleUploadError} />
+                </motion.div>
+                <motion.div className={styles.actionSlot} custom={2} variants={cardMotion}>
+                  <button
+                    type="button"
+                    className={styles.card}
+                    onClick={() => openOverlay({ type: 'name', kind: 'folder' })}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      shapeRendering="crispEdges"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 18h2v2h-2v2h-2v-2h-2v-2h2v-2h2v2Zm-6 2H4v-2h10v2ZM4 18H2V6h2v12Zm18-4h-2V8h2v6ZM12 6h8v2H10V6H4V4h8v2Z" />
+                    </svg>
+                    <span className={styles.cardLabel}>Nova pasta</span>
+                  </button>
+                </motion.div>
+                <motion.div className={styles.actionSlot} custom={3} variants={cardMotion}>
+                  <button type="button" className={styles.card} onClick={openSettingsProviders}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      shapeRendering="crispEdges"
+                      aria-hidden="true"
+                    >
+                      <path d="M10 4h6v2h-6zM8 6h2v2H8zm8 0h2v2h-2zM4 8h4v2H4zm14 0h2v2h-2zM2 10h2v2H2zm6 0h2v2H8zm10 0h4v2h-4zM0 12h2v6H0zm16 0h2v2h-2zm6 0h2v2h-2zm-2 4h2v2h-2zM2 18h14v2H2zm16 0h6v2h-6zm2 2h2v2h-2z" />
+                    </svg>
+                    <span className={styles.cardLabel}>Conectar nuvem</span>
+                  </button>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {actionError ? (
           <div className={styles.notice}>
@@ -276,17 +336,17 @@ export default function HomePage() {
           </div>
         ) : null}
 
-        {searching ? (
+        {showResults ? (
           <section className={styles.section}>
             <header className={styles.sectionHead}>
               <h2 className={styles.heading}>Resultados</h2>
             </header>
-            {search.status === 'loading' || search.status === 'idle' ? (
+            {shownSearch.status === 'loading' || shownSearch.status === 'idle' ? (
               <p className={styles.empty}>Buscando…</p>
-            ) : search.status === 'error' ? (
+            ) : shownSearch.status === 'error' ? (
               <>
                 <p className={styles.empty} role="alert">
-                  {hubErrorMessage(search.error)}
+                  {hubErrorMessage(shownSearch.error)}
                 </p>
                 <button type="button" className={styles.inlineAction} onClick={retrySearch}>
                   Tentar novamente
@@ -335,7 +395,7 @@ export default function HomePage() {
                     <ItemsLayout
                       items={visibleResults}
                       view={view}
-                      when={(item) => item.modifiedAt}
+                      when={modifiedAt}
                       accountName={accountName}
                       menuContext={menuContext}
                     />
@@ -377,7 +437,7 @@ export default function HomePage() {
               <ItemsLayout
                 items={visibleRecents}
                 view={view}
-                when={(file) => file.openedAt}
+                when={openedAt}
                 accountName={accountName}
                 menuContext={menuContext}
               />
@@ -388,6 +448,10 @@ export default function HomePage() {
     </AppShell>
   )
 }
+
+// The date a tile shows: when a recent was opened, when a search result last changed.
+const openedAt = (file) => file.openedAt
+const modifiedAt = (item) => item.modifiedAt
 
 // The accounts that have at least one of the items, in order of first appearance.
 function accountsOf(items) {
@@ -468,7 +532,7 @@ function ItemsToolbar({ accounts, filter, onFilter, filterLabel, view, onView, v
 
 // Recents and search results, as tiles or rows. `when` picks the date shown (opened or modified).
 // Folders (only in search results) open the folder and keep the folder menu, color included.
-function ItemsLayout({ items, view, when, accountName, menuContext }) {
+const ItemsLayout = memo(function ItemsLayout({ items, view, when, accountName, menuContext }) {
   const location = useLocation()
   const folderColors = useFolderColors()
 
@@ -567,7 +631,7 @@ function ItemsLayout({ items, view, when, accountName, menuContext }) {
       ))}
     </div>
   )
-}
+})
 
 function UploadAction({ onUploadError }) {
   const actions = useHubActions()

@@ -9,7 +9,8 @@ const EASE = [0.22, 1, 0.36, 1]
 
 // Same order as a new folder in the grid: opening, the tiles first slide down to make room and only
 // once that is done do the cards appear; closing, the cards go first, then the tiles slide back up.
-const stripMotion = {
+// Início folds its actions away with the same motion while a search is shown.
+export const stripMotion = {
   hidden: (gap) => ({ height: 0, marginBottom: -gap }),
   gone: (gap) => ({
     height: 0,
@@ -23,7 +24,7 @@ const stripMotion = {
   },
 }
 
-const cardMotion = {
+export const cardMotion = {
   hidden: { opacity: 0, y: -6 },
   show: (index) => ({
     opacity: 1,
