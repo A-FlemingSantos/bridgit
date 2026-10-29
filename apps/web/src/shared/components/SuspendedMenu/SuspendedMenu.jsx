@@ -168,7 +168,12 @@ export default function SuspendedMenu({
             {title}
           </p>
         ) : null}
-        {regular.map(renderItem)}
+        {regular.map((item, index) => (
+          <Fragment key={item.id}>
+            {item.separatorBefore && index > 0 ? <div className={styles.divider} role="separator" /> : null}
+            {renderItem(item)}
+          </Fragment>
+        ))}
         {destructive.length > 0 ? (
           <Fragment>
             {regular.length > 0 ? <div className={styles.divider} role="separator" /> : null}

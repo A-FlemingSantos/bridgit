@@ -94,6 +94,11 @@ export function PixelFilePlus() {
   )
 }
 
+// The same plus the account rail uses for "Nova conta".
+export function PixelPlus() {
+  return <PixelIcon path="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" />
+}
+
 export function PixelFolder() {
   return (
     <PixelIcon path="M20 20H4v-2h16v2ZM4 18H2V6h2v12Zm18 0h-2V8h2v10ZM20 8H10V6H4V4h8v2h8v2Z" />

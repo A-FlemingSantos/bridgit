@@ -10,6 +10,7 @@ import { driveUrl, ROUTES } from '../../config/routes.js'
 import { useProviders } from '../../hub/index.js'
 import { settingsNavState } from '../../utils/settingsOverlay.js'
 import AccountAvatar from '../AccountAvatar/AccountAvatar.jsx'
+import { PixelPlus } from '../PixelIcons/PixelIcons.jsx'
 import AddAccountMenu from '../AddAccountMenu/AddAccountMenu.jsx'
 import styles from './AppHeader.module.css'
 
@@ -96,18 +97,7 @@ function ProviderLinks({ providers }) {
         })
       })}
       <AddAccountMenu className={styles.iconButton} title="Nova conta" prefer="beside">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-          shapeRendering="crispEdges"
-          className={styles.pixelIcon}
-          aria-hidden="true"
-        >
-          <path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" />
-        </svg>
+        <PixelPlus />
       </AddAccountMenu>
     </nav>
   )

@@ -247,10 +247,12 @@
   transition: opacity 260ms ease;
 }
 
+/* Same hairline as the account rail's divider. */
 .divider {
-  height: 1px;
-  margin: 4px 4px;
-  background: var(--line);
+  height: 0;
+  margin: 4px 8px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .itemDanger,
