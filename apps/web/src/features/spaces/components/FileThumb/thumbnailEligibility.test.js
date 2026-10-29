@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { previewSettling, thumbnailEligible } from './thumbnailEligibility.js'
+import { officeBadge, previewSettling, thumbnailEligible } from './thumbnailEligibility.js'
+
+describe('officeBadge', () => {
+  it('gives native Google files their own mark and Office files theirs', () => {
+    expect(officeBadge({ mimeType: 'application/vnd.google-apps.document' })).toBe('google-docs')
+    expect(officeBadge({ mimeType: 'application/vnd.google-apps.spreadsheet' })).toBe('google-sheets')
+    expect(officeBadge({ mimeType: 'application/vnd.google-apps.presentation' })).toBe('google-slides')
+    expect(officeBadge({ extension: 'docx' })).toBe('word')
+    expect(officeBadge({ extension: 'xlsx' })).toBe('excel')
+    expect(officeBadge({ extension: 'pptx' })).toBe('powerpoint')
+    expect(officeBadge({ extension: 'pdf' })).toBeNull()
+  })
+})
 
 describe('previewSettling', () => {
   const now = Date.parse('2026-10-21T12:00:00Z')

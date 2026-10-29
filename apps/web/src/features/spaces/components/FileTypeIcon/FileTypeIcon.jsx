@@ -1,11 +1,21 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import styles from './FileTypeIcon.module.css'
-import { EXCEL_MARK, POWERPOINT_MARK, WORD_MARK } from './fileTypeMarks.js'
+import {
+  EXCEL_MARK,
+  GOOGLE_DOCS_MARK,
+  GOOGLE_SHEETS_MARK,
+  GOOGLE_SLIDES_MARK,
+  POWERPOINT_MARK,
+  WORD_MARK,
+} from './fileTypeMarks.js'
 
 const marks = {
   word: WORD_MARK,
   excel: EXCEL_MARK,
   powerpoint: POWERPOINT_MARK,
+  'google-docs': GOOGLE_DOCS_MARK,
+  'google-sheets': GOOGLE_SHEETS_MARK,
+  'google-slides': GOOGLE_SLIDES_MARK,
 }
 
 function scopedMarkup(markup, uid) {

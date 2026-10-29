@@ -26,9 +26,13 @@ function mimeOf(file) {
 export function officeBadge(file) {
   const extension = extensionOf(file)
   const mime = mimeOf(file)
-  if (WORD_EXTENSIONS.has(extension) || mime === GOOGLE_DOCUMENT) return 'word'
-  if (EXCEL_EXTENSIONS.has(extension) || mime === GOOGLE_SPREADSHEET) return 'excel'
-  if (POWERPOINT_EXTENSIONS.has(extension) || mime === GOOGLE_PRESENTATION) return 'powerpoint'
+  // Native Google files carry Google's own logos, never Microsoft's.
+  if (mime === GOOGLE_DOCUMENT) return 'google-docs'
+  if (mime === GOOGLE_SPREADSHEET) return 'google-sheets'
+  if (mime === GOOGLE_PRESENTATION) return 'google-slides'
+  if (WORD_EXTENSIONS.has(extension)) return 'word'
+  if (EXCEL_EXTENSIONS.has(extension)) return 'excel'
+  if (POWERPOINT_EXTENSIONS.has(extension)) return 'powerpoint'
   return null
 }
 

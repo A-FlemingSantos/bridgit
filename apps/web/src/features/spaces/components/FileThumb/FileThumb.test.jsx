@@ -110,6 +110,19 @@ describe('FileThumb', () => {
     expect(container.querySelectorAll('[data-type="word"]')).toHaveLength(2)
   })
 
+  it.each([
+    ['application/vnd.google-apps.document', 'google-docs'],
+    ['application/vnd.google-apps.spreadsheet', 'google-sheets'],
+    ['application/vnd.google-apps.presentation', 'google-slides'],
+  ])('uses the Google mark, not Microsoft\'s, for %s', (mimeType, type) => {
+    mockThumbnail(async () => new Promise(() => {}))
+    const { container } = render(
+      <FileThumb file={{ ref: 'g', name: 'Doc', kind: 'file', mimeType }} connectionId="conn-google-drive" provider="google-drive" />,
+    )
+    expect(container.querySelector(`[data-type="${type}"]`)).toBeTruthy()
+    expect(container.querySelector('[data-type="word"], [data-type="excel"], [data-type="powerpoint"]')).toBeNull()
+  })
+
   it('does not ask Dropbox for a thumbnail of a text file', async () => {
     const getThumbnail = mockThumbnail(async () => jpeg())
     const { container } = render(
