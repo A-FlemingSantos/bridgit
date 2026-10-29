@@ -10,7 +10,7 @@
 /* One rounded control that opens the menu. */
 .head {
   display: flex;
-  height: 34px;
+  height: 30px;
   overflow: hidden;
   border-radius: 8px;
   background: var(--ink);
@@ -35,7 +35,7 @@
   background: transparent;
   color: var(--paper);
   font: inherit;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.01em;
   text-align: left;

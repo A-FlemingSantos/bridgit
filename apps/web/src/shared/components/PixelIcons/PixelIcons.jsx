@@ -2,16 +2,17 @@
 // crisp at 24px. Menus render `icon` as <Icon size strokeWidth />; these ignore
 // both (a pixel icon only looks right at its native size) and use a negative
 // margin so the 24px drawing keeps the 16px footprint the menu slot reserves.
-function PixelIcon({ path }) {
+// A `size` draws it smaller (12 keeps every cell on a whole pixel) and drops the negative margin.
+function PixelIcon({ path, size = null }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
+      width={size ?? 24}
+      height={size ?? 24}
       fill="currentColor"
       viewBox="0 0 24 24"
       shapeRendering="crispEdges"
-      style={{ display: 'block', margin: -4 }}
+      style={{ display: 'block', margin: size ? 0 : -4 }}
       aria-hidden="true"
     >
       <path d={path} />
@@ -95,8 +96,8 @@ export function PixelFilePlus() {
 }
 
 // The same plus the account rail uses for "Nova conta".
-export function PixelPlus() {
-  return <PixelIcon path="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" />
+export function PixelPlus({ size = null }) {
+  return <PixelIcon path="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z" size={size} />
 }
 
 export function PixelFolder() {

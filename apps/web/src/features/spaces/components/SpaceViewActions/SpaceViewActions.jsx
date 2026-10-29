@@ -31,7 +31,7 @@ export default function SpaceViewActions({
           aria-controls={menuId}
           onClick={() => (menu.open ? menu.closeMenu() : menu.openMenu())}
         >
-          <PixelPlus />
+          <PixelPlus size={12} />
           <span className={styles.label}>{label}</span>
         </button>
       </div>
