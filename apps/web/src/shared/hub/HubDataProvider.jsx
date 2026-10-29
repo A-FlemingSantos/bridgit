@@ -1,5 +1,5 @@
 import { ApiClientError, MAX_EDITABLE_TEXT_BYTES, editableTextTooLargeError } from '@bridgit/shared-client'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from '../auth/SessionContext.jsx'
 import { createHubApi } from './hubApi.js'
 import { loadCatalog, saveCatalog, clearConnectionStorage, putContent, getThumbnail as getStoredThumbnail, putThumbnail } from './storage/index.js'
@@ -534,44 +534,33 @@ export function HubDataProvider({ children }) {
   }, [])
 
   const runSearch = useCallback(
+    // The catalog answers in a few dozen milliseconds, so the answer is published once: no first pass with
+    // what the local caches hold, which drew the list twice and reordered it. It goes out as a transition,
+    // rendered in slices, so the screen keeps animating (Início folds its actions while a search starts).
     async (query, requestId) => {
-      const local = dedupeItemsByRef([
-        ...Object.values(itemCacheRef.current).map((entry) => entry?.item).filter(Boolean),
-        ...Object.values(folderCacheRef.current).flatMap((entry) => entry?.items ?? []),
-      ]).filter((item) => item.name?.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
-      setSearchState((prev) => ({
-        ...prev,
-        status: local.length ? 'ready' : 'loading',
-        results: local,
-        error: null,
-        requestId,
-      }))
-
       try {
         const cached = searchResultsRef.current.get(query)
         const data = cached && cached.until > Date.now() ? cached.data : await hubApiRef.current.search(query)
         searchResultsRef.current.set(query, { data, until: Date.now() + 60000 })
-        setSearchState((prev) => {
-          if (prev.requestId !== requestId) return prev
-          return {
+        const results = mapFolderItems(data.results ?? [])
+        // An answer to an older query that arrives late never replaces a newer one.
+        startTransition(() => {
+          setSearchState((prev) => (prev.requestId > requestId ? prev : {
             status: 'ready',
-            results: dedupeItemsByRef([...mapFolderItems(data.results ?? []), ...local]),
+            results,
             providers: data.providers ?? [],
             error: null,
             requestId,
-          }
+          }))
+          upsertItemsCache(results)
         })
-        upsertItemsCache(mapFolderItems(data.results ?? []))
       } catch (error) {
-        setSearchState((prev) => {
-          if (prev.requestId !== requestId) return prev
-          return {
-            ...prev,
-            status: 'error',
-            error,
-            requestId,
-          }
-        })
+        setSearchState((prev) => (prev.requestId > requestId ? prev : {
+          ...prev,
+          status: 'error',
+          error,
+          requestId,
+        }))
       }
     },
     [upsertItemsCache],

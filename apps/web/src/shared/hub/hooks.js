@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { startTransition, useEffect, useRef } from 'react'
 import { useSession } from '../auth/SessionContext.jsx'
 import { useHubDataContext } from './HubDataProvider.jsx'
 import {
@@ -223,13 +223,17 @@ export function useSearch(query) {
 
     if (trimmed.length < 2) {
       activeRequestRef.current += 1
-      setSearchState((prev) => ({
-        ...prev,
-        status: 'idle',
-        results: [],
-        providers: [],
-        error: null,
-      }))
+      // Nothing on screen waits for this reset (a short query already reads as idle below), so it renders
+      // in slices instead of holding up the frame where Início unfolds its actions.
+      startTransition(() => {
+        setSearchState((prev) => (prev.status === 'idle' ? prev : {
+          ...prev,
+          status: 'idle',
+          results: [],
+          providers: [],
+          error: null,
+        }))
+      })
       return undefined
     }
 
