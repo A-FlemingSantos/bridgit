@@ -33,6 +33,9 @@ export default function FileReader({
   onSaveContent,
   onSaveStatusChange,
   onSaveController,
+  // Markdown opens in Visualizar; the host page owns the switch to the source view (see CodeEditor).
+  sourceView = false,
+  onToggleSourceView,
 }) {
   const editorial = variant === 'editorial'
   const [contentReady, setContentReady] = useState(false)
@@ -250,6 +253,8 @@ export default function FileReader({
                   onSaveController={onSaveController}
                   onReload={handleRetry}
                   fill={fill}
+                  sourceView={sourceView}
+                  onToggleSourceView={onToggleSourceView}
                   url={source.url}
                   content={content}
                   deferNetwork={cacheable}

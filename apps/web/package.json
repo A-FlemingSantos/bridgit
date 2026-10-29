@@ -39,6 +39,7 @@
     "@fontsource-variable/geist": "^5.3.0",
     "@lezer/highlight": "^1.2.5",
     "@replit/codemirror-minimap": "^0.5.2",
+    "dompurify": "^3.4.17",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.17.0",
     "pdfjs-dist": "^6.3.289",

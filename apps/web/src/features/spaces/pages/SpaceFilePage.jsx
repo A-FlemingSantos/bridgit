@@ -16,6 +16,7 @@ import { isTempRef } from '../../../shared/hub/hubCache.js'
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import SpaceViewHeader from '../components/SpaceViewHeader/SpaceViewHeader.jsx'
+import { isMarkdownExtension } from '../../../shared/components/FileReader/codeLanguages.js'
 import { formatFileMeta } from '../../../shared/components/FileReader/formatFileMeta.js'
 import { resolveFileBackground } from '../../../shared/utils/fileOverlay.js'
 import { formatFileSize } from '../../../shared/utils/formatFileSize.js'
@@ -79,8 +80,13 @@ export default function SpaceFilePage({ overlay = false }) {
     saveControllerRef.current = controller
   }, [])
 
+  // Markdown opens rendered; the header toggle shows the source instead, and a new file starts rendered again.
+  const [sourceView, setSourceView] = useState(false)
+  const toggleSourceView = useCallback(() => setSourceView((current) => !current), [])
+
   useEffect(() => {
     setSaveStatus(null)
+    setSourceView(false)
   }, [connectionId, readableRef])
 
   useEffect(() => {
@@ -286,6 +292,8 @@ export default function SpaceFilePage({ overlay = false }) {
             onSaveContent={saveContent}
             onSaveStatusChange={setSaveStatus}
             onSaveController={handleSaveController}
+            sourceView={sourceView}
+            onToggleSourceView={toggleSourceView}
           />
         </>
       ) : null}
@@ -298,6 +306,16 @@ export default function SpaceFilePage({ overlay = false }) {
         <span className={styles.saveStatus} role="status" aria-live="polite" title={saveStatus.error ?? undefined}>
           {saveStatus.label}
         </span>
+      ) : null}
+      {isMarkdownExtension(item.extension) && readerSource?.mode === 'text' ? (
+        <button
+          type="button"
+          className={styles.download}
+          aria-pressed={sourceView}
+          onClick={toggleSourceView}
+        >
+          Visualizar código fonte
+        </button>
       ) : null}
       <button
         type="button"

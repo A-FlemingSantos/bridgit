@@ -183,6 +183,24 @@ describe('FileReader', () => {
     await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false'))
   })
 
+  it('abre markdown em Visualizar e passa o modo e o atalho ao editor', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('# Oi').buffer })))
+    const onToggleSourceView = vi.fn()
+    const props = { file: { ...file, name: 'a.md', extension: 'md' }, source: { mode: 'text', url: '/a.md', editable: true, revision: 'r1' } }
+
+    const view = render(<FileReader {...props} variant="editorial" onSaveContent={vi.fn()} onToggleSourceView={onToggleSourceView} />)
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('aria-label', 'Texto do arquivo'))
+    expect(document.querySelector('.cm-lineNumbers')).toBeNull()
+    view.rerender(<FileReader {...props} variant="editorial" onSaveContent={vi.fn()} onToggleSourceView={onToggleSourceView} sourceView />)
+    await waitFor(() => expect(document.querySelector('.cm-lineNumbers')).toBeTruthy())
+    view.unmount()
+
+    // A public link passes neither: Visualizar, read only.
+    render(<FileReader {...props} source={{ mode: 'text', url: '/b.md' }} />)
+    await waitFor(() => expect(document.querySelector('.cm-content')).toHaveAttribute('aria-label', 'Texto do arquivo'))
+    expect(document.querySelector('.cm-content')).toHaveAttribute('contenteditable', 'false')
+  })
+
   it('só lê quando o servidor não libera a edição', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('x').buffer })))
 

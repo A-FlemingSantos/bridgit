@@ -1,8 +1,12 @@
+import { undo } from '@codemirror/commands'
 import { EditorView } from '@codemirror/view'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodeEditor from './CodeEditor.jsx'
 import { loadLanguage } from './codeLanguages.js'
+
+// jsdom has no canvas to draw the minimap on.
+vi.mock('@replit/codemirror-minimap', () => ({ showMinimap: { compute: () => [] } }))
 
 function blobOf(text) {
   return { arrayBuffer: async () => new TextEncoder().encode(text).buffer }
@@ -23,6 +27,11 @@ describe('loadLanguage', () => {
     expect(await loadLanguage('kt')).toBeTruthy()
     expect(await loadLanguage('txt')).toBeNull()
     expect(await loadLanguage(undefined)).toBeNull()
+  })
+
+  it('lê markdown, também em maiúsculas', async () => {
+    expect(await loadLanguage('markdown')).toBeTruthy()
+    expect(await loadLanguage('MD')).toBeTruthy()
   })
 })
 
@@ -130,5 +139,99 @@ describe('CodeEditor', () => {
     render(<CodeEditor url="/a.txt" content={null} onError={onError} />)
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith('Não foi possível ler este arquivo como texto.'))
+  })
+
+  describe('markdown', () => {
+    const doc = ['# Título', '', 'texto **forte**', ''].join('\n')
+    // The host hands the same bytes on every render; a new blob would reload the text and rebuild the editor.
+    const blob = blobOf(doc)
+    const read = (onToggleSourceView) => (
+      <CodeEditor
+        url="/a.md"
+        extension="md"
+        content={blob}
+        editable
+        minimap
+        onSave={vi.fn().mockResolvedValue({ revision: 'r2' })}
+        onToggleSourceView={onToggleSourceView}
+      />
+    )
+
+    it('abre em Visualizar, sem números de linha, com o rótulo de texto', async () => {
+      render(read())
+      await editorView()
+
+      expect(document.querySelector('.cm-lineNumbers')).toBeNull()
+      expect(content()).toHaveAttribute('aria-label', 'Texto do arquivo')
+      expect(content().textContent).toContain('Título')
+    })
+
+    it('abre no código fonte quando sourceView já vem ligado', async () => {
+      render(<CodeEditor url="/a.md" extension="md" content={blobOf(doc)} editable sourceView onSave={vi.fn()} />)
+      await editorView()
+
+      expect(document.querySelector('.cm-lineNumbers')).toBeTruthy()
+      expect(content()).toHaveAttribute('aria-label', 'Código do arquivo')
+    })
+
+    it('alterna o modo no mesmo editor, sem perder o texto, o desfazer nem salvar', async () => {
+      const onSave = vi.fn().mockResolvedValue({ revision: 'r2' })
+      const { rerender } = render(<CodeEditor url="/a.md" extension="md" content={blob} editable onSave={onSave} />)
+      const view = await editorView()
+
+      act(() => view.dispatch({ changes: { from: 0, insert: 'x' }, userEvent: 'input' }))
+      const edited = view.state.doc.toString()
+
+      rerender(<CodeEditor url="/a.md" extension="md" content={blob} editable onSave={onSave} sourceView />)
+      await waitFor(() => expect(document.querySelector('.cm-lineNumbers')).toBeTruthy())
+      expect(EditorView.findFromDOM(document.querySelector('.cm-editor'))).toBe(view)
+      expect(view.state.doc.toString()).toBe(edited)
+      expect(content()).toHaveAttribute('aria-label', 'Código do arquivo')
+
+      rerender(<CodeEditor url="/a.md" extension="md" content={blob} editable onSave={onSave} />)
+      await waitFor(() => expect(document.querySelector('.cm-lineNumbers')).toBeNull())
+      expect(EditorView.findFromDOM(document.querySelector('.cm-editor'))).toBe(view)
+
+      undo(view)
+      expect(view.state.doc.toString()).toBe(doc)
+      expect(onSave).not.toHaveBeenCalled()
+    })
+
+    it('Ctrl+/ chama o callback mais recente e não comenta nada', async () => {
+      const first = vi.fn()
+      const second = vi.fn()
+      const { rerender } = render(read(first))
+      const view = await editorView()
+
+      rerender(read(second))
+      act(() => {
+        content().dispatchEvent(new KeyboardEvent('keydown', { key: '/', ctrlKey: true, bubbles: true, cancelable: true }))
+      })
+
+      expect(first).not.toHaveBeenCalled()
+      expect(second).toHaveBeenCalledTimes(1)
+      expect(view.state.doc.toString()).toBe(doc)
+    })
+
+    it('Ctrl+B envolve a seleção em **', async () => {
+      render(read())
+      const view = await editorView()
+
+      act(() => view.dispatch({ selection: { anchor: 2, head: 8 } }))
+      act(() => {
+        content().dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true, cancelable: true }))
+      })
+
+      expect(view.state.doc.toString().startsWith('# **Título**')).toBe(true)
+    })
+
+    it('sourceView não muda um arquivo de código', async () => {
+      render(<CodeEditor url="/a.py" extension="py" content={blobOf('x = 1')} editable sourceView={false} onSave={vi.fn()} />)
+      const view = await editorView()
+
+      expect(document.querySelector('.cm-lineNumbers')).toBeTruthy()
+      expect(content()).toHaveAttribute('aria-label', 'Código do arquivo')
+      expect(view).toBeTruthy()
+    })
   })
 })

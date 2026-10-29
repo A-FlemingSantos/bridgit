@@ -316,3 +316,86 @@ describe('SpaceFilePage salvando código', () => {
     expect(await screen.findByText('Salvo')).toBeInTheDocument()
   })
 })
+
+describe('SpaceFilePage visualizar código fonte', () => {
+  const markdown = { ...item, name: 'a.md', extension: 'md', mimeType: 'text/markdown' }
+  const toggleName = 'Visualizar código fonte'
+
+  function setupText(file, source = { mode: 'text', url: '/a.md', editable: true, revision: 'r1' }) {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new TextEncoder().encode('# oi').buffer })))
+    setup({
+      recordRecent: vi.fn().mockResolvedValue(undefined),
+      getReadSource: vi.fn().mockResolvedValue(source),
+      getDownloadUrl: vi.fn(),
+      saveFileContent: vi.fn(),
+    })
+    useItem.mockReturnValue({ status: 'ready', item: file, error: null, reload: vi.fn() })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('alterna o botão em arquivos markdown de texto', async () => {
+    const user = userEvent.setup()
+    setupText(markdown)
+    renderPage()
+
+    const toggle = await screen.findByRole('button', { name: toggleName })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle.nextElementSibling).toBe(screen.getByRole('button', { name: 'Baixar' }))
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: toggleName })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: toggleName }))
+    expect(screen.getByRole('button', { name: toggleName })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('não mostra o botão em código que não é markdown', async () => {
+    setupText({ ...item, name: 'a.py', extension: 'py', mimeType: 'text/x-python' }, { mode: 'text', url: '/a.py', editable: true })
+    renderPage()
+
+    await screen.findByRole('button', { name: 'Baixar' })
+    await waitFor(() => expect(document.querySelector('.cm-content')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: toggleName })).toBeNull()
+  })
+
+  it('não mostra o botão quando a fonte não é de texto', async () => {
+    setupText(markdown, { mode: 'image', url: '/a.md' })
+    renderPage()
+
+    await screen.findByRole('button', { name: 'Baixar' })
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: toggleName })).toBeNull()
+  })
+
+  it('volta a visualizar ao trocar de arquivo', async () => {
+    const user = userEvent.setup()
+    setupText(markdown)
+    const view = renderPage()
+
+    await user.click(await screen.findByRole('button', { name: toggleName }))
+    expect(screen.getByRole('button', { name: toggleName })).toHaveAttribute('aria-pressed', 'true')
+
+    useItem.mockReturnValue({
+      status: 'ready',
+      item: { ...markdown, ref: 'file-2', name: 'b.md' },
+      error: null,
+      reload: vi.fn(),
+    })
+    view.rerender(
+      <MemoryRouter {...router} initialEntries={['/drives/conn-1/file/file-1']}>
+        <Routes>
+          <Route path="/drives/:connectionId/file/:fileRef" element={<SpaceFilePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: toggleName })).toHaveAttribute('aria-pressed', 'false'),
+    )
+  })
+})
