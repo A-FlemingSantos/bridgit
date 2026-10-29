@@ -54,7 +54,7 @@ Os achados dos testes manuais de 2026-10-13 estão em `Findings.md`.
 
 ### `HubDataProvider` concentra o web inteiro
 
-O `HubDataProvider.jsx` tem cerca de 1.670 linhas. Concentra cache, eventos, operações duráveis, reconciliação e as ações de escrita, com blocos de renomear, mover e excluir repetidos. O efeito de eventos, a retomada por `listOperations` e o reconciliador não têm testes. As operações duráveis vivem só em memória. Qualquer mudança nos fluxos de escrita do web passa por esse arquivo, o que encarece e arrisca cada ajuste.
+O `HubDataProvider.jsx` tem cerca de 1.970 linhas (eram 1.670 em 13/10). Concentra cache, eventos, operações duráveis, reconciliação e as ações de escrita, com blocos de renomear, mover e excluir repetidos. O efeito de eventos, a retomada por `listOperations` e o reconciliador não têm testes. As operações duráveis vivem só em memória. Qualquer mudança nos fluxos de escrita do web passa por esse arquivo, o que encarece e arrisca cada ajuste.
 
 ### Dois caminhos atualizam as mesmas tabelas
 
@@ -298,7 +298,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | bug | Breadcrumb de reserva lê o store simulado e mostra só "Pasta", "Arquivo", "Provedor" para itens reais | `SpaceViewHeader.jsx` |
 | bug | `SpaceComposer` usa a lista simulada de provedores; "Espelhar" num arquivo passa o arquivo como origem | `SpaceComposer.jsx`, `entryActions.js` |
 | lacuna | Itens de menu sem ação: "Editar PDF", "Pedir assinaturas", "Assinar" | `SpaceBrowsePage.jsx`, `SpaceViewActions.jsx` |
-| lacuna | `NameOverlay` no modo "criar arquivo" fecha sem criar nada | `HubOverlays.jsx` |
+| lacuna | ✅ `NameOverlay` no modo "criar arquivo" fecha sem criar nada (hoje há o menu "Criar ou Enviar" e o overlay "Novo arquivo") | `HubOverlays.jsx` |
 | lacuna | ✅ Sem rota 404; boot sem indicador (tela em branco) | `App.jsx` |
 | bug | ✅ `AppHeader` usa `'arthur'` como nome padrão; o avatar sempre mostra "A" | `AppHeader.jsx` |
 | lacuna | `AppOverlay` sem focus trap; menus sem navegação por setas | `AppOverlay.jsx`, menus |

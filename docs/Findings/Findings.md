@@ -80,7 +80,7 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 **Peso:** baixo, mas é uma lacuna de produto.
 
-**Status:** resolvido em parte em `fix/google-drive`; falta implementar a decisão de 14/10, abaixo. A decisão foi ignorar esses itens de forma explícita. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
+**Status:** resolvido em parte em `fix/google-drive`; falta implementar a decisão de 14/10, abaixo. Conferido em 29/10: a consulta recursiva e o checkpoint `v=3` ainda não existem no código; só o `restrictToMyDrive` do feed está lá. A decisão foi ignorar esses itens de forma explícita. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
 
 ⚠️ **Visto em 14/10:** o filtro olha só se o item tem um pai. O conteúdo de uma pasta compartilhada que não foi adicionada ao Meu Drive tem pai (a própria pasta), então entra no inventário e na busca. A pasta em si fica de fora, porque não tem pai. Na conta real são 9 itens assim. Exemplo: as fotos `DSC00716.JPG` e outras, da pasta compartilhada "Olimpíadas da Matemática". Elas não aparecem em nenhuma pasta do hub, mas ficam gravadas no catálogo e aparecem na busca com `parentKnown=false`. Abrir uma delas mostra a pasta compartilhada como caminho, e dá para navegar por ela.
 
@@ -135,31 +135,13 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 ## 16. Leitura e edição de arquivos de código
 
-**Peso:** médio como produto; alto se a edição entrar no escopo, porque pede contrato novo no backend. Vem da revisão da fase 3 e foi conferido no código de 13/10.
+> ✅ **Em grande parte resolvido** (branch `ui-improvments`, conferido no código de 29/10). O leitor de texto virou um editor CodeMirror 6 (`shared/components/FileReader/CodeEditor.jsx`), com destaque de sintaxe, minimap, salvamento automático e, para `.md`/`.markdown`, o modo renderizado descrito em `docs/markdown-editor.md`. O contrato de salvar existe: `POST /items/{ref}/content` com `expectedVersion`, 409 `ARQUIVO_ALTERADO` em conflito e identidade do arquivo preservada (ver "Salvar conteúdo de arquivos de texto" em `local-first-cloud-hub.md`). A edição vale só para texto de até 2 MiB com revisão de conteúdo conhecida.
 
-### O que existe
-
-O backend reconhece dezenas de extensões de código e texto como leitura textual (`ReadPlanSupport`, lista de extensões). O web baixa os bytes e mostra o texto num bloco simples (`TextReader`); o mobile faz o mesmo numa caixa com rolagem (`FileViewer`). É conteúdo real, renderizado como texto, sem executar HTML ou JavaScript do arquivo.
-
-### O que falta para ler código de verdade
-
-- **Apresentação:** não há fonte monoespaçada dedicada, números de linha, busca no arquivo, destaque de sintaxe nem opção de quebrar ou não as linhas. O painel do web é estreito para código.
-- **Codificação:** o web e o mobile decodificam tudo como UTF-8. Um arquivo em outra codificação aparece com caracteres trocados, sem explicação.
-- **Arquivos grandes:** o backend recusa leitura textual acima de 2 MB quando conhece o tamanho. Mas o web baixa o arquivo inteiro (`arrayBuffer`) e só depois corta em 2 MB, e o mobile baixa tudo e corta em 200 mil caracteres. Quando o tamanho informado pelo provedor está errado ou ausente, o corte não protege nem o tráfego nem a memória. O certo é pedir só o começo do arquivo (intervalo de bytes, que a API já suporta) ou recusar antes de baixar.
-- **Arquivos sem extensão:** a lista inclui `dockerfile`, mas a extensão é tirada do que vem depois do último ponto (`CloudItemSupport.extensionFromName`). Um arquivo chamado só `Dockerfile` (ou `Makefile`) não tem ponto e não é reconhecido como texto.
-
-### Edição
-
-Não existe contrato para salvar o conteúdo de um arquivo. As operações de escrita são criar pasta, enviar, renomear, mover e excluir; `UPDATE` mexe só em nome e pasta. Enviar um arquivo novo com o mesmo nome não equivale a salvar uma revisão: muda a identidade do item em alguns provedores e perde o vínculo com recentes, atalhos e links.
-
-Se a edição entrar no escopo, os passos sugeridos na revisão da fase 3 continuam válidos:
-1. Separar leitura de edição. A leitura continua simples e disponível também em links públicos; editar exige sessão e permissão.
-2. Criar uma operação explícita de salvar conteúdo, com tamanho, tipo e versão esperada, preservando a identidade do arquivo quando o provedor permite.
-3. Detectar conflito antes de salvar. Isso depende de cada provedor ter uma versão confiável, e o finding 1 mostra que o Google Drive ainda não tem.
-4. Modelar o estado local: alterações não salvas, confirmação ao sair, erro, tentar de novo e resultado ambíguo. "Salvo" só depois da confirmação do provedor.
-5. Escolher a biblioteca de editor depois disso. Instalar um editor não resolve versão, permissão, codificação e recuperação.
-
-**Aceitação mínima:** abrir um arquivo real nos três provedores, preservar bytes e codificação, editar e salvar mantendo a identidade, detectar uma alteração externa e não perder o texto local se o provedor falhar.
+**O que continua aberto:**
+- **Arquivos sem extensão:** `dockerfile` está na lista, mas `CloudItemSupport.extensionFromName` depende do ponto; um arquivo chamado só `Dockerfile` ou `Makefile` não é reconhecido como texto.
+- **Codificação e arquivos grandes:** não reverificados depois da troca para o editor. A leitura anterior decodificava tudo como UTF-8 e baixava o arquivo inteiro antes de cortar; confira se o `CodeEditor` mudou isso.
+- **Mobile:** o leitor de texto continua simples, sem edição.
+- **Conflito no Google Drive:** o finding 1 trocou a versão por revisão de conteúdo, mas o Drive segue sem escrita condicional atômica.
 
 ---
 
@@ -203,6 +185,8 @@ O web já tem parte disso: busca antecipada ao passar o mouse e cache de conteú
 ## 18. Busca consulta os provedores em vez do catálogo
 
 **Peso:** médio. Simplifica o backend e alinha a busca com a navegação.
+
+**Status (29/10):** decidido, **não implementado**. `SearchService` ainda chama `client.search` em cada provedor.
 
 **Decisão (14/10):** a busca passa a consultar o catálogo SQL, sem chamar os provedores e sem plano B no provedor. A busca não precisa ser exata.
 

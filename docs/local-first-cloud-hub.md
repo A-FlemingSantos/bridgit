@@ -8,7 +8,9 @@ Os valores padrão mantêm as novas capacidades habilitadas. A migration Flyway 
 
 A migration V4 adiciona cascatas de exclusão por usuário para operações/eventos e uma fila persistente de limpeza de uploads. Ela também remove registros órfãos anteriores, preservando seus caminhos na fila. A exclusão de conta remove os registros e tenta apagar os arquivos logo após o commit. Se o disco impedir a remoção, a conta continua excluída e a limpeza é retomada automaticamente, independente de `APP_HUB_WORKER_ENABLED`. O intervalo é `app.hub.upload-cleanup-poll-ms` (5 segundos por padrão). O diretório de uploads deve ser persistente e compartilhado por processos que usam o mesmo banco, como já exigido pelo executor de uploads.
 
-Com operações duráveis habilitadas para o provedor, as quatro rotas antigas de escrita (`POST /folders`, `POST /files`, `PATCH /items/{ref}`, `DELETE /items/{ref}`) exigem o header `Idempotency-Key`, não vazio e com até 100 caracteres. Sem ele, retornam 400 antes de aceitar a operação. Repetições da mesma ação devem manter a chave e os dados, inclusive após 503; outra ação, ainda que idêntica, deve usar outra chave. Reutilizar a chave com dados diferentes retorna 409. As respostas de sucesso preservam o formato anterior. Se o diário estiver desabilitado, permanece o caminho síncrono anterior, sem as garantias de idempotência do diário.
+As migrations seguintes: V5 política de sessão, V6/V12 troca de conta no OAuth (criada e depois removida), V7 índices de retenção, V8 apelido e pastas nos links públicos, V9 reconstrução dos catálogos do Dropbox, V10 várias contas por provedor e V11 avatares das contas.
+
+Com operações duráveis habilitadas para o provedor, as cinco rotas de escrita (`POST /folders`, `POST /files`, `POST /items/{ref}/content`, `PATCH /items/{ref}`, `DELETE /items/{ref}`) exigem o header `Idempotency-Key`, não vazio e com até 100 caracteres. Sem ele, retornam 400 antes de aceitar a operação. Repetições da mesma ação devem manter a chave e os dados, inclusive após 503; outra ação, ainda que idêntica, deve usar outra chave. Reutilizar a chave com dados diferentes retorna 409. As respostas de sucesso preservam o formato anterior. Se o diário estiver desabilitado, permanece o caminho síncrono anterior, sem as garantias de idempotência do diário.
 
 O cliente compartilhado envia a chave e aceita `{ clientKey }` como último argumento das escritas para retries explícitos. O wrapper web preserva a chave das chamadas antigas após falha de rede ou 5xx e a libera após sucesso ou rejeição definitiva. Esse fallback mantém a chave durante a vida da instância; quem retoma uma chamada antiga após reiniciar deve persistir e reenviar a chave. O fluxo moderno mantém seu diário de intenções existente.
 
@@ -22,9 +24,19 @@ O cliente compartilhado envia a chave e aceita `{ clientKey }` como último argu
 | `APP_HUB_WEBHOOK_BASE_URL` | URL HTTPS pública da API. Sem ela, a sincronização incremental usa polling. |
 | `APP_HUB_UPLOAD_DIRECTORY` | Diretório persistente e privado dos envios aceitos, separado do cache do navegador. |
 
+Outras propriedades de `app.hub`, todas com padrão no `application.yml`: `nudge-seconds` (5; adianta o sync das conexões em uso, hoje só enquanto o stream de eventos está aberto), `worker-poll-ms` (2000), `watch-poll-ms` (60000), `operation-poll-ms` (500) e `retention.*` (apaga de hora em hora eventos com mais de 7 dias, sessões encerradas há mais de 30 dias e estados OAuth com mais de 24 h).
+
 `app.hub.disabled-providers` permite desabilitar as capacidades novas para provedores específicos. As quotas de upload são configuráveis por `app.hub.upload-global-bytes` e `app.hub.upload-user-bytes` (5 GiB e 500 MiB por padrão). O worker aceita até quatro conexões simultâneas e coordena escritas por conexão.
 
 Para Dropbox, cadastrar `/api/webhooks/dropbox` no console do aplicativo. Microsoft e Google registram/renovam suas notificações quando a URL HTTPS está configurada. O backend valida as notificações antes de agendar sincronização. Falhas de notificação preservam o polling.
+
+## Várias contas por provedor
+
+Um usuário pode conectar mais de uma conta do mesmo provedor; a mesma conta remota entra uma vez só (índice único em `user_id, provider, account_id`, V10). Conectar outra conta acrescenta uma conexão em vez de substituir a existente. As rotas usam `connectionId` no caminho; as rotas antigas por `provider` continuam e resolvem para a conexão mais antiga (`ConnectionScope`). Cada conexão tem avatar, buscado sob demanda no provedor e servido pela API (`provider_connection_avatars`, V11). Web e mobile mostram as contas na sidebar/painel lateral e em "Minhas contas" nos ajustes.
+
+## Salvar conteúdo de arquivos de texto
+
+`POST /api/.../items/{ref}/content` (multipart `file` + `expectedVersion`) sobrescreve o conteúdo preservando a identidade do item. Só vale para texto editável (`ReadPlanSupport.isEditableText`: leitura textual, até 2 MiB e com revisão de conteúdo conhecida). Sem `expectedVersion` responde 400 `VERSAO_OBRIGATORIA`; versão diferente da atual, 409 `ARQUIVO_ALTERADO`; arquivo não editável, 409 `EDICAO_INDISPONIVEL`. Passa pelo diário de operações como `REPLACE_CONTENT` e exige `Idempotency-Key`. O editor do web salva sozinho; ver `markdown-editor.md` para o modo markdown.
 
 ## Garantias e limites
 
@@ -86,6 +98,6 @@ mvn test
 
 Os testes cobrem os adaptadores com respostas controladas, catálogo SQL, cursores, reconstrução, idempotência, resultado ambíguo, isolamento de usuário, IndexedDB, cache autorizado e transportes dos leitores. Não criam bancos ou logins. A suíte de integração limpa dados do banco de testes existente, como já fazia antes desta mudança.
 
-BUG-027, BUG-028 e BUG-029 foram tratados no código. BUG-030 permanece aberto para preservar a restrição de não alterar layout ou estilos. Nenhum deploy faz parte desta entrega.
+O deploy no Azure (uma VM com API, SQL Server Express e Caddy) está descrito em `deploy/README.md`; este documento trata só do hub.
 
 Os testes manuais nas contas reais, a avaliação visual e a medição das metas p95/80% permanecem com o usuário. Os resultados automatizados não representam uma medição de latência dos provedores reais ou da futura hospedagem.
