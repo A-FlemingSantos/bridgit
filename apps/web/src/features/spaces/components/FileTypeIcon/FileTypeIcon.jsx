@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import styles from './FileTypeIcon.module.css'
 import {
   EXCEL_MARK,
@@ -18,28 +18,18 @@ const marks = {
   'google-slides': GOOGLE_SLIDES_MARK,
 }
 
-function scopedMarkup(markup, uid) {
-  return markup
-    .replace(/\bid="([^"]+)"/g, (_, id) => `id="${uid}-${id}"`)
-    .replace(/url\(#([^)]+)\)/g, (_, id) => `url(#${uid}-${id})`)
-}
-
 const SUPERSAMPLE = 8
 const EDGE_BLUR = 'blur(0.5px)'
 
+// One bitmap per mark and size, shared by every icon on screen and kept for the session: drawing it on each
+// mount ran the 8× canvas once per Office file, which stalled a page of tiles as it appeared.
+const rendered = new Map()
+const pending = new Map()
+
 // Rasterizes the icon large, then reduces it with a soft edge. A one-pixel
 // fringe still steps on a 48px circle; the blur spreads that fringe.
-function useSmoothMark(markup, pixels) {
-  const [url, setUrl] = useState(null)
-  const urlRef = useRef(null)
-
-  useEffect(() => () => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
-  }, [])
-
-  useEffect(() => {
-    if (!markup) return undefined
-    let cancelled = false
+function rasterize(markup, pixels) {
+  return new Promise((resolve) => {
     const size = pixels * SUPERSAMPLE
     const sized = markup.replace('<svg ', `<svg width="${size}" height="${size}" `)
     const svgUrl = URL.createObjectURL(new Blob([sized], { type: 'image/svg+xml;charset=utf-8' }))
@@ -58,31 +48,50 @@ function useSmoothMark(markup, pixels) {
       ctx.imageSmoothingQuality = 'high'
       ctx.filter = EDGE_BLUR
       ctx.drawImage(hi, 0, 0, pixels, pixels)
-      out.toBlob((blob) => {
-        if (cancelled || !blob) return
-        const next = URL.createObjectURL(blob)
-        urlRef.current = next
-        setUrl((previous) => {
-          if (previous) URL.revokeObjectURL(previous)
-          return next
-        })
-      }, 'image/png')
+      out.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : null), 'image/png')
     }
-    image.onerror = () => URL.revokeObjectURL(svgUrl)
+    image.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
+      resolve(null)
+    }
     image.src = svgUrl
+  })
+}
+
+function smoothMark(kind, pixels) {
+  const key = `${kind}:${pixels}`
+  if (!pending.has(key)) {
+    pending.set(key, rasterize(marks[kind], pixels).then((url) => {
+      if (url) rendered.set(key, url)
+      else pending.delete(key)
+      return url
+    }))
+  }
+  return pending.get(key)
+}
+
+function useSmoothMark(kind, pixels) {
+  const key = `${kind}:${pixels}`
+  const [state, setState] = useState(() => ({ key, url: rendered.get(key) ?? null }))
+
+  useEffect(() => {
+    if (!marks[kind] || rendered.has(key)) return undefined
+    let cancelled = false
+    smoothMark(kind, pixels).then((url) => {
+      if (!cancelled) setState({ key, url })
+    })
     return () => {
       cancelled = true
     }
-  }, [markup, pixels])
+  }, [kind, pixels, key])
 
-  return url
+  return state.key === key ? state.url : rendered.get(key) ?? null
 }
 
 export default function FileTypeIcon({ kind, large = false }) {
   const markup = marks[kind]
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const pixels = large ? 48 : 22
-  const url = useSmoothMark(markup ? scopedMarkup(markup, uid) : '', pixels)
+  const url = useSmoothMark(kind, pixels)
   if (!markup) return null
   const className = [styles.mark, large ? styles.large : ''].filter(Boolean).join(' ')
   return (
