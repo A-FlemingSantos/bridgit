@@ -1,27 +1,18 @@
 import { useContext, useId } from 'react'
-import { ChevronDown, FilePen, FolderPlus, PenLine, Plus, Stamp, Upload } from 'lucide-react'
 import { AppShellSubheaderShownContext } from '../../../../shared/components/AppShell/AppShell.jsx'
 import SuspendedMenu from '../../../../shared/components/SuspendedMenu/SuspendedMenu.jsx'
 import { useSuspendedMenu } from '../../../../shared/components/SuspendedMenu/useSuspendedMenu.js'
+import { PixelPlus } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import styles from './SpaceViewActions.module.css'
 
-const defaultExtras = [
-  { id: 'upload', label: 'Enviar', icon: Upload },
-  { id: 'folder', label: 'Nova pasta', icon: FolderPlus },
-  { id: 'edit', label: 'Editar PDF', icon: FilePen },
-  { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp },
-  { id: 'sign', label: 'Assinar', icon: PenLine },
-]
-
 export default function SpaceViewActions({
-  onCreate,
-  createLabel = 'Criar',
-  extras = defaultExtras,
+  label = 'Criar ou Enviar',
+  items = [],
 }) {
-  const extrasId = useId()
+  const menuId = useId()
   const subheaderShown = useContext(AppShellSubheaderShownContext)
-  const menu = useSuspendedMenu(extras.length, { enabled: subheaderShown })
-  const wrappedExtras = extras.map((action) => ({
+  const menu = useSuspendedMenu(items.length, { enabled: subheaderShown })
+  const wrappedItems = items.map((action) => ({
     ...action,
     onSelect: () => {
       menu.closeMenu()
@@ -32,32 +23,24 @@ export default function SpaceViewActions({
   return (
     <div className={styles.dock} ref={menu.dockRef}>
       <div className={[styles.head, menu.open || menu.closing ? styles.headOpen : ''].filter(Boolean).join(' ')}>
-        <button type="button" className={styles.primary} onClick={onCreate}>
-          <Plus size={15} strokeWidth={1.6} aria-hidden="true" />
-          {createLabel}
-        </button>
         <button
           type="button"
-          className={styles.toggle}
-          aria-label={menu.open ? 'Recolher ações' : 'Mais ações'}
+          className={styles.trigger}
+          aria-haspopup="menu"
           aria-expanded={menu.open}
-          aria-controls={extrasId}
+          aria-controls={menuId}
           onClick={() => (menu.open ? menu.closeMenu() : menu.openMenu())}
         >
-          <ChevronDown
-            size={16}
-            strokeWidth={1.6}
-            className={menu.open ? styles.chevronOpen : styles.chevron}
-            aria-hidden="true"
-          />
+          <PixelPlus />
+          <span className={styles.label}>{label}</span>
         </button>
       </div>
 
       <SuspendedMenu
-        id={extrasId}
+        id={menuId}
         open={menu.open}
         closing={menu.closing}
-        items={wrappedExtras}
+        items={wrappedItems}
         stretch
         attached
       />

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { FilePen, FolderPlus, PenLine, Stamp, Upload } from 'lucide-react'
+import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import AppShell from '../../../shared/components/AppShell/AppShell.jsx'
 import StaggerItem from '../../../shared/components/motion/StaggerItem.jsx'
 import OverflowMenu from '../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -36,6 +36,18 @@ import { staleCatalogNotice } from './staleCatalogNotice.js'
 const FOLDER_OPEN = 'M3 4h8v2H3zM1 6h2v12H1zM9 6h10v2H9zM19 8h2v2h-2zM7 10h15v2H7zM5 12h2v2H5zM20 12h2v2h-2zM3 14h2v2H3zM18 14h2v2h-2zM16 16h2v2h-2zM3 18h13v2H3z'
 
 const EXIT_SECONDS = 0.2
+
+// The empty files the menu can start. `suffix` is the fixed ending kept out of the name field.
+const FILE_DRAFTS = {
+  file: { suffix: '', type: '' },
+  text: { suffix: '.txt', type: 'text/plain' },
+  markdown: { suffix: '.md', type: 'text/markdown' },
+}
+
+// "Pasta/sub/a.txt" -> ["Pasta", "sub"]; a file picked without a folder has no directories.
+function directoryParts(file) {
+  return (file.webkitRelativePath || file.name).split('/').slice(0, -1)
+}
 
 const rise = {
   hidden: { opacity: 0, y: 10 },
@@ -135,6 +147,7 @@ export default function SpaceBrowsePage() {
   const folderColors = useFolderColors()
   const folderQuery = useFolder(connectionId, folderRef ?? null)
   const uploadRef = useRef(null)
+  const uploadFolderRef = useRef(null)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.(connectionId) ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
@@ -145,6 +158,9 @@ export default function SpaceBrowsePage() {
   // A dropped draft fades out in place first; only once it is gone do the other folders close the gap,
   // the creation animation played backwards.
   const [leavingDraftKey, setLeavingDraftKey] = useState(null)
+  // The empty file being named, same life cycle as the folder draft: { key, suffix, type }.
+  const [fileDraft, setFileDraft] = useState(null)
+  const [leavingFileDraftKey, setLeavingFileDraftKey] = useState(null)
   const [renamingRef, setRenamingRef] = useState(null)
   // Folders are shown before files, so a Shift range follows that order.
   const tileOrder = ['folder', 'file'].flatMap((kind) =>
@@ -152,7 +168,10 @@ export default function SpaceBrowsePage() {
   )
   const selection = useTileSelection(`${connectionId}:${folderRef ?? ''}`, tileOrder)
   // A draft belongs to the folder it was opened in; moving to another folder drops it.
-  useEffect(() => { setDraftKey(null) }, [connectionId, folderRef])
+  useEffect(() => {
+    setDraftKey(null)
+    setFileDraft(null)
+  }, [connectionId, folderRef])
 
   // The account in the address; the provider is only how it is shown.
   const connection = connections.find((item) => item.connectionId === connectionId) ?? null
@@ -185,9 +204,12 @@ export default function SpaceBrowsePage() {
   const folderRows = draftKey
     ? [{ draft: true, uiKey: `operation-${draftKey}` }, ...folders]
     : folders
+  const fileRows = fileDraft
+    ? [{ draft: true, uiKey: `operation-${fileDraft.key}` }, ...files]
+    : files
   const staleNotice = staleCatalogNotice(folderQuery.catalog, { reconnectShown: expired })
   const empty =
-    folderQuery.status === 'ready' && folders.length === 0 && files.length === 0 && !draftKey
+    folderQuery.status === 'ready' && folders.length === 0 && files.length === 0 && !draftKey && !fileDraft
   const pendingFolder = folderRef
     ? {
         ref: folderRef,
@@ -232,11 +254,75 @@ export default function SpaceBrowsePage() {
     }
   }
 
+  function startFileDraft(kind) {
+    setFileDraft({ key: crypto.randomUUID(), ...FILE_DRAFTS[kind] })
+  }
+
+  function dropFileDraft() {
+    const key = fileDraft?.key
+    setLeavingFileDraftKey(key)
+    setTimeout(() => {
+      setFileDraft((current) => (current?.key === key ? null : current))
+      setLeavingFileDraftKey((current) => (current === key ? null : current))
+    }, EXIT_SECONDS * 1000)
+  }
+
+  async function createFile(name) {
+    const { suffix, type } = fileDraft
+    setFileDraft(null)
+    const finalName = suffix && !name.toLowerCase().endsWith(suffix) ? `${name}${suffix}` : name
+    await sendUpload([new File([''], finalName, type ? { type } : undefined)])
+  }
+
   async function onUpload(event) {
     const selected = Array.from(event.target.files ?? [])
     event.target.value = ''
     if (!selected.length) return
     await sendUpload(selected)
+  }
+
+  async function onUploadFolder(event) {
+    const selected = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    if (!selected.length) return
+    await sendFolderUpload(selected)
+  }
+
+  // Recreates the picked folder's tree here, parents first, then sends each folder's files into it.
+  async function sendFolderUpload(files) {
+    setActionError(null)
+    setFailedUploads([])
+    const refs = new Map([['', folderRef ?? null]])
+    const directories = [...new Set(files.flatMap((file) => {
+      const parts = directoryParts(file)
+      return parts.map((_, index) => parts.slice(0, index + 1).join('/'))
+    }))].sort((left, right) => left.split('/').length - right.split('/').length)
+    try {
+      for (const directory of directories) {
+        const parts = directory.split('/')
+        const created = await actions.createFolder({
+          connectionId,
+          parentRef: refs.get(parts.slice(0, -1).join('/')),
+          name: parts[parts.length - 1],
+        })
+        if (!created?.ref) throw new Error(`Não foi possível criar a pasta ${directory}.`)
+        refs.set(directory, created.ref)
+      }
+      let firstError = null
+      for (const [directory, parentRef] of refs) {
+        const group = files.filter((file) => directoryParts(file).join('/') === directory)
+        if (!group.length) continue
+        try {
+          await actions.uploadFiles({ connectionId, parentRef, files: group })
+        } catch (error) {
+          firstError ??= error
+        }
+      }
+      if (firstError) throw firstError
+    } catch (error) {
+      // A retry would send the files to this folder instead of their own, so none is offered.
+      setActionError(hubErrorMessage(error))
+    }
   }
 
   async function sendUpload(files) {
@@ -435,19 +521,47 @@ export default function SpaceBrowsePage() {
           </ItemGrid>
         ) : null}
 
-        {files.length > 0 ? (
+        {fileRows.length > 0 ? (
           <ItemGrid label="Arquivos">
               <AnimatePresence mode="popLayout">
-              {files.map((item, index) => (
+              {fileRows.map((item, index) => (
                 <StaggerItem
                   key={item.uiKey ?? item.ref}
                   index={index}
-                  base={0.14}
+                  base={item.draft ? 0.3 : 0.14}
                   step={0.03}
                   variants={rise}
                   layout
+                  leaving={item.draft && leavingFileDraftKey === fileDraft?.key}
                   className={folderViewStyles.wrap}
                 >
+                  {item.draft ? (
+                    <div className={folderViewStyles.tile}>
+                      <TileContent
+                        art={
+                          <FileThumb
+                            file={{
+                              name: `Novo arquivo${fileDraft.suffix}`,
+                              extension: fileDraft.suffix.slice(1) || null,
+                              kind: 'file',
+                            }}
+                          />
+                        }
+                        title={
+                          <InlineName
+                            initial="Novo arquivo"
+                            label="Nome do novo arquivo"
+                            suffix={fileDraft.suffix}
+                            creating
+                            onCommit={(name) => void createFile(name)}
+                            onCancel={dropFileDraft}
+                          />
+                        }
+                        subtitle={fileDraft.suffix ? fileDraft.suffix.slice(1).toUpperCase() : 'Arquivo'}
+                      />
+                    </div>
+                  ) : (
+                  <>
                   <PendingAware
                     pending={item.pending}
                     className={folderViewStyles.tile}
@@ -490,6 +604,8 @@ export default function SpaceBrowsePage() {
                       items={fileMenuItems(item, menuContext(item))}
                     />
                   )}
+                  </>
+                  )}
                 </StaggerItem>
               ))}
               </AnimatePresence>
@@ -520,23 +636,45 @@ export default function SpaceBrowsePage() {
             trailing={
               connected && !expired ? (
                 <SpaceViewActions
-                  onCreate={() => uploadRef.current?.click()}
-                  extras={[
+                  items={[
                     {
-                      id: 'upload',
-                      label: 'Enviar',
-                      icon: Upload,
-                      onSelect: () => uploadRef.current?.click(),
+                      id: 'new-file',
+                      label: 'Novo arquivo',
+                      icon: PixelFilePlus,
+                      onSelect: () => startFileDraft('file'),
                     },
                     {
                       id: 'folder',
                       label: 'Nova pasta',
-                      icon: FolderPlus,
+                      icon: PixelFolderPlus,
                       onSelect: () => setDraftKey(crypto.randomUUID()),
                     },
-                    { id: 'edit', label: 'Editar PDF', icon: FilePen },
-                    { id: 'sign-req', label: 'Pedir assinaturas', icon: Stamp },
-                    { id: 'sign', label: 'Assinar', icon: PenLine },
+                    {
+                      id: 'upload',
+                      separatorBefore: true,
+                      label: 'Enviar arquivos',
+                      icon: PixelFileEmpty,
+                      onSelect: () => uploadRef.current?.click(),
+                    },
+                    {
+                      id: 'upload-folder',
+                      label: 'Enviar pasta',
+                      icon: PixelFolder,
+                      onSelect: () => uploadFolderRef.current?.click(),
+                    },
+                    {
+                      id: 'text-file',
+                      separatorBefore: true,
+                      label: 'Arquivo de texto',
+                      icon: PixelFileEmpty,
+                      onSelect: () => startFileDraft('text'),
+                    },
+                    {
+                      id: 'markdown-file',
+                      label: 'Arquivo markdown',
+                      icon: PixelFileEmpty,
+                      onSelect: () => startFileDraft('markdown'),
+                    },
                   ]}
                 />
               ) : null
@@ -562,6 +700,14 @@ export default function SpaceBrowsePage() {
           />
         ) : null}
         <input ref={uploadRef} type="file" hidden multiple onChange={(event) => void onUpload(event)} />
+        <input
+          ref={uploadFolderRef}
+          type="file"
+          hidden
+          multiple
+          webkitdirectory=""
+          onChange={(event) => void onUploadFolder(event)}
+        />
         {actionError ? (
           <>
             <p className={styles.empty} role="alert">

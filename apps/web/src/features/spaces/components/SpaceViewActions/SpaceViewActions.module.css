@@ -7,7 +7,7 @@
   min-width: 176px;
 }
 
-/* One rounded control; the chevron half is split off by a hairline. */
+/* One rounded control that opens the menu. */
 .head {
   display: flex;
   height: 34px;
@@ -23,66 +23,41 @@
   transition: none;
 }
 
-.primary,
-.toggle {
-  border: 0;
-  background: transparent;
-  color: var(--paper);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-  transition: background-color 120ms ease;
-}
-
-.primary {
+.trigger {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 7px;
   min-width: 0;
-  padding: 0 12px;
-  text-align: left;
   flex: 1 1 auto;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
-.toggle {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  flex: 0 0 32px;
-  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--paper) 22%, transparent);
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.primary:hover,
-.toggle:hover,
-.toggle[aria-expanded='true'] {
+.trigger:hover,
+.trigger[aria-expanded='true'] {
   background: color-mix(in srgb, var(--paper) 12%, transparent);
 }
 
-.primary:focus-visible,
-.toggle:focus-visible {
+.trigger:focus-visible {
   outline: 2px solid var(--paper);
   outline-offset: -3px;
   border-radius: 6px;
-}
-
-.chevron {
-  display: block;
-  transform: rotate(0deg);
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.chevronOpen {
-  display: block;
-  transform: rotate(180deg);
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chevron,
-  .chevronOpen {
-    transition: none;
-  }
 }

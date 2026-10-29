@@ -935,12 +935,12 @@ describe('App', () => {
     )
 
     // The stable header may be hydrated before the connected provider response arrives.
-    expect(await screen.findByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Criar ou Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'OneDrive' })).toBeInTheDocument()
     expect(
       within(screen.getByRole('navigation', { name: 'Localização atual' })).getByRole('link', { name: 'Início' }),
     ).toHaveAttribute('href', '/home')
-    expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar ou Enviar' })).toBeInTheDocument()
     expect(within(screen.getByRole('main')).getByRole('link', { name: /Inovações técnicas/ })).toHaveAttribute(
       'href',
       `/drives/${CONN_OD}/folder/4e8a1c2b-9d70-4f13-a5e6-0c8b2d91f334`,

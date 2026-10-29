@@ -71,7 +71,7 @@ function renderPage() {
 }
 
 async function openDraft(user) {
-  await user.click(screen.getByRole('button', { name: 'Mais ações' }))
+  await user.click(screen.getByRole('button', { name: 'Criar ou Enviar' }))
   await user.click(await screen.findByRole('menuitem', { name: 'Nova pasta' }))
   return screen.findByRole('textbox', { name: 'Nome da nova pasta' })
 }
