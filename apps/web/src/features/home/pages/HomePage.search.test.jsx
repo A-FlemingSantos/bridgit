@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -135,7 +135,7 @@ describe('HomePage busca por provedor', () => {
     })
     renderPage()
     await typeQuery(user, 'rel')
-    expect(await screen.findByText('Relatório.pdf')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /^Relatório.pdf/ })).toBeInTheDocument()
     expect(screen.getByText(/parciais/)).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível buscar em Dropbox.')
     expect(screen.getByRole('alert')).not.toHaveTextContent('PROVEDOR_FALHOU')
@@ -155,9 +155,8 @@ describe('HomePage busca por provedor', () => {
     })
     renderPage()
     await typeQuery(user, 'rel')
-    expect(await screen.findByText('Nenhum resultado')).toBeInTheDocument()
+    expect(await screen.findByText('Nada encontrado.')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível buscar em Dropbox')
-    expect(screen.queryByText('Nada encontrado.')).not.toBeInTheDocument()
   })
 
   it('mostra falha total com nova tentativa', async () => {
@@ -183,6 +182,89 @@ describe('HomePage busca por provedor', () => {
   })
 })
 
+describe('HomePage busca com catálogo ainda sincronizando', () => {
+  const catalog = (coverage) => ({
+    connectionId: 'conn-od',
+    generation: 1,
+    revision: 3,
+    coverage,
+    syncedAt: '2026-10-29T10:00:00.000Z',
+    freshness: 'current',
+    staleReason: null,
+  })
+
+  it('avisa que a conta parcial pode estar incompleta e mantém os resultados', async () => {
+    const user = userEvent.setup()
+    setup({
+      status: 'ready',
+      results: [fileItem],
+      providers: [
+        { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null, catalog: catalog('partial') },
+        { id: 'dropbox', connectionId: 'conn-db', ok: true, error: null, catalog: { ...catalog('complete'), connectionId: 'conn-db' } },
+      ],
+      error: null,
+    })
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByRole('link', { name: /^Relatório.pdf/ })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Ainda sincronizando OneDrive. Os resultados podem estar incompletos.',
+    )
+    expect(screen.getAllByText(/Ainda sincronizando/)).toHaveLength(1)
+  })
+
+  it('mostra o aviso mesmo sem nenhum resultado', async () => {
+    const user = userEvent.setup()
+    setup({
+      status: 'ready',
+      results: [],
+      providers: [{ id: 'onedrive', connectionId: 'conn-od', ok: true, error: null, catalog: catalog('partial') }],
+      error: null,
+    })
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByText(/Ainda sincronizando OneDrive/)).toBeInTheDocument()
+    expect(screen.getByText('Nada encontrado.')).toBeInTheDocument()
+  })
+
+  it('não mostra aviso quando a cobertura é completa', async () => {
+    const user = userEvent.setup()
+    setup({
+      status: 'ready',
+      results: [fileItem],
+      providers: [{ id: 'onedrive', connectionId: 'conn-od', ok: true, error: null, catalog: catalog('complete') }],
+      error: null,
+    })
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByRole('link', { name: /^Relatório.pdf/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Ainda sincronizando/)).not.toBeInTheDocument()
+  })
+
+  it('catálogo indisponível mantém a falha da conta sem exibir o código', async () => {
+    const user = userEvent.setup()
+    setup({
+      status: 'ready',
+      results: [fileItem],
+      providers: [
+        { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null, catalog: catalog('complete') },
+        { id: 'dropbox', connectionId: 'conn-db', ok: false, error: 'CATALOGO_INDISPONIVEL', catalog: null },
+      ],
+      error: null,
+    })
+    renderPage()
+    await typeQuery(user, 'rel')
+
+    expect(await screen.findByRole('link', { name: /^Relatório.pdf/ })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível buscar em Dropbox.')
+    expect(screen.queryByText(/CATALOGO_INDISPONIVEL/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Ainda sincronizando/)).not.toBeInTheDocument()
+  })
+})
+
 describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
   const second = { ...fileItem, connectionId: 'conn-od-2', ref: 'file-2', name: 'Outro.pdf', uiKey: 'conn-od-2-file-2' }
 
@@ -198,7 +280,7 @@ describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
     })
   }
 
-  it('separa os resultados por conta e identifica cada uma pelo e-mail', async () => {
+  it('mostra os resultados juntos, com um filtro por conta identificada pelo e-mail', async () => {
     const user = userEvent.setup()
     setupTwoAccounts([fileItem, second], [
       { id: 'onedrive', connectionId: 'conn-od', ok: true, error: null },
@@ -208,11 +290,17 @@ describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
     renderPage()
     await typeQuery(user, 'rel')
 
-    expect(await screen.findByRole('heading', { level: 3, name: 'OneDrive · ana@mail.com' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'OneDrive · bia@mail.com' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Dropbox' })).toBeInTheDocument()
+    const filters = await screen.findByRole('group', { name: 'Filtrar resultados por conta' })
+    expect(within(filters).getByRole('button', { name: 'OneDrive · ana@mail.com' })).toBeInTheDocument()
+    expect(within(filters).getByRole('button', { name: 'OneDrive · bia@mail.com' })).toBeInTheDocument()
+    // Dropbox found nothing, so it has no pill.
+    expect(within(filters).queryByRole('button', { name: 'Dropbox' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Relatório.pdf' })).toHaveAttribute('href', '/drives/conn-od/file/file-1')
     expect(screen.getByRole('link', { name: 'Outro.pdf' })).toHaveAttribute('href', '/drives/conn-od-2/file/file-2')
+
+    await user.click(within(filters).getByRole('button', { name: 'OneDrive · bia@mail.com' }))
+    expect(screen.queryByRole('link', { name: 'Relatório.pdf' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Outro.pdf' })).toBeInTheDocument()
   })
 
   it('uma conta que falha não esconde os resultados da outra do mesmo provedor', async () => {
@@ -224,7 +312,7 @@ describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
     renderPage()
     await typeQuery(user, 'rel')
 
-    expect(await screen.findByText('Relatório.pdf')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /^Relatório.pdf/ })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível buscar em OneDrive · bia@mail.com.')
   })
 })

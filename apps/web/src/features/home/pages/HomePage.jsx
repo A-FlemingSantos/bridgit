@@ -21,10 +21,13 @@ import {
 import { hubErrorMessage } from '../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../shared/state/HubState.jsx'
 import FileThumb from '../../spaces/components/FileThumb/FileThumb.jsx'
+import FolderArt from '../../spaces/components/FolderArt/FolderArt.jsx'
+import FolderColorPalette from '../../spaces/components/FolderColorPalette/FolderColorPalette.jsx'
+import { useFolderColors } from '../../spaces/folderColors.js'
 import { PixelFileEmpty, PixelFilePlus, PixelFolder, PixelFolderPlus } from '../../../shared/components/PixelIcons/PixelIcons.jsx'
 import ProviderMark from '../../spaces/components/ProviderMark.jsx'
 import ProviderStrip from '../../spaces/components/ProviderStrip/ProviderStrip.jsx'
-import { fileMenuItems } from '../../spaces/components/entryActions.jsx'
+import { fileMenuItems, folderMenuItems } from '../../spaces/components/entryActions.jsx'
 import { connectionLabel } from '../../spaces/connectionLabel.js'
 import HomeSidebar from '../components/HomeSidebar/HomeSidebar.jsx'
 import { formatRelativeTime } from '../formatRelativeTime.js'
@@ -48,6 +51,7 @@ const PROVIDER_LABELS = {
 const ALL_PROVIDERS = 'all'
 
 function itemKindLabel(item) {
+  if (item.kind === 'folder') return 'Pasta'
   if (item.extension) return item.extension.toUpperCase()
   if (item.mimeType) return item.mimeType.split('/').pop()?.toUpperCase() ?? 'Arquivo'
   return 'Arquivo'
@@ -78,8 +82,10 @@ export default function HomePage() {
   const publicLinksQuery = usePublicLinks()
   const searchId = useId()
   const [query, setQuery] = useState('')
-  const [recentsView, setRecentsView] = useState('grid')
+  // Recents and search results share the grid/list choice.
+  const [view, setView] = useState('grid')
   const [accountFilter, setAccountFilter] = useState(ALL_PROVIDERS)
+  const [searchFilter, setSearchFilter] = useState(ALL_PROVIDERS)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.() ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
@@ -106,45 +112,28 @@ export default function HomePage() {
     return connection ? connectionLabel(connection, connections) : providerLabel(provider)
   }
 
-  const recentAccounts = useMemo(
-    () => [...new Map(recents.map((file) => [file.connectionId, file.provider])).entries()]
-      .map(([connectionId, provider]) => ({ connectionId, provider })),
-    [recents],
-  )
+  const recentAccounts = useMemo(() => accountsOf(recents), [recents])
   const activeFilter = recentAccounts.some((account) => account.connectionId === accountFilter) ? accountFilter : ALL_PROVIDERS
   const visibleRecents = activeFilter === ALL_PROVIDERS
     ? recents
     : recents.filter((file) => file.connectionId === activeFilter)
 
-  const searchGroups = useMemo(() => {
-    if (!searching || search.status !== 'ready') return []
-    const groups = new Map()
-    ;(search.results ?? []).forEach((item) => {
-      const key = item.connectionId
-      if (!groups.has(key)) groups.set(key, { provider: item.provider, items: [] })
-      groups.get(key).items.push(item)
-    })
-    const queried = Array.isArray(search.providers) ? search.providers : []
-    if (queried.length === 0) {
-      return [...groups.entries()].map(([connectionId, group]) => ({
-        id: connectionId, provider: group.provider, ok: true, error: null, items: group.items,
-      }))
-    }
-    // Each queried account answers on its own: one can fail while another, even of the same provider, finds files.
-    return queried.map((entry) => ({
-      id: entry.connectionId ?? entry.id,
-      provider: entry.id,
-      ok: entry.ok !== false,
-      error: entry.error ?? null,
-      items: groups.get(entry.connectionId ?? entry.id)?.items ?? [],
-    }))
-  }, [search.results, search.providers, search.status, searching])
+  const searchResults = useMemo(
+    () => (searching && search.status === 'ready' ? search.results ?? [] : []),
+    [search.results, search.status, searching],
+  )
+  const searchAccounts = useMemo(() => accountsOf(searchResults), [searchResults])
+  const activeSearchFilter = searchAccounts.some((account) => account.connectionId === searchFilter) ? searchFilter : ALL_PROVIDERS
+  const visibleResults = activeSearchFilter === ALL_PROVIDERS
+    ? searchResults
+    : searchResults.filter((item) => item.connectionId === activeSearchFilter)
 
-  const failedProviders = searchGroups.filter((group) => !group.ok)
-  const succeededGroups = searchGroups.filter((group) => group.ok)
-  const foundCount = succeededGroups.reduce((total, group) => total + group.items.length, 0)
-  const allFailed = searchGroups.length > 0 && failedProviders.length === searchGroups.length
-  const someFailed = failedProviders.length > 0 && !allFailed
+  // Each queried account answers on its own: one can fail, or still be syncing, while another finds files.
+  const queried = searching && search.status === 'ready' && Array.isArray(search.providers) ? search.providers : []
+  const failedAccounts = queried.filter((entry) => entry.ok === false)
+  const syncingAccounts = queried.filter((entry) => entry.ok !== false && entry.catalog?.coverage === 'partial')
+  const allFailed = queried.length > 0 && failedAccounts.length === queried.length
+  const someFailed = failedAccounts.length > 0 && !allFailed
 
   function retrySearch() {
     const current = query
@@ -312,8 +301,6 @@ export default function HomePage() {
                   Tentar novamente
                 </button>
               </>
-            ) : foundCount === 0 && !someFailed ? (
-              <p className={styles.empty}>Nada encontrado.</p>
             ) : (
               <>
                 {someFailed ? (
@@ -321,41 +308,39 @@ export default function HomePage() {
                     Alguns provedores não responderam. Mostrando resultados parciais.
                   </p>
                 ) : null}
-                {searchGroups.map((group) => (
-                  <div key={group.id} className={styles.searchGroup}>
-                    <h3>{accountName(group.id, group.provider)}</h3>
-                    {!group.ok ? (
-                      <p className={styles.empty} role="alert">
-                        {`Não foi possível buscar em ${accountName(group.id, group.provider)}.`}
-                      </p>
-                    ) : group.items.length === 0 ? (
-                      <p className={styles.empty}>Nenhum resultado</p>
-                    ) : (
-                      <div className={styles.list}>
-                        {group.items.map((item) =>
-                          item.kind === 'folder' ? (
-                            <Link
-                              key={item.uiKey ?? item.ref}
-                              to={driveFolderUrl(group.id, item.ref)}
-                              className={styles.row}
-                            >
-                              <span className={styles.rowTitle}>{item.name}</span>
-                            </Link>
-                          ) : (
-                            <Link
-                              key={item.uiKey ?? item.ref}
-                              to={driveFileUrl(group.id, item.ref)}
-                              state={fileNavState(location)}
-                              className={styles.row}
-                            >
-                              <span className={styles.rowTitle}>{item.name}</span>
-                            </Link>
-                          ),
-                        )}
-                      </div>
-                    )}
-                  </div>
+                {failedAccounts.map((entry) => (
+                  <p key={entry.connectionId ?? entry.id} className={styles.empty} role="alert">
+                    {`Não foi possível buscar em ${accountName(entry.connectionId, entry.id)}.`}
+                  </p>
                 ))}
+                {syncingAccounts.map((entry) => (
+                  <p key={entry.connectionId ?? entry.id} className={styles.empty} role="status">
+                    {`Ainda sincronizando ${accountName(entry.connectionId, entry.id)}. Os resultados podem estar incompletos.`}
+                  </p>
+                ))}
+                {searchResults.length === 0 ? (
+                  <p className={styles.empty}>Nada encontrado.</p>
+                ) : (
+                  <>
+                    <ItemsToolbar
+                      accounts={searchAccounts}
+                      filter={activeSearchFilter}
+                      onFilter={setSearchFilter}
+                      filterLabel="Filtrar resultados por conta"
+                      view={view}
+                      onView={setView}
+                      viewLabel="Visualização dos resultados"
+                      accountName={accountName}
+                    />
+                    <ItemsLayout
+                      items={visibleResults}
+                      view={view}
+                      when={(item) => item.modifiedAt}
+                      accountName={accountName}
+                      menuContext={menuContext}
+                    />
+                  </>
+                )}
               </>
             )}
           </section>
@@ -365,71 +350,16 @@ export default function HomePage() {
               <h1 className={styles.heading}>Recentes</h1>
             </header>
 
-            <div className={styles.toolbar}>
-              {recentAccounts.length > 1 ? (
-                <div className={styles.chips} role="group" aria-label="Filtrar recentes por provedor">
-                  <button
-                    type="button"
-                    className={styles.chip}
-                    aria-pressed={activeFilter === ALL_PROVIDERS}
-                    onClick={() => setAccountFilter(ALL_PROVIDERS)}
-                  >
-                    Todos
-                  </button>
-                  {recentAccounts.map(({ connectionId, provider }) => (
-                    <button
-                      key={connectionId}
-                      type="button"
-                      className={styles.chip}
-                      aria-pressed={activeFilter === connectionId}
-                      onClick={() => setAccountFilter(connectionId)}
-                    >
-                      {accountName(connectionId, provider)}
-                    </button>
-                  ))}
-                </div>
-              ) : <span />}
-              <div className={styles.viewToggle} role="group" aria-label="Visualização dos recentes">
-                <button
-                  type="button"
-                  className={styles.viewButton}
-                  aria-pressed={recentsView === 'grid'}
-                  aria-label="Grade"
-                  onClick={() => setRecentsView('grid')}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    shapeRendering="crispEdges"
-                    aria-hidden="true"
-                  >
-                    <path d="M20 4h-7v7h7V4h2v16h-2v-7h-7v7h7v2H4v-2h7v-7H4v7H2V4h2v7h7V4H4V2h16v2Z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className={styles.viewButton}
-                  aria-pressed={recentsView === 'list'}
-                  aria-label="Lista"
-                  onClick={() => setRecentsView('list')}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                    shapeRendering="crispEdges"
-                    aria-hidden="true"
-                  >
-                    <path d="M10 5h12v2H10zm0 4h8v2h-8zm0 4h12v2H10zm0 4h8v2h-8zM4 7v2h2V7H4Zm4 4H2V5h6v6Zm-6 2h6v2H2zm0 4h6v2H2zm0 0v-2h2v2zm4 0v-2h2v2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <ItemsToolbar
+              accounts={recentAccounts}
+              filter={activeFilter}
+              onFilter={setAccountFilter}
+              filterLabel="Filtrar recentes por provedor"
+              view={view}
+              onView={setView}
+              viewLabel="Visualização dos recentes"
+              accountName={accountName}
+            />
 
             {recentsQuery.status === 'loading' ? (
               <p className={styles.empty}>Carregando…</p>
@@ -443,90 +373,199 @@ export default function HomePage() {
                 <p className={styles.emptyTitle}>Nada encontrado.</p>
                 <p className={styles.empty}>Os arquivos que você abrir em qualquer nuvem aparecem aqui.</p>
               </div>
-            ) : recentsView === 'list' ? (
-              <div className={styles.list}>
-                {visibleRecents.map((file, index) => (
-                  <StaggerItem
-                    key={`${file.connectionId}-${file.ref}`}
-                    index={index}
-                    base={0.04}
-                    step={0.025}
-                    variants={rise}
-                    className={styles.rowWrap}
-                  >
-                    <Link
-                      to={driveFileUrl(file.connectionId, file.ref)}
-                      state={fileNavState(location)}
-                      className={styles.row}
-                      aria-label={file.name}
-                    >
-                      <span className={styles.rowFace} aria-hidden="true">
-                        <FileThumb file={file} align="center" fit="cover" />
-                      </span>
-                      <span className={styles.rowBody}>
-                        <span className={styles.rowTitle}>{file.name}</span>
-                        <span className={styles.rowSub}>
-                          {itemKindLabel(file)} · {accountName(file.connectionId, file.provider)}
-                        </span>
-                      </span>
-                      <span className={styles.rowWhen}>{formatRelativeTime(file.openedAt)}</span>
-                      <span className={styles.rowMark}>
-                        <ProviderMark id={file.provider} size={16} />
-                      </span>
-                    </Link>
-                    <OverflowMenu
-                      contextual
-                      label={`Ações de ${file.name}`}
-                      title={file.name}
-                      items={fileMenuItems(entryMenuFile(file), menuContext(file))}
-                    />
-                  </StaggerItem>
-                ))}
-              </div>
             ) : (
-              <div className={styles.grid}>
-                {visibleRecents.map((file, index) => (
-                  <StaggerItem
-                    key={`${file.connectionId}-${file.ref}`}
-                    index={index}
-                    base={0.04}
-                    step={0.025}
-                    variants={rise}
-                    className={styles.cardWrap}
-                  >
-                    <Link
-                      to={driveFileUrl(file.connectionId, file.ref)}
-                      state={fileNavState(location)}
-                      className={styles.tile}
-                      aria-label={file.name}
-                    >
-                      <span className={styles.tileFace} aria-hidden="true">
-                        <FileThumb file={file} align="center" fit="cover" />
-                        <span className={styles.tileMark}>
-                          <ProviderMark id={file.provider} size={14} />
-                        </span>
-                      </span>
-                      <span className={styles.tileMeta}>
-                        <span className={styles.tileTitle}>{file.name}</span>
-                        <span className={styles.rowSub}>
-                          {itemKindLabel(file)} · {formatRelativeTime(file.openedAt)}
-                        </span>
-                      </span>
-                    </Link>
-                    <OverflowMenu
-                      contextual
-                      label={`Ações de ${file.name}`}
-                      title={file.name}
-                      items={fileMenuItems(entryMenuFile(file), menuContext(file))}
-                    />
-                  </StaggerItem>
-                ))}
-              </div>
+              <ItemsLayout
+                items={visibleRecents}
+                view={view}
+                when={(file) => file.openedAt}
+                accountName={accountName}
+                menuContext={menuContext}
+              />
             )}
           </section>
         )}
       </main>
     </AppShell>
+  )
+}
+
+// The accounts that have at least one of the items, in order of first appearance.
+function accountsOf(items) {
+  return [...new Map(items.map((item) => [item.connectionId, item.provider])).entries()]
+    .map(([connectionId, provider]) => ({ connectionId, provider }))
+}
+
+// Account pills (only when the items come from more than one account) and the grid/list switch.
+function ItemsToolbar({ accounts, filter, onFilter, filterLabel, view, onView, viewLabel, accountName }) {
+  return (
+    <div className={styles.toolbar}>
+      {accounts.length > 1 ? (
+        <div className={styles.chips} role="group" aria-label={filterLabel}>
+          <button
+            type="button"
+            className={styles.chip}
+            aria-pressed={filter === ALL_PROVIDERS}
+            onClick={() => onFilter(ALL_PROVIDERS)}
+          >
+            Todos
+          </button>
+          {accounts.map(({ connectionId, provider }) => (
+            <button
+              key={connectionId}
+              type="button"
+              className={styles.chip}
+              aria-pressed={filter === connectionId}
+              onClick={() => onFilter(connectionId)}
+            >
+              {accountName(connectionId, provider)}
+            </button>
+          ))}
+        </div>
+      ) : <span />}
+      <div className={styles.viewToggle} role="group" aria-label={viewLabel}>
+        <button
+          type="button"
+          className={styles.viewButton}
+          aria-pressed={view === 'grid'}
+          aria-label="Grade"
+          onClick={() => onView('grid')}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            shapeRendering="crispEdges"
+            aria-hidden="true"
+          >
+            <path d="M20 4h-7v7h7V4h2v16h-2v-7h-7v7h7v2H4v-2h7v-7H4v7H2V4h2v7h7V4H4V2h16v2Z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={styles.viewButton}
+          aria-pressed={view === 'list'}
+          aria-label="Lista"
+          onClick={() => onView('list')}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+            shapeRendering="crispEdges"
+            aria-hidden="true"
+          >
+            <path d="M10 5h12v2H10zm0 4h8v2h-8zm0 4h12v2H10zm0 4h8v2h-8zM4 7v2h2V7H4Zm4 4H2V5h6v6Zm-6 2h6v2H2zm0 4h6v2H2zm0 0v-2h2v2zm4 0v-2h2v2z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Recents and search results, as tiles or rows. `when` picks the date shown (opened or modified).
+// Folders (only in search results) open the folder and keep the folder menu, color included.
+function ItemsLayout({ items, view, when, accountName, menuContext }) {
+  const location = useLocation()
+  const folderColors = useFolderColors()
+
+  function linkProps(item) {
+    return item.kind === 'folder'
+      ? { to: driveFolderUrl(item.connectionId, item.ref), state: { folderName: item.name } }
+      : { to: driveFileUrl(item.connectionId, item.ref), state: fileNavState(location) }
+  }
+
+  // A row's face is 80×60, too small for the regular folder drawing.
+  function face(item) {
+    return item.kind === 'folder'
+      ? <FolderArt color={folderColors.colorOf(item.connectionId, item.ref).hex} size={view === 'list' ? 'small' : 'regular'} />
+      : <FileThumb file={item} align="center" fit="cover" />
+  }
+
+  function menuItems(item) {
+    if (item.kind !== 'folder') return fileMenuItems(entryMenuFile(item), menuContext(item))
+    const color = folderColors.colorOf(item.connectionId, item.ref)
+    return folderMenuItems(item, {
+      ...menuContext(item),
+      colorPicker: {
+        swatch: color.hex,
+        panel: ({ close }) => (
+          <FolderColorPalette
+            selectedId={color.id}
+            onPick={(id) => {
+              folderColors.setColor(item.connectionId, item.ref, id)
+              close()
+            }}
+          />
+        ),
+      },
+    })
+  }
+
+  if (view === 'list') {
+    return (
+      <div className={styles.list}>
+        {items.map((item, index) => (
+          <StaggerItem
+            key={`${item.connectionId}-${item.ref}`}
+            index={index}
+            base={0.04}
+            step={0.025}
+            variants={rise}
+            className={styles.rowWrap}
+          >
+            <Link {...linkProps(item)} className={styles.row} aria-label={item.name}>
+              <span className={styles.rowFace} aria-hidden="true">{face(item)}</span>
+              <span className={styles.rowBody}>
+                <span className={styles.rowTitle}>{item.name}</span>
+                <span className={styles.rowSub}>
+                  {itemKindLabel(item)} · {accountName(item.connectionId, item.provider)}
+                </span>
+              </span>
+              <span className={styles.rowWhen}>{formatRelativeTime(when(item))}</span>
+              <span className={styles.rowMark}>
+                <ProviderMark id={item.provider} size={16} />
+              </span>
+            </Link>
+            <OverflowMenu contextual label={`Ações de ${item.name}`} title={item.name} items={menuItems(item)} />
+          </StaggerItem>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.grid}>
+      {items.map((item, index) => (
+        <StaggerItem
+          key={`${item.connectionId}-${item.ref}`}
+          index={index}
+          base={0.04}
+          step={0.025}
+          variants={rise}
+          className={styles.cardWrap}
+        >
+          <Link {...linkProps(item)} className={styles.tile} aria-label={item.name}>
+            <span className={styles.tileFace} aria-hidden="true">
+              {face(item)}
+              <span className={styles.tileMark}>
+                <ProviderMark id={item.provider} size={14} />
+              </span>
+            </span>
+            <span className={styles.tileMeta}>
+              <span className={styles.tileTitle}>{item.name}</span>
+              <span className={styles.rowSub}>
+                {itemKindLabel(item)} · {formatRelativeTime(when(item))}
+              </span>
+            </span>
+          </Link>
+          <OverflowMenu contextual label={`Ações de ${item.name}`} title={item.name} items={menuItems(item)} />
+        </StaggerItem>
+      ))}
+    </div>
   )
 }
 
