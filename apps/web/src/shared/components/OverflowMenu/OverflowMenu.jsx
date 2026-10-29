@@ -22,6 +22,10 @@ export default function OverflowMenu({
   // `contextual`: no trigger button; a right click (or the context menu key) on the card that holds
   // the menu opens it where the pointer is.
   const [point, setPoint] = useState(null)
+  // A contextual menu is built on its first opening, not with its card: a page of tiles drew a closed menu
+  // for each one. Built closed and opened a frame later, the panel still unrolls the first time.
+  const [built, setBuilt] = useState(false)
+  const builtRef = useRef(false)
 
   useEffect(() => {
     if (!contextual) return undefined
@@ -36,7 +40,13 @@ export default function OverflowMenu({
         y: fromPointer ? event.clientY - rect.top : 8,
         at: Date.now(),
       })
-      openMenu()
+      if (builtRef.current) {
+        openMenu()
+        return
+      }
+      builtRef.current = true
+      setBuilt(true)
+      requestAnimationFrame(() => requestAnimationFrame(openMenu))
     }
     host.addEventListener('contextmenu', handleContextMenu)
     return () => host.removeEventListener('contextmenu', handleContextMenu)
@@ -68,19 +78,21 @@ export default function OverflowMenu({
           aria-label={label}
           style={point ? { left: point.x, top: point.y } : undefined}
         />
-        {/* Kept mounted so the panel still unrolls on open; a new point only moves it. */}
-        <AnchoredSuspendedMenu
-          id={extrasId}
-          labelledBy={triggerId}
-          open={menu.open}
-          closing={menu.closing}
-          items={wrappedItems}
-          title={title}
-          triggerRef={triggerRef}
-          panelRef={menuRef}
-          prefer="below"
-          anchorKey={point?.at ?? null}
-        />
+        {/* Once built it stays mounted, so the panel still unrolls on open; a new point only moves it. */}
+        {built ? (
+          <AnchoredSuspendedMenu
+            id={extrasId}
+            labelledBy={triggerId}
+            open={menu.open}
+            closing={menu.closing}
+            items={wrappedItems}
+            title={title}
+            triggerRef={triggerRef}
+            panelRef={menuRef}
+            prefer="below"
+            anchorKey={point?.at ?? null}
+          />
+        ) : null}
       </div>
     )
   }
