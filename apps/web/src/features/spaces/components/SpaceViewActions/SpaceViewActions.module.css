@@ -3,8 +3,8 @@
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  width: 176px;
-  min-width: 176px;
+  width: 192px;
+  min-width: 192px;
 }
 
 /* One rounded control that opens the menu. */
