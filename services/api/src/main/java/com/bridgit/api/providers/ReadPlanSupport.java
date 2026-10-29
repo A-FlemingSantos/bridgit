@@ -10,7 +10,7 @@ public final class ReadPlanSupport {
   private static final long TEXT_MAX_BYTES = EDIT_MAX_BYTES;
 
   private static final Set<String> TEXT_EXTENSIONS = Set.of(
-      "json", "xml", "md", "csv", "log", "yml", "yaml",
+      "json", "xml", "md", "markdown", "csv", "log", "yml", "yaml",
       "txt", "text", "ini", "cfg", "conf", "properties",
       "java", "js", "jsx", "ts", "tsx", "mjs", "cjs",
       "py", "rb", "go", "rs", "c", "cc", "cpp", "h", "hpp", "cs",

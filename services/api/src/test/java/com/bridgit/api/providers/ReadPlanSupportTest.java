@@ -44,6 +44,13 @@ class ReadPlanSupportTest {
   }
 
   @Test
+  void markdownExtensionUsesTextModeWithoutTextMime() {
+    CloudItem item = file("notas.markdown", "application/octet-stream", 1024L);
+    assertEquals(ReadMode.TEXT, ReadPlanSupport.readPlan(CloudProvider.ONEDRIVE, item).mode());
+    assertTrue(ReadPlanSupport.isEditableText(CloudProvider.ONEDRIVE, item.withVersions("v1", "c1")));
+  }
+
+  @Test
   void onedriveDocxUsesReadPdf() {
     CloudItem item = file(
         "report.docx",
