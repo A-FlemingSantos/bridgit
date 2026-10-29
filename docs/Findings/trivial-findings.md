@@ -119,7 +119,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | `JwtAuthenticationFilter` usa `OffsetDateTime.now()` e `BaseEntity` usa `OffsetDateTime.now(UTC)`, e não o `Clock` injetado (✅ o filtro passou a usar o `Clock` em `fix/seguranca`; `BaseEntity` continua) | `JwtAuthenticationFilter`, `BaseEntity` |
 | risco | `DatasourceSafetyGuard` só confere o nome do banco, não o host, e não roda em `@SpringBootTest` | `DatasourceSafetyGuard` |
 | morto | ✅ `app.time.zone-id` não tem consumidor | `application.yml` |
-| lacuna | ✅ Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms`, `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
+| lacuna | ✅ Propriedades usadas mas ausentes do `application.yml` (todas com padrão no código): `app.search.budget-ms` (removida com o finding 18), `app.hub.upload-cleanup-poll-ms`, `worker-poll-ms`, `watch-poll-ms`, `operation-poll-ms`, `upload-global-bytes`, `upload-user-bytes`, `disabled-providers` | `application.yml` |
 
 ### Autenticação, contas e sessões
 
@@ -178,7 +178,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | lacuna | Só `/me/drive`; sem SharePoint, outros drives ou compartilhados comigo | `GraphProviderClient` |
 | lacuna | ID da raiz buscado a cada `get`, `ancestry` e `update`; `ancestry` faz N+2 chamadas | `GraphProviderClient` |
-| lacuna | Busca sem paginação | `GraphProviderClient` |
+| lacuna | ✅ Busca sem paginação (não procede mais: a busca saiu dos provedores no finding 18) | `GraphProviderClient` |
 | lacuna | Upload em sessão sem retomada | `GraphProviderClient` |
 | inconsistência | `PUT` simples sem `conflictBehavior` substitui arquivo de mesmo nome; pasta e sessão renomeiam | `GraphProviderClient` |
 | morto | ✅ Sobrecarga `authorizedDelete(accessToken, url)`; `DELTA_SELECT` é só um alias | `GraphProviderClient` |
@@ -194,9 +194,9 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | ✅ Só o primeiro pai é considerado; mover remove só o primeiro pai. Provável bug extra: itens na raiz têm pai `null`, então mover a partir da raiz não remove o pai antigo | `GoogleDriveProviderClient` |
 | lacuna | ✅ ID da raiz não é guardado; cada listagem da raiz e cada `get` fazem uma chamada extra | `GoogleDriveProviderClient` |
 | lacuna | Upload resumable feito num único `PUT`, sem retomada (fica aberto: com o limite de 50 MB a retomada ajuda pouco) | `GoogleDriveProviderClient` |
-| lacuna | Busca só por nome, sem paginação, sem validar consulta vazia (✅ pagina e ignora consulta vazia em `fix/google-drive`; continua só por nome) | `GoogleDriveProviderClient` |
+| lacuna | ✅ Busca só por nome, sem paginação, sem validar consulta vazia (não procede mais: a busca saiu dos provedores no finding 18) | `GoogleDriveProviderClient` |
 | inconsistência | ✅ Inventário com `corpora=user`; feed e canal cobrem drives compartilhados | `GoogleDriveProviderClient` |
-| inconsistência | `incompleteSearch` só é conferido no inventário (✅ em `fix/google-drive` a busca também confere e registra no log; a resposta ainda não diz ao cliente que é parcial) | `GoogleDriveProviderClient` |
+| inconsistência | ✅ `incompleteSearch` só é conferido no inventário (não procede mais: a busca saiu dos provedores no finding 18) | `GoogleDriveProviderClient` |
 | lacuna | ✅ Atalhos do Drive e Formulários tratados como arquivo comum | `ReadPlanSupport` |
 | risco | ✅ `ancestry` sem limite de profundidade nem proteção contra ciclo | `GoogleDriveProviderClient` |
 | lacuna | ✅ Limite de exportação (403 `exportSizeLimitExceeded`) vira `SEM_PERMISSAO` | `ProviderHttpSupport` |
@@ -209,7 +209,7 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 | lacuna | Sem upload em sessões; arquivos acima de 150 MB falhariam (hoje bloqueados antes, pelo limite de 50 MB) | `DropboxProviderClient` |
 | lacuna | Sem upload em modo `update` nem precondição por `rev`; a escrita condicional verifica e depois escreve, sem atomicidade | `DropboxProviderClient` |
 | risco | `autorename: true` em criar, enviar e mover esconde conflitos de nome | `DropboxProviderClient` |
-| lacuna | Busca sem continuação | `DropboxProviderClient` |
+| lacuna | ✅ Busca sem continuação (não procede mais: a busca saiu dos provedores no finding 18) | `DropboxProviderClient` |
 | lacuna | MIME deduzido por extensão, com 10 tipos | `DropboxProviderClient` |
 | lacuna | `get_metadata` repetido para pais e ancestrais, sem cache | `DropboxProviderClient` |
 | risco | ✅ Erros 409 classificados por substring; `insufficient_space` e `malformed_path` caem em `PROVEDOR_FALHOU` | `ProviderHttpSupport` |
@@ -271,10 +271,10 @@ Spaces (pares de sincronização) existem só no `localStorage` do navegador (`b
 |---|---|---|
 | risco | `listRecents` e `listShortcuts` fazem uma consulta por item para achar o provedor (N+1) | `HubService` |
 | risco | `trimRecents` carrega todos os recentes do usuário a cada inclusão | `HubService` |
-| lacuna | Executor da busca nunca é encerrado (threads virtuais; impacto baixo) | `SearchService` |
-| inconsistência | Busca responde 200 mesmo com todos os provedores falhando (mantido de propósito; ver "Não procedem mais") | `SearchService` |
+| lacuna | ✅ Executor da busca nunca é encerrado (o executor saiu com o finding 18) | `SearchService` |
+| inconsistência | Busca responde 200 mesmo com todas as conexões falhando (mantido de propósito; ver "Não procedem mais") | `SearchService` |
 | bug | ✅ `ReconnectionRequiredException` na busca vira `PROVEDOR_FALHOU`, e não `RECONEXAO_NECESSARIA` | `SearchService` |
-| lacuna | Busca não usa o catálogo | `SearchService` |
+| lacuna | ✅ Busca não usa o catálogo (finding 18) | `SearchService` |
 | lacuna | `LocalSyncFlag` só funciona em thread de requisição; o header só sai nas rotas antigas de escrita | `LocalSyncFlag` |
 | morto | ✅ Web: filtro local de atalhos e recentes durante a busca nunca aparece; `features/home/data/mock.js` sem uso | `HomePage.jsx` |
 | lacuna | Web: sem testes da exibição de recentes e atalhos na Home | testes |

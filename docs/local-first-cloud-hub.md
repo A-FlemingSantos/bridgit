@@ -38,6 +38,10 @@ Um usuário pode conectar mais de uma conta do mesmo provedor; a mesma conta rem
 
 `POST /api/.../items/{ref}/content` (multipart `file` + `expectedVersion`) sobrescreve o conteúdo preservando a identidade do item. Só vale para texto editável (`ReadPlanSupport.isEditableText`: leitura textual, até 2 MiB e com revisão de conteúdo conhecida). Sem `expectedVersion` responde 400 `VERSAO_OBRIGATORIA`; versão diferente da atual, 409 `ARQUIVO_ALTERADO`; arquivo não editável, 409 `EDICAO_INDISPONIVEL`. Passa pelo diário de operações como `REPLACE_CONTENT` e exige `Idempotency-Key`. O editor do web salva sozinho; ver `markdown-editor.md` para o modo markdown.
 
+## Busca
+
+`GET /api/search?q=` consulta só o catálogo SQL, nunca os provedores, e não tem plano B no provedor. Menos de 2 caracteres responde 400 `BUSCA_CURTA`. Para cada conexão do usuário, procura o termo em qualquer parte do nome, sem distinguir caixa nem acento (`%`, `_` e `[` valem como texto), com as regras da listagem: scan ativo, geração atual, `deleted = 0` e pai conhecido. Traz até 50 itens por conexão, e o total vem ordenado por nome. A resposta é `{results, providers}`. `results` são `CloudItem` + `connectionId`. `providers` tem uma entrada por conexão: `{id, ok, error, connectionId, catalog}`, em que `catalog` é o mesmo metadado da listagem. `coverage: "partial"` significa catálogo ainda sincronizando, e o web avisa "Ainda sincronizando X". Catálogo desligado para o provedor responde `ok=false` com `CATALOGO_INDISPONIVEL`. A resposta é 200 mesmo quando todas as conexões falham. Arquivos criados fora do Bridgit só aparecem depois da próxima sincronização, e não há busca por conteúdo.
+
 ## Garantias e limites
 
 - Checkpoints e páginas de sincronização são aplicados juntos. Reconstrução conserva a última geração válida.

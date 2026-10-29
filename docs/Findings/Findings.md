@@ -80,14 +80,16 @@ A conexão do Google Drive feita em 5/10 passou a exigir reconexão em 13/10. O 
 
 **Peso:** baixo, mas é uma lacuna de produto.
 
-**Status:** resolvido em parte em `fix/google-drive`; falta implementar a decisão de 14/10, abaixo. Conferido em 29/10: a consulta recursiva e o checkpoint `v=3` ainda não existem no código; só o `restrictToMyDrive` do feed está lá. A decisão foi ignorar esses itens de forma explícita. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
+> ✅ **Implementado** (branch `ui-improvments`, 29/10). Ao fim de um inventário completo do Drive, `CatalogStore.applyPage` apaga do scan em construção tudo o que não é alcançável a partir da raiz do Meu Drive (`pruneUnreachable`, CTE recursiva). Isso vale para o primeiro inventário e para as reconstruções, nunca para páginas incrementais. O checkpoint do Drive subiu para `v=3`, e a reconstrução que isso força remove os 9 itens atuais. A busca usa o catálogo (finding 18) e herdou a regra. O texto abaixo é o registro da decisão.
+
+**Status anterior:** resolvido em parte em `fix/google-drive`. A decisão foi ignorar esses itens de forma explícita. Itens sem pasta visível ficam fora do inventário, do feed e da busca; o feed e a inscrição ficam restritos ao Meu Drive, como o inventário. Os três órfãos de 13/10 saíram na reconstrução.
 
 ⚠️ **Visto em 14/10:** o filtro olha só se o item tem um pai. O conteúdo de uma pasta compartilhada que não foi adicionada ao Meu Drive tem pai (a própria pasta), então entra no inventário e na busca. A pasta em si fica de fora, porque não tem pai. Na conta real são 9 itens assim. Exemplo: as fotos `DSC00716.JPG` e outras, da pasta compartilhada "Olimpíadas da Matemática". Elas não aparecem em nenhuma pasta do hub, mas ficam gravadas no catálogo e aparecem na busca com `parentKnown=false`. Abrir uma delas mostra a pasta compartilhada como caminho, e dá para navegar por ela.
 
 **Decisão (14/10):** no Google Drive, só entra no catálogo o que é alcançável a partir da raiz do Meu Drive. Não haverá "Compartilhados comigo".
 - **Feed:** já não traz esses itens. O feed e a inscrição usam `restrictToMyDrive=true`, que omite arquivos compartilhados fora do Meu Drive. Nada a mudar.
 - **Inventário:** é o único caminho por onde esses itens entram, porque o `files.list` com `corpora=user` devolve tudo o que o usuário enxerga. No fim do inventário do Drive, antes de ativar o novo scan, uma consulta SQL recursiva (`WITH … UNION ALL`) parte dos itens da raiz e marca seus descendentes; o que não for marcado é apagado do scan em construção. É uma instrução no `CatalogStore`, usada só para o Drive. No OneDrive e no Dropbox tudo já está na árvore.
-- **Busca:** pelo finding 18, passa a usar o catálogo e herda a regra. Até lá, ainda consulta o provedor e mostra esses itens.
+- **Busca:** pelo finding 18, passa a usar o catálogo e herda a regra.
 - **Limpeza do que já está gravado:** o formato do checkpoint do Drive sobe para `v=3`, o que força uma nova reconstrução e remove os 9 itens atuais.
 - **Desempenho:** a consulta roda uma vez por inventário completo (ao conectar a conta ou numa reconstrução), nunca na navegação nem na sincronização incremental. Cada item é visitado uma vez, e o número de rodadas é a profundidade das pastas. Encontrar os filhos de uma pasta usa o índice `ix_catalog_parent`, o mesmo da listagem.
 - **Caso de borda aceito:** um arquivo movido do Meu Drive para uma pasta compartilhada de fora deve chegar pelo feed como removido. Se escapar, a próxima reconstrução corrige.
@@ -186,7 +188,7 @@ O web já tem parte disso: busca antecipada ao passar o mouse e cache de conteú
 
 **Peso:** médio. Simplifica o backend e alinha a busca com a navegação.
 
-**Status (29/10):** decidido, **não implementado**. `SearchService` ainda chama `client.search` em cada provedor.
+> ✅ **Implementado** (branch `ui-improvments`, 29/10). `SearchService` consulta só o catálogo (`CatalogStore.search`). Os métodos `search` saíram dos clientes de provedor, junto com o executor, o semáforo e `app.search.budget-ms`. Cada entrada de `providers` traz `catalog` com o mesmo `coverage`/`freshness` da listagem, e o web avisa "Ainda sincronizando X" quando a cobertura é parcial. Catálogo desligado para o provedor responde `CATALOGO_INDISPONIVEL`. O contrato está em "Busca", em `local-first-cloud-hub.md`. O texto abaixo é o registro da decisão.
 
 **Decisão (14/10):** a busca passa a consultar o catálogo SQL, sem chamar os provedores e sem plano B no provedor. A busca não precisa ser exata.
 
