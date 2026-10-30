@@ -176,8 +176,13 @@ export function getReadSource(token, connectionId, ref, refresh = false) {
   return apiRequest(`${itemPath(connectionId, ref)}/read`, { token, query: refresh ? { refresh: true } : undefined })
 }
 
+// For clients that download the preview themselves (mobile writes it to a file with the token header).
+export function itemThumbnailPath(connectionId, ref) {
+  return `${itemPath(connectionId, ref)}/thumbnail`
+}
+
 export function getThumbnail(token, connectionId, ref) {
-  return apiRequest(`${itemPath(connectionId, ref)}/thumbnail`, { token, responseType: 'blob' })
+  return apiRequest(itemThumbnailPath(connectionId, ref), { token, responseType: 'blob' })
 }
 
 export function createContentTicket(token, connectionId, ref, disposition) {
