@@ -92,7 +92,7 @@ function ActionTile({ icon: Icon, label, primary = false, sheetTitle, sheetHint,
           styles.card,
           primary
             ? { backgroundColor: theme.colors.ink, opacity: pressed ? 0.88 : 1 }
-            : { backgroundColor: pressed ? theme.colors.line : theme.colors.raise },
+            : { backgroundColor: pressed ? theme.colors.press : theme.colors.raise },
         ]}
       >
         <Icon size={24} color={ink} />

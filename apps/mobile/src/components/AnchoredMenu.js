@@ -75,7 +75,7 @@ export default function AnchoredMenu({ open, anchor, onClose, items, label }) {
             top: frame.y + frame.h + 6,
             left,
             backgroundColor: theme.colors.overlay,
-            borderColor: theme.colors.line,
+            borderColor: theme.colors.overlayLine,
             shadowOpacity: isDark ? 0.4 : 0.12,
             opacity: progress,
             transform: [
@@ -94,7 +94,7 @@ export default function AnchoredMenu({ open, anchor, onClose, items, label }) {
               onSelect()
               onClose()
             }}
-            style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.raise } : null]}
+            style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.overlayPress } : null]}
           >
             <View style={styles.icon}>{Icon ? <Icon size={20} color={theme.colors.mute} /> : null}</View>
             <AppText numberOfLines={1} style={[styles.label, { color: theme.colors.ink }]}>{itemLabel}</AppText>

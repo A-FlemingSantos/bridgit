@@ -16,7 +16,7 @@ export default function FolderColorPalette({ selectedId, onPick }) {
             onPress={() => onPick(color.id)}
             style={[styles.swatch, { backgroundColor: color.hex }]}
           >
-            {selected ? <PixelCheck size={16} color={color.light ? '#1c1c1c' : '#ffffff'} /> : null}
+            {selected ? <PixelCheck size={16} color={color.light ? '#18181b' : '#ffffff'} /> : null}
           </Pressable>
         )
       })}

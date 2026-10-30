@@ -66,7 +66,7 @@ function Item({ icon, title, subtitle = null, active = false, ghost = false, onP
         delayLongPress={420}
         style={({ pressed }) => [
           styles.item,
-          active || pressed ? { backgroundColor: theme.colors.raise } : null,
+          active || pressed ? { backgroundColor: theme.colors.sheetRaise } : null,
           ghost ? styles.ghost : null,
         ]}
       >
@@ -157,7 +157,7 @@ export default function SidePanel({
   return (
     <Overlay>
       <View style={StyleSheet.absoluteFill} onLayout={onReady}>
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdrop }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.scrim, opacity: backdrop }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Fechar painel" />
       </Animated.View>
       <Animated.View
@@ -167,8 +167,8 @@ export default function SidePanel({
           styles.panel,
           {
             width,
-            backgroundColor: theme.colors.wash,
-            borderColor: theme.colors.line,
+            backgroundColor: theme.colors.sheet,
+            borderColor: theme.colors.sheetLine,
             paddingTop: insets.top + 20,
             paddingBottom: Math.max(insets.bottom, 12),
             transform: [{ translateX }],
@@ -191,7 +191,7 @@ export default function SidePanel({
               return (
                 <Item
                   key={connection.connectionId}
-                  icon={<AccountAvatar connection={connection} size={28} ring={theme.colors.wash} />}
+                  icon={<AccountAvatar connection={connection} size={28} ring={theme.colors.sheet} fill={theme.colors.sheetRaise} />}
                   title={title}
                   label={`${title} · ${connection.providerName}`}
                   subtitle={expired ? 'Acesso expirado · Reconectar' : subtitle}
@@ -289,7 +289,7 @@ export default function SidePanel({
           </Group>
         </ScrollView>
 
-        <View style={[styles.footer, { borderTopColor: theme.colors.line }]}>
+        <View style={[styles.footer, { borderTopColor: theme.colors.sheetLine }]}>
           <Item icon={<PixelGear size={18} color={theme.colors.mute} />} title="Ajustes" onPress={() => go(onOpenSettings)} />
         </View>
       </Animated.View>
@@ -299,9 +299,6 @@ export default function SidePanel({
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.42)',
-  },
   panel: {
     position: 'absolute',
     top: 0,

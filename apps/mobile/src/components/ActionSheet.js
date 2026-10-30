@@ -53,7 +53,7 @@ function Tile({ item, onPick }) {
       onPress={() => onPick(item)}
       style={({ pressed }) => [
         styles.tile,
-        { backgroundColor: pressed ? theme.colors.line : theme.colors.raise },
+        { backgroundColor: pressed ? theme.colors.sheetPress : theme.colors.sheetRaise },
         item.disabled ? styles.disabled : null,
       ]}
     >
@@ -68,7 +68,7 @@ function Row({ item, expanded, onPick, onClose }) {
   const Icon = item.icon
   const color = item.danger ? theme.colors.danger : theme.colors.ink
   return (
-    <View style={{ backgroundColor: theme.colors.raise }}>
+    <View style={{ backgroundColor: theme.colors.sheetRaise }}>
       <Pressable
         accessibilityRole="menuitem"
         accessibilityLabel={item.label}
@@ -77,7 +77,7 @@ function Row({ item, expanded, onPick, onClose }) {
         onPress={() => onPick(item)}
         style={({ pressed }) => [
           styles.row,
-          pressed ? { backgroundColor: theme.colors.line } : null,
+          pressed ? { backgroundColor: theme.colors.sheetPress } : null,
           item.disabled ? styles.disabled : null,
         ]}
       >
@@ -102,7 +102,7 @@ function Row({ item, expanded, onPick, onClose }) {
 // `children` (a form, a confirmation) goes under the list.
 export default function ActionSheet({ open, onClose, header = null, tiles = [], items = [], children = null }) {
   const insets = useSafeAreaInsets()
-  const { theme, isDark } = useMobileTheme()
+  const { theme } = useMobileTheme()
   const { mounted, offset: translateY, backdrop, onReady, afterClose } = useSlideModal(open, {
     onClose,
     from: OFFSCREEN,
@@ -214,7 +214,7 @@ export default function ActionSheet({ open, onClose, header = null, tiles = [], 
           onReady()
         }}
       >
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: backdrop }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.scrim, opacity: backdrop }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Fechar menu" />
       </Animated.View>
       <Animated.View
@@ -223,8 +223,7 @@ export default function ActionSheet({ open, onClose, header = null, tiles = [], 
         style={[
           styles.sheet,
           {
-            backgroundColor: theme.colors.paper,
-            borderColor: isDark ? theme.colors.line : 'transparent',
+            backgroundColor: theme.colors.sheet,
             paddingBottom: 0,
             transform: [{ translateY }],
           },
@@ -240,7 +239,7 @@ export default function ActionSheet({ open, onClose, header = null, tiles = [], 
           </View>
         ) : null}
         {items.length ? (
-          <View accessibilityRole="menu" style={[styles.group, { backgroundColor: theme.colors.paper }]}>
+          <View accessibilityRole="menu" style={[styles.group, { backgroundColor: theme.colors.sheet }]}>
             {items.map((item) => (
               <Row
                 key={item.id}
@@ -292,9 +291,6 @@ export function SheetHeader({ leading = null, title, subtitle = null, centered =
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
   sheet: {
     position: 'absolute',
     left: 0,
@@ -303,8 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: 0,
     gap: 16,
   },
   handleZone: {

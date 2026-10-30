@@ -23,7 +23,7 @@ export function SheetButton({ label, onPress, variant = 'plain', disabled = fals
     ? theme.colors.ink
     : variant === 'danger'
       ? theme.colors.danger
-      : theme.colors.raise
+      : theme.colors.sheetRaise
   const color = variant === 'plain' ? theme.colors.ink : theme.colors.paper
   return (
     <Pressable
@@ -160,7 +160,7 @@ export function Notice({ message }) {
             styles.notice,
             {
               backgroundColor: theme.colors.overlay,
-              borderColor: theme.colors.line,
+              borderColor: theme.colors.overlayLine,
               shadowOpacity: isDark ? 0.4 : 0.12,
             },
           ]}

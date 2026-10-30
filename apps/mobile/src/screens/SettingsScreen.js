@@ -116,7 +116,7 @@ function Row({
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        pressed ? { backgroundColor: theme.colors.line } : null,
+        pressed ? { backgroundColor: theme.colors.press } : null,
         disabled ? styles.disabled : null,
       ]}
     >
@@ -132,7 +132,7 @@ function Pill({ label, onPress }) {
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.pill, { backgroundColor: pressed ? theme.colors.line : theme.colors.raise }]}
+      style={({ pressed }) => [styles.pill, { backgroundColor: pressed ? theme.colors.press : theme.colors.raise }]}
     >
       <AppText weight="500" style={[styles.pillLabel, { color: theme.colors.ink }]}>{label}</AppText>
     </Pressable>
@@ -168,7 +168,7 @@ function SignOutButton({ label, onPress }) {
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [styles.rowAction, pressed ? { backgroundColor: theme.colors.line } : null]}
+      style={({ pressed }) => [styles.rowAction, pressed ? { backgroundColor: theme.colors.press } : null]}
     >
       <Minus size={18} strokeWidth={1.8} color={theme.colors.mute} />
     </Pressable>
@@ -425,7 +425,7 @@ export default function SettingsScreen({ navigation }) {
                   disabled={!url}
                   onPress={() => Linking.openURL(url).catch(() => {})}
                   hitSlop={6}
-                  style={({ pressed }) => [styles.social, pressed ? { backgroundColor: theme.colors.line } : null]}
+                  style={({ pressed }) => [styles.social, pressed ? { backgroundColor: theme.colors.press } : null]}
                 >
                   <Icon size={24} color={theme.colors.ink} />
                 </Pressable>
