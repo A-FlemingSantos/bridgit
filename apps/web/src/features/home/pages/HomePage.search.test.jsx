@@ -267,6 +267,54 @@ describe('HomePage busca com catálogo ainda sincronizando', () => {
   })
 })
 
+describe('HomePage modo de busca com qualquer texto no campo', () => {
+  const ready = {
+    status: 'ready',
+    results: [fileItem],
+    providers: [{ id: 'onedrive', connectionId: 'conn-od', ok: true, error: null }],
+    error: null,
+  }
+
+  it('uma letra já abre a busca e pede a segunda, sem trazer os recentes', async () => {
+    const user = userEvent.setup()
+    setup({ status: 'idle', results: [], providers: [], error: null })
+    renderPage()
+    await typeQuery(user, 'r')
+
+    expect(screen.getByText('Digite pelo menos 2 letras para buscar.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recentes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Criar' })).not.toBeInTheDocument()
+  })
+
+  it('redigitar sobre o texto selecionado mantém os resultados anteriores na primeira letra', async () => {
+    const user = userEvent.setup()
+    setup(ready)
+    renderPage()
+    await typeQuery(user, 'rel')
+    expect(await screen.findByRole('link', { name: 'Relatório.pdf' })).toBeInTheDocument()
+
+    const field = screen.getByRole('searchbox', { name: 'Buscar' })
+    await user.tripleClick(field)
+    await user.keyboard('b')
+
+    expect(field).toHaveValue('b')
+    expect(screen.getByRole('link', { name: 'Relatório.pdf' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recentes' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Criar' })).not.toBeInTheDocument()
+  })
+
+  it('só o campo vazio traz as ações e os recentes de volta', async () => {
+    const user = userEvent.setup()
+    setup(ready)
+    renderPage()
+    await typeQuery(user, 'rel')
+    await user.clear(screen.getByRole('searchbox', { name: 'Buscar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar' })).toBeInTheDocument()
+  })
+})
+
 describe('HomePage busca com mais de uma conta do mesmo provedor', () => {
   const second = { ...fileItem, connectionId: 'conn-od-2', ref: 'file-2', name: 'Outro.pdf', uiKey: 'conn-od-2-file-2' }
 

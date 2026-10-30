@@ -98,8 +98,11 @@ export default function HomePage() {
   // stay while the actions unfold, and only then do the recents return. Each swap renders as a transition,
   // in slices, so the tiles' own entrance keeps its frames.
   const [actionsFolded, setActionsFolded] = useState(false)
-  // The search that was on screen when the field was cleared, kept until the actions have unfolded.
+  // The last answer shown, kept while the field holds too little to search (one letter, or a word being
+  // retyped over a selection) and while the actions unfold on the way out.
   const [heldSearch, setHeldSearch] = useState(null)
+  // Leaving the search: the results stay until the actions have unfolded.
+  const [leaving, setLeaving] = useState(false)
   const [actionError, setActionError] = useState(null)
   const operationError = actions.getOperationError?.() ?? null
   useEffect(() => { if (operationError) setActionError(operationError) }, [operationError])
@@ -117,9 +120,12 @@ export default function HomePage() {
 
   const recents = recentsQuery.entries
   const normalized = query.trim().toLowerCase()
-  const searching = normalized.length >= 2
-  const shownSearch = searching ? search : heldSearch
-  const showResults = searching ? actionsFolded : heldSearch !== null
+  // Any text in the field keeps the search open; only an empty field brings the actions and the recents back.
+  // The server needs two letters (BUSCA_CURTA), so below that the last answer stays on screen.
+  const searching = normalized.length > 0
+  const queryable = normalized.length >= 2
+  const shownSearch = queryable ? search : heldSearch
+  const showResults = searching ? actionsFolded : leaving
 
   // A cloud account is what the lists are split by. Its name is the provider name, plus the account e-mail
   // when that provider has several accounts.
@@ -156,11 +162,12 @@ export default function HomePage() {
   const allFailed = queried.length > 0 && failedAccounts.length === queried.length
   const someFailed = failedAccounts.length > 0 && !allFailed
 
-  // Runs the same search again; the results on screen stay until the new answer.
+  // Runs the same search again; the results on screen stay until the new answer. Cutting the query to its
+  // first letter keeps the search open while the hook sees a new query.
   function retrySearch() {
     const current = query
     setHeldSearch(search)
-    setQuery('')
+    setQuery(current.trim().charAt(0))
     window.setTimeout(() => setQuery(current), 0)
   }
 
@@ -240,9 +247,11 @@ export default function HomePage() {
             value={query}
             onChange={(event) => {
               const next = event.target.value
-              // Leaving a search: its results stay while the actions unfold; then the recents return.
-              if (searching && next.trim().length < 2) {
-                setHeldSearch(search)
+              const length = next.trim().length
+              if (queryable && length < 2) setHeldSearch(search)
+              // Leaving the search: its results stay while the actions unfold; then the recents return.
+              if (searching && length === 0) {
+                setLeaving(true)
                 setActionsFolded(false)
               }
               setQuery(next)
@@ -263,7 +272,12 @@ export default function HomePage() {
               onAnimationStart={() => setActionsResting(false)}
               onAnimationComplete={(definition) => {
                 setActionsResting(true)
-                if (definition === 'show') startTransition(() => setHeldSearch(null))
+                if (definition === 'show') {
+                  startTransition(() => {
+                    setLeaving(false)
+                    setHeldSearch(null)
+                  })
+                }
               }}
             >
               <div className={styles.actions}>
@@ -341,7 +355,9 @@ export default function HomePage() {
             <header className={styles.sectionHead}>
               <h2 className={styles.heading}>Resultados</h2>
             </header>
-            {shownSearch.status === 'loading' || shownSearch.status === 'idle' ? (
+            {!shownSearch ? (
+              <p className={styles.empty}>Digite pelo menos 2 letras para buscar.</p>
+            ) : shownSearch.status === 'loading' || shownSearch.status === 'idle' ? (
               <p className={styles.empty}>Buscando…</p>
             ) : shownSearch.status === 'error' ? (
               <>
