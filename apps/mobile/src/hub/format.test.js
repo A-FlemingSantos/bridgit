@@ -22,6 +22,14 @@ describe('toEntry', () => {
     })
   })
 
+  it('carries what the thumbnail needs: extension, revision and modification time', () => {
+    expect(toEntry({ ref: 'a', name: 'Plano.DOCX', kind: 'file', contentRevision: 'c3', remoteVersion: 'v1', modifiedAt: '2026-10-01T10:00:00Z' }))
+      .toMatchObject({ extension: 'docx', revision: 'c3', modifiedAt: '2026-10-01T10:00:00Z' })
+    expect(toEntry({ ref: 'b', name: 'x', kind: 'file', extension: '.PDF', remoteVersion: 'v2' }))
+      .toMatchObject({ extension: 'pdf', revision: 'v2', modifiedAt: null })
+    expect(toEntry({ ref: 'g', name: 'Doc', kind: 'file' })).toMatchObject({ extension: '', revision: null })
+  })
+
   it('keeps the connection the list was loaded from', () => {
     expect(toEntry({ ref: 'f', name: 'x', kind: 'folder', provider: 'dropbox', connectionId: 'other' }, 'c2')).toMatchObject({
       connectionId: 'c2', providerId: 'dropbox', isFolder: true, kind: 'Pasta',

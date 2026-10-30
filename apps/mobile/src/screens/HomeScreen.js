@@ -6,7 +6,7 @@ import ActionDialog, { Notice } from '../components/ActionDialog'
 import ActionSheet, { SheetHeader } from '../components/ActionSheet'
 import AnchoredMenu from '../components/AnchoredMenu'
 import { accountLine } from '../components/accountDisplay'
-import FileSheet from '../components/FileSheet'
+import FileThumb from '../components/FileThumb'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
 import {
@@ -54,7 +54,7 @@ function fileHeader(file) {
   return (
     <SheetHeader
       centered
-      leading={<FileSheet file={file} size={48} />}
+      leading={<FileThumb file={file} size={48} />}
       title={file.name}
       subtitle={`${file.kind} · ${providerName(file.providerId)}`}
     />
@@ -354,7 +354,7 @@ export default function HomeScreen({ navigation }) {
                             style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.colors.wash } : null]}
                           >
                             <View style={styles.rowFace}>
-                              <FileSheet compact file={file} />
+                              <FileThumb file={file} size={24} fit="cover" style={styles.rowThumb} />
                             </View>
                             <View style={styles.rowBody}>
                               <AppText weight="500" numberOfLines={1} style={styles.rowTitle}>{file.name}</AppText>
@@ -408,7 +408,7 @@ export default function HomeScreen({ navigation }) {
                                   { backgroundColor: pressed ? theme.colors.raise : theme.colors.wash },
                                 ]}
                               >
-                                <FileSheet file={file} size={tileSheet} />
+                                <FileThumb file={file} size={tileSheet} fit="cover" dimmed={pressed} style={styles.tileThumb} />
                                 <View style={styles.tileMark}>
                                   <ProviderMark id={file.providerId} size={14} />
                                 </View>
@@ -556,6 +556,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rowThumb: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 4,
+  },
   rowBody: {
     flex: 1,
     minWidth: 0,
@@ -589,6 +593,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  tileThumb: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 6,
   },
   tileMark: {
     position: 'absolute',

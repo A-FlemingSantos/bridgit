@@ -4,7 +4,7 @@ import CollapsingHeader from '../components/CollapsingHeader'
 import ActionDialog, { Notice } from '../components/ActionDialog'
 import { SheetHeader } from '../components/ActionSheet'
 import CreateFab from '../components/CreateFab'
-import FileSheet from '../components/FileSheet'
+import FileThumb from '../components/FileThumb'
 import FolderMark from '../components/FolderMark'
 import HoldMenu from '../components/OverflowMenu'
 import { PixelFolderOpen } from '../components/PixelIcons'
@@ -165,7 +165,7 @@ export default function FolderScreen({ navigation, route }) {
                   header={(
                     <SheetHeader
                       centered
-                      leading={<FileSheet file={file} size={48} />}
+                      leading={<FileThumb file={file} size={48} />}
                       title={file.name}
                       subtitle={`${file.kind} · ${providerName()}`}
                     />
@@ -182,9 +182,7 @@ export default function FolderScreen({ navigation, route }) {
                       onPress={() => navigation.push('File', { connectionId, providerId, fileRef: file.ref })}
                       style={({ pressed }) => [styles.item, pressed ? { backgroundColor: theme.colors.wash } : null]}
                     >
-                      <View style={styles.face}>
-                        <FileSheet file={file} size={fileSize} />
-                      </View>
+                      <FileThumb file={file} size={fileSize} badge style={styles.face} />
                       <View style={styles.meta}>
                         <AppText numberOfLines={1} style={styles.itemTitle}>{file.name}</AppText>
                         <AppText numberOfLines={1} style={[styles.itemSub, { color: theme.colors.mute }]}>

@@ -19,7 +19,7 @@ import AppText from '../theme/AppText'
 import { useMobileTheme } from '../theme/ThemeProvider'
 import { useNativeDriver } from '../theme/motion'
 import { SheetHeader } from './ActionSheet'
-import FileSheet from './FileSheet'
+import FileThumb from './FileThumb'
 import HoldMenu from './OverflowMenu'
 import { PixelFolder, PixelGear, PixelHome, PixelLink, PixelMore, PixelUnlink } from './PixelIcons'
 import AccountAvatar from './AccountAvatar'
@@ -269,7 +269,7 @@ export default function SidePanel({
                 header={(
                   <SheetHeader
                     centered
-                    leading={<FileSheet file={file} size={48} />}
+                    leading={<FileThumb file={file} size={48} />}
                     title={file.name}
                     subtitle={`${file.kind} · ${PROVIDER_LABELS[file.providerId] ?? file.providerId}`}
                   />

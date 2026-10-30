@@ -51,8 +51,13 @@ export function toEntry(item, connectionId = item.connectionId) {
     providerId: item.provider ?? null,
     isFolder: item.kind === 'folder',
     mimeType: item.mimeType ?? null,
+    // Lower case, no dot ("pdf"): what the thumbnail and file-type icon rules read.
+    extension: String(item.extension || splitExtension(item.name).extension).replace(/^\./, '').toLowerCase(),
     size: item.size ?? null,
     version: item.remoteVersion ?? null,
+    // Keys a cached thumbnail; native Google files have no content revision, only their version.
+    revision: item.contentRevision ?? item.remoteVersion ?? null,
+    modifiedAt: item.modifiedAt ?? null,
     pinned: Boolean(item.pinnedAt),
     when: item.openedAt ? formatWhen(item.openedAt) : null,
     modified: formatItemDate(item.modifiedAt),
