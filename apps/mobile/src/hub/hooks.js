@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getItem, getReadSource, isSessionFailure, listFolder, listPublicLinks, listRecents, listShortcuts, recordRecent } from '@bridgit/shared-client'
+import { getItem, getReadSource, isSessionFailure, listFolder, listPublicLinks, listRecents, listShortcuts, recordRecent, search } from '@bridgit/shared-client'
 import { useSession } from '../auth/SessionContext'
 import { useHub } from './HubContext'
 import { fileScopes, folderScopes, HOME } from './eventScopes'
 import { formatWhen, toEntry } from './format'
 import { createLatestRunner } from './invalidation'
+import { SEARCH_MIN_LENGTH, searchEntries } from './search'
 
 const MAX_PAGES = 20
 
@@ -51,6 +52,60 @@ function useResource(load, key, scopes) {
   useEffect(() => () => runner.cancel(), [runner])
 
   return { ...state, reload: run }
+}
+
+// Answers of the last minute, by session and query: typing a word back does not ask again.
+const searchCache = new Map()
+const SEARCH_CACHE_MS = 60 * 1000
+const SEARCH_DELAY_MS = 300
+
+// Searches every account as the user types, like the web: from two letters, once typing pauses. Only the
+// answer to the latest query is published. `status` is 'idle' (too short), 'loading', 'ready' or 'error'.
+export function useSearch(query) {
+  const { token, invalidate } = useSession()
+  const trimmed = query.trim()
+  const [state, setState] = useState({ query: null, status: 'idle', results: [], providers: [], error: null })
+  const [attempt, setAttempt] = useState(0)
+  const latest = useRef(0)
+
+  useEffect(() => {
+    latest.current += 1
+    const id = latest.current
+    if (!token || trimmed.length < SEARCH_MIN_LENGTH) return undefined
+    const key = `${token}\0${trimmed}`
+    const publish = (data) => {
+      if (latest.current !== id) return
+      setState({ query: trimmed, status: 'ready', results: searchEntries(data), providers: data?.providers ?? [], error: null })
+    }
+    const cached = searchCache.get(key)
+    if (cached && cached.until > Date.now()) {
+      publish(cached.data)
+      return undefined
+    }
+    const timer = setTimeout(() => {
+      search(token, trimmed).then((data) => {
+        searchCache.set(key, { data, until: Date.now() + SEARCH_CACHE_MS })
+        publish(data)
+      }).catch((error) => {
+        if (isSessionFailure(error)) {
+          invalidate()
+          return
+        }
+        if (latest.current === id) setState({ query: trimmed, status: 'error', results: [], providers: [], error })
+      })
+    }, SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [token, trimmed, attempt, invalidate])
+
+  // Asks the cloud again for the same query, past the cache.
+  const retry = useCallback(() => {
+    searchCache.delete(`${token}\0${trimmed}`)
+    setAttempt((value) => value + 1)
+  }, [token, trimmed])
+
+  if (trimmed.length < SEARCH_MIN_LENGTH) return { status: 'idle', results: [], providers: [], error: null, retry }
+  if (state.query !== trimmed) return { status: 'loading', results: [], providers: [], error: null, retry }
+  return { ...state, retry }
 }
 
 export function useProviders() {

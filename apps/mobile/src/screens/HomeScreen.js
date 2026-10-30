@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
+import { BackHandler, Keyboard, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { Clock } from 'lucide-react-native'
 import CollapsingHeader from '../components/CollapsingHeader'
 import ActionDialog, { Notice } from '../components/ActionDialog'
@@ -7,6 +7,7 @@ import ActionSheet, { SheetHeader } from '../components/ActionSheet'
 import AnchoredMenu from '../components/AnchoredMenu'
 import { accountLine } from '../components/accountDisplay'
 import FileThumb from '../components/FileThumb'
+import FolderMark from '../components/FolderMark'
 import HomeHeader from '../components/HomeHeader'
 import HoldMenu from '../components/OverflowMenu'
 import {
@@ -22,10 +23,13 @@ import {
   PixelUpload,
 } from '../components/PixelIcons'
 import ProviderMark from '../components/ProviderMark'
+import SearchPill from '../components/SearchPill'
+import { useScrollReveal } from '../components/useScrollReveal'
 import SidePanel from '../components/SidePanel'
 import Spinner from '../components/Spinner'
 import StaggerItem from '../components/StaggerItem'
-import { useConnections, useHomeEntries } from '../hub/hooks'
+import { useConnections, useHomeEntries, useSearch } from '../hub/hooks'
+import { SEARCH_MIN_LENGTH, summarizeSearch } from '../hub/search'
 import { needsReconnect } from '../hub/format'
 import { canPickFolder } from '../hub/pickFolder'
 import { useConnectAccount } from '../hub/useConnectAccount'
@@ -36,6 +40,7 @@ import { useMobileTheme } from '../theme/ThemeProvider'
 
 const PROVIDER_LABELS = { onedrive: 'OneDrive', 'google-drive': 'Google Drive', dropbox: 'Dropbox' }
 const ALL_PROVIDERS = 'all'
+const NO_ENTRIES = []
 const SCREEN_X = 18
 
 function providerName(id) {
@@ -50,6 +55,24 @@ function fileMeta(file) {
   return file.when ? `${file.kind} · ${file.when}` : file.kind
 }
 
+// A search result shows when it last changed, as the web does.
+function resultMeta(entry) {
+  return entry.modified ? `${entry.kind} · ${entry.modified}` : entry.kind
+}
+
+// The accounts a list holds, for its filter: the provider name, plus the e-mail when that provider has
+// more than one account.
+function accountOptions(entries, connections) {
+  const ids = [...new Set(entries.map((entry) => entry.connectionId).filter(Boolean))]
+  return ids.map((id) => {
+    const connection = connections.find((item) => item.connectionId === id)
+    const providerId = connection?.providerId ?? entries.find((entry) => entry.connectionId === id)?.providerId
+    const shared = connections.filter((other) => other.providerId === providerId).length > 1
+    const name = connection?.providerName ?? providerName(providerId)
+    return { id, providerId, label: shared && connection?.account?.email ? `${name} · ${connection.account.email}` : name }
+  })
+}
+
 function fileHeader(file) {
   return (
     <SheetHeader
@@ -58,6 +81,135 @@ function fileHeader(file) {
       title={file.name}
       subtitle={`${file.kind} · ${providerName(file.providerId)}`}
     />
+  )
+}
+
+// Opens a file, or a folder from search results, in the account it was found in.
+function openEntry(navigation, entry) {
+  if (entry.isFolder) {
+    navigation.push('Folder', { connectionId: entry.connectionId, providerId: entry.providerId, folderRef: entry.ref })
+    return
+  }
+  openFile(navigation, entry)
+}
+
+function entryHeader(entry, actions) {
+  if (!entry.isFolder) return fileHeader(entry)
+  return (
+    <SheetHeader
+      centered
+      leading={<FolderMark width={56} color={actions.folderColor(entry)} />}
+      title={entry.name}
+      subtitle={`Pasta · ${providerName(entry.providerId)}`}
+    />
+  )
+}
+
+// Recents and search results, as rows or tiles. Folders appear only in search results; they keep the
+// folder menu, color included. `meta` writes the line under the name.
+function Entries({ entries, view, meta, tileWidth, navigation, actions }) {
+  const { theme } = useMobileTheme()
+  const tileSheet = Math.min(72, Math.round(tileWidth * 0.42))
+  const menuOf = (entry) => (entry.isFolder ? actions.folderMenu(entry) : actions.fileMenu(entry))
+
+  if (view === 'list') {
+    return (
+      <View>
+        {entries.map((entry, index) => (
+          <StaggerItem key={`${entry.connectionId}-${entry.ref}`} index={index} base={0.04} step={0.025}>
+            <HoldMenu header={entryHeader(entry, actions)} items={menuOf(entry)}>
+              {({ onLongPress, openMenu }) => (
+                <View style={styles.rowWrap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={entry.name}
+                    accessibilityHint="Mantenha pressionado para ações"
+                    delayLongPress={420}
+                    onPress={() => openEntry(navigation, entry)}
+                    onLongPress={onLongPress}
+                    style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.colors.wash } : null]}
+                  >
+                    <View style={styles.rowFace}>
+                      {entry.isFolder
+                        ? <FolderMark width={28} color={actions.folderColor(entry)} />
+                        : <FileThumb file={entry} size={24} fit="cover" style={styles.rowThumb} />}
+                    </View>
+                    <View style={styles.rowBody}>
+                      <AppText weight="500" numberOfLines={1} style={styles.rowTitle}>{entry.name}</AppText>
+                      <AppText numberOfLines={1} style={[styles.sub, { color: theme.colors.mute }]}>
+                        {meta(entry)}
+                      </AppText>
+                    </View>
+                    <ProviderMark id={entry.providerId} size={16} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ações de ${entry.name}`}
+                    onPress={openMenu}
+                    hitSlop={6}
+                    style={styles.more}
+                  >
+                    <PixelMore size={18} color={theme.colors.mute} />
+                  </Pressable>
+                </View>
+              )}
+            </HoldMenu>
+          </StaggerItem>
+        ))}
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.grid}>
+      {entries.map((entry, index) => (
+        <StaggerItem
+          key={`${entry.connectionId}-${entry.ref}-grid`}
+          index={index}
+          base={0.04}
+          step={0.025}
+          style={{ width: tileWidth }}
+        >
+          <HoldMenu header={entryHeader(entry, actions)} items={menuOf(entry)}>
+            {({ onLongPress }) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={entry.name}
+                accessibilityHint="Mantenha pressionado para ações"
+                delayLongPress={420}
+                onPress={() => openEntry(navigation, entry)}
+                onLongPress={onLongPress}
+                style={styles.tile}
+              >
+                {({ pressed }) => (
+                  <>
+                    <View
+                      style={[
+                        styles.tileFace,
+                        { backgroundColor: pressed ? theme.colors.raise : theme.colors.wash },
+                      ]}
+                    >
+                      {entry.isFolder
+                        ? <FolderMark width={tileSheet + 16} color={actions.folderColor(entry)} />
+                        : <FileThumb file={entry} size={tileSheet} fit="cover" dimmed={pressed} style={styles.tileThumb} />}
+                      <View style={styles.tileMark}>
+                        <ProviderMark id={entry.providerId} size={14} />
+                      </View>
+                    </View>
+                    <View style={styles.tileMeta}>
+                      <AppText weight="500" numberOfLines={1} style={styles.tileTitle}>{entry.name}</AppText>
+                      <AppText numberOfLines={1} style={[styles.sub, { color: theme.colors.mute }]}>
+                        {meta(entry)}
+                      </AppText>
+                    </View>
+                  </>
+                )}
+              </Pressable>
+            )}
+          </HoldMenu>
+        </StaggerItem>
+      ))}
+    </View>
   )
 }
 
@@ -116,7 +268,7 @@ function ActionTile({ icon: Icon, label, primary = false, sheetTitle, sheetHint,
 
 // One button for the account filter; the accounts open in a menu that drops from it, so the
 // toolbar keeps a single line however many are connected. `options` are { id, label, providerId }.
-function AccountFilter({ value, options, onChange }) {
+function AccountFilter({ value, options, onChange, label }) {
   const { theme } = useMobileTheme()
   const [open, setOpen] = useState(false)
   const button = useRef(null)
@@ -127,7 +279,7 @@ function AccountFilter({ value, options, onChange }) {
       <Pressable
         ref={button}
         accessibilityRole="button"
-        accessibilityLabel={`Filtrar recentes por conta: ${filtered ? current?.label ?? '' : 'Todas'}`}
+        accessibilityLabel={`${label}: ${filtered ? current?.label ?? '' : 'Todas'}`}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(true)}
         style={[styles.viewButton, filtered || open ? { backgroundColor: theme.colors.wash } : null]}
@@ -138,7 +290,7 @@ function AccountFilter({ value, options, onChange }) {
         open={open}
         anchor={button}
         onClose={() => setOpen(false)}
-        label="Filtrar recentes por conta"
+        label={label}
         items={[
           { id: ALL_PROVIDERS, label: 'Todas', icon: PixelCloud },
           ...options.map((option) => ({ id: option.id, label: option.label, icon: providerIcon(option.providerId) })),
@@ -173,6 +325,15 @@ export default function HomeScreen({ navigation }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [recentsView, setRecentsView] = useState('list')
   const [accountFilter, setAccountFilter] = useState(ALL_PROVIDERS)
+  // Search: any text in the pill swaps the actions and the recents for the results, like the web.
+  const [query, setQuery] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [resultsFilter, setResultsFilter] = useState(ALL_PROVIDERS)
+  const searchInput = useRef(null)
+  // Header and search pill step aside together while the user scrolls down.
+  const reveal = useScrollReveal()
+  const search = useSearch(query)
+  const searching = query.trim().length > 0
   // What "Enviar" picked on the device, waiting for the user to choose the cloud it goes to.
   const [picked, setPicked] = useState(null)
   // Result of connecting another account from the side panel (a failure message, or empty).
@@ -184,24 +345,43 @@ export default function HomeScreen({ navigation }) {
   if (picked) lastPicked.current = picked
   const shownPicked = picked ?? lastPicked.current
   const tileWidth = (width - SCREEN_X * 2 - 12) / 2
-  const tileSheet = Math.min(72, Math.round(tileWidth * 0.42))
 
-  // The filter lists the accounts that have recents: the provider name, plus the e-mail when that
-  // provider has more than one account.
-  const recentAccounts = useMemo(() => {
-    const ids = [...new Set(recents.map((file) => file.connectionId).filter(Boolean))]
-    return ids.map((id) => {
-      const connection = connections.find((item) => item.connectionId === id)
-      const providerId = connection?.providerId ?? recents.find((file) => file.connectionId === id)?.providerId
-      const shared = connections.filter((other) => other.providerId === providerId).length > 1
-      const name = connection?.providerName ?? providerName(providerId)
-      return { id, providerId, label: shared && connection?.account?.email ? `${name} · ${connection.account.email}` : name }
-    })
-  }, [recents, connections])
+  // The filter lists the accounts that have recents.
+  const recentAccounts = useMemo(() => accountOptions(recents, connections), [recents, connections])
   const activeFilter = recentAccounts.some((account) => account.id === accountFilter) ? accountFilter : ALL_PROVIDERS
   const visibleRecents = activeFilter === ALL_PROVIDERS
     ? recents
     : recents.filter((file) => file.connectionId === activeFilter)
+
+  const results = search.status === 'ready' ? search.results : NO_ENTRIES
+  const resultAccounts = useMemo(() => accountOptions(results, connections), [results, connections])
+  const activeResultsFilter = resultAccounts.some((account) => account.id === resultsFilter) ? resultsFilter : ALL_PROVIDERS
+  const visibleResults = activeResultsFilter === ALL_PROVIDERS
+    ? results
+    : results.filter((entry) => entry.connectionId === activeResultsFilter)
+  const coverage = summarizeSearch(search.status === 'ready' ? search.providers : [])
+  const accountName = (entry) => connections.find((item) => item.connectionId === entry.connectionId)?.providerName
+    ?? providerName(entry.provider ?? entry.id)
+
+  // While the user types, the pill (and the header with it) stays put.
+  useEffect(() => {
+    reveal.lock(searchFocused)
+  }, [reveal, searchFocused])
+
+  // Another screen on top ends the typing: no caret is left in the field behind it.
+  useEffect(() => navigation.addListener('blur', () => searchInput.current?.blur()), [navigation])
+
+  // Android's back closes the search before it leaves the screen.
+  useEffect(() => {
+    if (!searching) return undefined
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setQuery('')
+      searchInput.current?.blur()
+      Keyboard.dismiss()
+      return true
+    })
+    return () => subscription.remove()
+  }, [searching])
 
   const openSettings = () => navigation.push('Settings')
 
@@ -271,8 +451,71 @@ export default function HomeScreen({ navigation }) {
         header={<HomeHeader onOpenPanel={() => setPanelOpen(true)} onOpenSettings={openSettings} />}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        reveal={reveal}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <View style={styles.content}>
+          {searching ? (
+            <View style={styles.section}>
+              <AppText weight="500" style={styles.heading}>Resultados</AppText>
+              {search.status === 'idle' ? (
+                <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+                  {`Digite pelo menos ${SEARCH_MIN_LENGTH} letras para buscar.`}
+                </AppText>
+              ) : search.status === 'loading' ? (
+                <View style={styles.loading}>
+                  <Spinner />
+                </View>
+              ) : search.status === 'error' || coverage.allFailed ? (
+                <Pressable accessibilityRole="button" onPress={search.retry}>
+                  <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+                    {`${search.status === 'error' ? errorMessage(search.error, 'Não foi possível buscar.') : 'Não foi possível buscar.'} Toque para tentar de novo.`}
+                  </AppText>
+                </Pressable>
+              ) : (
+                <>
+                  {coverage.someFailed ? (
+                    <AppText style={[styles.empty, { color: theme.colors.mute }]}>
+                      Alguns provedores não responderam. Mostrando resultados parciais.
+                    </AppText>
+                  ) : null}
+                  {coverage.failed.map((entry) => (
+                    <AppText key={entry.connectionId ?? entry.id} style={[styles.empty, { color: theme.colors.mute }]}>
+                      {`Não foi possível buscar em ${accountName(entry)}.`}
+                    </AppText>
+                  ))}
+                  {coverage.syncing.map((entry) => (
+                    <AppText key={entry.connectionId ?? entry.id} style={[styles.empty, { color: theme.colors.mute }]}>
+                      {`Ainda sincronizando ${accountName(entry)}. Os resultados podem estar incompletos.`}
+                    </AppText>
+                  ))}
+                  {results.length === 0 ? (
+                    <AppText style={[styles.empty, { color: theme.colors.mute }]}>Nada encontrado.</AppText>
+                  ) : (
+                    <>
+                      <View style={styles.toolbar}>
+                        {resultAccounts.length > 1 ? (
+                          <AccountFilter
+                            value={activeResultsFilter}
+                            options={resultAccounts}
+                            onChange={setResultsFilter}
+                            label="Filtrar resultados por conta"
+                          />
+                        ) : <View />}
+                        <View style={styles.toggle}>
+                          <ViewButton icon={PixelGrid} label="Grade" selected={recentsView === 'grid'} onPress={() => setRecentsView('grid')} />
+                          <ViewButton icon={PixelList} label="Lista" selected={recentsView === 'list'} onPress={() => setRecentsView('list')} />
+                        </View>
+                      </View>
+                      <Entries entries={visibleResults} view={recentsView} meta={resultMeta} tileWidth={tileWidth} navigation={navigation} actions={actions} />
+                    </>
+                  )}
+                </>
+              )}
+            </View>
+          ) : (
+            <>
           <View style={styles.actions}>
             <ActionTile
               icon={PixelUpload}
@@ -307,6 +550,7 @@ export default function HomeScreen({ navigation }) {
                   value={activeFilter}
                   options={recentAccounts}
                   onChange={setAccountFilter}
+                  label="Filtrar recentes por conta"
                 />
               ) : <View />}
               <View style={styles.toggle}>
@@ -337,100 +581,20 @@ export default function HomeScreen({ navigation }) {
               </View>
             ) : null}
 
-            {recentsView === 'list' ? (
-              <View>
-                {visibleRecents.map((file, index) => (
-                  <StaggerItem key={`${file.connectionId}-${file.ref}`} index={index} base={0.04} step={0.025}>
-                    <HoldMenu header={fileHeader(file)} items={actions.fileMenu(file)}>
-                      {({ onLongPress, openMenu }) => (
-                        <View style={styles.rowWrap}>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={file.name}
-                            accessibilityHint="Mantenha pressionado para ações"
-                            delayLongPress={420}
-                            onPress={() => openFile(navigation, file)}
-                            onLongPress={onLongPress}
-                            style={({ pressed }) => [styles.row, pressed ? { backgroundColor: theme.colors.wash } : null]}
-                          >
-                            <View style={styles.rowFace}>
-                              <FileThumb file={file} size={24} fit="cover" style={styles.rowThumb} />
-                            </View>
-                            <View style={styles.rowBody}>
-                              <AppText weight="500" numberOfLines={1} style={styles.rowTitle}>{file.name}</AppText>
-                              <AppText numberOfLines={1} style={[styles.sub, { color: theme.colors.mute }]}>
-                                {fileMeta(file)}
-                              </AppText>
-                            </View>
-                            <ProviderMark id={file.providerId} size={16} />
-                          </Pressable>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Ações de ${file.name}`}
-                            onPress={openMenu}
-                            hitSlop={6}
-                            style={styles.more}
-                          >
-                            <PixelMore size={18} color={theme.colors.mute} />
-                          </Pressable>
-                        </View>
-                      )}
-                    </HoldMenu>
-                  </StaggerItem>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.grid}>
-                {visibleRecents.map((file, index) => (
-                  <StaggerItem
-                    key={`${file.connectionId}-${file.ref}-grid`}
-                    index={index}
-                    base={0.04}
-                    step={0.025}
-                    style={{ width: tileWidth }}
-                  >
-                    <HoldMenu header={fileHeader(file)} items={actions.fileMenu(file)}>
-                      {({ onLongPress }) => (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={file.name}
-                          accessibilityHint="Mantenha pressionado para ações"
-                          delayLongPress={420}
-                          onPress={() => openFile(navigation, file)}
-                          onLongPress={onLongPress}
-                          style={styles.tile}
-                        >
-                          {({ pressed }) => (
-                            <>
-                              <View
-                                style={[
-                                  styles.tileFace,
-                                  { backgroundColor: pressed ? theme.colors.raise : theme.colors.wash },
-                                ]}
-                              >
-                                <FileThumb file={file} size={tileSheet} fit="cover" dimmed={pressed} style={styles.tileThumb} />
-                                <View style={styles.tileMark}>
-                                  <ProviderMark id={file.providerId} size={14} />
-                                </View>
-                              </View>
-                              <View style={styles.tileMeta}>
-                                <AppText weight="500" numberOfLines={1} style={styles.tileTitle}>{file.name}</AppText>
-                                <AppText numberOfLines={1} style={[styles.sub, { color: theme.colors.mute }]}>
-                                  {fileMeta(file)}
-                                </AppText>
-                              </View>
-                            </>
-                          )}
-                        </Pressable>
-                      )}
-                    </HoldMenu>
-                  </StaggerItem>
-                ))}
-              </View>
-            )}
+            <Entries entries={visibleRecents} view={recentsView} meta={fileMeta} tileWidth={tileWidth} navigation={navigation} actions={actions} />
           </View>
+            </>
+          )}
         </View>
       </CollapsingHeader>
+      <SearchPill
+        value={query}
+        onChangeText={setQuery}
+        onFocus={() => setSearchFocused(true)}
+        onBlur={() => setSearchFocused(false)}
+        reveal={reveal}
+        inputRef={searchInput}
+      />
       <ActionSheet
         open={Boolean(picked)}
         onClose={() => setPicked(null)}
