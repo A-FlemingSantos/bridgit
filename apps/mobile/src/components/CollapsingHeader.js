@@ -1,40 +1,27 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Animated, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { easeOut, useNativeDriver } from '../theme/motion'
+import { useRevealHidden, useScrollReveal } from './useScrollReveal'
 
-const TOP_REVEAL_PX = 12
-const MOTION_MS = 320
-
+// A screen's scroll with its header floating on top: the header slides away while the user scrolls
+// down and comes back as soon as they scroll up (see useScrollReveal). A screen with more floating
+// chrome (the Home search pill) passes its own `reveal`, so everything moves together.
 export default function CollapsingHeader({
   header,
   children,
   contentContainerStyle,
+  reveal: sharedReveal = null,
+  onScroll = null,
   ...scrollProps
 }) {
   const insets = useSafeAreaInsets()
-  const translateY = useRef(new Animated.Value(0)).current
-  const headerHeightRef = useRef(0)
-  const retractedRef = useRef(false)
+  const ownReveal = useScrollReveal()
+  const reveal = sharedReveal ?? ownReveal
   const [headerHeight, setHeaderHeight] = useState(0)
-  const [retracted, setRetracted] = useState(false)
-
-  function setRetractedIfChanged(next) {
-    if (retractedRef.current === next) return
-    retractedRef.current = next
-    setRetracted(next)
-    Animated.timing(translateY, {
-      toValue: next ? -headerHeightRef.current : 0,
-      duration: MOTION_MS,
-      easing: easeOut,
-      useNativeDriver,
-    }).start()
-  }
 
   function handleScroll(event) {
-    const top = event.nativeEvent.contentOffset.y
-    const boundary = Math.max(TOP_REVEAL_PX, headerHeightRef.current)
-    setRetractedIfChanged(top > boundary)
+    reveal.onScroll(event)
+    onScroll?.(event)
   }
 
   return (
@@ -54,24 +41,35 @@ export default function CollapsingHeader({
       >
         {children}
       </ScrollView>
-      <Animated.View
-        onLayout={(event) => {
-          const next = Math.round(event.nativeEvent.layout.height)
-          if (next <= 0 || next === headerHeightRef.current) return
-          headerHeightRef.current = next
+      <HeaderLayer
+        reveal={reveal}
+        height={headerHeight}
+        onHeight={(next) => {
           setHeaderHeight(next)
+          // Until the content has passed under the whole header, it stays.
+          reveal.setTopZone(next)
         }}
-        style={[
-          styles.header,
-          {
-            transform: [{ translateY }],
-            pointerEvents: retracted ? 'none' : 'auto',
-          },
-        ]}
       >
         {header}
-      </Animated.View>
+      </HeaderLayer>
     </View>
+  )
+}
+
+// Its own component, so taking and giving up touches re-renders only the header, never the list.
+function HeaderLayer({ reveal, height, onHeight, children }) {
+  const hidden = useRevealHidden(reveal)
+  const translateY = reveal.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -height] })
+  return (
+    <Animated.View
+      onLayout={(event) => {
+        const next = Math.round(event.nativeEvent.layout.height)
+        if (next > 0 && next !== height) onHeight(next)
+      }}
+      style={[styles.header, { transform: [{ translateY }], pointerEvents: hidden ? 'none' : 'auto' }]}
+    >
+      {children}
+    </Animated.View>
   )
 }
 
