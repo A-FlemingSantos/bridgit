@@ -20,7 +20,7 @@ function PixelIcon({ path, size = null }) {
   )
 }
 
-export function PixelHome({ size = 24, className = '', filled = false }) {
+export function PixelHome({ size = 24, className = '' }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -34,11 +34,11 @@ export function PixelHome({ size = 24, className = '', filled = false }) {
     >
       <path
         data-home-filled=""
-        opacity={filled ? 1 : 0}
+        opacity={0}
         fillRule="evenodd"
         d="M10 2h4v2h2v2h2v2h2v2h2v2h-2v8h-2v2H6v-2H4v-8H2v-2h2V8h2V6h2V4h2V2Zm1 14h2v6h-2v-6Z"
       />
-      <g data-home-outline="" opacity={filled ? 0 : 1}>
+      <g data-home-outline="" opacity={1}>
         <rect x="10" y="2" width="4" height="2" />
         <rect x="8" y="4" width="2" height="2" />
         <rect x="14" y="4" width="2" height="2" />
