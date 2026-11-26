@@ -52,16 +52,40 @@
 }
 
 .modeOption {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 100%;
   padding: 0 12px;
+  border: 0;
   border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: color 150ms ease;
 }
 
+.modeOption:hover,
 .modeOptionActive {
-  background: var(--overlay);
   color: var(--ink);
+}
+
+.modeOptionIndicator {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--overlay);
+}
+
+.modeOptionLabel {
+  position: relative;
+  z-index: 1;
+}
+
+.modeOption:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 
 .pageHeader {

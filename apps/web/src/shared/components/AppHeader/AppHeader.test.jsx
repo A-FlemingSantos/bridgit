@@ -51,6 +51,24 @@ describe('AppHeader', () => {
     expect(icon.getAttribute('aria-hidden')).toBe('true')
   })
 
+  it('alterna entre Arquivos e Fotos', async () => {
+    const user = userEvent.setup()
+    renderHeader()
+
+    const arquivos = screen.getByRole('button', { name: 'Arquivos' })
+    const fotos = screen.getByRole('button', { name: 'Fotos' })
+    expect(arquivos).toHaveAttribute('aria-pressed', 'true')
+    expect(fotos).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(fotos)
+    expect(arquivos).toHaveAttribute('aria-pressed', 'false')
+    expect(fotos).toHaveAttribute('aria-pressed', 'true')
+
+    await user.click(arquivos)
+    expect(arquivos).toHaveAttribute('aria-pressed', 'true')
+    expect(fotos).toHaveAttribute('aria-pressed', 'false')
+  })
+
   describe('trilho recolhido', () => {
     beforeEach(() => {
       hub.connect.mockReset()

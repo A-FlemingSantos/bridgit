@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
 import { ROUTES } from '../../config/routes.js'
 import {
@@ -6,6 +8,11 @@ import {
 } from '../../utils/settingsOverlay.js'
 import BrandMark from '../BrandMark/BrandMark.jsx'
 import styles from './AppHeader.module.css'
+
+const CONTENT_MODES = [
+  { id: 'files', label: 'Arquivos' },
+  { id: 'photos', label: 'Fotos' },
+]
 
 function railClass(active) {
   return [styles.iconButton, active ? styles.iconButtonActive : ''].filter(Boolean).join(' ')
@@ -36,6 +43,7 @@ export function PanelIcon() {
 // Shared horizontal header of the authenticated app.
 export default function AppHeader({ children = null }) {
   const location = useLocation()
+  const [contentMode, setContentMode] = useState('files')
   const settingsActive = isSettingsPath(location.pathname)
   const settingsState = settingsNavState(location)
 
@@ -46,8 +54,28 @@ export default function AppHeader({ children = null }) {
           <BrandMark />
         </Link>
         <div className={styles.modePill} role="group" aria-label="Tipo de conteúdo">
-          <span className={[styles.modeOption, styles.modeOptionActive].join(' ')}>Arquivos</span>
-          <span className={styles.modeOption}>Fotos</span>
+          {CONTENT_MODES.map((mode) => {
+            const active = contentMode === mode.id
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                className={[styles.modeOption, active ? styles.modeOptionActive : ''].filter(Boolean).join(' ')}
+                aria-pressed={active}
+                onClick={() => setContentMode(mode.id)}
+              >
+                {active ? (
+                  <motion.span
+                    layoutId="header-content-mode-indicator"
+                    className={styles.modeOptionIndicator}
+                    transition={{ type: 'spring', stiffness: 520, damping: 42, mass: 0.7 }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <span className={styles.modeOptionLabel}>{mode.label}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
