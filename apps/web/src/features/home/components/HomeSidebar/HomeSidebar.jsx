@@ -367,8 +367,6 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             )}
           </LibrarySection>
 
-          <hr className={styles.divider} />
-
           <LibrarySection icon={<PixelLink />} title="Links públicos">
             {linksQuery.status === 'loading' || linksQuery.status === 'idle' ? (
               <p className={styles.empty}>Carregando…</p>

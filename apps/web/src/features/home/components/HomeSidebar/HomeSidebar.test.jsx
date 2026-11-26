@@ -90,7 +90,7 @@ describe('HomeSidebar accounts', () => {
     expect(screen.getByText('arthur')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getAllByRole('separator')).toHaveLength(3)
+    expect(screen.getAllByRole('separator')).toHaveLength(2)
   })
 
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
