@@ -1,12 +1,12 @@
 import { useContext, useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, LayoutDashboard, Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
 import { SidebarCollapsedContext } from '../../../../shared/components/AppShell/SidebarCollapsedContext.js'
-import { PixelBookmark, PixelCopy, PixelFileEmpty, PixelFolder, PixelHome, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelBookmark, PixelCopy, PixelFileEmpty, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { driveFileUrl, driveUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
 import { useSession } from '../../../../shared/auth/SessionContext.jsx'
@@ -306,7 +306,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
             aria-current={homeActive ? 'page' : undefined}
           >
             {homeActive ? <ActiveItemIndicator /> : null}
-            <PixelHome size={24} className={styles.itemIcon} />
+            <LayoutDashboard size={24} strokeWidth={1.7} className={styles.itemIcon} aria-hidden="true" />
             <span className={styles.itemName}>Início</span>
           </Link>
 

@@ -74,16 +74,6 @@
   color: var(--ink);
 }
 
-.item:hover [data-home-filled],
-.item:focus-visible [data-home-filled] {
-  opacity: 1;
-}
-
-.item:hover [data-home-outline],
-.item:focus-visible [data-home-outline] {
-  opacity: 0;
-}
-
 .item:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
