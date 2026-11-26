@@ -32,7 +32,22 @@ export function PixelHome({ size = 24, className = '' }) {
       className={className}
       aria-hidden="true"
     >
-      <path d="M10 20h4v-6h2v6h4v2H4v-2h4v-6h2v6Zm-6 0H2V10h2v10Zm18 0h-2V10h2v10Zm-8-6h-4v-2h4v2Zm-8-4H4V8h2v2Zm14 0h-2V8h2v2ZM8 8H6V6h2v2Zm10 0h-2V6h2v2Zm-8-2H8V4h2v2Zm6 0h-2V4h2v2Zm-2-2h-4V2h4v2Z" />
+      <rect x="10" y="2" width="4" height="2" />
+      <rect x="8" y="4" width="2" height="2" />
+      <rect x="14" y="4" width="2" height="2" />
+      <rect x="6" y="6" width="2" height="2" />
+      <rect x="16" y="6" width="2" height="2" />
+      <rect x="4" y="8" width="2" height="2" />
+      <rect x="18" y="8" width="2" height="2" />
+      <rect x="2" y="10" width="2" height="2" />
+      <rect x="20" y="10" width="2" height="2" />
+      <rect x="4" y="12" width="2" height="8" />
+      <rect x="18" y="12" width="2" height="8" />
+      <rect x="9" y="14" width="6" height="2" />
+      <rect x="9" y="16" width="2" height="4" />
+      <rect x="13" y="16" width="2" height="4" />
+      <rect x="6" y="20" width="5" height="2" />
+      <rect x="13" y="20" width="5" height="2" />
     </svg>
   )
 }
