@@ -159,7 +159,8 @@ describe('HomeSidebar accounts', () => {
     expect(onConnect).not.toHaveBeenCalled()
   })
 
-  it('renderiza atalhos e links públicos no segundo container', () => {
+  it('renderiza atalhos e links públicos no segundo container', async () => {
+    const user = userEvent.setup()
     hub.shortcuts = [
       { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
     ]
@@ -172,6 +173,8 @@ describe('HomeSidebar accounts', () => {
     expect(screen.queryByText('Minhas contas')).toBeNull()
     expect(screen.getByText('Atalhos')).toBeInTheDocument()
     expect(screen.getByText('Links públicos')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Atalhos' }))
+    await user.click(screen.getByRole('button', { name: 'Links públicos' }))
     expect(screen.getByRole('link', { name: 'Plano.pdf' })).toHaveAttribute('href', '/drives/conn-a/file/file-1')
     expect(screen.getByRole('link', { name: 'Link público de Plano' })).toHaveAttribute('href', 'https://bridgit.test/p/plano')
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).toBeNull()
@@ -189,20 +192,23 @@ describe('HomeSidebar accounts', () => {
 
     const shortcutsToggle = screen.getByRole('button', { name: 'Atalhos' })
     const linksToggle = screen.getByRole('button', { name: 'Links públicos' })
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(linksToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
+
+    await user.click(shortcutsToggle)
     expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
+
+    await user.click(linksToggle)
     expect(linksToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toBeInTheDocument()
 
     await user.click(shortcutsToggle)
     expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
-    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toBeInTheDocument()
-
-    await user.click(linksToggle)
-    expect(linksToggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
-
-    await user.click(shortcutsToggle)
-    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toBeInTheDocument()
   })
 
   it('recolhe o conteúdo das seções quando a sidebar está recolhida', () => {

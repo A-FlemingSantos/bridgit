@@ -127,7 +127,7 @@ function ProviderGhostLink({ provider }) {
 
 function LibrarySection({ icon, title, children }) {
   const collapsed = useContext(SidebarCollapsedContext)
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const bodyId = useId()
   const expanded = open && !collapsed
 

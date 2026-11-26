@@ -473,6 +473,7 @@ describe('App', () => {
   })
 
   it('mostra os provedores na home', async () => {
+    const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/home']}>
@@ -503,6 +504,7 @@ describe('App', () => {
     expect(recentLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(recentLink).not.toHaveAttribute('target')
     const library = screen.getByRole('navigation', { name: 'Atalhos e links públicos' })
+    await user.click(screen.getByRole('button', { name: 'Atalhos' }))
     expect(within(library).getByRole('link', { name: 'Relatório 2023' })).toHaveAttribute(
       'href',
       `/drives/${CONN_OD}/file/${FILE_REL}`,
@@ -575,6 +577,7 @@ describe('App', () => {
   })
 
   it('lista links públicos na barra lateral da home', async () => {
+    const user = userEvent.setup()
     setupAuthenticatedApi()
     hubTestState.publicLinks[FILE_ANALISE] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
     render(
@@ -585,6 +588,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Links públicos' }))
     expect(screen.getByRole('link', { name: 'Link público de Análise de desempenho' })).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
   })
 
