@@ -102,6 +102,4 @@ mvn test
 
 Os testes cobrem os adaptadores com respostas controladas, catálogo SQL, cursores, reconstrução, idempotência, resultado ambíguo, isolamento de usuário, IndexedDB, cache autorizado e transportes dos leitores. Não criam bancos ou logins. A suíte de integração limpa dados do banco de testes existente, como já fazia antes desta mudança.
 
-O deploy no Azure (uma VM com API, SQL Server Express e Caddy) está descrito em `deploy/README.md`; este documento trata só do hub.
-
 Os testes manuais nas contas reais, a avaliação visual e a medição das metas p95/80% permanecem com o usuário. Os resultados automatizados não representam uma medição de latência dos provedores reais ou da futura hospedagem.
