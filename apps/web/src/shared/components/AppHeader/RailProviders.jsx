@@ -45,7 +45,7 @@ export default function RailProviders() {
     <div className={styles.railProviders}>
       <nav className={styles.railGroup} aria-label="Seções">
         <Link to={ROUTES.home} className={styles.iconButton} aria-label="Início" title="Início">
-          <PixelHome size={20} />
+          <PixelHome size={24} />
         </Link>
       </nav>
       <hr className={styles.divider} />

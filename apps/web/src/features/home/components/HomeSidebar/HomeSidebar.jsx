@@ -243,7 +243,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
           aria-current={homeActive ? 'page' : undefined}
         >
-          <PixelHome size={16} className={styles.itemIcon} />
+          <PixelHome size={24} className={styles.itemIcon} />
           <span className={styles.itemName}>Início</span>
         </Link>
       </nav>
