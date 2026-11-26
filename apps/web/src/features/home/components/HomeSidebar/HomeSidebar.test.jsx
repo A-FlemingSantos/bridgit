@@ -23,6 +23,10 @@ vi.mock('../../../../shared/state/HubState.jsx', () => ({
   useHub: () => ({ openOverlay: vi.fn() }),
 }))
 
+vi.mock('../../../../shared/auth/SessionContext.jsx', () => ({
+  useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
+}))
+
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
 function account(connectionId, provider, providerName, email, name, extra = {}) {
@@ -67,6 +71,13 @@ beforeEach(() => {
 })
 
 describe('HomeSidebar accounts', () => {
+  it('uses the username as the panel title and names the home link', () => {
+    renderSidebar()
+
+    expect(screen.getByText('arthur')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+  })
+
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
     renderSidebar()
     const nav = screen.getByRole('navigation', { name: 'Minhas contas' })

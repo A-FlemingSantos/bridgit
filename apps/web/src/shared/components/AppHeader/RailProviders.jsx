@@ -1,5 +1,4 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard } from 'lucide-react'
 import {
   LinkWindowsIcon,
   useWindowsDevice,
@@ -11,7 +10,7 @@ import { driveUrl, ROUTES } from '../../config/routes.js'
 import { useProviders } from '../../hub/index.js'
 import { settingsNavState } from '../../utils/settingsOverlay.js'
 import AccountAvatar from '../AccountAvatar/AccountAvatar.jsx'
-import { PixelPlus } from '../PixelIcons/PixelIcons.jsx'
+import { PixelHome, PixelPlus } from '../PixelIcons/PixelIcons.jsx'
 import AddAccountMenu from '../AddAccountMenu/AddAccountMenu.jsx'
 import styles from './AppHeader.module.css'
 
@@ -45,8 +44,8 @@ export default function RailProviders() {
   return (
     <div className={styles.railProviders}>
       <nav className={styles.railGroup} aria-label="Seções">
-        <Link to={ROUTES.home} className={styles.iconButton} aria-label="Visão geral" title="Visão geral">
-          <LayoutDashboard size={20} strokeWidth={1.7} aria-hidden="true" />
+        <Link to={ROUTES.home} className={styles.iconButton} aria-label="Início" title="Início">
+          <PixelHome size={20} />
         </Link>
       </nav>
       <hr className={styles.divider} />

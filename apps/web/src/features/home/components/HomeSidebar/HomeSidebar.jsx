@@ -1,12 +1,13 @@
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
+import { ChevronRight, FileText, Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import { PixelCopy, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { PixelCopy, PixelFolder, PixelHome, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { driveFileUrl, driveUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
+import { useSession } from '../../../../shared/auth/SessionContext.jsx'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import { fileNavState, usePageLocation } from '../../../../shared/utils/fileOverlay.js'
@@ -200,6 +201,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { openOverlay } = useHub()
+  const { user } = useSession()
   const actions = useHubActions()
   const { providers, status: providersStatus } = useProviders()
   const shortcutsQuery = useShortcuts()
@@ -227,7 +229,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
 
   return (
     <div className={styles.panel}>
-      <p className={styles.title}>Início</p>
+      <p className={styles.title}>{user?.username ?? 'Início'}</p>
 
       {localError ? (
         <p className={styles.empty} role="alert">
@@ -241,8 +243,8 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
           aria-current={homeActive ? 'page' : undefined}
         >
-          <LayoutDashboard className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
-          <span className={styles.itemName}>Visão geral</span>
+          <PixelHome size={16} className={styles.itemIcon} />
+          <span className={styles.itemName}>Início</span>
         </Link>
       </nav>
 

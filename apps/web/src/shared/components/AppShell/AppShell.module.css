@@ -51,6 +51,16 @@
   justify-content: flex-end;
   height: var(--app-header-control-size);
   box-sizing: border-box;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.sidebar:hover .sidebarTop,
+.sidebarTop:focus-within,
+.sidebarCollapsed .sidebarTop {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebarCollapsed .sidebarTop {
