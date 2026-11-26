@@ -43,7 +43,7 @@
   min-width: 0;
   height: var(--app-header-control-size);
   border-radius: 999px;
-  background: var(--wash);
+  background: var(--sunken);
   color: var(--mute);
   font-size: 13px;
   font-weight: 500;
@@ -60,7 +60,7 @@
 }
 
 .modeOptionActive {
-  background: var(--paper);
+  background: var(--overlay);
   color: var(--ink);
 }
 
