@@ -6,9 +6,16 @@
   padding: var(--app-content-top-padding) 8px 16px;
 }
 
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 44px 4px 6px;
+}
+
 .title {
   margin: 0;
-  padding: 0 44px 0 10px;
+  padding: 0;
   overflow: hidden;
   font-size: 18px;
   font-weight: 500;
@@ -109,23 +116,67 @@
   margin: 0 !important;
 }
 
-.sectionHeader {
+.librarySection {
   display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sectionHeader {
   margin: 0;
+  font: inherit;
+}
+
+.sectionToggle {
+  position: relative;
+  display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   min-height: 36px;
-  padding: 4px 6px;
+  padding: 4px 24px 4px 6px;
+  border: 0;
+  background: transparent;
   color: var(--mute);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionToggle:hover {
+  color: var(--ink);
+}
+
+.sectionToggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 
 .sectionLabel {
+  flex: 1 1 auto;
   overflow: hidden;
+  min-width: 0;
   font-size: 12.5px;
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.sectionChevron {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  margin-top: -7px;
+  transition: transform 180ms ease, opacity 150ms ease;
+}
+
+.sectionChevronOpen {
+  transform: rotate(90deg);
+}
+
+.sectionBody[hidden] {
+  display: none;
 }
 
 .itemWrap {
@@ -163,6 +214,7 @@
 .panelCollapsed .itemMeta,
 .panelCollapsed .itemName,
 .panelCollapsed .sectionLabel,
+.panelCollapsed .sectionChevron,
 .panelCollapsed .empty {
   opacity: 0;
 }

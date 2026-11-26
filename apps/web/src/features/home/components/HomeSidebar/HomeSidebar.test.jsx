@@ -173,4 +173,32 @@ describe('HomeSidebar accounts', () => {
     expect(screen.getByRole('link', { name: 'Link público de Plano' })).toHaveAttribute('href', 'https://bridgit.test/p/plano')
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).toBeNull()
   })
+
+  it('recolhe e expande atalhos e links públicos', async () => {
+    const user = userEvent.setup()
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
+    renderSidebar()
+
+    const shortcutsToggle = screen.getByRole('button', { name: 'Atalhos' })
+    const linksToggle = screen.getByRole('button', { name: 'Links públicos' })
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(linksToggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(shortcutsToggle)
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toBeInTheDocument()
+
+    await user.click(linksToggle)
+    expect(linksToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
+
+    await user.click(shortcutsToggle)
+    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toBeInTheDocument()
+  })
 })

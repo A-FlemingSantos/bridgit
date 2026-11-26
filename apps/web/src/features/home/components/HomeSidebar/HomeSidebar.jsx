@@ -1,7 +1,7 @@
-import { useContext, useState } from 'react'
+import { useContext, useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
@@ -125,12 +125,34 @@ function ProviderGhostLink({ provider }) {
   )
 }
 
-function SectionHeader({ icon, children }) {
+function LibrarySection({ icon, title, children }) {
+  const [open, setOpen] = useState(true)
+  const bodyId = useId()
+
   return (
-    <h2 className={styles.sectionHeader}>
-      <span className={styles.iconFrame} aria-hidden="true">{icon}</span>
-      <span className={styles.sectionLabel}>{children}</span>
-    </h2>
+    <section className={styles.librarySection}>
+      <h2 className={styles.sectionHeader}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className={styles.iconFrame} aria-hidden="true">{icon}</span>
+          <span className={styles.sectionLabel}>{title}</span>
+          <ChevronRight
+            className={[styles.sectionChevron, open ? styles.sectionChevronOpen : ''].filter(Boolean).join(' ')}
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        </button>
+      </h2>
+      <div id={bodyId} className={styles.sectionBody} hidden={!open}>
+        {children}
+      </div>
+    </section>
   )
 }
 
@@ -264,15 +286,17 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
 
   return (
     <div className={[styles.panel, collapsed ? styles.panelCollapsed : ''].filter(Boolean).join(' ')}>
-      <p className={styles.title}>{user?.username ?? 'Início'}</p>
-
-      {localError ? (
-        <p className={styles.empty} role="alert">
-          {localError}
-        </p>
-      ) : null}
-
       <div className={styles.navShell}>
+        <div className={styles.sidebarHeader}>
+          <p className={styles.title}>{user?.username ?? 'Início'}</p>
+        </div>
+
+        {localError ? (
+          <p className={styles.empty} role="alert">
+            {localError}
+          </p>
+        ) : null}
+
         <nav className={styles.rail} aria-label="Navegação principal">
           <Link
             to={ROUTES.home}
@@ -322,42 +346,44 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         </nav>
 
         <nav className={styles.rail} aria-label="Atalhos e links públicos">
-          <SectionHeader icon={<PixelBookmark />}>Atalhos</SectionHeader>
-          {shortcutsQuery.status === 'loading' || shortcutsQuery.status === 'idle' ? (
-            <p className={styles.empty}>Carregando…</p>
-          ) : shortcutsQuery.status === 'error' ? (
-            <p className={styles.empty} role="alert">
-              {hubErrorMessage(shortcutsQuery.error)}
-            </p>
-          ) : shortcuts.length === 0 ? (
-            <p className={styles.empty}>Fixe arquivos pelo menu ⋯ para tê-los aqui.</p>
-          ) : (
-            shortcuts.map((file) => (
-              <ShortcutRow
-                key={`${file.connectionId}-${file.ref}`}
-                file={file}
-                location={location}
-                menuContext={fileMenuContext}
-              />
-            ))
-          )}
+          <LibrarySection icon={<PixelBookmark />} title="Atalhos">
+            {shortcutsQuery.status === 'loading' || shortcutsQuery.status === 'idle' ? (
+              <p className={styles.empty}>Carregando…</p>
+            ) : shortcutsQuery.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(shortcutsQuery.error)}
+              </p>
+            ) : shortcuts.length === 0 ? (
+              <p className={styles.empty}>Fixe arquivos pelo menu ⋯ para tê-los aqui.</p>
+            ) : (
+              shortcuts.map((file) => (
+                <ShortcutRow
+                  key={`${file.connectionId}-${file.ref}`}
+                  file={file}
+                  location={location}
+                  menuContext={fileMenuContext}
+                />
+              ))
+            )}
+          </LibrarySection>
 
           <hr className={styles.divider} />
 
-          <SectionHeader icon={<PixelLink />}>Links públicos</SectionHeader>
-          {linksQuery.status === 'loading' || linksQuery.status === 'idle' ? (
-            <p className={styles.empty}>Carregando…</p>
-          ) : linksQuery.status === 'error' ? (
-            <p className={styles.empty} role="alert">
-              {hubErrorMessage(linksQuery.error)}
-            </p>
-          ) : links.length === 0 ? (
-            <p className={styles.empty}>Nenhum link. Publique um arquivo ou uma pasta pelo menu ⋯.</p>
-          ) : (
-            links.map((link) => (
-              <PublicLinkRow key={`${link.connectionId}-${link.ref}`} link={link} onError={handleError} />
-            ))
-          )}
+          <LibrarySection icon={<PixelLink />} title="Links públicos">
+            {linksQuery.status === 'loading' || linksQuery.status === 'idle' ? (
+              <p className={styles.empty}>Carregando…</p>
+            ) : linksQuery.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(linksQuery.error)}
+              </p>
+            ) : links.length === 0 ? (
+              <p className={styles.empty}>Nenhum link. Publique um arquivo ou uma pasta pelo menu ⋯.</p>
+            ) : (
+              links.map((link) => (
+                <PublicLinkRow key={`${link.connectionId}-${link.ref}`} link={link} onError={handleError} />
+              ))
+            )}
+          </LibrarySection>
         </nav>
       </div>
     </div>

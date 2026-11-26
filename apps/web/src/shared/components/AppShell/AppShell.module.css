@@ -43,8 +43,8 @@
 
 .sidebarTop {
   position: absolute;
-  top: calc(var(--app-content-top-padding) - 6px);
-  right: 8px;
+  top: calc(var(--app-content-top-padding) + 4px);
+  right: 12px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -61,10 +61,6 @@
 .sidebarCollapsed .sidebarTop {
   opacity: 1;
   pointer-events: auto;
-}
-
-.sidebarCollapsed .sidebarTop {
-  right: 12px;
 }
 
 .sidebarToggle {
