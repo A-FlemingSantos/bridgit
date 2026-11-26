@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeSidebar from './HomeSidebar.jsx'
+import { SidebarCollapsedContext } from '../../../../shared/components/AppShell/SidebarCollapsedContext.js'
 
 const hub = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -62,10 +63,12 @@ function setProviders(connections = []) {
   ]
 }
 
-function renderSidebar(props = {}, initialEntries = ['/home?x=1']) {
+function renderSidebar(props = {}, initialEntries = ['/home?x=1'], collapsed = false) {
   return render(
     <MemoryRouter {...router} initialEntries={initialEntries}>
-      <HomeSidebar {...props} />
+      <SidebarCollapsedContext.Provider value={collapsed}>
+        <HomeSidebar {...props} />
+      </SidebarCollapsedContext.Provider>
     </MemoryRouter>,
   )
 }
@@ -200,5 +203,20 @@ describe('HomeSidebar accounts', () => {
 
     await user.click(shortcutsToggle)
     expect(screen.getByRole('link', { name: 'Plano.pdf' })).toBeInTheDocument()
+  })
+
+  it('recolhe o conteúdo das seções quando a sidebar está recolhida', () => {
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
+    renderSidebar({}, ['/home?x=1'], true)
+
+    expect(screen.getByRole('button', { name: 'Atalhos' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Links públicos' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
   })
 })

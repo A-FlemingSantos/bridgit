@@ -126,8 +126,10 @@ function ProviderGhostLink({ provider }) {
 }
 
 function LibrarySection({ icon, title, children }) {
+  const collapsed = useContext(SidebarCollapsedContext)
   const [open, setOpen] = useState(true)
   const bodyId = useId()
+  const expanded = open && !collapsed
 
   return (
     <section className={styles.librarySection}>
@@ -135,21 +137,21 @@ function LibrarySection({ icon, title, children }) {
         <button
           type="button"
           className={styles.sectionToggle}
-          aria-expanded={open}
+          aria-expanded={expanded}
           aria-controls={bodyId}
           onClick={() => setOpen((current) => !current)}
         >
           <span className={styles.iconFrame} aria-hidden="true">{icon}</span>
           <span className={styles.sectionLabel}>{title}</span>
           <ChevronRight
-            className={[styles.sectionChevron, open ? styles.sectionChevronOpen : ''].filter(Boolean).join(' ')}
+            className={[styles.sectionChevron, expanded ? styles.sectionChevronOpen : ''].filter(Boolean).join(' ')}
             size={14}
             strokeWidth={1.8}
             aria-hidden="true"
           />
         </button>
       </h2>
-      <div id={bodyId} className={styles.sectionBody} hidden={!open}>
+      <div id={bodyId} className={styles.sectionBody} hidden={!expanded}>
         {children}
       </div>
     </section>
