@@ -32,31 +32,30 @@ export function PixelHome({ size = 24, className = '', filled = false }) {
       className={className}
       aria-hidden="true"
     >
-      {filled ? (
-        <path
-          fillRule="evenodd"
-          d="M10 2h4v2h2v2h2v2h2v2h2v2h-2v8h-2v2H6v-2H4v-8H2v-2h2V8h2V6h2V4h2V2Zm1 14h2v6h-2v-6Z"
-        />
-      ) : (
-        <>
-          <rect x="10" y="2" width="4" height="2" />
-          <rect x="8" y="4" width="2" height="2" />
-          <rect x="14" y="4" width="2" height="2" />
-          <rect x="6" y="6" width="2" height="2" />
-          <rect x="16" y="6" width="2" height="2" />
-          <rect x="4" y="8" width="2" height="2" />
-          <rect x="18" y="8" width="2" height="2" />
-          <rect x="2" y="10" width="2" height="2" />
-          <rect x="20" y="10" width="2" height="2" />
-          <rect x="4" y="12" width="2" height="8" />
-          <rect x="18" y="12" width="2" height="8" />
-          <rect x="9" y="14" width="6" height="2" />
-          <rect x="9" y="16" width="2" height="4" />
-          <rect x="13" y="16" width="2" height="4" />
-          <rect x="6" y="20" width="5" height="2" />
-          <rect x="13" y="20" width="5" height="2" />
-        </>
-      )}
+      <path
+        data-home-filled=""
+        opacity={filled ? 1 : 0}
+        fillRule="evenodd"
+        d="M10 2h4v2h2v2h2v2h2v2h2v2h-2v8h-2v2H6v-2H4v-8H2v-2h2V8h2V6h2V4h2V2Zm1 14h2v6h-2v-6Z"
+      />
+      <g data-home-outline="" opacity={filled ? 0 : 1}>
+        <rect x="10" y="2" width="4" height="2" />
+        <rect x="8" y="4" width="2" height="2" />
+        <rect x="14" y="4" width="2" height="2" />
+        <rect x="6" y="6" width="2" height="2" />
+        <rect x="16" y="6" width="2" height="2" />
+        <rect x="4" y="8" width="2" height="2" />
+        <rect x="18" y="8" width="2" height="2" />
+        <rect x="2" y="10" width="2" height="2" />
+        <rect x="20" y="10" width="2" height="2" />
+        <rect x="4" y="12" width="2" height="8" />
+        <rect x="18" y="12" width="2" height="8" />
+        <rect x="9" y="14" width="6" height="2" />
+        <rect x="9" y="16" width="2" height="4" />
+        <rect x="13" y="16" width="2" height="4" />
+        <rect x="6" y="20" width="5" height="2" />
+        <rect x="13" y="20" width="5" height="2" />
+      </g>
     </svg>
   )
 }

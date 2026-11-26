@@ -111,6 +111,16 @@
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
+.iconButton:hover [data-home-filled],
+.iconButton:focus-visible [data-home-filled] {
+  opacity: 1;
+}
+
+.iconButton:hover [data-home-outline],
+.iconButton:focus-visible [data-home-outline] {
+  opacity: 0;
+}
+
 .iconButtonActive {
   --avatar-surface: color-mix(in srgb, var(--ink) 8%, var(--wash));
   color: var(--ink);
