@@ -44,9 +44,9 @@ function setProviders(connections = []) {
   ]
 }
 
-function renderSidebar(props = {}) {
+function renderSidebar(props = {}, initialEntries = ['/home?x=1']) {
   return render(
-    <MemoryRouter {...router} initialEntries={['/home?x=1']}>
+    <MemoryRouter {...router} initialEntries={initialEntries}>
       <HomeSidebar {...props} />
     </MemoryRouter>,
   )
@@ -66,6 +66,7 @@ describe('HomeSidebar accounts', () => {
 
     expect(screen.getByText('arthur')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
@@ -101,6 +102,14 @@ describe('HomeSidebar accounts', () => {
     expect(within(byEmail).getByText('sem.nome@example.com')).toBeInTheDocument()
     expect(within(byEmail).getByText('Google Drive')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'OneDrive OneDrive Conectado' })).toHaveAttribute('href', '/drives/conn-d')
+  })
+
+  it('marks the connected account as current on its drive routes', () => {
+    renderSidebar({}, ['/drives/conn-a/folder/pasta-1'])
+
+    expect(screen.getByRole('link', { name: 'Google Drive Ana Souza Conectado' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Google Drive Bia Lima Conectado' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
   })
 
   it('sends an expired account to settings', () => {

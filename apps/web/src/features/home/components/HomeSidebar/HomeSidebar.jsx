@@ -1,5 +1,6 @@
 import { useContext, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
@@ -16,6 +17,18 @@ import styles from './HomeSidebar.module.css'
 import { LinkWindowsIcon, useWindowsDevice, WindowsLogo, WINDOWS_DEVICE_NAME } from './windowsDevice.jsx'
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
+const ACTIVE_ITEM_TRANSITION = { type: 'spring', stiffness: 520, damping: 42, mass: 0.7 }
+
+function ActiveItemIndicator() {
+  return (
+    <motion.span
+      layoutId="home-sidebar-active-item"
+      className={styles.itemIndicator}
+      transition={ACTIVE_ITEM_TRANSITION}
+      aria-hidden="true"
+    />
+  )
+}
 
 function WindowsDeviceButton() {
   const [linked, link] = useWindowsDevice()
@@ -47,7 +60,7 @@ function accountLabels(connection) {
   return { name, sub }
 }
 
-function ConnectionLink({ connection }) {
+function ConnectionLink({ connection, active = false }) {
   const { name, sub } = accountLabels(connection)
 
   if (connection.lastError === EXPIRED) {
@@ -70,9 +83,11 @@ function ConnectionLink({ connection }) {
   return (
     <Link
       to={driveUrl(connection.connectionId)}
-      className={styles.item}
+      className={[styles.item, active ? styles.itemActive : ''].filter(Boolean).join(' ')}
+      aria-current={active ? 'page' : undefined}
       aria-label={`${connection.providerName} ${name} Conectado`}
     >
+      {active ? <ActiveItemIndicator /> : null}
       <AccountAvatar connection={connection} size={24} />
       <span className={styles.itemMeta}>
         <span className={styles.itemName}>{name}</span>
@@ -109,7 +124,8 @@ export default function HomeSidebar({ onConnect, onError }) {
   const { providers, status: providersStatus } = useProviders()
   const collapsed = useContext(SidebarCollapsedContext)
   const [localError, setLocalError] = useState(null)
-  const homeActive = usePageLocation().pathname === ROUTES.home
+  const pagePathname = usePageLocation().pathname
+  const homeActive = pagePathname === ROUTES.home
 
   const handleError = onError ?? ((error) => setLocalError(hubErrorMessage(error)))
   // Only the provider-list error state uses this; adding an account opens the menu below.
@@ -132,6 +148,7 @@ export default function HomeSidebar({ onConnect, onError }) {
           className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
           aria-current={homeActive ? 'page' : undefined}
         >
+          {homeActive ? <ActiveItemIndicator /> : null}
           <PixelHome size={24} className={styles.itemIcon} />
           <span className={styles.itemName}>Início</span>
         </Link>
@@ -153,7 +170,11 @@ export default function HomeSidebar({ onConnect, onError }) {
           providers.flatMap((provider) =>
             provider.connections?.length > 0
               ? provider.connections.map((connection) => (
-                  <ConnectionLink key={connection.connectionId} connection={connection} />
+                  <ConnectionLink
+                    key={connection.connectionId}
+                    connection={connection}
+                    active={pagePathname === driveUrl(connection.connectionId) || pagePathname.startsWith(`${driveUrl(connection.connectionId)}/`)}
+                  />
                 ))
               : [<ProviderGhostLink key={provider.id} provider={provider} />],
           )

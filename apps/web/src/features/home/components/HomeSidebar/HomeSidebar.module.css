@@ -27,6 +27,7 @@
 }
 
 .item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -42,7 +43,7 @@
   border-top: 1px solid var(--line);
 }
 
-.item:hover {
+.item:hover:not(.itemActive) {
   background: var(--line);
   color: var(--ink);
 }
@@ -63,8 +64,19 @@
 }
 
 .itemActive {
-  background: var(--line);
   color: var(--ink);
+}
+
+.itemIndicator {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--line);
+}
+
+.item > :not(.itemIndicator) {
+  position: relative;
+  z-index: 1;
 }
 
 .itemIcon {
