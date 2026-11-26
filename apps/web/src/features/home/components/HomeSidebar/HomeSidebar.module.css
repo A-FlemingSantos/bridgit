@@ -29,7 +29,7 @@
   gap: 6px;
   padding: 0;
   border-radius: 20px;
-  background: var(--sunken);
+  background: color-mix(in srgb, var(--raise) 75%, var(--sunken));
 }
 
 .rail {
