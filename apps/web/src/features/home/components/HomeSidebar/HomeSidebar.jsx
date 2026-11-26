@@ -288,17 +288,15 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
 
   return (
     <div className={[styles.panel, collapsed ? styles.panelCollapsed : ''].filter(Boolean).join(' ')}>
+      <p className={styles.title}>{user?.username ?? 'Início'}</p>
+
+      {localError ? (
+        <p className={styles.empty} role="alert">
+          {localError}
+        </p>
+      ) : null}
+
       <div className={styles.navShell}>
-        <div className={styles.sidebarHeader}>
-          <p className={styles.title}>{user?.username ?? 'Início'}</p>
-        </div>
-
-        {localError ? (
-          <p className={styles.empty} role="alert">
-            {localError}
-          </p>
-        ) : null}
-
         <nav className={styles.rail} aria-label="Navegação principal">
           <Link
             to={ROUTES.home}

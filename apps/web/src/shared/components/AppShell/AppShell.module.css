@@ -43,8 +43,8 @@
 
 .sidebarTop {
   position: absolute;
-  top: calc(var(--app-content-top-padding) + 4px);
-  right: 12px;
+  top: calc(var(--app-content-top-padding) - 6px);
+  right: 8px;
   z-index: 2;
   display: flex;
   align-items: center;
