@@ -491,7 +491,7 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Dispositivos' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Minhas contas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Atalhos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toHaveAttribute(
       'href',
@@ -502,7 +502,11 @@ describe('App', () => {
     const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
     expect(recentLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(recentLink).not.toHaveAttribute('target')
-    expect(screen.queryByRole('link', { name: 'Relatório 2023' })).not.toBeInTheDocument()
+    const library = screen.getByRole('navigation', { name: 'Atalhos e links públicos' })
+    expect(within(library).getByRole('link', { name: 'Relatório 2023' })).toHaveAttribute(
+      'href',
+      `/drives/${CONN_OD}/file/${FILE_REL}`,
+    )
   })
 
   it('abre um arquivo acima da home, sem trocar de tela', async () => {
@@ -570,7 +574,7 @@ describe('App', () => {
     expect(screen.getByRole('navigation', { name: 'Navegação principal' })).toBeInTheDocument()
   })
 
-  it('não lista links públicos na barra lateral da home', async () => {
+  it('lista links públicos na barra lateral da home', async () => {
     setupAuthenticatedApi()
     hubTestState.publicLinks[FILE_ANALISE] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
     render(
@@ -580,8 +584,8 @@ describe('App', () => {
     )
 
     expect(await screen.findByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Links públicos' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Link público de Análise de desempenho' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Link público de Análise de desempenho' })).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
   })
 
   it('abre o menu de Enviar com arquivos e pasta', async () => {

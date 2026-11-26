@@ -8,11 +8,29 @@ const hub = vi.hoisted(() => ({
   connect: vi.fn(),
   actions: { getConnectionAvatar: vi.fn() },
   providers: [],
+  shortcuts: [],
+  links: [],
 }))
 
 vi.mock('../../../../shared/hub/index.js', () => ({
   useHubActions: () => hub.actions,
   useProviders: () => ({ status: 'ready', providers: hub.providers, connect: hub.connect }),
+  useShortcuts: () => ({
+    status: 'ready',
+    entries: hub.shortcuts,
+    error: null,
+    isShortcut: (connectionId, ref) => hub.shortcuts.some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+  }),
+  usePublicLinks: () => ({
+    status: 'ready',
+    entries: hub.links,
+    error: null,
+    isPublic: (connectionId, ref) => hub.links.some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+  }),
+}))
+
+vi.mock('../../../../shared/state/HubState.jsx', () => ({
+  useHub: () => ({ openOverlay: vi.fn() }),
 }))
 
 vi.mock('../../../../shared/auth/SessionContext.jsx', () => ({
@@ -57,6 +75,8 @@ beforeEach(() => {
   hub.connect.mockResolvedValue(undefined)
   hub.actions.getConnectionAvatar.mockReset()
   hub.actions.getConnectionAvatar.mockRejectedValue(new Error('404'))
+  hub.shortcuts = []
+  hub.links = []
   setProviders([googleA, googleB])
 })
 
@@ -67,7 +87,7 @@ describe('HomeSidebar accounts', () => {
     expect(screen.getByText('arthur')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getAllByRole('separator')).toHaveLength(2)
+    expect(screen.getAllByRole('separator')).toHaveLength(3)
   })
 
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
@@ -136,15 +156,21 @@ describe('HomeSidebar accounts', () => {
     expect(onConnect).not.toHaveBeenCalled()
   })
 
-  it('não renderiza seções retráteis, atalhos ou links públicos', () => {
+  it('renderiza atalhos e links públicos no segundo container', () => {
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
     renderSidebar()
 
     expect(screen.queryByText('Dispositivos')).toBeNull()
     expect(screen.queryByText('Minhas contas')).toBeNull()
-    expect(screen.queryByText('Atalhos')).toBeNull()
-    expect(screen.queryByText('Links públicos')).toBeNull()
+    expect(screen.getByText('Atalhos')).toBeInTheDocument()
+    expect(screen.getByText('Links públicos')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toHaveAttribute('href', '/drives/conn-a/file/file-1')
+    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toHaveAttribute('href', 'https://bridgit.test/p/plano')
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
   })
 })

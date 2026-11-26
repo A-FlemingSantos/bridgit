@@ -255,6 +255,7 @@ export default function HomePage() {
       header={searchField}
       sidebar={(
         <HomeSidebar
+          menuContext={menuContext}
           onConnect={openSettingsProviders}
           onError={(error) => setActionError(hubErrorMessage(error))}
         />
