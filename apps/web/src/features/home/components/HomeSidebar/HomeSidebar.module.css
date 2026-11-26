@@ -39,10 +39,6 @@
   background: color-mix(in srgb, var(--raise) 75%, var(--sunken));
 }
 
-.navShell > .rail + .rail {
-  margin-top: 18px;
-}
-
 .rail {
   --avatar-surface: var(--raise);
   display: flex;
