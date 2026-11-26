@@ -27,7 +27,7 @@
 .navShell {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   padding: 4px;
   border-radius: 20px;
   background: var(--sunken);
@@ -133,8 +133,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 36px;
-  padding: 4px 24px 4px 6px;
+  min-height: 44px;
+  padding: 7px 24px 7px 6px;
   border: 0;
   background: transparent;
   color: var(--mute);
