@@ -20,10 +20,15 @@ export function PanelIcon({ collapsed }) {
       fill="currentColor"
       viewBox="0 0 24 24"
       shapeRendering="crispEdges"
-      className={collapsed ? styles.pixelIcon : `${styles.pixelIcon} ${styles.flipped}`}
+      className={styles.pixelIcon}
       aria-hidden="true"
     >
-      <path d="M20 4v16h2V4zM2 11v2h16v-2zm12 2v2h2v-2zm-2 2v2h2v-2zm-2 2v2h2v-2zm4-8v2h2V9zm-2-2v2h2V7zm-2-2v2h2V5z" />
+      <rect x="4" y="4" width="16" height="2" />
+      <rect x="4" y="18" width="16" height="2" />
+      <rect x="2" y="6" width="2" height="12" />
+      <rect x="20" y="6" width="2" height="12" />
+      <rect x="8" y="6" width="2" height="12" />
+      {collapsed ? null : <rect x="4" y="6" width="4" height="12" />}
     </svg>
   )
 }

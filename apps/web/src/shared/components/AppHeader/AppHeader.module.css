@@ -151,10 +151,6 @@
   filter: none;
 }
 
-.flipped {
-  transform: scaleX(-1);
-}
-
 .divider {
   width: 0;
   height: 20px;
