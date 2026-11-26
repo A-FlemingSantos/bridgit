@@ -153,6 +153,8 @@ export default function HomeSidebar({ onConnect, onError }) {
           <span className={styles.itemName}>Início</span>
         </Link>
 
+        <hr className={styles.divider} />
+
         <WindowsDeviceButton />
 
         {providersStatus === 'loading' || providersStatus === 'idle' ? (
@@ -179,6 +181,8 @@ export default function HomeSidebar({ onConnect, onError }) {
               : [<ProviderGhostLink key={provider.id} provider={provider} />],
           )
         )}
+
+        <hr className={styles.divider} />
 
         <AddAccountMenu className={[styles.item, styles.addItem].join(' ')} onError={handleError}>
           <Plus className={styles.itemIcon} size={24} strokeWidth={1.7} aria-hidden="true" />
