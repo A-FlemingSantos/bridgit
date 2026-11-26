@@ -27,10 +27,14 @@
 .navShell {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   padding: 4px;
   border-radius: 20px;
   background: var(--sunken);
+}
+
+.navShell > .rail + .rail {
+  margin-top: 42px;
 }
 
 .rail {
