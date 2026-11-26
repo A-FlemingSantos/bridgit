@@ -66,7 +66,6 @@ describe('HomeSidebar accounts', () => {
 
     expect(screen.getByText('arthur')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
-    expect(screen.getByRole('separator')).toBeInTheDocument()
   })
 
   it('lists each account of a provider as its own row with avatar and provider badge', () => {

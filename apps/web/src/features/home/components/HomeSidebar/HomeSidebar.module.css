@@ -18,16 +18,12 @@
 }
 
 .rail {
+  --avatar-surface: var(--raise);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.divider {
-  height: 0;
-  margin: 2px 10px 4px;
-  border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--raise);
 }
 
 .item {
@@ -35,17 +31,19 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  min-height: 38px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  min-height: 44px;
+  padding: 7px 10px;
   color: var(--soft);
   text-decoration: none;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
+.item ~ .item {
+  border-top: 1px solid var(--line);
+}
+
 .item:hover {
-  --avatar-surface: var(--raise);
-  background: var(--raise);
+  background: var(--line);
   color: var(--ink);
 }
 
@@ -65,8 +63,7 @@
 }
 
 .itemActive {
-  --avatar-surface: var(--raise);
-  background: var(--raise);
+  background: var(--line);
   color: var(--ink);
 }
 
@@ -151,7 +148,7 @@
 
 .addItem {
   width: 100%;
-  margin-top: 2px;
+  margin-top: 0;
   border: 0;
   background: transparent;
   font: inherit;
