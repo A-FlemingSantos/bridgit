@@ -345,7 +345,7 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
           </AddAccountMenu>
         </nav>
 
-        <nav className={styles.rail} aria-label="Atalhos e links públicos">
+        <nav className={[styles.rail, styles.libraryRail].join(' ')} aria-label="Atalhos e links públicos">
           <LibrarySection icon={<PixelBookmark />} title="Atalhos">
             {shortcutsQuery.status === 'loading' || shortcutsQuery.status === 'idle' ? (
               <p className={styles.empty}>Carregando…</p>

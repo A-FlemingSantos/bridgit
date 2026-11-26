@@ -41,6 +41,11 @@
   background: var(--raise);
 }
 
+.libraryRail {
+  --avatar-surface: color-mix(in srgb, var(--raise) 75%, var(--sunken));
+  background: transparent;
+}
+
 .item {
   position: relative;
   display: flex;
