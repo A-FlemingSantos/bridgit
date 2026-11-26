@@ -42,9 +42,8 @@
   align-items: center;
   min-width: 0;
   height: var(--app-header-control-size);
-  padding: 3px;
   border-radius: 999px;
-  background: var(--raise);
+  background: var(--wash);
   color: var(--mute);
   font-size: 13px;
   font-weight: 500;
@@ -55,7 +54,7 @@
 .modeOption {
   display: inline-flex;
   align-items: center;
-  height: calc(var(--app-header-control-size) - 6px);
+  height: 100%;
   padding: 0 12px;
   border-radius: 999px;
 }
@@ -63,7 +62,6 @@
 .modeOptionActive {
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent);
 }
 
 .pageHeader {
