@@ -11,7 +11,7 @@ function railClass(active) {
   return [styles.iconButton, active ? styles.iconButtonActive : ''].filter(Boolean).join(' ')
 }
 
-export function PanelIcon({ collapsed }) {
+export function PanelIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -28,7 +28,7 @@ export function PanelIcon({ collapsed }) {
       <rect x="2" y="6" width="2" height="12" />
       <rect x="20" y="6" width="2" height="12" />
       <rect x="8" y="6" width="2" height="12" />
-      {collapsed ? null : <rect x="4" y="6" width="4" height="12" />}
+      <rect x="4" y="6" width="4" height="12" />
     </svg>
   )
 }

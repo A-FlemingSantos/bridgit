@@ -183,7 +183,7 @@ export default function AppShell({ children, header = null, refreshKey, subheade
                 aria-expanded={!sidebarState.collapsed}
                 aria-controls={sidebarId}
               >
-                <PanelIcon collapsed={sidebarState.collapsed} />
+                <PanelIcon />
               </button>
             </div>
             {sidebarState.collapsed ? (
