@@ -133,6 +133,8 @@ export default function HomeSidebar({ onConnect, onError }) {
           <span className={styles.itemName}>Início</span>
         </Link>
 
+        <hr className={styles.divider} />
+
         <WindowsDeviceButton />
 
         {providersStatus === 'loading' || providersStatus === 'idle' ? (
