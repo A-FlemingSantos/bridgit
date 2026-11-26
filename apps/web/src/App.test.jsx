@@ -486,12 +486,12 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
-    const devicesHeading = screen.getByRole('heading', { name: 'Dispositivos' })
-    const providersHeading = screen.getByRole('heading', { name: 'Minhas contas' })
-    expect(devicesHeading.compareDocumentPosition(providersHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
+    const rail = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(rail).getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Dispositivos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Minhas contas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Atalhos' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toHaveAttribute(
       'href',
@@ -502,7 +502,7 @@ describe('App', () => {
     const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
     expect(recentLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(recentLink).not.toHaveAttribute('target')
-    expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Relatório 2023' })).not.toBeInTheDocument()
   })
 
   it('abre um arquivo acima da home, sem trocar de tela', async () => {
@@ -554,8 +554,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' }))
-    expect(await screen.findByRole('heading', { name: 'Dispositivos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(await screen.findByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
   })
 
   it('mostra o dispositivo na barra quando o painel está recolhido', async () => {
@@ -574,11 +573,10 @@ describe('App', () => {
     expect(within(rail).getByRole('button', { name: /Windows 10/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Expandir painel' }))
-    expect(screen.getByRole('heading', { name: 'Dispositivos' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
   })
 
-  it('lista os links públicos na barra lateral da home', async () => {
+  it('não lista links públicos na barra lateral da home', async () => {
     setupAuthenticatedApi()
     hubTestState.publicLinks[FILE_ANALISE] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
     render(
@@ -587,11 +585,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
-    expect(
-      await screen.findByRole('link', { name: 'Link público de Análise de desempenho' }),
-    ).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
-    expect(screen.getByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Links públicos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Link público de Análise de desempenho' })).not.toBeInTheDocument()
   })
 
   it('abre o menu de Enviar com arquivos e pasta', async () => {
@@ -1143,7 +1139,7 @@ describe('App', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
-    expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
   })
 
   it('retorna do OAuth com background sobre a página de origem e limpa os params', async () => {
@@ -1217,7 +1213,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     resolveLogin()
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
   })
 
@@ -1254,7 +1250,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
 
     expect(sessionStorage.getItem('bridgit.session')).toBeNull()
@@ -1435,7 +1431,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog', { name: 'Configurações' })).not.toBeInTheDocument()
   })

@@ -17,67 +17,10 @@
   white-space: nowrap;
 }
 
-.primary,
-.list {
+.rail {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.groupTitle {
-  margin: 0;
-}
-
-.groupToggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 4px 10px 4px 6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--mute);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-}
-
-.groupToggle:hover {
-  color: var(--ink);
-}
-
-.groupToggle:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 1px;
-}
-
-.chevron {
-  flex: 0 0 auto;
-  transition: transform 180ms ease;
-}
-
-.chevronOpen {
-  transform: rotate(90deg);
-}
-
-.groupBody[hidden] {
-  display: none;
-}
-
-.itemWrap {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  align-items: center;
 }
 
 .item {

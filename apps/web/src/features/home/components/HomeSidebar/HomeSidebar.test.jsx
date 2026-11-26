@@ -6,21 +6,13 @@ import HomeSidebar from './HomeSidebar.jsx'
 
 const hub = vi.hoisted(() => ({
   connect: vi.fn(),
-  actions: { getConnectionAvatar: vi.fn(), disablePublicLink: vi.fn() },
+  actions: { getConnectionAvatar: vi.fn() },
   providers: [],
-  shortcuts: [],
-  links: [],
 }))
 
 vi.mock('../../../../shared/hub/index.js', () => ({
   useHubActions: () => hub.actions,
   useProviders: () => ({ status: 'ready', providers: hub.providers, connect: hub.connect }),
-  useShortcuts: () => ({ status: 'ready', entries: hub.shortcuts, isShortcut: () => false }),
-  usePublicLinks: () => ({ status: 'ready', entries: hub.links, isPublic: () => false }),
-}))
-
-vi.mock('../../../../shared/state/HubState.jsx', () => ({
-  useHub: () => ({ openOverlay: vi.fn() }),
 }))
 
 vi.mock('../../../../shared/auth/SessionContext.jsx', () => ({
@@ -65,8 +57,6 @@ beforeEach(() => {
   hub.connect.mockResolvedValue(undefined)
   hub.actions.getConnectionAvatar.mockReset()
   hub.actions.getConnectionAvatar.mockRejectedValue(new Error('404'))
-  hub.shortcuts = []
-  hub.links = []
   setProviders([googleA, googleB])
 })
 
@@ -80,7 +70,7 @@ describe('HomeSidebar accounts', () => {
 
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
     renderSidebar()
-    const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
 
     const ana = within(nav).getByRole('link', { name: 'Google Drive Ana Souza Conectado' })
     const bia = within(nav).getByRole('link', { name: 'Google Drive Bia Lima Conectado' })
@@ -93,7 +83,7 @@ describe('HomeSidebar accounts', () => {
 
   it('keeps one ghost row per provider without an account', () => {
     renderSidebar()
-    const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
 
     expect(within(nav).getByRole('link', { name: 'OneDrive Desconectado' })).toHaveAttribute('href', '/settings/providers')
     expect(within(nav).getByRole('link', { name: 'Dropbox Desconectado' })).toBeInTheDocument()
@@ -136,22 +126,14 @@ describe('HomeSidebar accounts', () => {
     expect(onConnect).not.toHaveBeenCalled()
   })
 
-  it('opens shortcuts through the account route', () => {
-    hub.shortcuts = [{ connectionId: 'conn-b', provider: 'google-drive', ref: 'f/1', name: 'Plano.pdf' }]
+  it('não renderiza seções retráteis, atalhos ou links públicos', () => {
     renderSidebar()
 
-    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toHaveAttribute('href', '/drives/conn-b/file/f%2F1')
-  })
-
-  it('disables a public link by account and ref', async () => {
-    const user = userEvent.setup()
-    hub.actions.disablePublicLink.mockResolvedValue(undefined)
-    hub.links = [{ connectionId: 'conn-b', provider: 'google-drive', ref: 'f1', name: 'Plano', kind: 'file', url: 'https://x/p/1' }]
-    renderSidebar()
-
-    await user.click(screen.getByRole('button', { name: 'Ações do link de Plano' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Desativar link' }))
-
-    expect(hub.actions.disablePublicLink).toHaveBeenCalledWith({ connectionId: 'conn-b', ref: 'f1' })
+    expect(screen.queryByText('Dispositivos')).toBeNull()
+    expect(screen.queryByText('Minhas contas')).toBeNull()
+    expect(screen.queryByText('Atalhos')).toBeNull()
+    expect(screen.queryByText('Links públicos')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
   })
 })
