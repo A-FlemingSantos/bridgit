@@ -8,6 +8,7 @@ import {
 import ProviderMark from '../../../features/spaces/components/ProviderMark.jsx'
 import { driveUrl, ROUTES } from '../../config/routes.js'
 import { useProviders } from '../../hub/index.js'
+import { usePageLocation } from '../../utils/fileOverlay.js'
 import { settingsNavState } from '../../utils/settingsOverlay.js'
 import AccountAvatar from '../AccountAvatar/AccountAvatar.jsx'
 import { PixelHome, PixelPlus } from '../PixelIcons/PixelIcons.jsx'
@@ -40,12 +41,13 @@ function WindowsRailButton() {
 
 export default function RailProviders() {
   const { providers, status } = useProviders()
+  const homeActive = usePageLocation().pathname === ROUTES.home
 
   return (
     <div className={styles.railProviders}>
       <nav className={styles.railGroup} aria-label="Seções">
         <Link to={ROUTES.home} className={styles.iconButton} aria-label="Início" title="Início">
-          <PixelHome size={24} />
+          <PixelHome size={24} filled={homeActive} />
         </Link>
       </nav>
       <hr className={styles.divider} />
