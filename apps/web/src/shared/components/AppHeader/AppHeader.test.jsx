@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppHeader from './AppHeader.jsx'
+import RailProviders from './RailProviders.jsx'
 
 const sessionApi = vi.hoisted(() => ({ user: null }))
 
@@ -30,6 +31,14 @@ function renderHeader(props = {}) {
   )
 }
 
+function renderRail() {
+  return render(
+    <MemoryRouter {...router} initialEntries={['/home?x=1']}>
+      <RailProviders />
+    </MemoryRouter>,
+  )
+}
+
 function connection(connectionId, provider, providerName, email, name, lastError = null) {
   return { connectionId, provider, providerName, account: { email, name }, lastError, generation: 1 }
 }
@@ -43,8 +52,6 @@ describe('AppHeader', () => {
   })
 
   describe('trilho recolhido', () => {
-    const panel = { collapsed: true, onToggle: vi.fn(), id: 'panel' }
-
     beforeEach(() => {
       hub.connect.mockReset()
       hub.connect.mockResolvedValue(undefined)
@@ -63,7 +70,7 @@ describe('AppHeader', () => {
     })
 
     it('mostra um avatar por conta, com o selo do provedor', () => {
-      renderHeader({ panel })
+      renderRail()
       const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
 
       const ana = within(nav).getByRole('link', { name: 'Google Drive Ana Souza Conectado' })
@@ -77,7 +84,7 @@ describe('AppHeader', () => {
 
     it('abre o menu de nova conta e conecta o provedor como conta adicional', async () => {
       const user = userEvent.setup()
-      renderHeader({ panel })
+      renderRail()
 
       await user.click(screen.getByRole('button', { name: 'Nova conta' }))
       await user.click(screen.getByRole('menuitem', { name: 'OneDrive' }))

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 40px;
-  padding: 28px clamp(20px, 4vw, 40px) 56px;
+  padding: var(--app-content-top-padding) clamp(20px, 4vw, 40px) 56px;
 }
 
 .section {

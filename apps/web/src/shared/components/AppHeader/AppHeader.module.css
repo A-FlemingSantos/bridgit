@@ -3,37 +3,32 @@
   z-index: var(--z-app-shell-header);
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   box-sizing: border-box;
-  width: var(--app-rail-width);
-  height: 100%;
-  padding: calc(18px + env(safe-area-inset-top, 0px)) 0 calc(18px + env(safe-area-inset-bottom, 0px));
-  background: var(--wash);
-  /* Drawn inside the rail so its content stays an even 60px and icons land on whole pixels. */
-  box-shadow: inset -1px 0 0 var(--line);
+  width: 100%;
+  height: var(--app-header-height);
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 6px 0;
+  background: var(--paper);
   color: var(--ink);
 }
 
-.leading,
-.trailing {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
 .leading {
-  gap: 22px;
+  display: flex;
+  flex: 0 0 var(--app-sidebar-width);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-left: 16px;
 }
 
 .brand {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: var(--app-header-control-size);
+  height: var(--app-header-control-size);
   color: var(--ink);
 }
 
@@ -42,18 +37,61 @@
   height: 100%;
 }
 
-.primaryNav {
+.modePill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: var(--app-header-control-size);
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--raise);
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.modeOption {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--app-header-control-size) - 6px);
+  padding: 0 12px;
+  border-radius: 999px;
+}
+
+.modeOptionActive {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.pageHeader {
   display: flex;
-  flex-direction: column;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  padding-left: calc(clamp(16px, 3vw, 40px) - 12px);
+}
+
+.trailing,
+.railGroup {
+  display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.trailing {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .iconButton,
 .accountButton {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: var(--app-header-control-size);
+  height: var(--app-header-control-size);
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -86,23 +124,31 @@
 }
 
 .railProviders {
-  /* Pulls the divider closer to the home button than the rail's 22px gap. */
-  margin-top: -14px;
   display: flex;
+  flex: 0 1 auto;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .railGroup {
-  display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  min-width: 0;
 }
 
 .railProviderOff {
-  opacity: 0.45;
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+
+.railProviderOff:hover,
+.railProviderOff:focus-visible {
+  opacity: 0.8;
+  filter: none;
 }
 
 .flipped {
@@ -110,14 +156,32 @@
 }
 
 .divider {
-  width: 20px;
-  height: 0;
-  margin: 4px 0;
+  width: 0;
+  height: 20px;
+  margin: 0 4px;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.railProviders .divider {
+  width: 28px;
+  height: 0;
+  margin: 2px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  border-left: 0;
 }
 
 /* Pixel-art icon: drawn on a 12-cell grid, so 24px keeps each cell at 2px. */
 .pixelIcon {
   display: block;
+}
+
+@media (max-width: 700px) {
+  .leading {
+    flex-basis: auto;
+  }
+
+  .modePill {
+    display: none;
+  }
 }

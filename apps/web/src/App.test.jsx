@@ -480,9 +480,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('link', { name: 'Buscar' })).toHaveAttribute('href', '/home')
+    expect(screen.queryByRole('link', { name: 'Buscar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Spaces' })).not.toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
+    expect(await screen.findByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
@@ -568,8 +568,8 @@ describe('App', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: 'Recolher painel' }))
-    const header = document.querySelector('[data-authenticated-app-header]')
-    const rail = within(header).getByRole('navigation', { name: 'Dispositivos' })
+    const sidebar = document.querySelector('aside')
+    const rail = within(sidebar).getByRole('navigation', { name: 'Dispositivos' })
     await user.click(within(rail).getByRole('button', { name: 'Vincular ao Windows' }))
     expect(within(rail).getByRole('button', { name: /Windows 10/ })).toBeInTheDocument()
 

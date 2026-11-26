@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { LayoutDashboard } from 'lucide-react'
 import {
   LinkWindowsIcon,
   useWindowsDevice,
@@ -16,8 +17,8 @@ import styles from './AppHeader.module.css'
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
 
-// Icon-only devices and providers shown under the home button while the side
-// panel is collapsed. The Windows link is the same one as the open panel.
+// Icon-only navigation, devices and providers shown while the side panel is
+// collapsed. The Windows link is the same one as the open panel.
 // Each connected account (avatar with its provider badge) opens its root; expired accounts and
 // providers with no account lead to settings.
 function WindowsRailButton() {
@@ -43,6 +44,11 @@ export default function RailProviders() {
 
   return (
     <div className={styles.railProviders}>
+      <nav className={styles.railGroup} aria-label="Seções">
+        <Link to={ROUTES.home} className={styles.iconButton} aria-label="Visão geral" title="Visão geral">
+          <LayoutDashboard size={20} strokeWidth={1.7} aria-hidden="true" />
+        </Link>
+      </nav>
       <hr className={styles.divider} />
       <nav className={styles.railGroup} aria-label="Dispositivos">
         <WindowsRailButton />
