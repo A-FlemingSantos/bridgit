@@ -134,6 +134,7 @@ describe('HomeSidebar accounts', () => {
     expect(screen.queryByText('Minhas contas')).toBeNull()
     expect(screen.queryByText('Atalhos')).toBeNull()
     expect(screen.queryByText('Links públicos')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
   })

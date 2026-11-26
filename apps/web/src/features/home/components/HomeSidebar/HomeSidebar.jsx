@@ -25,6 +25,7 @@ function WindowsDeviceButton() {
       className={[styles.item, styles.deviceItem].join(' ')}
       aria-pressed={linked}
       onClick={link}
+      hidden
     >
       <span className={styles.deviceMark}>
         {linked ? <WindowsLogo /> : <LinkWindowsIcon />}

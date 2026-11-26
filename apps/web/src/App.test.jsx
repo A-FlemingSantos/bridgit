@@ -487,7 +487,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
     const rail = screen.getByRole('navigation', { name: 'Navegação principal' })
-    expect(within(rail).getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
+    expect(within(rail).queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Dispositivos' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Minhas contas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
@@ -534,8 +534,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
   })
 
-  it('vincula um computador Windows na barra lateral', async () => {
-    const user = userEvent.setup()
+  it('oculta o computador Windows na barra lateral expandida', async () => {
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/home']}>
@@ -543,18 +542,9 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    const link = await screen.findByRole('button', { name: 'Vincular ao Windows' })
-    expect(link).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
-    await user.click(link)
-
-    const device = screen.getByRole('button', { name: /Windows 10/ })
-    expect(device).toHaveAttribute('aria-pressed', 'true')
-    expect(device).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(await screen.findByRole('navigation', { name: 'Navegação principal' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' }))
-    expect(await screen.findByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
   })
 
   it('mostra o dispositivo na barra quando o painel está recolhido', async () => {
@@ -573,7 +563,7 @@ describe('App', () => {
     expect(within(rail).getByRole('button', { name: /Windows 10/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Expandir painel' }))
-    expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
   })
 
   it('não lista links públicos na barra lateral da home', async () => {
