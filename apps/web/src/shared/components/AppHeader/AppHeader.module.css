@@ -96,8 +96,7 @@
   padding-left: calc(clamp(16px, 3vw, 40px) - 12px);
 }
 
-.trailing,
-.railGroup {
+.trailing {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -155,48 +154,12 @@
   outline-offset: 2px;
 }
 
-.railProviders {
-  display: flex;
-  flex: 0 1 auto;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.railGroup {
-  flex: 0 0 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.railProviderOff {
-  opacity: 0.42;
-  filter: grayscale(1);
-}
-
-.railProviderOff:hover,
-.railProviderOff:focus-visible {
-  opacity: 0.8;
-  filter: none;
-}
-
 .divider {
   width: 0;
   height: 20px;
   margin: 0 4px;
   border: 0;
   border-left: 1px solid color-mix(in srgb, var(--ink) 30%, transparent);
-}
-
-.railProviders .divider {
-  width: 28px;
-  height: 0;
-  margin: 2px 0;
-  border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
-  border-left: 0;
 }
 
 /* Pixel-art icon: drawn on a 12-cell grid, so 24px keeps each cell at 2px. */

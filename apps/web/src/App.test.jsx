@@ -547,7 +547,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
   })
 
-  it('mostra o dispositivo na barra quando o painel está recolhido', async () => {
+  it('mantém o mesmo trilho ao recolher e expandir o painel', async () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
@@ -556,14 +556,18 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Recolher painel' }))
-    const sidebar = document.querySelector('aside')
-    const rail = within(sidebar).getByRole('navigation', { name: 'Dispositivos' })
-    await user.click(within(rail).getByRole('button', { name: 'Vincular ao Windows' }))
-    expect(within(rail).getByRole('button', { name: /Windows 10/ })).toBeInTheDocument()
+    const expandedRail = await screen.findByRole('navigation', { name: 'Navegação principal' })
+    expect(within(expandedRail).getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Recolher painel' }))
+    const collapsedRail = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(collapsedRail).getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Dispositivos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Expandir painel' }))
-    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Navegação principal' })).toBeInTheDocument()
   })
 
   it('não lista links públicos na barra lateral da home', async () => {

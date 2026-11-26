@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 20px;
   min-height: 100%;
-  padding: var(--app-content-top-padding) 12px 16px;
+  padding: var(--app-content-top-padding) 8px 16px;
 }
 
 .title {
@@ -77,6 +77,20 @@
 
 .itemActive .itemIcon {
   color: var(--ink);
+}
+
+.title,
+.itemMeta,
+.itemName,
+.empty {
+  transition: opacity 150ms ease;
+}
+
+.panelCollapsed .title,
+.panelCollapsed .itemMeta,
+.panelCollapsed .itemName,
+.panelCollapsed .empty {
+  opacity: 0;
 }
 
 .itemMeta {

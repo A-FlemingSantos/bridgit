@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
+import { SidebarCollapsedContext } from '../../../../shared/components/AppShell/SidebarCollapsedContext.js'
 import { PixelHome } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { driveUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useProviders } from '../../../../shared/hub/index.js'
@@ -106,6 +107,7 @@ export default function HomeSidebar({ onConnect, onError }) {
   const navigate = useNavigate()
   const { user } = useSession()
   const { providers, status: providersStatus } = useProviders()
+  const collapsed = useContext(SidebarCollapsedContext)
   const [localError, setLocalError] = useState(null)
   const homeActive = usePageLocation().pathname === ROUTES.home
 
@@ -115,7 +117,7 @@ export default function HomeSidebar({ onConnect, onError }) {
     ?? (() => navigate(ROUTES.settingsProviders, { state: settingsNavState(location) }))
 
   return (
-    <div className={styles.panel}>
+    <div className={[styles.panel, collapsed ? styles.panelCollapsed : ''].filter(Boolean).join(' ')}>
       <p className={styles.title}>{user?.username ?? 'Início'}</p>
 
       {localError ? (
@@ -160,7 +162,7 @@ export default function HomeSidebar({ onConnect, onError }) {
         )}
 
         <AddAccountMenu className={[styles.item, styles.addItem].join(' ')} onError={handleError}>
-          <Plus className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
+          <Plus className={styles.itemIcon} size={24} strokeWidth={1.7} aria-hidden="true" />
           <span className={styles.itemName}>Nova conta</span>
         </AddAccountMenu>
       </nav>

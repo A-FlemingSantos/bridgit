@@ -1,9 +1,9 @@
 import { createContext, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { MotionConfig } from 'framer-motion'
 import AppHeader, { PanelIcon } from '../../../shared/components/AppHeader/AppHeader.jsx'
-import RailProviders from '../../../shared/components/AppHeader/RailProviders.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
 import HomeSidebar from '../../../features/home/components/HomeSidebar/HomeSidebar.jsx'
+import { SidebarCollapsedContext } from './SidebarCollapsedContext.js'
 import styles from './AppShell.module.css'
 
 const TOP_REVEAL_PX = 12
@@ -169,31 +169,27 @@ export default function AppShell({ children, header = null, refreshKey, subheade
       <AppHeader>{header}</AppHeader>
       <div className={styles.lower}>
         {hasSidebar ? (
-          <aside
-            id={sidebarId}
-            className={[styles.sidebar, sidebarOpen ? '' : styles.sidebarCollapsed].filter(Boolean).join(' ')}
-            aria-label="Painel lateral"
-          >
-            <div className={styles.sidebarTop}>
-              <button
-                type="button"
-                className={styles.sidebarToggle}
-                onClick={sidebarState.toggle}
-                aria-label={sidebarState.collapsed ? 'Expandir painel' : 'Recolher painel'}
-                aria-expanded={!sidebarState.collapsed}
-                aria-controls={sidebarId}
-              >
-                <PanelIcon />
-              </button>
-            </div>
-            {sidebarState.collapsed ? (
-              <div className={styles.sidebarRail}>
-                <RailProviders />
+          <SidebarCollapsedContext.Provider value={sidebarState.collapsed}>
+            <aside
+              id={sidebarId}
+              className={[styles.sidebar, sidebarOpen ? '' : styles.sidebarCollapsed].filter(Boolean).join(' ')}
+              aria-label="Painel lateral"
+            >
+              <div className={styles.sidebarTop}>
+                <button
+                  type="button"
+                  className={styles.sidebarToggle}
+                  onClick={sidebarState.toggle}
+                  aria-label={sidebarState.collapsed ? 'Expandir painel' : 'Recolher painel'}
+                  aria-expanded={!sidebarState.collapsed}
+                  aria-controls={sidebarId}
+                >
+                  <PanelIcon />
+                </button>
               </div>
-            ) : (
               <div className={styles.sidebarInner}>{sidebar}</div>
-            )}
-          </aside>
+            </aside>
+          </SidebarCollapsedContext.Provider>
         ) : null}
         {sidebarOpen ? (
           <button
