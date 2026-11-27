@@ -42,9 +42,8 @@
   align-items: center;
   min-width: 0;
   height: var(--app-header-control-size);
-  padding: 4px;
   border-radius: 999px;
-  background: var(--wash);
+  background: var(--sunken);
   color: var(--mute);
   font-size: 13px;
   font-weight: 500;
@@ -58,8 +57,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  font: inherit;
-  padding: 0 8px;
+  padding: 0 12px;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -68,31 +66,21 @@
   transition: color 150ms ease;
 }
 
+.modeOption:hover,
 .modeOptionActive {
   color: var(--ink);
-  font-weight: 600;
 }
 
 .modeOptionIndicator {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--sunken);
+  background: var(--overlay);
 }
 
 .modeOptionLabel {
   position: relative;
   z-index: 1;
-  display: grid;
-}
-
-.modeOptionLabel > span {
-  grid-area: 1 / 1;
-}
-
-.modeOptionLabelSizer {
-  visibility: hidden;
-  font-weight: 600;
 }
 
 .modeOption:focus-visible {

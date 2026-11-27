@@ -72,12 +72,7 @@ export default function AppHeader({ children = null }) {
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className={styles.modeOptionLabel}>
-                  <span>{mode.label}</span>
-                  <span className={styles.modeOptionLabelSizer} aria-hidden="true">
-                    {mode.label}
-                  </span>
-                </span>
+                <span className={styles.modeOptionLabel}>{mode.label}</span>
               </button>
             )
           })}
