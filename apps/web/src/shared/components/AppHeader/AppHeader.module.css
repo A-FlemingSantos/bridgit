@@ -39,11 +39,14 @@
 
 .modePill {
   display: inline-flex;
+  flex: 0 0 152px;
   align-items: center;
   min-width: 0;
+  width: 152px;
   height: var(--app-header-control-size);
+  padding: 2px;
   border-radius: 999px;
-  background: var(--sunken);
+  background: var(--raise);
   color: var(--mute);
   font-size: 13px;
   font-weight: 500;
@@ -54,10 +57,12 @@
 .modeOption {
   position: relative;
   display: inline-flex;
+  flex: 1 1 0;
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 0 12px;
+  min-width: 0;
+  padding: 0 8px;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -75,7 +80,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--overlay);
+  background: color-mix(in srgb, var(--paper) 90%, black);
 }
 
 .modeOptionLabel {
