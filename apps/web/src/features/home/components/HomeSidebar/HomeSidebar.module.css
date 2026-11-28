@@ -58,7 +58,6 @@
   text-decoration: none;
   transition:
     background-color 150ms ease,
-    color 150ms ease,
     padding 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 

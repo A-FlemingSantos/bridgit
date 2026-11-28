@@ -30,7 +30,7 @@
   text-align: center;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color 150ms ease;
 }
 
 /* A selectable tile opens only from its drawing and name, so only those show the hand. */
@@ -158,7 +158,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: color 150ms ease;
 }
 
 .trailLink:hover {

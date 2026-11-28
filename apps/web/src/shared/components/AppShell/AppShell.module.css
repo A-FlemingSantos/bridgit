@@ -86,7 +86,7 @@
 
 .sidebarToggle svg rect:last-of-type {
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition: opacity 150ms ease;
 }
 
 .sidebarToggle:hover,

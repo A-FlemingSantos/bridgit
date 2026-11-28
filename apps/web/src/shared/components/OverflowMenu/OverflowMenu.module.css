@@ -41,7 +41,7 @@
   background: var(--paper);
   color: var(--mute);
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease, opacity 120ms ease;
+  transition: background-color 150ms ease, opacity 150ms ease;
 }
 
 .ghost {
