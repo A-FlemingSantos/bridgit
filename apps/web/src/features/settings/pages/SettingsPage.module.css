@@ -67,6 +67,7 @@
   background: transparent;
   color: var(--mute);
   cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 .close:hover {
@@ -333,7 +334,7 @@ button.row:disabled {
   background: transparent;
   color: var(--mute);
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .rowAction:hover:not(:disabled) {

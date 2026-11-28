@@ -1,24 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import AppHeader from './AppHeader.jsx'
-
-const sessionApi = vi.hoisted(() => ({ user: null }))
-
-vi.mock('../../auth/SessionContext.jsx', () => ({
-  useSession: () => sessionApi,
-}))
-
-const hub = vi.hoisted(() => ({
-  connect: vi.fn(),
-  providers: [],
-}))
-
-vi.mock('../../hub/index.js', () => ({
-  useHubActions: () => ({ getConnectionAvatar: vi.fn().mockRejectedValue(new Error('404')) }),
-  useProviders: () => ({ status: 'ready', providers: hub.providers, connect: hub.connect }),
-}))
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
 
@@ -30,10 +14,6 @@ function renderHeader(props = {}) {
   )
 }
 
-function connection(connectionId, provider, providerName, email, name, lastError = null) {
-  return { connectionId, provider, providerName, account: { email, name }, lastError, generation: 1 }
-}
-
 describe('AppHeader', () => {
   it('mostra o ícone pixel-art no botão da conta', () => {
     const { container } = renderHeader()
@@ -42,47 +22,21 @@ describe('AppHeader', () => {
     expect(icon.getAttribute('aria-hidden')).toBe('true')
   })
 
-  describe('trilho recolhido', () => {
-    const panel = { collapsed: true, onToggle: vi.fn(), id: 'panel' }
+  it('alterna entre Arquivos e Fotos', async () => {
+    const user = userEvent.setup()
+    renderHeader()
 
-    beforeEach(() => {
-      hub.connect.mockReset()
-      hub.connect.mockResolvedValue(undefined)
-      hub.providers = [
-        { id: 'onedrive', name: 'OneDrive', configured: true, connections: [] },
-        {
-          id: 'google-drive',
-          name: 'Google Drive',
-          configured: true,
-          connections: [
-            connection('conn-a', 'google-drive', 'Google Drive', 'ana@example.com', 'Ana Souza'),
-            connection('conn-b', 'google-drive', 'Google Drive', 'bia@example.com', 'Bia Lima', 'RECONEXAO_NECESSARIA'),
-          ],
-        },
-      ]
-    })
+    const arquivos = screen.getByRole('button', { name: 'Arquivos' })
+    const fotos = screen.getByRole('button', { name: 'Fotos' })
+    expect(arquivos).toHaveAttribute('aria-pressed', 'true')
+    expect(fotos).toHaveAttribute('aria-pressed', 'false')
 
-    it('mostra um avatar por conta, com o selo do provedor', () => {
-      renderHeader({ panel })
-      const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
+    await user.click(fotos)
+    expect(arquivos).toHaveAttribute('aria-pressed', 'false')
+    expect(fotos).toHaveAttribute('aria-pressed', 'true')
 
-      const ana = within(nav).getByRole('link', { name: 'Google Drive Ana Souza Conectado' })
-      expect(ana).toHaveAttribute('href', '/drives/conn-a')
-      expect(within(ana).getByTestId('account-avatar-badge')).toBeInTheDocument()
-
-      const bia = within(nav).getByRole('link', { name: 'Google Drive Bia Lima Acesso expirado' })
-      expect(bia).toHaveAttribute('href', '/settings/providers')
-      expect(within(nav).getByRole('link', { name: 'OneDrive Desconectado' })).toBeInTheDocument()
-    })
-
-    it('abre o menu de nova conta e conecta o provedor como conta adicional', async () => {
-      const user = userEvent.setup()
-      renderHeader({ panel })
-
-      await user.click(screen.getByRole('button', { name: 'Nova conta' }))
-      await user.click(screen.getByRole('menuitem', { name: 'OneDrive' }))
-
-      expect(hub.connect).toHaveBeenCalledWith('onedrive', '/home?x=1', { addAccount: true })
-    })
+    await user.click(arquivos)
+    expect(arquivos).toHaveAttribute('aria-pressed', 'true')
+    expect(fotos).toHaveAttribute('aria-pressed', 'false')
   })
 })

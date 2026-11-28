@@ -4,6 +4,7 @@
   --hero: #f7f6f3;
   --wash: #f7f6f3;
   --raise: #efede8;
+  --sunken: #f7f6f3;
   --line: #e6e3dd;
   --soft: #3d3d3d;
   --mute: #6b6b6b;
@@ -15,8 +16,11 @@
   --type: 'Geist Variable', 'Geist', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
-  --app-rail-width: 60px;
+  --app-rail-width: 68px;
   --app-sidebar-width: 248px;
+  --app-header-height: 56px;
+  --app-header-control-size: 36px;
+  --app-content-top-padding: 22px;
   --z-app-shell-header: 30;
 }
 
@@ -26,6 +30,7 @@
   --hero: #1c1c1c;
   --wash: #1c1c1c;
   --raise: #242424;
+  --sunken: #141414;
   --line: #2a2a2a;
   --soft: #c4c4c4;
   --mute: #929292;
@@ -42,6 +47,7 @@
     --hero: #1c1c1c;
     --wash: #1c1c1c;
     --raise: #242424;
+    --sunken: #141414;
     --line: #2a2a2a;
     --soft: #c4c4c4;
     --mute: #929292;

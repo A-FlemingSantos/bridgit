@@ -18,48 +18,12 @@
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 100%;
-  height: 88px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
-}
-
-.card:hover {
-  background: var(--wash);
-  border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
-}
-
-.card:active {
-  transform: translateY(1px);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  composes: card from '../../../../shared/styles/ActionCard.module.css';
 }
 
 /* Baixar leads, filled like Criar on Início. */
 .cardPrimary {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.cardPrimary:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-  opacity: 0.88;
+  composes: primary from '../../../../shared/styles/ActionCard.module.css';
 }
 
 /* Excluir takes the red the menus use for it. */
@@ -68,8 +32,8 @@
 }
 
 /* Highlighted or focused, it fills with that red and the label and icon take the theme's paper color. */
-.cardDanger:hover,
-.cardDanger:focus-visible {
+.card.cardDanger:hover,
+.card.cardDanger:focus-visible {
   border-color: var(--danger);
   background: var(--danger);
   color: var(--paper);
@@ -82,13 +46,7 @@
 }
 
 .cardLabel {
-  overflow: hidden;
-  max-width: 100%;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  composes: label from '../../../../shared/styles/ActionCard.module.css';
 }
 
 .popover {

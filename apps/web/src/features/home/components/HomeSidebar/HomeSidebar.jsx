@@ -1,12 +1,15 @@
-import { useId, useState } from 'react'
+import { useContext, useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, FileText, LayoutDashboard, Plus } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ChevronRight, House, Plus } from 'lucide-react'
 import AccountAvatar from '../../../../shared/components/AccountAvatar/AccountAvatar.jsx'
 import AddAccountMenu from '../../../../shared/components/AddAccountMenu/AddAccountMenu.jsx'
 import OverflowMenu from '../../../../shared/components/OverflowMenu/OverflowMenu.jsx'
-import { PixelCopy, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
+import { SidebarCollapsedContext } from '../../../../shared/components/AppShell/SidebarCollapsedContext.js'
+import { PixelBookmark, PixelCopy, PixelFileEmpty, PixelFolder, PixelLink, PixelUnlink } from '../../../../shared/components/PixelIcons/PixelIcons.jsx'
 import { driveFileUrl, driveUrl, ROUTES } from '../../../../shared/config/routes.js'
 import { useHubActions, useProviders, usePublicLinks, useShortcuts } from '../../../../shared/hub/index.js'
+import { useSession } from '../../../../shared/auth/SessionContext.jsx'
 import { hubErrorMessage } from '../../../../shared/state/hubErrorMessage.js'
 import { useHub } from '../../../../shared/state/HubState.jsx'
 import { fileNavState, usePageLocation } from '../../../../shared/utils/fileOverlay.js'
@@ -19,6 +22,24 @@ import { LinkWindowsIcon, useWindowsDevice, WindowsLogo, WINDOWS_DEVICE_NAME } f
 
 const EXPIRED = 'RECONEXAO_NECESSARIA'
 
+const PROVIDER_LABELS = {
+  onedrive: 'OneDrive',
+  'google-drive': 'Google Drive',
+  dropbox: 'Dropbox',
+}
+const ACTIVE_ITEM_TRANSITION = { type: 'spring', stiffness: 520, damping: 42, mass: 0.7 }
+
+function ActiveItemIndicator() {
+  return (
+    <motion.span
+      layoutId="home-sidebar-active-item"
+      className={styles.itemIndicator}
+      transition={ACTIVE_ITEM_TRANSITION}
+      aria-hidden="true"
+    />
+  )
+}
+
 function WindowsDeviceButton() {
   const [linked, link] = useWindowsDevice()
 
@@ -28,6 +49,7 @@ function WindowsDeviceButton() {
       className={[styles.item, styles.deviceItem].join(' ')}
       aria-pressed={linked}
       onClick={link}
+      hidden
     >
       <span className={styles.deviceMark}>
         {linked ? <WindowsLogo /> : <LinkWindowsIcon />}
@@ -40,42 +62,6 @@ function WindowsDeviceButton() {
   )
 }
 
-const PROVIDER_LABELS = {
-  onedrive: 'OneDrive',
-  'google-drive': 'Google Drive',
-  dropbox: 'Dropbox',
-}
-
-function Group({ title, children }) {
-  const [open, setOpen] = useState(true)
-  const bodyId = useId()
-
-  return (
-    <section className={styles.group}>
-      <h2 className={styles.groupTitle}>
-        <button
-          type="button"
-          className={styles.groupToggle}
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <ChevronRight
-            className={[styles.chevron, open ? styles.chevronOpen : ''].filter(Boolean).join(' ')}
-            size={14}
-            strokeWidth={1.8}
-            aria-hidden="true"
-          />
-          {title}
-        </button>
-      </h2>
-      <div id={bodyId} className={styles.groupBody} hidden={!open}>
-        {children}
-      </div>
-    </section>
-  )
-}
-
 // One connected account. Name falls back to the email, then to the provider's name.
 function accountLabels(connection) {
   const { account, providerName } = connection
@@ -84,7 +70,7 @@ function accountLabels(connection) {
   return { name, sub }
 }
 
-function ConnectionLink({ connection }) {
+function ConnectionLink({ connection, active = false }) {
   const { name, sub } = accountLabels(connection)
 
   if (connection.lastError === EXPIRED) {
@@ -107,9 +93,11 @@ function ConnectionLink({ connection }) {
   return (
     <Link
       to={driveUrl(connection.connectionId)}
-      className={styles.item}
+      className={[styles.item, active ? styles.itemActive : ''].filter(Boolean).join(' ')}
+      aria-current={active ? 'page' : undefined}
       aria-label={`${connection.providerName} ${name} Conectado`}
     >
+      {active ? <ActiveItemIndicator /> : null}
       <AccountAvatar connection={connection} size={24} />
       <span className={styles.itemMeta}>
         <span className={styles.itemName}>{name}</span>
@@ -134,6 +122,75 @@ function ProviderGhostLink({ provider }) {
         <span className={styles.itemSub}>Conectar</span>
       </span>
     </Link>
+  )
+}
+
+function LibrarySection({ icon, title, children }) {
+  const collapsed = useContext(SidebarCollapsedContext)
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
+  const expanded = open && !collapsed
+
+  return (
+    <section className={styles.librarySection}>
+      <h2 className={styles.sectionHeader}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          aria-expanded={expanded}
+          aria-controls={bodyId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className={styles.iconFrame} aria-hidden="true">{icon}</span>
+          <span className={styles.sectionLabel}>{title}</span>
+          <ChevronRight
+            className={[styles.sectionChevron, expanded ? styles.sectionChevronOpen : ''].filter(Boolean).join(' ')}
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        </button>
+      </h2>
+      <div id={bodyId} className={styles.sectionBody} hidden={!expanded}>
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function ShortcutRow({ file, location, menuContext }) {
+  const menuFile = {
+    connectionId: file.connectionId,
+    provider: file.provider,
+    ref: file.ref,
+    name: file.name,
+    parentRef: undefined,
+    mimeType: file.mimeType,
+    extension: file.extension,
+  }
+
+  return (
+    <div className={styles.itemWrap}>
+      <Link
+        to={driveFileUrl(file.connectionId, file.ref)}
+        state={fileNavState(location)}
+        className={styles.item}
+        aria-label={file.name}
+      >
+        <span className={styles.iconFrame} aria-hidden="true"><PixelFileEmpty /></span>
+        <span className={styles.itemMeta}>
+          <span className={styles.itemName}>{file.name}</span>
+        </span>
+      </Link>
+      <OverflowMenu
+        floating
+        ghost
+        hoverReveal
+        label={`Ações de ${file.name}`}
+        title={file.name}
+        items={fileMenuItems(menuFile, menuContext(file))}
+      />
+    </div>
   )
 }
 
@@ -172,7 +229,7 @@ function PublicLinkRow({ link, onError }) {
         className={styles.item}
         aria-label={`Link público de ${link.name}`}
       >
-        <span className={styles.itemIcon} aria-hidden="true">
+        <span className={styles.iconFrame} aria-hidden="true">
           {link.kind === 'folder' ? <PixelFolder /> : <PixelLink />}
         </span>
         <span className={styles.itemMeta}>
@@ -184,6 +241,7 @@ function PublicLinkRow({ link, onError }) {
         </span>
       </a>
       <OverflowMenu
+        floating
         ghost
         hoverReveal
         label={`Ações do link de ${link.name}`}
@@ -199,20 +257,23 @@ function PublicLinkRow({ link, onError }) {
 export default function HomeSidebar({ menuContext, onConnect, onError }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useSession()
+  const { providers, status: providersStatus } = useProviders()
   const { openOverlay } = useHub()
   const actions = useHubActions()
-  const { providers, status: providersStatus } = useProviders()
   const shortcutsQuery = useShortcuts()
   const linksQuery = usePublicLinks()
+  const collapsed = useContext(SidebarCollapsedContext)
   const [localError, setLocalError] = useState(null)
-  const shortcuts = shortcutsQuery.entries
-  const links = linksQuery.entries
-  const homeActive = usePageLocation().pathname === ROUTES.home
+  const pagePathname = usePageLocation().pathname
+  const homeActive = pagePathname === ROUTES.home
 
   const handleError = onError ?? ((error) => setLocalError(hubErrorMessage(error)))
   // Only the provider-list error state uses this; adding an account opens the menu below.
   const handleConnect = onConnect
     ?? (() => navigate(ROUTES.settingsProviders, { state: settingsNavState(location) }))
+  const shortcuts = shortcutsQuery.entries ?? []
+  const links = linksQuery.entries ?? []
   const fileMenuContext = menuContext
     ?? ((file) => ({
       openOverlay,
@@ -226,8 +287,8 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
     }))
 
   return (
-    <div className={styles.panel}>
-      <p className={styles.title}>Início</p>
+    <div className={[styles.panel, collapsed ? styles.panelCollapsed : ''].filter(Boolean).join(' ')}>
+      <p className={styles.title}>{user?.username ?? 'Início'}</p>
 
       {localError ? (
         <p className={styles.empty} role="alert">
@@ -235,113 +296,94 @@ export default function HomeSidebar({ menuContext, onConnect, onError }) {
         </p>
       ) : null}
 
-      <nav className={styles.primary} aria-label="Seções">
-        <Link
-          to={ROUTES.home}
-          className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
-          aria-current={homeActive ? 'page' : undefined}
-        >
-          <LayoutDashboard className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
-          <span className={styles.itemName}>Visão geral</span>
-        </Link>
-      </nav>
+      <div className={styles.navShell}>
+        <nav className={styles.rail} aria-label="Navegação principal">
+          <Link
+            to={ROUTES.home}
+            className={[styles.item, homeActive ? styles.itemActive : ''].filter(Boolean).join(' ')}
+            aria-current={homeActive ? 'page' : undefined}
+          >
+            {homeActive ? <ActiveItemIndicator /> : null}
+            <House size={24} strokeWidth={1.7} className={styles.itemIcon} aria-hidden="true" />
+            <span className={styles.itemName}>Início</span>
+          </Link>
 
-      <Group title="Dispositivos">
-        <WindowsDeviceButton />
-      </Group>
+          <hr className={styles.divider} />
 
-      <Group title="Minhas contas">
-        {providersStatus === 'loading' || providersStatus === 'idle' ? (
-          <p className={styles.empty}>Carregando…</p>
-        ) : providersStatus === 'error' ? (
-          <>
-            <p className={styles.empty} role="alert">
-              Não foi possível carregar os provedores.
-            </p>
-            <button type="button" className={styles.inlineAction} onClick={handleConnect}>
-              Conectar
-            </button>
-          </>
-        ) : (
-          <nav className={styles.list} aria-label="Minhas contas">
-            {providers.flatMap((provider) =>
+          <WindowsDeviceButton />
+
+          {providersStatus === 'loading' || providersStatus === 'idle' ? (
+            <p className={styles.empty}>Carregando…</p>
+          ) : providersStatus === 'error' ? (
+            <>
+              <p className={styles.empty} role="alert">
+                Não foi possível carregar os provedores.
+              </p>
+              <button type="button" className={styles.inlineAction} onClick={handleConnect}>
+                Conectar
+              </button>
+            </>
+          ) : (
+            providers.flatMap((provider) =>
               provider.connections?.length > 0
                 ? provider.connections.map((connection) => (
-                    <ConnectionLink key={connection.connectionId} connection={connection} />
+                    <ConnectionLink
+                      key={connection.connectionId}
+                      connection={connection}
+                      active={pagePathname === driveUrl(connection.connectionId) || pagePathname.startsWith(`${driveUrl(connection.connectionId)}/`)}
+                    />
                   ))
                 : [<ProviderGhostLink key={provider.id} provider={provider} />],
-            )}
-          </nav>
-        )}
-        <AddAccountMenu className={[styles.item, styles.addItem].join(' ')} onError={handleError}>
-          <Plus className={styles.itemIcon} size={16} strokeWidth={1.7} aria-hidden="true" />
-          <span className={styles.itemName}>Nova conta</span>
-        </AddAccountMenu>
-      </Group>
+            )
+          )}
 
-      <Group title="Links públicos">
-        {linksQuery.status === 'loading' || linksQuery.status === 'idle' ? (
-          <p className={styles.empty}>Carregando…</p>
-        ) : linksQuery.status === 'error' ? (
-          <p className={styles.empty} role="alert">
-            {hubErrorMessage(linksQuery.error)}
-          </p>
-        ) : links.length === 0 ? (
-          <p className={styles.empty}>Nenhum link. Publique um arquivo ou uma pasta pelo menu ⋯.</p>
-        ) : (
-          <div className={styles.list}>
-            {links.map((link) => (
-              <PublicLinkRow key={`${link.connectionId}-${link.ref}`} link={link} onError={handleError} />
-            ))}
-          </div>
-        )}
-      </Group>
+          <hr className={styles.divider} />
 
-      <Group title="Atalhos">
-        {shortcutsQuery.status === 'loading' ? (
-          <p className={styles.empty}>Carregando…</p>
-        ) : shortcutsQuery.status === 'error' ? (
-          <p className={styles.empty} role="alert">
-            {hubErrorMessage(shortcutsQuery.error)}
-          </p>
-        ) : shortcuts.length === 0 ? (
-          <p className={styles.empty}>Fixe arquivos pelo menu ⋯ para tê-los aqui.</p>
-        ) : (
-          <div className={styles.list}>
-            {shortcuts.map((file) => (
-              <div key={`${file.connectionId}-${file.ref}`} className={styles.itemWrap}>
-                <Link
-                  to={driveFileUrl(file.connectionId, file.ref)}
-                  state={fileNavState(location)}
-                  className={styles.item}
-                  aria-label={file.name}
-                >
-                  <FileText className={styles.itemIcon} size={16} strokeWidth={1.6} aria-hidden="true" />
-                  <span className={styles.itemName}>{file.name}</span>
-                </Link>
-                <OverflowMenu
-                  ghost
-                  hoverReveal
-                  label={`Ações de ${file.name}`}
-                  title={file.name}
-                  items={fileMenuItems(
-                    {
-                      connectionId: file.connectionId,
-                      provider: file.provider,
-                      ref: file.ref,
-                      name: file.name,
-                      parentRef: undefined,
-                      mimeType: file.mimeType,
-                      extension: file.extension,
-                    },
-                    fileMenuContext(file),
-                  )}
+          <AddAccountMenu className={[styles.item, styles.addItem].join(' ')} onError={handleError}>
+            <Plus className={styles.itemIcon} size={24} strokeWidth={1.7} aria-hidden="true" />
+            <span className={styles.itemName}>Nova conta</span>
+          </AddAccountMenu>
+        </nav>
+
+        <nav className={[styles.rail, styles.libraryRail].join(' ')} aria-label="Atalhos e links públicos">
+          <LibrarySection icon={<PixelBookmark />} title="Atalhos">
+            {shortcutsQuery.status === 'loading' || shortcutsQuery.status === 'idle' ? (
+              <p className={styles.empty}>Carregando…</p>
+            ) : shortcutsQuery.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(shortcutsQuery.error)}
+              </p>
+            ) : shortcuts.length === 0 ? (
+              <p className={styles.empty}>Fixe arquivos pelo menu ⋯ para tê-los aqui.</p>
+            ) : (
+              shortcuts.map((file) => (
+                <ShortcutRow
+                  key={`${file.connectionId}-${file.ref}`}
+                  file={file}
+                  location={location}
+                  menuContext={fileMenuContext}
                 />
-              </div>
-            ))}
-          </div>
-        )}
-      </Group>
+              ))
+            )}
+          </LibrarySection>
+
+          <LibrarySection icon={<PixelLink />} title="Links públicos">
+            {linksQuery.status === 'loading' || linksQuery.status === 'idle' ? (
+              <p className={styles.empty}>Carregando…</p>
+            ) : linksQuery.status === 'error' ? (
+              <p className={styles.empty} role="alert">
+                {hubErrorMessage(linksQuery.error)}
+              </p>
+            ) : links.length === 0 ? (
+              <p className={styles.empty}>Nenhum link. Publique um arquivo ou uma pasta pelo menu ⋯.</p>
+            ) : (
+              links.map((link) => (
+                <PublicLinkRow key={`${link.connectionId}-${link.ref}`} link={link} onError={handleError} />
+              ))
+            )}
+          </LibrarySection>
+        </nav>
+      </div>
     </div>
   )
 }

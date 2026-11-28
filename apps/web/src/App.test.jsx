@@ -473,6 +473,7 @@ describe('App', () => {
   })
 
   it('mostra os provedores na home', async () => {
+    const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/home']}>
@@ -480,16 +481,16 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('link', { name: 'Buscar' })).toHaveAttribute('href', '/home')
+    expect(screen.queryByRole('link', { name: 'Buscar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Spaces' })).not.toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
+    expect(await screen.findByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nova pasta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Conectar nuvem' })).toBeInTheDocument()
-    const devicesHeading = screen.getByRole('heading', { name: 'Dispositivos' })
-    const providersHeading = screen.getByRole('heading', { name: 'Minhas contas' })
-    expect(devicesHeading.compareDocumentPosition(providersHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Vincular ao Windows' })).toBeInTheDocument()
+    const rail = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(rail).queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Dispositivos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Minhas contas' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Scripts/ })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Atalhos' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
@@ -502,7 +503,12 @@ describe('App', () => {
     const recentLink = await screen.findByRole('link', { name: 'Análise de desempenho' })
     expect(recentLink).toHaveAttribute('href', `/drives/${CONN_OD}/file/${FILE_ANALISE}`)
     expect(recentLink).not.toHaveAttribute('target')
-    expect(screen.getByRole('link', { name: 'Relatório 2023' })).toBeInTheDocument()
+    const library = screen.getByRole('navigation', { name: 'Atalhos e links públicos' })
+    await user.click(screen.getByRole('button', { name: 'Atalhos' }))
+    expect(within(library).getByRole('link', { name: 'Relatório 2023' })).toHaveAttribute(
+      'href',
+      `/drives/${CONN_OD}/file/${FILE_REL}`,
+    )
   })
 
   it('abre um arquivo acima da home, sem trocar de tela', async () => {
@@ -534,8 +540,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Recentes' })).toBeInTheDocument()
   })
 
-  it('vincula um computador Windows na barra lateral', async () => {
-    const user = userEvent.setup()
+  it('oculta o computador Windows na barra lateral expandida', async () => {
     setupAuthenticatedApi()
     render(
       <MemoryRouter {...router} initialEntries={['/home']}>
@@ -543,22 +548,12 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    const link = await screen.findByRole('button', { name: 'Vincular ao Windows' })
-    expect(link).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
-    await user.click(link)
-
-    const device = screen.getByRole('button', { name: /Windows 10/ })
-    expect(device).toHaveAttribute('aria-pressed', 'true')
-    expect(device).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(await screen.findByRole('navigation', { name: 'Navegação principal' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' }))
-    expect(await screen.findByRole('heading', { name: 'Dispositivos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
   })
 
-  it('mostra o dispositivo na barra quando o painel está recolhido', async () => {
+  it('mantém o mesmo trilho ao recolher e expandir o painel', async () => {
     const user = userEvent.setup()
     setupAuthenticatedApi()
     render(
@@ -567,18 +562,22 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Recolher painel' }))
-    const header = document.querySelector('[data-authenticated-app-header]')
-    const rail = within(header).getByRole('navigation', { name: 'Dispositivos' })
-    await user.click(within(rail).getByRole('button', { name: 'Vincular ao Windows' }))
-    expect(within(rail).getByRole('button', { name: /Windows 10/ })).toBeInTheDocument()
+    const expandedRail = await screen.findByRole('navigation', { name: 'Navegação principal' })
+    expect(within(expandedRail).getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Recolher painel' }))
+    const collapsedRail = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(collapsedRail).getByRole('link', { name: 'OneDrive arthur@outlook.com Conectado' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Dispositivos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Windows 10/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Expandir painel' }))
-    expect(screen.getByRole('heading', { name: 'Dispositivos' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Windows 10/ })).toHaveTextContent('DESKTOP-6K2J8M1')
+    expect(screen.getByRole('navigation', { name: 'Navegação principal' })).toBeInTheDocument()
   })
 
-  it('lista os links públicos na barra lateral da home', async () => {
+  it('lista links públicos na barra lateral da home', async () => {
+    const user = userEvent.setup()
     setupAuthenticatedApi()
     hubTestState.publicLinks[FILE_ANALISE] = { url: 'https://bridgit.test/p/abc123', suffix: 'abc123' }
     render(
@@ -587,11 +586,10 @@ describe('App', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
-    expect(
-      await screen.findByRole('link', { name: 'Link público de Análise de desempenho' }),
-    ).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
-    expect(screen.getByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Links públicos' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Links públicos' }))
+    expect(screen.getByRole('link', { name: 'Link público de Análise de desempenho' })).toHaveAttribute('href', 'https://bridgit.test/p/abc123')
   })
 
   it('abre o menu de Enviar com arquivos e pasta', async () => {
@@ -1143,7 +1141,7 @@ describe('App', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Fechar configurações' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Configurações' }))
-    expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
   })
 
   it('retorna do OAuth com background sobre a página de origem e limpa os params', async () => {
@@ -1217,7 +1215,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     resolveLogin()
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
   })
 
@@ -1254,7 +1252,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
 
     expect(sessionStorage.getItem('bridgit.session')).toBeNull()
@@ -1435,7 +1433,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Minhas contas' })).toBeInTheDocument()
+      expect(screen.getByRole('searchbox', { name: 'Buscar' })).toBeInTheDocument()
     })
     expect(screen.queryByRole('dialog', { name: 'Configurações' })).not.toBeInTheDocument()
   })

@@ -3,65 +3,28 @@
   flex-direction: column;
   gap: 28px;
   width: min(100%, 1120px);
-  padding: calc(22px + env(safe-area-inset-top, 0px)) clamp(16px, 3vw, 40px) 56px;
+  padding: var(--app-content-top-padding) var(--app-content-inline-padding, clamp(16px, 3vw, 40px)) 56px;
 }
 
 .search {
   display: flex;
   align-items: center;
   gap: 10px;
-  /* Pixel-art outline on a 2px pixel: the box is painted in the edge colour and
-     clipped to a stepped-corner shape, then ::before paints the paper-coloured
-     inside with a corner one step tighter, leaving a 2px staircase frame. */
-  --edge: var(--line);
-  position: relative;
   width: 100%;
-  height: 44px;
-  padding: 0 16px;
+  max-width: calc(
+    1120px - var(--app-content-inline-padding, clamp(16px, 3vw, 40px)) - var(--app-content-inline-padding, clamp(16px, 3vw, 40px))
+  );
+  height: var(--app-header-control-size);
+  padding: 0 14px;
   border: 0;
-  border-radius: 0;
-  background: var(--edge);
+  border-radius: 999px;
+  background: var(--sunken);
   color: var(--mute);
-  clip-path: polygon(
-    0 6px, 2px 6px, 2px 4px, 4px 4px, 4px 2px, 6px 2px, 6px 0,
-    calc(100% - 6px) 0, calc(100% - 6px) 2px, calc(100% - 4px) 2px,
-    calc(100% - 4px) 4px, calc(100% - 2px) 4px, calc(100% - 2px) 6px, 100% 6px,
-    100% calc(100% - 6px), calc(100% - 2px) calc(100% - 6px),
-    calc(100% - 2px) calc(100% - 4px), calc(100% - 4px) calc(100% - 4px),
-    calc(100% - 4px) calc(100% - 2px), calc(100% - 6px) calc(100% - 2px),
-    calc(100% - 6px) 100%, 6px 100%, 6px calc(100% - 2px), 4px calc(100% - 2px),
-    4px calc(100% - 4px), 2px calc(100% - 4px), 2px calc(100% - 6px),
-    0 calc(100% - 6px)
-  );
   transition: background-color 150ms ease;
-}
-
-.search::before {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  background: var(--paper);
-  clip-path: polygon(
-    0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0,
-    calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px,
-    calc(100% - 2px) 4px, 100% 4px,
-    100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px),
-    calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px),
-    calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px),
-    2px calc(100% - 4px), 0 calc(100% - 4px)
-  );
-}
-
-.search > * {
-  position: relative;
 }
 
 .search svg {
   flex: none;
-}
-
-.search:focus-within {
-  --edge: color-mix(in srgb, var(--ink) 40%, var(--line));
 }
 
 .search input {
@@ -115,51 +78,11 @@
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 100%;
-  height: 88px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, opacity 150ms ease, transform 150ms ease;
-}
-
-.card:hover {
-  background: var(--wash);
-  border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
-}
-
-.card:active {
-  transform: translateY(1px);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
-.card:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  composes: card from '../../../shared/styles/ActionCard.module.css';
 }
 
 .cardPrimary {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.cardPrimary:hover {
-  background: var(--ink);
-  opacity: 0.88;
+  composes: primary from '../../../shared/styles/ActionCard.module.css';
 }
 
 .cardOutline {
@@ -167,9 +90,7 @@
 }
 
 .cardLabel {
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
+  composes: label from '../../../shared/styles/ActionCard.module.css';
 }
 
 .emptyState {
@@ -242,7 +163,7 @@
   font-size: 12.5px;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .chip:hover {

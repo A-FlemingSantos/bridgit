@@ -36,6 +36,22 @@ describe('entryActions folder download', () => {
   })
 })
 
+describe('entryActions menu groups', () => {
+  it('separates file navigation, file actions, sharing, and shortcuts', () => {
+    const items = fileMenuItems(file, context())
+    expect(items.filter((item) => item.separatorBefore).map((item) => item.id)).toEqual([
+      'rename',
+      'link',
+      'pin',
+    ])
+  })
+
+  it('separates folder actions from sharing', () => {
+    const items = folderMenuItems(folder, context())
+    expect(items.filter((item) => item.separatorBefore).map((item) => item.id)).toEqual(['link'])
+  })
+})
+
 describe('entryActions public link items', () => {
   let writeText
 

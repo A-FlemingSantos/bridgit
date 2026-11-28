@@ -1,8 +1,9 @@
 import { createContext, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { MotionConfig } from 'framer-motion'
-import AppHeader from '../../../shared/components/AppHeader/AppHeader.jsx'
+import AppHeader, { PanelIcon } from '../../../shared/components/AppHeader/AppHeader.jsx'
 import CustomScrollArea from '../../../shared/components/CustomScrollArea/CustomScrollArea.jsx'
 import HomeSidebar from '../../../features/home/components/HomeSidebar/HomeSidebar.jsx'
+import { SidebarCollapsedContext } from './SidebarCollapsedContext.js'
 import styles from './AppShell.module.css'
 
 const TOP_REVEAL_PX = 12
@@ -54,7 +55,7 @@ function useSidebarCollapsed() {
 
 // Every page shares the same side panel; a page may pass its own `sidebar` to
 // wire page-level handlers into it.
-export default function AppShell({ children, refreshKey, subheader = null, sidebar = <HomeSidebar />, className = '' }) {
+export default function AppShell({ children, header = null, refreshKey, subheader = null, sidebar = <HomeSidebar />, className = '' }) {
   const viewportRef = useRef(null)
   const bodyRef = useRef(null)
   const subheaderRef = useRef(null)
@@ -164,50 +165,62 @@ export default function AppShell({ children, refreshKey, subheader = null, sideb
   return (
     <MotionConfig reducedMotion="user">
     <AppShellSubheaderShownContext.Provider value={shown}>
-      <div className={[styles.page, className].filter(Boolean).join(' ')}>
-      <AppHeader
-        panel={hasSidebar
-          ? { id: sidebarId, collapsed: sidebarState.collapsed, onToggle: sidebarState.toggle }
-          : null}
-      />
-      {hasSidebar ? (
-        <aside
-          id={sidebarId}
-          className={[styles.sidebar, sidebarOpen ? '' : styles.sidebarCollapsed].filter(Boolean).join(' ')}
-          aria-label="Painel lateral"
-        >
-          <div className={styles.sidebarInner}>{sidebar}</div>
-        </aside>
-      ) : null}
-      {sidebarOpen ? (
-        <button
-          type="button"
-          className={styles.scrim}
-          aria-label="Fechar painel"
-          tabIndex={-1}
-          onClick={sidebarState.close}
-        />
-      ) : null}
-      <div className={styles.body} ref={bodyRef} data-overlay-host="">
-        {subheader ? (
-          <div
-            ref={subheaderRef}
-            className={[styles.subheader, shown ? '' : styles.subheaderRetracted].filter(Boolean).join(' ')}
-          >
-            {subheader}
-          </div>
+      <div className={[styles.page, sidebarState.collapsed ? styles.pageCollapsed : '', className].filter(Boolean).join(' ')}>
+      <AppHeader>{header}</AppHeader>
+      <div className={styles.lower}>
+        {hasSidebar ? (
+          <SidebarCollapsedContext.Provider value={sidebarState.collapsed}>
+            <aside
+              id={sidebarId}
+              className={[styles.sidebar, sidebarOpen ? '' : styles.sidebarCollapsed].filter(Boolean).join(' ')}
+              aria-label="Painel lateral"
+            >
+              <div className={styles.sidebarTop}>
+                <button
+                  type="button"
+                  className={styles.sidebarToggle}
+                  onClick={sidebarState.toggle}
+                  aria-label={sidebarState.collapsed ? 'Expandir painel' : 'Recolher painel'}
+                  aria-expanded={!sidebarState.collapsed}
+                  aria-controls={sidebarId}
+                >
+                  <PanelIcon />
+                </button>
+              </div>
+              <div className={styles.sidebarInner}>{sidebar}</div>
+            </aside>
+          </SidebarCollapsedContext.Provider>
         ) : null}
-        <CustomScrollArea
-          className={styles.scroll}
-          viewportClassName={styles.viewport}
-          refreshKey={refreshKey}
-          viewportRef={viewportRef}
-        >
-          {hasSubheader ? (
-            <div className={styles.subheaderSpacer} style={{ height: spacerHeight }} aria-hidden="true" />
+        {sidebarOpen ? (
+          <button
+            type="button"
+            className={styles.scrim}
+            aria-label="Fechar painel"
+            tabIndex={-1}
+            onClick={sidebarState.close}
+          />
+        ) : null}
+        <div className={styles.body} ref={bodyRef} data-overlay-host="">
+          {subheader ? (
+            <div
+              ref={subheaderRef}
+              className={[styles.subheader, shown ? '' : styles.subheaderRetracted].filter(Boolean).join(' ')}
+            >
+              {subheader}
+            </div>
           ) : null}
-          {children}
-        </CustomScrollArea>
+          <CustomScrollArea
+            className={styles.scroll}
+            viewportClassName={styles.viewport}
+            refreshKey={refreshKey}
+            viewportRef={viewportRef}
+          >
+            {hasSubheader ? (
+              <div className={styles.subheaderSpacer} style={{ height: spacerHeight }} aria-hidden="true" />
+            ) : null}
+            {children}
+          </CustomScrollArea>
+        </div>
       </div>
     </div>
     </AppShellSubheaderShownContext.Provider>

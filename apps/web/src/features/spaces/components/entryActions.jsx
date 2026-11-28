@@ -38,10 +38,10 @@ function publicLinkItems(item, { actions, hasPublicLink, onError }) {
       })
 
   if (!linked) {
-    return [{ id: 'link', label: 'Link público', icon: PixelLink, fill: true, onSelect: copyLink }]
+    return [{ id: 'link', label: 'Link público', icon: PixelLink, fill: true, separatorBefore: true, onSelect: copyLink }]
   }
   return [
-    { id: 'link', label: 'Copiar link', icon: PixelCopy, fill: true, onSelect: copyLink },
+    { id: 'link', label: 'Copiar link', icon: PixelCopy, fill: true, separatorBefore: true, onSelect: copyLink },
     {
       id: 'unlink',
       label: 'Desativar link',
@@ -81,6 +81,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
       id: 'rename',
       label: 'Renomear',
       icon: PixelPencil,
+      separatorBefore: true,
       onSelect: () =>
         onRename ? onRename(item) : openOverlay({
           type: 'name',
@@ -117,6 +118,7 @@ export function fileMenuItems(item, { openOverlay, actions, isShortcut, hasPubli
       id: 'pin',
       label: pinned ? 'Remover atalho' : 'Atalho',
       icon: PixelBookmark,
+      separatorBefore: true,
       onSelect: () => {
         void actions.toggleShortcut(item).catch((error) => onError?.(error))
       },

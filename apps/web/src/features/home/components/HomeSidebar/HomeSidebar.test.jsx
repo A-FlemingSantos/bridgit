@@ -3,10 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeSidebar from './HomeSidebar.jsx'
+import { SidebarCollapsedContext } from '../../../../shared/components/AppShell/SidebarCollapsedContext.js'
 
 const hub = vi.hoisted(() => ({
   connect: vi.fn(),
-  actions: { getConnectionAvatar: vi.fn(), disablePublicLink: vi.fn() },
+  actions: { getConnectionAvatar: vi.fn() },
   providers: [],
   shortcuts: [],
   links: [],
@@ -15,12 +16,26 @@ const hub = vi.hoisted(() => ({
 vi.mock('../../../../shared/hub/index.js', () => ({
   useHubActions: () => hub.actions,
   useProviders: () => ({ status: 'ready', providers: hub.providers, connect: hub.connect }),
-  useShortcuts: () => ({ status: 'ready', entries: hub.shortcuts, isShortcut: () => false }),
-  usePublicLinks: () => ({ status: 'ready', entries: hub.links, isPublic: () => false }),
+  useShortcuts: () => ({
+    status: 'ready',
+    entries: hub.shortcuts,
+    error: null,
+    isShortcut: (connectionId, ref) => hub.shortcuts.some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+  }),
+  usePublicLinks: () => ({
+    status: 'ready',
+    entries: hub.links,
+    error: null,
+    isPublic: (connectionId, ref) => hub.links.some((entry) => entry.connectionId === connectionId && entry.ref === ref),
+  }),
 }))
 
 vi.mock('../../../../shared/state/HubState.jsx', () => ({
   useHub: () => ({ openOverlay: vi.fn() }),
+}))
+
+vi.mock('../../../../shared/auth/SessionContext.jsx', () => ({
+  useSession: () => ({ user: { id: 'user-1', username: 'arthur' } }),
 }))
 
 const router = { future: { v7_startTransition: true, v7_relativeSplatPath: true } }
@@ -48,10 +63,12 @@ function setProviders(connections = []) {
   ]
 }
 
-function renderSidebar(props = {}) {
+function renderSidebar(props = {}, initialEntries = ['/home?x=1'], collapsed = false) {
   return render(
-    <MemoryRouter {...router} initialEntries={['/home?x=1']}>
-      <HomeSidebar {...props} />
+    <MemoryRouter {...router} initialEntries={initialEntries}>
+      <SidebarCollapsedContext.Provider value={collapsed}>
+        <HomeSidebar {...props} />
+      </SidebarCollapsedContext.Provider>
     </MemoryRouter>,
   )
 }
@@ -67,9 +84,18 @@ beforeEach(() => {
 })
 
 describe('HomeSidebar accounts', () => {
+  it('uses the username as the panel title and names the home link', () => {
+    renderSidebar()
+
+    expect(screen.getByText('arthur')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: 'Início' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getAllByRole('separator')).toHaveLength(2)
+  })
+
   it('lists each account of a provider as its own row with avatar and provider badge', () => {
     renderSidebar()
-    const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
 
     const ana = within(nav).getByRole('link', { name: 'Google Drive Ana Souza Conectado' })
     const bia = within(nav).getByRole('link', { name: 'Google Drive Bia Lima Conectado' })
@@ -82,7 +108,7 @@ describe('HomeSidebar accounts', () => {
 
   it('keeps one ghost row per provider without an account', () => {
     renderSidebar()
-    const nav = screen.getByRole('navigation', { name: 'Minhas contas' })
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
 
     expect(within(nav).getByRole('link', { name: 'OneDrive Desconectado' })).toHaveAttribute('href', '/settings/providers')
     expect(within(nav).getByRole('link', { name: 'Dropbox Desconectado' })).toBeInTheDocument()
@@ -100,6 +126,14 @@ describe('HomeSidebar accounts', () => {
     expect(within(byEmail).getByText('sem.nome@example.com')).toBeInTheDocument()
     expect(within(byEmail).getByText('Google Drive')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'OneDrive OneDrive Conectado' })).toHaveAttribute('href', '/drives/conn-d')
+  })
+
+  it('marks the connected account as current on its drive routes', () => {
+    renderSidebar({}, ['/drives/conn-a/folder/pasta-1'])
+
+    expect(screen.getByRole('link', { name: 'Google Drive Ana Souza Conectado' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Google Drive Bia Lima Conectado' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
   })
 
   it('sends an expired account to settings', () => {
@@ -125,22 +159,70 @@ describe('HomeSidebar accounts', () => {
     expect(onConnect).not.toHaveBeenCalled()
   })
 
-  it('opens shortcuts through the account route', () => {
-    hub.shortcuts = [{ connectionId: 'conn-b', provider: 'google-drive', ref: 'f/1', name: 'Plano.pdf' }]
+  it('renderiza atalhos e links públicos no segundo container', async () => {
+    const user = userEvent.setup()
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
     renderSidebar()
 
-    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toHaveAttribute('href', '/drives/conn-b/file/f%2F1')
+    expect(screen.queryByText('Dispositivos')).toBeNull()
+    expect(screen.queryByText('Minhas contas')).toBeNull()
+    expect(screen.getByText('Atalhos')).toBeInTheDocument()
+    expect(screen.getByText('Links públicos')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Atalhos' }))
+    await user.click(screen.getByRole('button', { name: 'Links públicos' }))
+    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toHaveAttribute('href', '/drives/conn-a/file/file-1')
+    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toHaveAttribute('href', 'https://bridgit.test/p/plano')
+    expect(screen.queryByRole('button', { name: 'Vincular ao Windows' })).toBeNull()
   })
 
-  it('disables a public link by account and ref', async () => {
+  it('recolhe e expande atalhos e links públicos', async () => {
     const user = userEvent.setup()
-    hub.actions.disablePublicLink.mockResolvedValue(undefined)
-    hub.links = [{ connectionId: 'conn-b', provider: 'google-drive', ref: 'f1', name: 'Plano', kind: 'file', url: 'https://x/p/1' }]
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
     renderSidebar()
 
-    await user.click(screen.getByRole('button', { name: 'Ações do link de Plano' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Desativar link' }))
+    const shortcutsToggle = screen.getByRole('button', { name: 'Atalhos' })
+    const linksToggle = screen.getByRole('button', { name: 'Links públicos' })
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(linksToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
 
-    expect(hub.actions.disablePublicLink).toHaveBeenCalledWith({ connectionId: 'conn-b', ref: 'f1' })
+    await user.click(shortcutsToggle)
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Plano.pdf' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
+
+    await user.click(linksToggle)
+    expect(linksToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Link público de Plano' })).toBeInTheDocument()
+
+    await user.click(shortcutsToggle)
+    expect(shortcutsToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+  })
+
+  it('recolhe o conteúdo das seções quando a sidebar está recolhida', () => {
+    hub.shortcuts = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano.pdf', mimeType: 'application/pdf', extension: 'pdf' },
+    ]
+    hub.links = [
+      { connectionId: 'conn-a', provider: 'google-drive', ref: 'file-1', name: 'Plano', kind: 'file', url: 'https://bridgit.test/p/plano', createdAt: null },
+    ]
+    renderSidebar({}, ['/home?x=1'], true)
+
+    expect(screen.getByRole('button', { name: 'Atalhos' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Links públicos' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Plano.pdf' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Link público de Plano' })).toBeNull()
   })
 })

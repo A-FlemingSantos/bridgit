@@ -16,7 +16,7 @@
   background: var(--swatch);
   cursor: pointer;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .swatch:hover {
@@ -25,14 +25,14 @@
 
 .swatch[aria-checked='true'] {
   box-shadow:
-    0 0 0 2px var(--overlay),
+    0 0 0 2px var(--raise),
     0 0 0 3px var(--ink);
 }
 
 .swatch:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px var(--overlay),
+    0 0 0 2px var(--raise),
     0 0 0 3px var(--ink);
 }
 

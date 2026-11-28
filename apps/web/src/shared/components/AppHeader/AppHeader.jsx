@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
 import { ROUTES } from '../../config/routes.js'
 import {
@@ -6,16 +8,42 @@ import {
 } from '../../utils/settingsOverlay.js'
 import BrandMark from '../BrandMark/BrandMark.jsx'
 import styles from './AppHeader.module.css'
-import RailProviders from './RailProviders.jsx'
+
+const CONTENT_MODES = [
+  { id: 'files', label: 'Arquivos' },
+  { id: 'photos', label: 'Fotos' },
+]
 
 function railClass(active) {
   return [styles.iconButton, active ? styles.iconButtonActive : ''].filter(Boolean).join(' ')
 }
 
-// Vertical navigation rail of the authenticated app. `panel` is passed when the
-// page has a collapsible sidebar, so the rail can offer its toggle.
-export default function AppHeader({ panel = null }) {
+export function PanelIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      shapeRendering="crispEdges"
+      className={styles.pixelIcon}
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="2" />
+      <rect x="4" y="18" width="16" height="2" />
+      <rect x="2" y="6" width="2" height="12" />
+      <rect x="20" y="6" width="2" height="12" />
+      <rect x="8" y="6" width="2" height="12" />
+      <rect x="4" y="6" width="4" height="12" />
+    </svg>
+  )
+}
+
+// Shared horizontal header of the authenticated app.
+export default function AppHeader({ children = null }) {
   const location = useLocation()
+  const [contentMode, setContentMode] = useState('files')
   const settingsActive = isSettingsPath(location.pathname)
   const settingsState = settingsNavState(location)
 
@@ -25,57 +53,35 @@ export default function AppHeader({ panel = null }) {
         <Link to={ROUTES.home} className={styles.brand} aria-label="Bridgit">
           <BrandMark />
         </Link>
-
-        <nav className={styles.primaryNav} aria-label="Navegação principal">
-          <Link
-            to={ROUTES.home}
-            state={{ focusSearch: true }}
-            className={styles.iconButton}
-            aria-label="Buscar"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              shapeRendering="crispEdges"
-              className={styles.pixelIcon}
-              aria-hidden="true"
-            >
-              <path d="M22 22h-2v-2h2v2Zm-2-2h-2v-2h2v2Zm-6-2H6v-2h8v2Zm4 0h-2v-2h2v2ZM6 16H4v-2h2v2Zm10 0h-2v-2h2v2ZM4 14H2V6h2v8Zm14 0h-2V6h2v8ZM6 6H4V4h2v2Zm10 0h-2V4h2v2Zm-2-2H6V2h8v2Z" />
-            </svg>
-          </Link>
-        </nav>
-
-        {panel?.collapsed ? <RailProviders /> : null}
+        <div className={styles.modePill} role="group" aria-label="Tipo de conteúdo">
+          {CONTENT_MODES.map((mode) => {
+            const active = contentMode === mode.id
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                className={[styles.modeOption, active ? styles.modeOptionActive : ''].filter(Boolean).join(' ')}
+                aria-pressed={active}
+                onClick={() => setContentMode(mode.id)}
+              >
+                {active ? (
+                  <motion.span
+                    layoutId="header-content-mode-indicator"
+                    className={styles.modeOptionIndicator}
+                    transition={{ type: 'spring', stiffness: 520, damping: 42, mass: 0.7 }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <span className={styles.modeOptionLabel}>{mode.label}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className={styles.trailing}>
-        {panel ? (
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={panel.onToggle}
-            aria-label={panel.collapsed ? 'Expandir painel' : 'Recolher painel'}
-            aria-expanded={!panel.collapsed}
-            aria-controls={panel.id}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              shapeRendering="crispEdges"
-              className={panel.collapsed ? styles.pixelIcon : `${styles.pixelIcon} ${styles.flipped}`}
-              aria-hidden="true"
-            >
-              <path d="M20 4v16h2V4zM2 11v2h16v-2zm12 2v2h2v-2zm-2 2v2h2v-2zm-2 2v2h2v-2zm4-8v2h2V9zm-2-2v2h2V7zm-2-2v2h2V5z" />
-            </svg>
-          </button>
-        ) : null}
+      {children ? <div className={styles.pageHeader}>{children}</div> : null}
 
+      <div className={styles.trailing}>
         <Link
           to={ROUTES.settings}
           state={settingsState}

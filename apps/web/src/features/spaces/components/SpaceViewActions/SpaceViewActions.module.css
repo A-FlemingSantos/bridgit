@@ -14,7 +14,7 @@
   overflow: hidden;
   border-radius: 8px;
   background: var(--ink);
-  transition: border-radius 120ms ease;
+  transition: border-radius 150ms ease;
 }
 
 /* While the menu is out the head is the top of one body, so its bottom corners go square. */
@@ -40,7 +40,7 @@
   letter-spacing: -0.01em;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color 150ms ease;
 }
 
 .label {
